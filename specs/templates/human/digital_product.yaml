@@ -1,0 +1,209 @@
+# Digital product: moderate SQL in Hex, most of it against raw GA4 and
+# Amplitude. Querying the staging view with a date filter does not prune GA4
+# shards (F09).
+team: digital_product
+templates:
+  - id: dg.daily_users
+    weight: 5
+    params: {s1: "suffix:-14..-7", s2: "suffix:-1..-1"}
+    sql: |
+      SELECT event_date, COUNT(DISTINCT user_pseudo_id) AS users, COUNT(DISTINCT user_id) AS logged_in_users
+      FROM `fennmoor-raw.analytics_312874659.events_*`
+      WHERE _TABLE_SUFFIX BETWEEN '{{s1}}' AND '{{s2}}'
+      GROUP BY event_date
+      ORDER BY event_date
+
+  - id: dg.application_steps
+    by: [kenji.morita]
+    weight: 3
+    params: {s1: "suffix:-14..-7", s2: "suffix:-1..-1"}
+    sql: |
+      SELECT (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'application_step') AS step,
+             COUNT(DISTINCT user_pseudo_id) AS users
+      FROM `fennmoor-raw.analytics_312874659.events_*`
+      WHERE _TABLE_SUFFIX BETWEEN '{{s1}}' AND '{{s2}}' AND event_name = 'form_progress'
+      GROUP BY step
+      ORDER BY users DESC
+
+  - id: dg.sessions_by_device
+    weight: 3
+    params: {start: "date:-30..-14"}
+    sql: |
+      SELECT session_date, device_category, COUNT(*) AS sessions, AVG(engaged_sec) AS avg_engaged_sec,
+             COUNTIF(is_logged_in) / COUNT(*) AS logged_in_share
+      FROM `fennmoor-dw.dw_digital.fct_web_sessions`
+      WHERE session_date >= '{{start}}'
+      GROUP BY 1, 2
+
+  - id: dg.help_pages_then_contact
+    by: [ava.delacroix]
+    weight: 2
+    params: {start: "date:-30..-14"}
+    sql: |
+      WITH help AS (
+        SELECT customer_key, landing_page
+        FROM `fennmoor-dw.dw_digital.fct_web_sessions`
+        WHERE visited_help AND customer_key IS NOT NULL AND session_date >= '{{start}}'
+      )
+      SELECT h.landing_page, COUNT(DISTINCT h.customer_key) AS customers,
+             COUNT(DISTINCT IF(c.contacts_90d > 0, h.customer_key, NULL)) AS also_contacted_us
+      FROM help h
+      JOIN `fennmoor-dw.dw_customer.customer_360` c USING (customer_key)
+      GROUP BY h.landing_page
+      ORDER BY customers DESC
+      LIMIT 50
+
+  - id: dg.app_weekly_customers
+    weight: 4
+    params: {start: "date:-90..-56"}
+    sql: |
+      SELECT DATE_TRUNC(session_date, WEEK) AS wk, COUNT(DISTINCT cif_number) AS customers, COUNT(DISTINCT olb_user_id) AS logins
+      FROM `fennmoor-dw.dw_digital.fct_app_sessions`
+      WHERE session_date >= '{{start}}'
+      GROUP BY wk
+      ORDER BY wk
+
+  - id: dg.app_versions
+    weight: 2
+    params: {start: "date:-14..-7"}
+    sql: |
+      SELECT app_version, platform, COUNT(*) AS sessions
+      FROM `fennmoor-dw.dw_digital.fct_app_sessions`
+      WHERE session_date >= '{{start}}'
+      GROUP BY 1, 2
+      ORDER BY sessions DESC
+
+  - id: dg.amplitude_top_events
+    weight: 3
+    params: {d: "date:-2..-1"}
+    sql: |
+      SELECT event_type, COUNT(*) AS n
+      FROM `fennmoor-raw.amplitude_mobile.EVENTS_318842`
+      WHERE DATE(event_time) = '{{d}}'
+      GROUP BY event_type
+      ORDER BY n DESC
+      LIMIT 50
+
+  - id: dg.amplitude_screens
+    by: [ava.delacroix]
+    weight: 2
+    params: {start: "date:-7..-3", end: "date:-1..-1"}
+    sql: |
+      SELECT JSON_VALUE(event_properties, '$.screen_name') AS screen, COUNT(*) AS views
+      FROM `fennmoor-raw.amplitude_mobile.EVENTS_318842`
+      WHERE DATE(event_time) BETWEEN '{{start}}' AND '{{end}}' AND event_type = 'screen_view'
+      GROUP BY screen
+      ORDER BY views DESC
+
+  - id: dg.login_success
+    weight: 3
+    params: {start: "date:-14..-7"}
+    sql: |
+      SELECT event_date, channel, COUNTIF(is_success) / COUNT(*) AS success_rate, COUNT(*) AS attempts
+      FROM `fennmoor-dw.dw_digital.fct_digital_logins`
+      WHERE event_date >= '{{start}}'
+      GROUP BY 1, 2
+
+  - id: dg.enrollments
+    weight: 2
+    sql: |
+      SELECT DATE_TRUNC(DATE(enrolled_at), MONTH) AS m, enrollment_channel, COUNT(*) AS enrollments
+      FROM `fennmoor-raw.digital_banking.online_user`
+      GROUP BY 1, 2
+      ORDER BY 1
+
+  - id: dg.mobile_deposits
+    weight: 2
+    params: {start: "date:-30..-14"}
+    sql: |
+      SELECT DATE(submitted_at) AS d, COUNT(*) AS deposits, SUM(amount) AS amount
+      FROM `fennmoor-raw.digital_banking.mobile_deposit`
+      WHERE DATE(submitted_at) >= '{{start}}'
+      GROUP BY d
+      ORDER BY d
+
+  - id: dg.bill_pay_users
+    weight: 1
+    params: {start: "month:-6..-3"}
+    sql: |
+      SELECT DATE_TRUNC(sent_date, MONTH) AS m, COUNT(DISTINCT olb_user_id) AS payers, SUM(amount) AS amount
+      FROM `fennmoor-dw.dw_staging.stg_olb__bill_pay`
+      WHERE sent_date >= '{{start}}'
+      GROUP BY m
+      ORDER BY m
+
+  - id: dg.screen_paths_read
+    by: [ava.delacroix]
+    weight: 1
+    sql: |
+      SELECT * FROM sbx_digital.app_screen_paths ORDER BY events DESC LIMIT 100
+
+  - id: dg.staging_view_pages
+    by: [kenji.morita]
+    weight: 2
+    findings: [F09]
+    notes: Filtering the staging view on event_date does not prune the underlying shards.
+    params: {d: "date:-2..-1"}
+    sql: |
+      SELECT page_location, COUNT(*) AS views
+      FROM `fennmoor-dw.dw_staging.stg_ga4__events`
+      WHERE event_date = '{{d}}' AND event_name = 'page_view'
+      GROUP BY page_location
+      ORDER BY views DESC
+      LIMIT 100
+
+  - id: dg.funnel_mart
+    weight: 3
+    params: {start: "date:-30..-14"}
+    sql: |
+      SELECT * FROM `fennmoor-dw.dw_digital.fct_account_opening_funnel` WHERE session_date >= '{{start}}' ORDER BY session_date DESC
+
+  # ---- breadth -------------------------------------------------------------
+  - id: dg.funnel_trend
+    weight: 2
+    params: {start: "date:-60..-30"}
+    sql: |
+      SELECT DATE_TRUNC(session_date, WEEK) AS wk, SUM(started) AS started, SUM(submitted) AS submitted
+      FROM `fennmoor-dw.dw_digital.fct_account_opening_funnel`
+      WHERE session_date >= '{{start}}' [[opt: AND device_category = 'mobile']]
+      GROUP BY wk
+      ORDER BY wk
+
+  - id: dg.login_channels
+    weight: 2
+    params: {start: "date:-30..-14"}
+    sql: |
+      SELECT channel, [[alt: result ;; geo_country]] AS cut, COUNT(*) AS attempts
+      FROM `fennmoor-dw.dw_digital.fct_digital_logins`
+      WHERE event_date >= '{{start}}'
+      GROUP BY 1, 2
+      ORDER BY 3 DESC
+
+  - id: dg.app_screens_per_session
+    weight: 2
+    params: {start: "date:-14..-7"}
+    sql: |
+      SELECT platform, APPROX_QUANTILES(screens, 4) AS screen_quartiles, AVG(events) AS avg_events
+      FROM `fennmoor-dw.dw_digital.fct_app_sessions`
+      WHERE session_date >= '{{start}}'
+      GROUP BY platform
+
+  - id: dg.p2p_adoption
+    weight: 2
+    params: {start: "month:-6..-3"}
+    sql: |
+      SELECT DATE_TRUNC(initiated_date, MONTH) AS m, COUNT(DISTINCT olb_user_id) AS users, COUNT(*) AS transfers
+      FROM `fennmoor-dw.dw_digital.fct_p2p_transfers`
+      WHERE initiated_date >= '{{start}}'
+      GROUP BY m
+      ORDER BY m
+
+  - id: dg.logged_in_share
+    weight: 2
+    params: {start: "date:-30..-14"}
+    sql: |
+      SELECT traffic_medium, COUNTIF(is_logged_in) / COUNT(*) AS logged_in_share, COUNT(*) AS sessions
+      FROM `fennmoor-dw.dw_digital.fct_web_sessions`
+      WHERE session_date >= '{{start}}'
+      GROUP BY traffic_medium
+      ORDER BY sessions DESC

@@ -1,0 +1,253 @@
+# Data engineering: expert SQL, mostly debugging and reconciliation. Low
+# ad-hoc volume (most of their "queries" are dbt, which runs as dbt-prod).
+team: data_engineering
+templates:
+  - id: de.dup_check
+    weight: 3
+    sql: |
+      SELECT [[alt: cif_number ;; customer_key]], COUNT(*) AS n
+      FROM `fennmoor-dw.dw_core.dim_customer`
+      GROUP BY 1
+      HAVING COUNT(*) > 1
+      ORDER BY n DESC
+      LIMIT 100
+
+  - id: de.recon_customer_layers
+    weight: 2
+    sql: |
+      SELECT
+        (SELECT COUNT(*) FROM `fennmoor-raw.core_banking_cdc.CUSTOMER`) AS raw_rows,
+        (SELECT COUNT(*) FROM `fennmoor-dw.dw_staging.stg_core__customer`) AS stg_rows,
+        (SELECT COUNT(*) FROM `fennmoor-dw.dw_core.dim_customer`) AS dim_rows
+
+  - id: de.late_settlements
+    weight: 2
+    params: {start: "date:-10..-3"}
+    sql: |
+      SELECT post_date, COUNT(*) AS n, MAX(_loaded_at) AS last_loaded
+      FROM `fennmoor-dw.dw_staging.stg_cards__settlement`
+      WHERE post_date >= '{{start}}'
+      GROUP BY post_date
+      ORDER BY post_date DESC
+
+  - id: de.partition_sizes
+    weight: 2
+    sql: |
+      SELECT table_name, partition_id, total_rows, total_logical_bytes
+      FROM `fennmoor-dw.dw_core.INFORMATION_SCHEMA.PARTITIONS`
+      WHERE table_name = '[[alt: fct_card_transactions ;; fct_deposit_transactions ;; fct_daily_account_balances]]'
+      ORDER BY partition_id DESC
+      LIMIT 30
+
+  - id: de.column_audit
+    weight: 1
+    params: {pat: "choice:cif|account_id|branch|cost_center"}
+    sql: |
+      SELECT table_name, column_name, data_type
+      FROM `fennmoor-dw.[[alt: dw_core ;; dw_customer ;; dw_contact_center]]`.INFORMATION_SCHEMA.COLUMNS
+      WHERE LOWER(column_name) LIKE '%{{pat}}%'
+      ORDER BY table_name
+
+  - id: de.pref_branch_nulls
+    by: [aiko.tanaka-reyes]
+    weight: 2
+    findings: [F16]
+    active: {from: 2026-05-11}
+    notes: Someone noticed branch reports going flat and started digging.
+    params: {start: "date:-45..-30"}
+    sql: |
+      SELECT DATE(last_updated_at) AS d,
+             COUNTIF(preferred_branch_id IS NULL) AS null_branch,
+             COUNT(*) AS updated
+      FROM `fennmoor-dw.dw_staging.stg_core__customer`
+      WHERE last_updated_at >= TIMESTAMP('{{start}}')
+      GROUP BY d
+      ORDER BY d
+
+  - id: de.fivetran_lag
+    weight: 3
+    sql: |
+      SELECT MAX(_fivetran_synced) AS last_sync, TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), MAX(_fivetran_synced), MINUTE) AS lag_min
+      FROM `fennmoor-raw.[[alt: salesforce.case ;; genesys_cloud.conversation ;; digital_banking.login_event ;; braze.message_send ;; fraud_platform.alert]]`
+
+  - id: de.dupe_conversations
+    weight: 1
+    sql: |
+      SELECT conversation_id, COUNT(*) AS c
+      FROM `fennmoor-dw.dw_contact_center.fct_calls`
+      GROUP BY conversation_id
+      HAVING c > 1
+      LIMIT 50
+
+  - id: de.orphan_accounts
+    weight: 1
+    sql: |
+      SELECT a.account_family, COUNT(*) AS orphans
+      FROM `fennmoor-dw.dw_core.dim_account` a
+      LEFT JOIN `fennmoor-dw.dw_core.dim_customer` c ON c.customer_key = a.customer_key
+      WHERE c.customer_key IS NULL
+      GROUP BY 1
+
+  - id: de.legacy_dag_still_running
+    by: [marcus.lindqvist]
+    weight: 1
+    findings: [F05]
+    params: {start: "date:-14..-7"}
+    sql: |
+      SELECT BAL_DT, COUNT(*) AS rows_loaded, MAX(LOAD_TS) AS loaded_at
+      FROM legacy_edw.ACCT_DLY_BAL
+      WHERE BAL_DT >= '{{start}}'
+      GROUP BY BAL_DT
+      ORDER BY BAL_DT DESC
+
+  - id: de.staging_smoke
+    weight: 2
+    sql: |
+      SELECT * FROM `fennmoor-dw.dw_staging.[[alt: stg_sf__case ;; stg_genesys__segment ;; stg_olb__login_event ;; stg_cards__authorization ;; stg_core__deposit_transaction]]` LIMIT 10
+
+  - id: de.ga4_shard_rows
+    weight: 1
+    params: {s1: "suffix:-8..-8", s2: "suffix:-1..-1"}
+    sql: |
+      SELECT _TABLE_SUFFIX AS shard, COUNT(*) AS events
+      FROM `fennmoor-raw.analytics_312874659.events_*`
+      WHERE _TABLE_SUFFIX BETWEEN '{{s1}}' AND '{{s2}}'
+      GROUP BY shard
+      ORDER BY shard
+
+  - id: de.identity_coverage
+    weight: 1
+    sql: |
+      SELECT COUNTIF(sf_contact_id IS NULL) AS no_salesforce,
+             COUNTIF(NOT is_digitally_enrolled) AS no_online_banking,
+             COUNTIF(braze_id IS NULL) AS no_braze,
+             COUNT(*) AS customers
+      FROM `fennmoor-dw.dw_intermediate.int_customer_identity`
+
+  - id: de.account_id_ranges
+    by: [ben.adeyemi]
+    weight: 1
+    findings: [F03]
+    notes: Checking why a fraud query returned matches between card and deposit accounts.
+    sql: |
+      SELECT 'card_processor' AS src, MIN(account_id) AS min_id, MAX(account_id) AS max_id, COUNT(*) AS n
+      FROM `fennmoor-raw.card_processor.card_account`
+      UNION ALL
+      SELECT 'core_banking', MIN(ACCT_ID), MAX(ACCT_ID), COUNT(*)
+      FROM `fennmoor-raw.core_banking_cdc.ACCOUNT`
+
+  - id: de.settlement_dupes
+    weight: 1
+    params: {d: "date:-5..-1"}
+    sql: |
+      SELECT settlement_id, COUNT(*) AS n
+      FROM `fennmoor-raw.card_processor.settlement`
+      WHERE post_date = '{{d}}'
+      GROUP BY settlement_id
+      HAVING COUNT(*) > 1
+
+  - id: de.ivr_intents
+    weight: 1
+    params: {d: "date:-3..-1"}
+    sql: |
+      SELECT JSON_VALUE(attributes, '$.intent') AS intent, COUNT(*) AS n
+      FROM `fennmoor-raw.genesys_cloud.participant`
+      WHERE DATE(start_time) = '{{d}}' AND purpose = 'customer'
+      GROUP BY intent
+      ORDER BY n DESC
+
+  # ---- breadth: debugging the intermediate layer ----------------------------
+  - id: de.int_identity_multi_login
+    weight: 1
+    sql: |
+      SELECT ARRAY_LENGTH(olb_user_ids) AS logins, COUNT(*) AS customers
+      FROM `fennmoor-dw.dw_intermediate.int_customer_identity`
+      WHERE is_digitally_enrolled
+      GROUP BY logins
+      ORDER BY logins
+
+  - id: de.int_calls_unmatched_site
+    weight: 1
+    params: {d: "date:-3..-1"}
+    sql: |
+      SELECT queue_name, COUNT(*) AS calls
+      FROM `fennmoor-dw.dw_intermediate.int_calls_enriched`
+      WHERE conversation_date = '{{d}}' AND queue_site_id IS NULL
+      GROUP BY queue_name
+      ORDER BY calls DESC
+
+  - id: de.int_calls_missing_cif
+    weight: 1
+    params: {start: "date:-7..-3"}
+    sql: |
+      SELECT conversation_date, ivr_auth_result, COUNTIF(cif_number IS NULL) AS no_cif, COUNT(*) AS calls
+      FROM `fennmoor-dw.dw_intermediate.int_calls_enriched`
+      WHERE conversation_date >= '{{start}}'
+      GROUP BY 1, 2
+      ORDER BY 1
+
+  - id: de.int_accounts_family_counts
+    weight: 1
+    sql: |
+      SELECT account_family, COUNT(*) AS accounts, COUNTIF(primary_cif_number IS NULL) AS no_owner
+      FROM `fennmoor-dw.dw_intermediate.int_accounts_unioned`
+      GROUP BY account_family
+
+  - id: de.int_holders_no_primary
+    weight: 1
+    sql: |
+      SELECT COUNT(DISTINCT account_id) AS accounts_without_primary
+      FROM `fennmoor-dw.dw_intermediate.int_account_holders`
+      WHERE account_id NOT IN (SELECT account_id FROM `fennmoor-dw.dw_intermediate.int_account_holders` WHERE is_primary_holder)
+
+  - id: de.int_sessions_dupe_keys
+    weight: 1
+    params: {d: "date:-3..-1"}
+    sql: |
+      SELECT session_key, COUNT(*) AS n
+      FROM `fennmoor-dw.dw_intermediate.int_digital_sessions`
+      WHERE session_date = '{{d}}'
+      GROUP BY session_key
+      HAVING n > 1
+
+  - id: de.int_card_txn_unmapped_mcc
+    weight: 1
+    params: {d: "date:-3..-1"}
+    sql: |
+      SELECT mcc, COUNT(*) AS txns
+      FROM `fennmoor-dw.dw_intermediate.int_card_transactions_enriched`
+      WHERE post_date = '{{d}}' AND mcc_category_group IS NULL
+      GROUP BY mcc
+      ORDER BY txns DESC
+
+  - id: de.int_contact_points_coverage
+    weight: 1
+    sql: |
+      SELECT COUNTIF(primary_email IS NULL) AS no_email, COUNTIF(primary_mobile IS NULL) AS no_mobile, COUNT(*) AS customers
+      FROM `fennmoor-dw.dw_intermediate.int_customer_contact_points`
+
+  - id: de.int_closures_reason_codes
+    weight: 1
+    sql: |
+      SELECT account_family, close_reason, COUNT(*) AS n
+      FROM `fennmoor-dw.dw_intermediate.int_account_closures`
+      GROUP BY 1, 2
+      ORDER BY 1, 3 DESC
+
+  - id: de.int_cdr_shape_check
+    weight: 1
+    sql: |
+      SELECT site_id, disposition_code, COUNT(*) AS calls
+      FROM `fennmoor-dw.dw_intermediate.int_calls_legacy_cdr`
+      WHERE conversation_date BETWEEN '2025-09-01' AND '2025-09-30'
+      GROUP BY 1, 2
+
+  - id: de.deposit_txn_volume
+    weight: 1
+    params: {start: "date:-10..-3"}
+    sql: |
+      SELECT posted_date, transaction_type, COUNT(*) AS n
+      FROM `fennmoor-dw.dw_core.fct_deposit_transactions`
+      WHERE posted_date >= '{{start}}'
+      GROUP BY 1, 2
+      ORDER BY 1, 3 DESC

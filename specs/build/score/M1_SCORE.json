@@ -1,0 +1,44 @@
+{
+ "parse_health": {
+  "successful_shapes": 1194,
+  "status": {
+   "ok": 1194
+  },
+  "resolved_rate": 1.0
+ },
+ "joins": {
+  "pipeline": 156,
+  "truth": 123,
+  "true_positive": 123,
+  "precision": 0.7884615384615384,
+  "recall": 1.0,
+  "f1": 0.8817204301075269,
+  "recall_by_source": {
+   "declared-model": [
+    79,
+    79
+   ],
+   "declared-bi": [
+    4,
+    4
+   ],
+   "reference": [
+    91,
+    91
+   ]
+  },
+  "extras_invisible_to_reference": 33,
+  "extras_plain": 0,
+  "reference_skipped_predicates": 524,
+  "statements": 119622
+ },
+ "lineage": {
+  "pipeline": 1887,
+  "truth": 1887,
+  "true_positive": 1887,
+  "precision": 1.0,
+  "recall": 1.0,
+  "f1": 1.0,
+  "ingestion_edges_not_scored": 763
+ }
+}

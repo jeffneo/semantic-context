@@ -1,0 +1,106 @@
+# Compliance / AML: one analyst, basic SQL, the only team with the
+# restricted datasets.
+team: compliance
+templates:
+  - id: co.alerts_by_scenario
+    weight: 5
+    params: {start: "date:-30..-7"}
+    sql: |
+      SELECT scenario_code, status, COUNT(*) AS alerts, SUM(total_amount) AS amount
+      FROM `fennmoor-dw.dw_compliance.fct_aml_alerts`
+      WHERE alert_date >= '{{start}}'
+      GROUP BY 1, 2
+      ORDER BY alerts DESC
+
+  - id: co.sar_monthly
+    weight: 3
+    sql: |
+      SELECT DATE_TRUNC(filing_date, MONTH) AS m, COUNT(*) AS sars, SUM(amount_involved) AS amount
+      FROM `fennmoor-dw.dw_compliance.fct_sar_filings`
+      GROUP BY m
+      ORDER BY m DESC
+
+  - id: co.kyc_overdue
+    weight: 3
+    sql: |
+      SELECT review_type, COUNTIF(is_overdue) AS overdue, COUNT(*) AS reviews
+      FROM `fennmoor-dw.dw_compliance.fct_kyc_reviews`
+      GROUP BY review_type
+
+  - id: co.high_risk_parties
+    weight: 2
+    sql: |
+      SELECT p.party_id, p.cif_number, p.risk_rating, p.pep_flag, c.segment
+      FROM `fennmoor-dw.dw_compliance.dim_aml_party` p
+      LEFT JOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key)
+      WHERE p.risk_rating = 'H'
+      ORDER BY p.onboarding_date DESC
+
+  - id: co.open_screening_hits
+    weight: 3
+    sql: |
+      SELECT list_name, status, COUNT(*) AS hits
+      FROM `fennmoor-raw.aml_kyc.screening_hit`
+      WHERE status != 'CLEARED'
+      GROUP BY 1, 2
+
+  - id: co.ctr_by_branch
+    weight: 2
+    params: {start: "date:-60..-30"}
+    sql: |
+      SELECT b.branch_name, COUNT(*) AS ctrs, SUM(c.cash_in_amount) AS cash_in
+      FROM `fennmoor-raw.aml_kyc.ctr_filing` c
+      JOIN `fennmoor-dw.dw_core.dim_branch` b ON b.branch_id = c.branch_id
+      WHERE c.txn_date >= '{{start}}'
+      GROUP BY b.branch_name
+      ORDER BY ctrs DESC
+
+  - id: co.sar_lookup
+    weight: 1
+    params: {sar: "choice:SAR-2026-00412|SAR-2026-00588|SAR-2026-00731"}
+    sql: |
+      SELECT sar_id, filing_date, status, narrative FROM `fennmoor-raw.aml_kyc.sar_filing` WHERE sar_id = '{{sar}}'
+
+  - id: co.ssn_column_inventory
+    weight: 1
+    notes: A periodic governance sweep for SSN-like columns.
+    sql: |
+      SELECT table_schema, table_name, column_name
+      FROM `fennmoor-analytics.[[alt: legacy_edw ;; sbx_risk]]`.INFORMATION_SCHEMA.COLUMNS
+      WHERE LOWER(column_name) LIKE '%ssn%' OR LOWER(column_name) LIKE '%tax_id%'
+
+  # ---- breadth -------------------------------------------------------------
+  - id: co.alert_escalation_rate
+    weight: 2
+    params: {start: "month:-6..-3"}
+    sql: |
+      SELECT DATE_TRUNC(alert_date, MONTH) AS m, COUNTIF(escalated_to_case) / COUNT(*) AS escalation_rate, COUNT(*) AS alerts
+      FROM `fennmoor-dw.dw_compliance.fct_aml_alerts`
+      WHERE alert_date >= '{{start}}'
+      GROUP BY m
+      ORDER BY m
+
+  - id: co.sar_status
+    weight: 2
+    sql: |
+      SELECT status, COUNT(*) AS sars, AVG(alert_count) AS avg_alerts_per_sar
+      FROM `fennmoor-dw.dw_compliance.fct_sar_filings`
+      [[opt: WHERE filing_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)]]
+      GROUP BY status
+
+  - id: co.kyc_turnaround
+    weight: 2
+    params: {start: "date:-90..-30"}
+    sql: |
+      SELECT review_type, AVG(days_to_complete) AS avg_days, COUNTIF(edd_required) AS edd
+      FROM `fennmoor-dw.dw_compliance.fct_kyc_reviews`
+      WHERE completed_date >= '{{start}}'
+      GROUP BY review_type
+
+  - id: co.pep_parties
+    weight: 1
+    sql: |
+      SELECT party_type, risk_rating, COUNT(*) AS parties
+      FROM `fennmoor-dw.dw_compliance.dim_aml_party`
+      WHERE pep_flag
+      GROUP BY 1, 2

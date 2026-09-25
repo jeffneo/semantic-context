@@ -1,0 +1,420 @@
+# =============================================================================
+# Fennmoor Bank - BigQuery estate: ground truth
+# =============================================================================
+# Fennmoor Bank is fictional: a US regional retail bank, ~$28B in assets,
+# ~2.1M retail customers, 164 branches, three contact-center sites (two owned,
+# one outsourced BPO). The bank name and domain are defined once here; rename
+# by changing `org`.
+#
+# This file defines the estate - projects, datasets, teams, principals and the
+# simulated log window. Tables live in the other files in this directory.
+#
+# Column DSL, used everywhere a table lists columns:
+#   "name | TYPE | expr | concept | flags"
+#   - TYPE    BigQuery type. STRUCT/ARRAY allowed. No `|` inside.
+#   - expr    Derived tables only: BigQuery SQL over the table's `from` aliases.
+#             Must not contain `|` (use CONCAT, not ||).
+#   - concept Id from concepts.yaml. Required for identifiers, PII and money.
+#   - flags   Space-separated: pk, required, pii=<kind>, unit=<cents|usd|bps|pct|sec|ms>,
+#             always_null, deprecated, policy=restricted
+#   Trailing empty fields may be omitted.
+# =============================================================================
+
+org:
+  name: Fennmoor Bank
+  domain: fennmoorbank.com
+  region: US              # BigQuery multi-region for every dataset
+
+# Simulated INFORMATION_SCHEMA.JOBS window. Dated events inside it are what
+# make recency, migration and deprecation findings observable in the log.
+log_window:
+  start: 2026-04-01
+  days: 90
+  timezone: America/Chicago   # business hours / cron times are local
+  events:
+    - date: 2026-05-15
+      id: churn_v3_cutover
+      what: >-
+        ml_scores.churn_score_v3 replaces churn_score_v2. Vertex batch scoring
+        switches to v3; v2 stops being written but is still read by two Looker
+        explores and one analyst for the rest of the window.
+    - date: 2026-04-20
+      id: branch_pref_dropped
+      what: >-
+        Core banking stops populating CUSTOMER.PREF_BRNCH_ID (field retired in
+        the core upgrade). The column stays in the schema; dim_customer keeps
+        selecting it, so everything downstream reads an always-null column.
+    - date: 2026-06-02
+      id: genesys_wrapup_v2
+      what: >-
+        Contact center adds new wrap-up codes for account-closure calls. Before
+        this date, closures are coded 'ACCT_MAINT'; after, 'ACCT_CLOSE'.
+
+# -----------------------------------------------------------------------------
+# Projects and datasets
+# -----------------------------------------------------------------------------
+# Three projects, which is typical: landing, modeled warehouse, analytics.
+# For validation these logical project ids are mapped onto one real GCP
+# project (see specs/GCP_SETUP.md); the generated SQL always uses the logical
+# ids so the log looks like a real multi-project estate.
+projects:
+  fennmoor-raw:
+    purpose: Landing zone. Written only by ingestion principals.
+  fennmoor-dw:
+    purpose: dbt-modeled warehouse. Written only by dbt-prod and Vertex scoring.
+  fennmoor-analytics:
+    purpose: >-
+      Legacy EDW lift-and-shift, BI scratch, reverse-ETL, data quality and
+      team/personal sandboxes. Where most of the mess lives.
+
+# layer: raw | staging | intermediate | mart | ml | legacy | bi | sandbox | ops
+datasets:
+  # ---- fennmoor-raw --------------------------------------------------------
+  core_banking_cdc:      {project: fennmoor-raw, layer: raw, source: core_banking, domain: deposits}
+  card_processor:        {project: fennmoor-raw, layer: raw, source: card_processor, domain: cards}
+  loan_origination:      {project: fennmoor-raw, layer: raw, source: los, domain: lending}
+  salesforce:            {project: fennmoor-raw, layer: raw, source: salesforce, domain: customer}
+  genesys_cloud:         {project: fennmoor-raw, layer: raw, source: genesys, domain: contact_center}
+  contact_center_legacy: {project: fennmoor-raw, layer: raw, source: avaya_legacy, domain: contact_center}
+  analytics_312874659:   {project: fennmoor-raw, layer: raw, source: ga4, domain: digital}
+  amplitude_mobile:      {project: fennmoor-raw, layer: raw, source: amplitude, domain: digital}
+  digital_banking:       {project: fennmoor-raw, layer: raw, source: olb_platform, domain: digital}
+  braze:                 {project: fennmoor-raw, layer: raw, source: braze, domain: marketing}
+  fraud_platform:        {project: fennmoor-raw, layer: raw, source: fraud_vendor, domain: fraud}
+  aml_kyc:               {project: fennmoor-raw, layer: raw, source: aml_vendor, domain: compliance, restricted: true}
+  credit_bureau:         {project: fennmoor-raw, layer: raw, source: bureau, domain: lending}
+  gl_erp:                {project: fennmoor-raw, layer: raw, source: erp, domain: finance}
+  workday:               {project: fennmoor-raw, layer: raw, source: workday, domain: hr, restricted: true}
+  reference_data:        {project: fennmoor-raw, layer: raw, source: manual_upload, domain: reference}
+
+  # ---- fennmoor-dw ---------------------------------------------------------
+  dw_staging:            {project: fennmoor-dw, layer: staging}
+  dw_staging_restricted: {project: fennmoor-dw, layer: staging, restricted: true}
+  dw_intermediate:       {project: fennmoor-dw, layer: intermediate}
+  dw_core:               {project: fennmoor-dw, layer: mart, domain: core}
+  dw_customer:           {project: fennmoor-dw, layer: mart, domain: customer}
+  dw_contact_center:     {project: fennmoor-dw, layer: mart, domain: contact_center}
+  dw_digital:            {project: fennmoor-dw, layer: mart, domain: digital}
+  dw_marketing:          {project: fennmoor-dw, layer: mart, domain: marketing}
+  dw_risk:               {project: fennmoor-dw, layer: mart, domain: lending}
+  dw_finance:            {project: fennmoor-dw, layer: mart, domain: finance}
+  dw_compliance:         {project: fennmoor-dw, layer: mart, domain: compliance, restricted: true}
+  ml_features:           {project: fennmoor-dw, layer: ml}
+  ml_scores:             {project: fennmoor-dw, layer: ml}
+
+  # ---- fennmoor-analytics --------------------------------------------------
+  legacy_edw:            {project: fennmoor-analytics, layer: legacy}
+  looker_scratch:        {project: fennmoor-analytics, layer: bi}
+  reverse_etl:           {project: fennmoor-analytics, layer: ops}
+  data_quality:          {project: fennmoor-analytics, layer: ops}
+  sbx_customer_analytics: {project: fennmoor-analytics, layer: sandbox, team: customer_analytics}
+  sbx_marketing:         {project: fennmoor-analytics, layer: sandbox, team: marketing_analytics}
+  sbx_risk:              {project: fennmoor-analytics, layer: sandbox, team: risk_analytics}
+  sbx_fraud:             {project: fennmoor-analytics, layer: sandbox, team: fraud_strategy}
+  sbx_cx_ops:            {project: fennmoor-analytics, layer: sandbox, team: cx_ops}
+  sbx_finance:           {project: fennmoor-analytics, layer: sandbox, team: finance_fpa}
+  sbx_digital:           {project: fennmoor-analytics, layer: sandbox, team: digital_product}
+  sbx_priya_raman:       {project: fennmoor-analytics, layer: sandbox, owner: priya.raman}
+  sbx_tom_okafor:        {project: fennmoor-analytics, layer: sandbox, owner: tom.okafor}
+  sbx_dana_whitfield:    {project: fennmoor-analytics, layer: sandbox, owner: dana.whitfield}
+
+# -----------------------------------------------------------------------------
+# Teams and human principals
+# -----------------------------------------------------------------------------
+# Everyone is fictional. `reads` lists the datasets a team can read (dataset
+# ACLs; a wildcard never grants a restricted dataset - those need an explicit
+# entry); `home` is where it spends most of its query volume. `sql_style`
+# drives the template generator: how messy, how long, how many CTEs.
+teams:
+  data_engineering:
+    home: [dw_staging, dw_intermediate, dw_core, data_quality]
+    reads: ["*"]
+    tools: [bigquery_console, dbt_cloud_ide]
+    sql_style: {skill: expert, ad_hoc_share: 0.15}
+    members: [marcus.lindqvist, aiko.tanaka-reyes, ben.adeyemi]
+  customer_analytics:
+    home: [dw_customer, dw_core, sbx_customer_analytics]
+    reads: [dw_*, ml_scores, legacy_edw, looker_scratch, sbx_customer_analytics, sbx_priya_raman, sbx_tom_okafor]
+    tools: [bigquery_console, hex]
+    sql_style: {skill: strong, ad_hoc_share: 0.8}
+    members: [priya.raman, tom.okafor, grace.nakamura, elliot.fairbanks]
+  marketing_analytics:
+    home: [dw_marketing, dw_digital, sbx_marketing]
+    reads: [dw_customer, dw_marketing, dw_digital, dw_core, dw_staging, ml_scores, braze, card_processor, analytics_312874659, sbx_marketing, sbx_dana_whitfield, sbx_customer_analytics]
+    tools: [bigquery_console, looker]
+    sql_style: {skill: moderate, ad_hoc_share: 0.9}
+    members: [dana.whitfield, luis.carvajal, simone.okonkwo]
+  risk_analytics:
+    home: [dw_risk, credit_bureau, sbx_risk]
+    reads: [dw_risk, dw_core, dw_customer, credit_bureau, loan_origination, core_banking_cdc, legacy_edw, ml_scores, sbx_risk]
+    tools: [bigquery_console, sas_via_odbc]
+    sql_style: {skill: strong, ad_hoc_share: 0.7}
+    members: [samuel.achterberg, mei-lin.zhou, deepak.venkataraman]
+  fraud_strategy:
+    home: [dw_risk, fraud_platform, sbx_fraud]
+    reads: [dw_risk, dw_core, dw_staging, fraud_platform, card_processor, core_banking_cdc, dw_digital, digital_banking, sbx_fraud]
+    tools: [bigquery_console, jupyter]
+    sql_style: {skill: strong, ad_hoc_share: 0.85}
+    members: [olumide.bankole, rachel.kim]
+  cx_ops:
+    home: [dw_contact_center, sbx_cx_ops]
+    reads: [dw_contact_center, dw_core, dw_customer, genesys_cloud, contact_center_legacy, legacy_edw, sbx_cx_ops]
+    tools: [bigquery_console, looker]
+    sql_style: {skill: basic, ad_hoc_share: 0.6}
+    members: [jerome.baptiste, hannah.sorensen, carla.mendoza]
+  finance_fpa:
+    home: [dw_finance, legacy_edw, sbx_finance]
+    reads: [dw_finance, dw_core, dw_staging, gl_erp, legacy_edw, dw_contact_center, sbx_finance]
+    tools: [bigquery_console, tableau]
+    sql_style: {skill: basic, ad_hoc_share: 0.5}
+    members: [victor.almeida, ruth.esposito]
+  digital_product:
+    home: [dw_digital, analytics_312874659, amplitude_mobile, sbx_digital]
+    reads: [dw_digital, dw_customer, dw_staging, analytics_312874659, amplitude_mobile, digital_banking, sbx_digital]
+    tools: [bigquery_console, hex]
+    sql_style: {skill: moderate, ad_hoc_share: 0.9}
+    members: [kenji.morita, ava.delacroix]
+  data_science:
+    home: [ml_features, ml_scores, dw_customer]
+    reads: [dw_*, ml_features, ml_scores, sbx_customer_analytics, sbx_risk, sbx_marketing]
+    tools: [vertex_workbench, jupyter]
+    sql_style: {skill: expert, ad_hoc_share: 0.7}
+    members: [farah.siddiqui, noah.brennan]
+  compliance:
+    home: [dw_compliance, aml_kyc]
+    reads: [dw_compliance, aml_kyc, dw_core, dw_customer]
+    tools: [bigquery_console]
+    sql_style: {skill: basic, ad_hoc_share: 0.95}
+    members: [ingrid.halvorsen]
+
+# -----------------------------------------------------------------------------
+# Service accounts
+# -----------------------------------------------------------------------------
+# In a real log these issue 60-80% of all jobs. `share` is the target share of
+# total job count; `pattern` tells the simulator how its SQL behaves.
+service_accounts:
+  fivetran-sync:
+    email: g-sunny-marmot@fivetran-production.iam.gserviceaccount.com
+    project: fennmoor-raw
+    share: 0.18
+    pattern: MERGE into raw tables every 15-60 min per connector
+    writes: [card_processor, loan_origination, salesforce, genesys_cloud, digital_banking, braze, fraud_platform, aml_kyc, gl_erp, workday]
+  ga4-export:
+    email: firebase-measurement@system.gserviceaccount.com
+    project: fennmoor-raw
+    share: 0.0     # GA4 daily export is a LOAD job, not a query job
+    pattern: daily LOAD into analytics_312874659.events_YYYYMMDD
+  dbt-prod:
+    email: dbt-prod@fennmoor-dw.iam.gserviceaccount.com
+    project: fennmoor-dw
+    share: 0.24
+    pattern: >-
+      Nightly 02:00 full build plus hourly incremental for event models.
+      CREATE OR REPLACE TABLE / MERGE generated from each model's `from` +
+      column exprs. Also dbt test queries (not_null, unique, relationships).
+    writes: [dw_staging, dw_intermediate, dw_core, dw_customer, dw_contact_center, dw_digital, dw_marketing, dw_risk, dw_finance, dw_compliance, ml_features]
+  vertex-scoring:
+    email: vertex-batch@fennmoor-dw.iam.gserviceaccount.com
+    project: fennmoor-dw
+    share: 0.02
+    pattern: Nightly batch prediction; reads ml_features, writes ml_scores
+    writes: [ml_scores]
+  composer-legacy:
+    email: composer-legacy@fennmoor-analytics.iam.gserviceaccount.com
+    project: fennmoor-analytics
+    share: 0.03
+    pattern: >-
+      Old Airflow DAGs from the Teradata migration. Still feeds the handful of
+      legacy_edw tables marked `refresh: composer-legacy` in legacy_edw.
+    writes: [legacy_edw]
+  looker-prod:
+    email: looker-prod@fennmoor-analytics.iam.gserviceaccount.com
+    project: fennmoor-analytics
+    share: 0.22
+    pattern: >-
+      Dashboard and explore queries, highly repetitive, parameterized by date
+      range and filters. Builds PDTs in looker_scratch.
+    writes: [looker_scratch]
+  tableau-finance:
+    email: svc-tableau-finance@fennmoor-analytics.iam.gserviceaccount.com
+    project: fennmoor-analytics
+    share: 0.03
+    pattern: >-
+      Nightly extract refreshes. Full-table SELECTs with no partition filter -
+      small job count, very large bytes.
+  hightouch-sync:
+    email: hightouch-sync@fennmoor-analytics.iam.gserviceaccount.com
+    project: fennmoor-analytics
+    share: 0.02
+    pattern: Hourly reads of reverse_etl models; diffs against previous sync
+    writes: [reverse_etl]
+  file-loader:
+    email: sftp-ingest-fn@fennmoor-raw.iam.gserviceaccount.com
+    project: fennmoor-raw
+    share: 0.01
+    pattern: Cloud Function that LOADs vendor SFTP files (card processor daily, bureau monthly)
+    writes: [card_processor, credit_bureau]
+  amplitude-export:
+    email: amplitude-export@fennmoor-raw.iam.gserviceaccount.com
+    project: fennmoor-raw
+    share: 0.01
+    pattern: Amplitude's hourly BigQuery export, as LOAD jobs
+    writes: [amplitude_mobile]
+  elementary-dq:
+    email: elementary@fennmoor-analytics.iam.gserviceaccount.com
+    project: fennmoor-analytics
+    share: 0.06
+    pattern: >-
+      Data-observability monitors: COUNT(*), MAX(loaded_at), null-rate and
+      volume checks against nearly every table, every few hours. Deliberate
+      confound - touches everything, so naive co-usage graphs get polluted.
+    writes: [data_quality]
+
+# -----------------------------------------------------------------------------
+# Ingestion mixins - columns every table from a given loader carries
+# -----------------------------------------------------------------------------
+# `loaded_at` is the expression staging uses for its _loaded_at column;
+# `filter` is the soft-delete predicate staging applies.
+mixins:
+  datastream:
+    columns: ["datastream_metadata | STRUCT<uuid STRING, source_timestamp INT64>"]
+    loaded_at: TIMESTAMP_MILLIS(src.datastream_metadata.source_timestamp)
+  fivetran:
+    columns: ["_fivetran_synced | TIMESTAMP", "_fivetran_deleted | BOOL"]
+    loaded_at: src._fivetran_synced
+    filter: NOT src._fivetran_deleted
+  fivetran_salesforce:
+    columns:
+      - "is_deleted | BOOL"
+      - "created_date | TIMESTAMP"
+      - "created_by_id | STRING || crm.user_id"
+      - "last_modified_date | TIMESTAMP"
+      - "last_modified_by_id | STRING || crm.user_id"
+      - "system_modstamp | TIMESTAMP"
+      - "_fivetran_synced | TIMESTAMP"
+      - "_fivetran_deleted | BOOL"
+    keep: [created_date, last_modified_date]
+    loaded_at: src._fivetran_synced
+    filter: NOT src.is_deleted AND NOT src._fivetran_deleted
+  sftp_file:
+    # Not _file_*: BigQuery reserves the _FILE_ prefix for column names.
+    columns: ["_source_file | STRING", "_source_file_date | DATE", "_load_ts | TIMESTAMP"]
+    keep: [_source_file_date]
+    loaded_at: src._load_ts
+  manual_upload:
+    columns: ["_uploaded_at | TIMESTAMP", "_uploaded_by | STRING"]
+    loaded_at: src._uploaded_at
+
+# -----------------------------------------------------------------------------
+# Subjects - ground truth for clustering
+# -----------------------------------------------------------------------------
+# Every table has exactly one subject; every subject belongs to one domain.
+# (domain, subject) is the answer key the pipeline's Schema / Component
+# layers are scored against. Staging and sandbox copies inherit the subject
+# of what they are built from.
+subjects:
+  customer:
+    customer_master: The customer record itself.
+    customer_contact_points: Addresses, phones, emails.
+    customer_identity: Crosswalks between customer id spaces.
+    household: Households / relationships.
+    customer_analytics: 360 views, monthly summaries, value and segments.
+  deposits:
+    deposit_accounts: Checking, savings, money market, CD accounts.
+    account_holders: Who holds which account.
+    balances: Daily balances.
+    deposit_transactions: Posted deposit transactions.
+    fees: Fees assessed, waived, reversed.
+    interest: Interest accrual and payment.
+    account_lifecycle: Opens, closures, status changes.
+  cards:
+    card_accounts: Credit card accounts.
+    cards: Plastics and virtual cards.
+    card_authorizations: Authorization requests.
+    card_transactions: Settled card transactions.
+    merchants: Merchants and MCCs.
+    disputes: Disputes and chargebacks.
+    card_statements: Monthly statements.
+    rewards: Rewards points.
+  lending:
+    loan_applications: Applications and applicants.
+    credit_decisioning: Bureau pulls and underwriting decisions.
+    loans: Booked loans.
+    loan_payments: Loan payments.
+    delinquency: Delinquency and collections.
+    collateral: Collateral on secured loans.
+    credit_bureau: Monthly bureau attributes.
+  contact_center:
+    calls: Contacts / conversations / CDRs.
+    call_segments: Timed segments within a contact.
+    agents: Agents and rosters.
+    queues: Routing queues.
+    dispositions: Wrap-up / disposition codes.
+    quality: QA evaluations.
+    surveys: Post-contact CSAT/NPS.
+    ivr: IVR flow outcomes.
+    cc_sites: Contact-center sites.
+    cc_performance: Site / agent / queue performance and cost rollups.
+  crm:
+    cases: Service cases.
+    crm_opportunities: Sales opportunities.
+    crm_activities: Tasks and logged activities.
+    crm_users: CRM users and record types.
+    crm_campaigns: CRM campaigns and members.
+    crm_leads: Prospects.
+  digital:
+    web_analytics: GA4 web events and sessions.
+    app_analytics: Mobile app events.
+    olb_users: Online banking enrollment.
+    olb_logins: Login events.
+    devices: Registered devices.
+    bill_pay: Bill payments.
+    p2p: Zelle transfers.
+    mobile_deposit: Mobile check deposits.
+    alerts: Alert subscriptions.
+    digital_funnels: Digital application / account-opening funnels.
+  marketing:
+    campaigns: Braze campaigns and canvases.
+    message_delivery: Message sends.
+    engagement: Opens, clicks, bounces, unsubscribes.
+    conversions: Campaign conversions.
+    marketing_profiles: Marketing user profiles.
+    audiences: Audience definitions and syncs.
+    attribution: Campaign attribution.
+  fraud:
+    fraud_alerts: Fraud alerts.
+    fraud_cases: Fraud investigation cases.
+    fraud_rules: Fraud rules.
+    fraud_scores: Fraud model scores.
+  compliance:
+    aml_parties: AML party master.
+    kyc: KYC reviews.
+    sanctions_screening: Watchlist screening.
+    aml_alerts: Transaction-monitoring alerts.
+    regulatory_filings: SARs and CTRs.
+  finance:
+    general_ledger: Chart of accounts and journal lines.
+    cost_centers: Cost centers.
+    expenses: Expense actuals and budget.
+    vendor_spend: Vendor invoices.
+    revenue: Fee and interest income.
+    profitability: Customer / product profitability.
+  hr:
+    workforce: Workers and positions.
+    compensation: Pay.
+  reference:
+    products: Product catalog.
+    branches: Branch and ATM network.
+    calendar: Dates and holidays.
+    geography: ZIP / region mapping.
+    fx: FX rates.
+    product_reference: Finance's product hierarchy.
+  ml:
+    churn_models: Churn / attrition scores.
+    propensity_models: Product propensity and next-best-offer.
+    fraud_models: Batch fraud model output.
+    ml_features: Feature tables.
+  ops:
+    data_quality: Data observability results.
+    reverse_etl: Reverse-ETL sync models.
+    bi_scratch: BI tool scratch / PDTs.

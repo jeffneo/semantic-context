@@ -1,0 +1,581 @@
+# =============================================================================
+# fennmoor-dw: dbt intermediate + core marts
+# =============================================================================
+# Written only by dbt-prod. Every model's SQL is generated from `from` + the
+# column expressions, so the ETL half of the query log is correct by
+# construction and its lineage is exact. ref(x) resolves to the model or
+# table named x (qualify as ref(dataset.x) when a name is not unique).
+#
+# Surrogate keys: customer_key = FARM_FINGERPRINT(cif_number) and
+# account_key = FARM_FINGERPRINT(account_natural_key), computed identically
+# everywhere so any model can derive them without a lookup.
+# =============================================================================
+
+dataset: dw_intermediate
+defaults: {materialized: table, writer: dbt-prod, refresh: "dbt nightly 02:00"}
+tables:
+  - name: int_customer_identity
+    subject: customer_identity
+    desc: >-
+      The customer crosswalk, one row per CIF: Salesforce contact/household,
+      every online-banking login and its GA4 hash, and the Braze id. The most
+      valuable single model in the estate for identity resolution.
+    grain: cif_number
+    with:
+      sf: |
+        SELECT ct.cif_number, ANY_VALUE(ct.contact_id) AS sf_contact_id,
+               ANY_VALUE(ct.account_id) AS sf_household_id, COUNT(*) AS sf_contact_count
+        FROM ref(stg_sf__contact) ct
+        WHERE ct.cif_number IS NOT NULL
+        GROUP BY ct.cif_number
+      olb: |
+        SELECT ou.cif_number, ARRAY_AGG(ou.olb_user_id) AS olb_user_ids,
+               ARRAY_AGG(ou.ga4_user_id IGNORE NULLS) AS ga4_user_ids,
+               MIN(ou.enrolled_at) AS first_enrolled_at
+        FROM ref(stg_olb__online_user) ou
+        GROUP BY ou.cif_number
+    from: |
+      ref(stg_core__customer) c
+      LEFT JOIN sf ON sf.cif_number = c.cif_number
+      LEFT JOIN olb ON olb.cif_number = c.cif_number
+      LEFT JOIN ref(stg_braze__user_profile) b ON b.external_id = c.cif_number
+    columns:
+      - "cif_number | STRING | c.cif_number | customer.cif | pk"
+      - "customer_key | INT64 | FARM_FINGERPRINT(c.cif_number) | customer.key"
+      - "sf_contact_id | STRING | sf.sf_contact_id | customer.sf_contact_id"
+      - "sf_household_id | STRING | sf.sf_household_id | customer.sf_household_id"
+      - "sf_contact_count | INT64 | COALESCE(sf.sf_contact_count, 0)"
+      - "olb_user_ids | ARRAY<STRING> | olb.olb_user_ids | customer.olb_user_id"
+      - "ga4_user_ids | ARRAY<STRING> | olb.ga4_user_ids | customer.ga4_user_id"
+      - "first_enrolled_at | TIMESTAMP | olb.first_enrolled_at"
+      - "braze_id | STRING | b.braze_id | braze.user_id"
+      - "is_digitally_enrolled | BOOL | olb.cif_number IS NOT NULL"
+
+  - name: int_account_holders
+    subject: account_holders
+    desc: Current holders of each deposit account.
+    grain: account_id, cif_number
+    from: ref(stg_core__account_customer_relationship) r
+    where: r.relationship_end_date IS NULL
+    columns:
+      - "account_id | INT64 | r.account_id | deposit_account.id"
+      - "cif_number | STRING | r.cif_number | customer.cif"
+      - "relationship_type_code | STRING | r.relationship_type_code"
+      - "is_primary_holder | BOOL | r.relationship_type_code = 'PRI'"
+      - "relationship_effective_date | DATE | r.relationship_effective_date"
+
+  - name: int_accounts_unioned
+    subject: deposit_accounts
+    desc: >-
+      Deposit, card and loan accounts in one shape. Each keeps its native id
+      in its own column - they are three different id spaces.
+    grain: account_natural_key
+    with:
+      dep: |
+        SELECT CONCAT('DEP-', CAST(a.account_id AS STRING)) AS account_natural_key,
+               'DEPOSIT' AS account_family, a.account_id AS core_account_id,
+               CAST(NULL AS INT64) AS card_account_id, CAST(NULL AS STRING) AS loan_number,
+               h.cif_number AS primary_cif_number, a.product_code, a.branch_id,
+               a.open_date, a.close_date, a.close_reason_code AS close_reason,
+               a.account_status_code AS status_code, a.open_channel_code AS open_channel
+        FROM ref(stg_core__account) a
+        LEFT JOIN ref(int_account_holders) h
+          ON h.account_id = a.account_id AND h.is_primary_holder
+      crd: |
+        SELECT CONCAT('CRD-', CAST(ca.account_id AS STRING)), 'CARD', CAST(NULL AS INT64),
+               ca.account_id, CAST(NULL AS STRING), ca.bank_customer_ref, ca.product_code,
+               CAST(NULL AS INT64), ca.open_date, ca.close_date, ca.close_reason, ca.status,
+               CAST(NULL AS STRING)
+        FROM ref(stg_cards__card_account) ca
+      lon: |
+        SELECT CONCAT('LN-', l.loan_number), 'LOAN', CAST(NULL AS INT64), CAST(NULL AS INT64),
+               l.loan_number, l.borrower_cif, l.product_code, l.branch_number,
+               l.origination_date, COALESCE(l.charge_off_date, IF(l.loan_status = 'PAIDOFF', l.maturity_date, NULL)),
+               IF(l.loan_status = 'CHARGEDOFF', 'CHARGE_OFF', NULL), l.loan_status, CAST(NULL AS STRING)
+        FROM ref(stg_los__loan) l
+      unioned: |
+        SELECT * FROM dep UNION ALL SELECT * FROM crd UNION ALL SELECT * FROM lon
+    from: unioned u
+    columns:
+      - "account_natural_key | STRING | u.account_natural_key | account.natural_key | pk"
+      - "account_family | STRING | u.account_family"
+      - "core_account_id | INT64 | u.core_account_id | deposit_account.id"
+      - "card_account_id | INT64 | u.card_account_id | card_account.id"
+      - "loan_number | STRING | u.loan_number | loan.id"
+      - "primary_cif_number | STRING | u.primary_cif_number | customer.cif"
+      - "product_code | STRING | u.product_code | product.code"
+      - "branch_id | INT64 | u.branch_id | branch.id"
+      - "open_date | DATE | u.open_date"
+      - "close_date | DATE | u.close_date"
+      - "close_reason | STRING | u.close_reason"
+      - "status_code | STRING | u.status_code"
+      - "open_channel | STRING | u.open_channel"
+
+  - name: int_account_closures
+    subject: account_lifecycle
+    desc: >-
+      Every deposit and card account closure with its reason. This is what
+      "cancellations" means at Fennmoor.
+    grain: account_natural_key
+    from: ref(int_accounts_unioned) u
+    where: u.close_date IS NOT NULL AND u.account_family IN ('DEPOSIT', 'CARD')
+    columns:
+      - "account_natural_key | STRING | u.account_natural_key | account.natural_key | pk"
+      - "account_family | STRING | u.account_family"
+      - "cif_number | STRING | u.primary_cif_number | customer.cif"
+      - "product_code | STRING | u.product_code | product.code"
+      - "close_date | DATE | u.close_date | date.day"
+      - "close_reason | STRING | u.close_reason"
+      - "is_voluntary | BOOL | u.close_reason IN ('CUST_REQ', 'COMPETITOR', 'FEES', 'MOVED', 'CH', 'PC')"
+
+  - name: int_customer_contact_points
+    subject: customer_contact_points
+    desc: Best email and mobile per customer from the EAV contact table.
+    grain: cif_number
+    from: ref(stg_core__customer_contact) cc
+    group_by: all
+    columns:
+      - "cif_number | STRING | cc.cif_number | customer.cif | pk"
+      - "primary_email | STRING | MAX(IF(cc.contact_type_code = 'EML' AND cc.is_primary, cc.contact_value, NULL)) | pii.email | pii=email"
+      - "primary_mobile | STRING | MAX(IF(cc.contact_type_code = 'MPH' AND cc.is_primary, cc.contact_value, NULL)) | pii.phone | pii=phone"
+      - "has_verified_email | BOOL | LOGICAL_OR(cc.contact_type_code = 'EML' AND cc.is_verified)"
+      - "email_opt_in | BOOL | LOGICAL_OR(cc.contact_type_code = 'EML' AND cc.is_opted_in)"
+
+  - name: int_card_transactions_enriched
+    subject: card_transactions
+    materialized: incremental
+    desc: Settled card transactions with cardholder CIF, merchant and MCC group.
+    grain: settlement_id
+    partition: post_date
+    cluster: [card_account_id, mcc]
+    from: |
+      ref(stg_cards__settlement) s
+      JOIN ref(stg_cards__card_account) ca ON ca.account_id = s.account_id
+      LEFT JOIN ref(stg_cards__mcc_code) m ON m.mcc = s.mcc
+      LEFT JOIN ref(stg_cards__merchant) mer ON mer.merchant_id = s.merchant_id
+    columns:
+      - "settlement_id | STRING | s.settlement_id | card_txn.id | pk"
+      - "post_date | DATE | s.post_date | date.day"
+      - "card_account_id | INT64 | s.account_id | card_account.id"
+      - "cif_number | STRING | ca.bank_customer_ref | customer.cif"
+      - "card_token | STRING | s.card_token | card.token"
+      - "amount | NUMERIC | s.amount | money.txn_amount | unit=usd"
+      - "txn_type | STRING | s.txn_type"
+      - "is_purchase | BOOL | s.txn_type = 'PURCH'"
+      - "merchant_id | STRING | s.merchant_id | merchant.id"
+      - "merchant_name | STRING | COALESCE(mer.merchant_name, s.merchant_name_raw)"
+      - "mcc | STRING | s.mcc | merchant.mcc"
+      - "mcc_category_group | STRING | m.category_group"
+      - "merchant_state | STRING | s.merchant_state | geo.state"
+      - "is_foreign | BOOL | s.merchant_country != 'USA'"
+      - "interchange | NUMERIC | s.interchange | money.revenue | unit=usd"
+
+  - name: int_calls_enriched
+    subject: calls
+    materialized: incremental
+    desc: >-
+      One row per Genesys conversation: caller CIF (from IVR attributes), first
+      queue and its site (from the queue-name prefix), first agent, handle
+      time from segments, and the final wrap-up. Closure calls are coded
+      ACCT_CLOSE from 2026-06-02; before that they hide under ACCT_MAINT and
+      are only recoverable via the IVR intent.
+    grain: conversation_id
+    partition: conversation_date
+    with:
+      agent_leg: |
+        SELECT p.conversation_id,
+               ARRAY_AGG(p.user_id IGNORE NULLS ORDER BY p.start_time LIMIT 1)[SAFE_OFFSET(0)] AS first_agent_user_id,
+               ARRAY_AGG(p.queue_id IGNORE NULLS ORDER BY p.start_time LIMIT 1)[SAFE_OFFSET(0)] AS first_queue_id,
+               COUNTIF(p.purpose = 'agent') AS agent_legs
+        FROM ref(stg_genesys__participant) p
+        GROUP BY p.conversation_id
+      cust_leg: |
+        SELECT p.conversation_id, ANY_VALUE(p.cif_number) AS cif_number,
+               ANY_VALUE(p.ivr_auth_result) AS ivr_auth_result, ANY_VALUE(p.intent) AS ivr_intent
+        FROM ref(stg_genesys__participant) p
+        WHERE p.purpose = 'customer'
+        GROUP BY p.conversation_id
+      segs: |
+        SELECT s.conversation_id,
+               SUM(IF(s.segment_type = 'interact', TIMESTAMP_DIFF(s.segment_end, s.segment_start, SECOND), 0)) AS talk_sec,
+               SUM(IF(s.segment_type = 'hold', TIMESTAMP_DIFF(s.segment_end, s.segment_start, SECOND), 0)) AS hold_sec,
+               SUM(IF(s.segment_type = 'wrapup', TIMESTAMP_DIFF(s.segment_end, s.segment_start, SECOND), 0)) AS acw_sec,
+               ARRAY_AGG(s.wrap_up_code IGNORE NULLS ORDER BY s.segment_end DESC LIMIT 1)[SAFE_OFFSET(0)] AS final_wrapup_code_id,
+               LOGICAL_OR(s.disconnect_type = 'transfer') AS was_transferred
+        FROM ref(stg_genesys__segment) s
+        GROUP BY s.conversation_id
+    from: |
+      ref(stg_genesys__conversation) c
+      LEFT JOIN agent_leg a ON a.conversation_id = c.conversation_id
+      LEFT JOIN cust_leg cu ON cu.conversation_id = c.conversation_id
+      LEFT JOIN segs sg ON sg.conversation_id = c.conversation_id
+      LEFT JOIN ref(stg_genesys__queue) q ON q.queue_id = a.first_queue_id
+      LEFT JOIN ref(stg_ref__contact_center_site) site ON STARTS_WITH(q.name, site.genesys_queue_prefix)
+      LEFT JOIN ref(stg_genesys__wrapup_code) w ON w.wrapup_code_id = sg.final_wrapup_code_id
+    columns:
+      - "conversation_id | STRING | c.conversation_id | call.conversation_id | pk"
+      - "conversation_start | TIMESTAMP | c.conversation_start"
+      - "conversation_date | DATE | DATE(c.conversation_start, 'America/Chicago') | date.day"
+      - "media_type | STRING | c.media_type"
+      - "direction | STRING | c.originating_direction"
+      - "cif_number | STRING | cu.cif_number | customer.cif"
+      - "ivr_auth_result | STRING | cu.ivr_auth_result"
+      - "ivr_intent | STRING | cu.ivr_intent"
+      - "queue_id | STRING | a.first_queue_id | queue.id"
+      - "queue_name | STRING | q.name"
+      - "queue_site_id | STRING | site.site_id | cc_site.id"
+      - "agent_user_id | STRING | a.first_agent_user_id | agent.genesys_user_id"
+      - "agent_legs | INT64 | a.agent_legs"
+      - "talk_sec | INT64 | sg.talk_sec | metric.duration | unit=sec"
+      - "hold_sec | INT64 | sg.hold_sec | metric.duration | unit=sec"
+      - "acw_sec | INT64 | sg.acw_sec | metric.duration | unit=sec"
+      - "wrapup_code_name | STRING | w.name | call.wrapup_code"
+      - "is_account_closure_call | BOOL | w.name = 'ACCT_CLOSE' OR (w.name = 'ACCT_MAINT' AND cu.ivr_intent = 'CLOSE_ACCOUNT')"
+      - "was_transferred | BOOL | sg.was_transferred"
+      - "is_abandoned | BOOL | c.media_type = 'voice' AND COALESCE(a.agent_legs, 0) = 0"
+
+  - name: int_calls_legacy_cdr
+    subject: calls
+    desc: Avaya CDR history (2023-01 to 2025-09) reshaped to match int_calls_enriched.
+    grain: legacy_call_id
+    from: ref(contact_center_legacy.cdr_) cdr
+    columns:
+      - "legacy_call_id | STRING | cdr.CALL_ID | call.legacy_call_id | pk"
+      - "conversation_start | TIMESTAMP | TIMESTAMP(cdr.CALL_START_DTTM, 'America/Chicago')"
+      - "conversation_date | DATE | DATE(cdr.CALL_START_DTTM) | date.day"
+      - "site_id | STRING | cdr.SITE_CD | cc_site.id"
+      - "cif_number | STRING | cdr.CIF_NO | customer.cif"
+      - "agent_login_id | STRING | cdr.AGENT_LOGIN_ID | agent.avaya_login_id"
+      - "talk_sec | INT64 | cdr.TALK_SEC | metric.duration | unit=sec"
+      - "hold_sec | INT64 | cdr.HOLD_SEC | metric.duration | unit=sec"
+      - "acw_sec | INT64 | cdr.ACW_SEC | metric.duration | unit=sec"
+      - "disposition_code | STRING | cdr.DISPOSITION_CD | call.wrapup_code"
+      - "is_abandoned | BOOL | cdr.ABANDON_FLG = 'Y'"
+      - "was_transferred | BOOL | cdr.TRANSFER_FLG = 'Y'"
+
+  - name: int_digital_sessions
+    subject: web_analytics
+    materialized: incremental
+    desc: >-
+      GA4 events rolled up to sessions. The session key is user_pseudo_id +
+      ga_session_id; ga_session_id alone is NOT unique.
+    grain: session_key
+    partition: session_date
+    from: ref(stg_ga4__events) e
+    where: e.ga_session_id IS NOT NULL
+    group_by: all
+    columns:
+      - "session_key | STRING | CONCAT(e.user_pseudo_id, '-', CAST(e.ga_session_id AS STRING)) | web.session_id | pk"
+      - "user_pseudo_id | STRING | e.user_pseudo_id | customer.ga4_pseudo_id"
+      - "ga4_user_id | STRING | MAX(e.user_id) | customer.ga4_user_id"
+      - "session_date | DATE | MIN(e.event_date) | date.day"
+      - "session_start | TIMESTAMP | MIN(e.event_ts)"
+      - "session_end | TIMESTAMP | MAX(e.event_ts)"
+      - "page_views | INT64 | COUNTIF(e.event_name = 'page_view') | metric.count"
+      - "engaged_sec | FLOAT64 | SUM(e.engagement_time_msec) / 1000 | metric.duration | unit=sec"
+      - "landing_page | STRING | ARRAY_AGG(e.page_location IGNORE NULLS ORDER BY e.event_ts LIMIT 1)[SAFE_OFFSET(0)]"
+      - "traffic_medium | STRING | ANY_VALUE(e.traffic_medium)"
+      - "campaign_name | STRING | ANY_VALUE(e.campaign_name)"
+      - "device_category | STRING | ANY_VALUE(e.device_category)"
+      - "started_application | BOOL | LOGICAL_OR(e.application_step = 'start')"
+      - "submitted_application | BOOL | LOGICAL_OR(e.application_step = 'submit')"
+      - "visited_help | BOOL | LOGICAL_OR(STRPOS(e.page_location, '/help') > 0 OR STRPOS(e.page_location, '/contact') > 0)"
+---
+dataset: dw_core
+defaults: {materialized: table, writer: dbt-prod, refresh: "dbt nightly 02:00"}
+tables:
+  - name: dim_date
+    subject: calendar
+    desc: >-
+      Calendar 2015-2030. fiscal_period_name is Oracle-style 'APR-26' so it
+      joins to the GL's period_name.
+    grain: date_day
+    bq_description: Standard date dimension.
+    from: |
+      UNNEST(GENERATE_DATE_ARRAY('2015-01-01', '2030-12-31')) AS d
+      LEFT JOIN ref(stg_ref__holiday_calendar) h ON h.holiday_date = d
+    columns:
+      - "date_day | DATE | d | date.day | pk"
+      - "month_start | DATE | DATE_TRUNC(d, MONTH) | date.month"
+      - "week_start | DATE | DATE_TRUNC(d, WEEK(MONDAY))"
+      - "quarter | INT64 | EXTRACT(QUARTER FROM d)"
+      - "year | INT64 | EXTRACT(YEAR FROM d)"
+      - "day_of_week | STRING | FORMAT_DATE('%A', d)"
+      - "is_weekend | BOOL | EXTRACT(DAYOFWEEK FROM d) IN (1, 7)"
+      - "is_bank_holiday | BOOL | COALESCE(h.is_bank_holiday, FALSE)"
+      - "is_business_day | BOOL | EXTRACT(DAYOFWEEK FROM d) NOT IN (1, 7) AND NOT COALESCE(h.is_bank_holiday, FALSE)"
+      - "fiscal_period_name | STRING | UPPER(FORMAT_DATE('%b-%y', d))"
+
+  - name: dim_customer
+    subject: customer_master
+    desc: >-
+      The customer dimension. preferred_branch_id is always NULL for changes
+      after 2026-04-20 (source field retired) but is still selected - and
+      still read downstream.
+    grain: customer_key
+    bq_description: One row per customer (CIF). See int_customer_identity for cross-system ids.
+    cluster: [cif_number]
+    from: |
+      ref(stg_core__customer) c
+      JOIN ref(int_customer_identity) x ON x.cif_number = c.cif_number
+      LEFT JOIN ref(int_customer_contact_points) cp ON cp.cif_number = c.cif_number
+      LEFT JOIN ref(stg_core__customer_address) ad
+        ON ad.cif_number = c.cif_number AND ad.is_primary AND ad.end_date IS NULL
+    columns:
+      - "customer_key | INT64 | x.customer_key | customer.key | pk"
+      - "cif_number | STRING | c.cif_number | customer.cif"
+      - "customer_type | STRING | CASE c.customer_type_code WHEN 'I' THEN 'INDIVIDUAL' WHEN 'B' THEN 'BUSINESS' END"
+      - "full_name | STRING | COALESCE(c.business_name, CONCAT(c.first_name, ' ', c.last_name)) | pii.name | pii=name"
+      - "birth_date | DATE | c.birth_date | pii.dob | pii=dob"
+      - "tax_id_hash | STRING | c.tax_id_hash | pii.ssn_hash | pii=ssn_hash"
+      - "customer_since_date | DATE | c.customer_since_date"
+      - "tenure_months | INT64 | DATE_DIFF(CURRENT_DATE(), c.customer_since_date, MONTH)"
+      - "customer_status | STRING | c.customer_status_code"
+      - "segment | STRING | c.segment_code | customer.segment"
+      - "preferred_branch_id | INT64 | c.preferred_branch_id | branch.id | null_after=2026-04-20"
+      - "preferred_language | STRING | c.preferred_language_code"
+      - "is_employee | BOOL | c.is_employee"
+      - "aml_risk_rating | STRING | c.risk_rating_code | score.aml_risk"
+      - "primary_email | STRING | cp.primary_email | pii.email | pii=email"
+      - "primary_mobile | STRING | cp.primary_mobile | pii.phone | pii=phone"
+      - "email_opt_in | BOOL | cp.email_opt_in"
+      - "state_code | STRING | ad.state_code | geo.state"
+      - "zip_code | STRING | ad.zip_code | geo.zip"
+      - "sf_contact_id | STRING | x.sf_contact_id | customer.sf_contact_id"
+      - "sf_household_id | STRING | x.sf_household_id | customer.sf_household_id"
+      - "is_digitally_enrolled | BOOL | x.is_digitally_enrolled"
+      - "is_deceased | BOOL | c.deceased_date IS NOT NULL"
+
+  - name: dim_product
+    subject: products
+    desc: Products with finance's reporting hierarchy attached.
+    grain: product_code
+    from: |
+      ref(stg_core__product) p
+      LEFT JOIN ref(stg_ref__product_hierarchy) ph ON ph.prod_cd = p.product_code
+    columns:
+      - "product_code | STRING | p.product_code | product.code | pk"
+      - "product_name | STRING | p.product_name"
+      - "product_family | STRING | p.product_family_code"
+      - "product_type | STRING | p.product_type_code"
+      - "monthly_fee_amount | NUMERIC | p.monthly_fee_amount | money.fee | unit=usd"
+      - "interest_rate | NUMERIC | p.interest_rate || unit=pct"
+      - "term_months | INT64 | p.term_months"
+      - "is_active | BOOL | p.is_active"
+      - "product_line | STRING | ph.product_line"
+      - "product_group | STRING | ph.product_group"
+      - "reporting_category | STRING | ph.reporting_category"
+      - "is_fee_bearing | BOOL | UPPER(TRIM(ph.fee_bearing)) = 'Y'"
+
+  - name: dim_account
+    subject: deposit_accounts
+    desc: >-
+      Every account - deposit, card, loan - with a single surrogate key. The
+      native ids stay in separate columns (core_account_id, card_account_id,
+      loan_number) because they are different id spaces.
+    grain: account_key
+    bq_description: All accounts. account_family = DEPOSIT, CARD or LOAN.
+    cluster: [account_key]
+    from: |
+      ref(int_accounts_unioned) u
+      LEFT JOIN ref(dim_product) p ON p.product_code = u.product_code
+    columns:
+      - "account_key | INT64 | FARM_FINGERPRINT(u.account_natural_key) | account.key | pk"
+      - "account_natural_key | STRING | u.account_natural_key | account.natural_key"
+      - "account_family | STRING | u.account_family"
+      - "core_account_id | INT64 | u.core_account_id | deposit_account.id"
+      - "card_account_id | INT64 | u.card_account_id | card_account.id"
+      - "loan_number | STRING | u.loan_number | loan.id"
+      - "customer_key | INT64 | FARM_FINGERPRINT(u.primary_cif_number) | customer.key"
+      - "primary_cif_number | STRING | u.primary_cif_number | customer.cif"
+      - "product_code | STRING | u.product_code | product.code"
+      - "product_name | STRING | p.product_name"
+      - "product_family | STRING | p.product_family"
+      - "branch_id | INT64 | u.branch_id | branch.id"
+      - "open_date | DATE | u.open_date"
+      - "close_date | DATE | u.close_date"
+      - "close_reason | STRING | u.close_reason"
+      - "status_code | STRING | u.status_code"
+      - "open_channel | STRING | u.open_channel"
+      - "is_open | BOOL | u.close_date IS NULL"
+
+  - name: dim_branch
+    subject: branches
+    desc: Branches with sales region.
+    grain: branch_id
+    from: |
+      ref(stg_core__branch) b
+      LEFT JOIN ref(stg_ref__zip_region_map) z ON z.zip = b.zip_code
+    columns:
+      - "branch_id | INT64 | b.branch_id | branch.id | pk"
+      - "branch_name | STRING | b.branch_name"
+      - "branch_type | STRING | b.branch_type_code"
+      - "city | STRING | b.city_name"
+      - "state_code | STRING | b.state_code | geo.state"
+      - "zip_code | STRING | b.zip_code | geo.zip"
+      - "region | STRING | COALESCE(z.fennmoor_region, b.region_code)"
+      - "market_code | STRING | b.market_code"
+      - "msa_name | STRING | z.msa_name"
+      - "cost_center_id | STRING | b.cost_center_id | finance.cost_center_id"
+      - "manager_employee_id | STRING | b.manager_employee_id | employee.id"
+      - "open_date | DATE | b.open_date"
+      - "close_date | DATE | b.close_date"
+      - "is_open | BOOL | b.close_date IS NULL"
+
+  - name: dim_merchant
+    subject: merchants
+    desc: Merchants with MCC description and category group.
+    grain: merchant_id
+    from: |
+      ref(stg_cards__merchant) m
+      LEFT JOIN ref(stg_cards__mcc_code) c ON c.mcc = m.mcc
+    columns:
+      - "merchant_id | STRING | m.merchant_id | merchant.id | pk"
+      - "merchant_name | STRING | m.merchant_name"
+      - "dba_name | STRING | m.dba_name"
+      - "mcc | STRING | m.mcc | merchant.mcc"
+      - "mcc_description | STRING | c.description"
+      - "category_group | STRING | c.category_group"
+      - "city | STRING | m.city"
+      - "state | STRING | m.state | geo.state"
+      - "country | STRING | m.country"
+
+  - name: dim_card
+    subject: cards
+    desc: Cards (plastics) with their card account and cardholder CIF.
+    grain: card_token
+    from: |
+      ref(stg_cards__card) c
+      JOIN ref(stg_cards__card_account) ca ON ca.account_id = c.account_id
+    columns:
+      - "card_token | STRING | c.card_token | card.token | pk"
+      - "card_account_id | INT64 | c.account_id | card_account.id"
+      - "cif_number | STRING | ca.bank_customer_ref | customer.cif"
+      - "card_role | STRING | c.card_role"
+      - "pan_last4 | STRING | c.pan_last4"
+      - "issue_date | DATE | c.issue_date"
+      - "activation_date | DATE | c.activation_date"
+      - "status | STRING | c.status"
+      - "is_virtual | BOOL | c.is_virtual"
+      - "digital_wallet | STRING | c.digital_wallet"
+      - "embossed_name | STRING | c.embossed_name | pii.name | pii=name"
+
+  - name: fct_card_transactions
+    subject: card_transactions
+    materialized: incremental
+    refresh: "dbt hourly incremental"
+    desc: Settled card transactions. The model finance and marketing should use.
+    grain: settlement_id
+    bq_description: Settled card transactions, USD. Partitioned by post_date.
+    partition: post_date
+    cluster: [customer_key, mcc]
+    rows: 1850000000
+    from: |
+      ref(int_card_transactions_enriched) t
+      LEFT JOIN ref(dim_account) a ON a.card_account_id = t.card_account_id
+    columns:
+      - "settlement_id | STRING | t.settlement_id | card_txn.id | pk"
+      - "post_date | DATE | t.post_date | date.day"
+      - "card_account_id | INT64 | t.card_account_id | card_account.id"
+      - "account_key | INT64 | a.account_key | account.key"
+      - "customer_key | INT64 | a.customer_key | customer.key"
+      - "cif_number | STRING | t.cif_number | customer.cif"
+      - "card_token | STRING | t.card_token | card.token"
+      - "amount | NUMERIC | t.amount | money.txn_amount | unit=usd"
+      - "txn_type | STRING | t.txn_type"
+      - "is_purchase | BOOL | t.is_purchase"
+      - "merchant_id | STRING | t.merchant_id | merchant.id"
+      - "merchant_name | STRING | t.merchant_name"
+      - "mcc | STRING | t.mcc | merchant.mcc"
+      - "mcc_category_group | STRING | t.mcc_category_group"
+      - "is_foreign | BOOL | t.is_foreign"
+      - "interchange | NUMERIC | t.interchange | money.revenue | unit=usd"
+
+  - name: fct_deposit_transactions
+    subject: deposit_transactions
+    materialized: incremental
+    refresh: "dbt hourly incremental"
+    desc: Posted deposit transactions with account and customer keys.
+    grain: transaction_id
+    partition: posted_date
+    cluster: [customer_key, transaction_type]
+    rows: 2900000000
+    from: |
+      ref(stg_core__deposit_transaction) t
+      LEFT JOIN ref(dim_account) a ON a.core_account_id = t.account_id
+    columns:
+      - "transaction_id | INT64 | t.transaction_id | deposit_txn.id | pk"
+      - "posted_date | DATE | t.posted_date | date.day"
+      - "core_account_id | INT64 | t.account_id | deposit_account.id"
+      - "account_key | INT64 | a.account_key | account.key"
+      - "customer_key | INT64 | a.customer_key | customer.key"
+      - "transaction_type | STRING | t.transaction_type_code"
+      - "amount | NUMERIC | t.transaction_amount | money.txn_amount | unit=usd"
+      - "signed_amount | NUMERIC | IF(t.debit_credit_indicator = 'D', -t.transaction_amount, t.transaction_amount) | money.txn_amount | unit=usd"
+      - "channel | STRING | t.channel_code"
+      - "branch_id | INT64 | t.branch_id | branch.id"
+      - "is_reversal | BOOL | t.is_reversal"
+
+  - name: fct_daily_account_balances
+    subject: balances
+    materialized: incremental
+    desc: >-
+      End-of-day deposit balances. Replaced legacy_edw.ACCT_DLY_BAL on
+      2025-02-28 - which nonetheless is still refreshed and still read.
+    grain: account_key, balance_date
+    supersedes: legacy_edw.ACCT_DLY_BAL
+    partition: balance_date
+    cluster: [account_key]
+    rows: 3700000000
+    from: |
+      ref(stg_core__account_balance_daily) b
+      JOIN ref(dim_account) a ON a.core_account_id = b.account_id
+    columns:
+      - "balance_date | DATE | b.balance_date | date.day"
+      - "account_key | INT64 | a.account_key | account.key"
+      - "core_account_id | INT64 | b.account_id | deposit_account.id"
+      - "customer_key | INT64 | a.customer_key | customer.key"
+      - "product_code | STRING | a.product_code | product.code"
+      - "ledger_balance | NUMERIC | b.ledger_balance_amount | money.balance | unit=usd"
+      - "available_balance | NUMERIC | b.available_balance_amount | money.balance | unit=usd"
+      - "accrued_interest | NUMERIC | b.accrued_interest_amount | money.interest | unit=usd"
+
+  - name: fct_account_closures
+    subject: account_lifecycle
+    desc: Account closures (deposit and card) with tenure and reason.
+    grain: account_key
+    partition: close_date
+    from: |
+      ref(int_account_closures) c
+      JOIN ref(dim_account) a ON a.account_natural_key = c.account_natural_key
+    columns:
+      - "account_key | INT64 | a.account_key | account.key | pk"
+      - "customer_key | INT64 | a.customer_key | customer.key"
+      - "cif_number | STRING | c.cif_number | customer.cif"
+      - "account_family | STRING | c.account_family"
+      - "product_code | STRING | c.product_code | product.code"
+      - "close_date | DATE | c.close_date | date.day"
+      - "close_reason | STRING | c.close_reason"
+      - "is_voluntary | BOOL | c.is_voluntary"
+      - "tenure_days | INT64 | DATE_DIFF(c.close_date, a.open_date, DAY)"
+
+  - name: fct_fees
+    subject: fees
+    materialized: incremental
+    desc: Fees assessed on deposit accounts, net of waivers and reversals.
+    grain: fee_id
+    partition: assessed_date
+    from: |
+      ref(stg_core__fee_assessed) f
+      LEFT JOIN ref(dim_account) a ON a.core_account_id = f.account_id
+    columns:
+      - "fee_id | INT64 | f.fee_id || pk"
+      - "assessed_date | DATE | f.assessed_date | date.day"
+      - "account_key | INT64 | a.account_key | account.key"
+      - "customer_key | INT64 | a.customer_key | customer.key"
+      - "product_code | STRING | a.product_code | product.code"
+      - "fee_type | STRING | f.fee_type_code"
+      - "fee_amount | NUMERIC | f.fee_amount | money.fee | unit=usd"
+      - "is_waived | BOOL | f.is_waived"
+      - "is_reversed | BOOL | f.is_reversed"
+      - "net_fee | NUMERIC | IF(f.is_waived OR f.is_reversed, 0, f.fee_amount) | money.fee | unit=usd"

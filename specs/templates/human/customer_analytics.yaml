@@ -1,0 +1,468 @@
+# Customer analytics: strong SQL, lots of CTEs and windows, works in Hex.
+# The team's de facto customer table is the hand-refreshed sandbox copy
+# customer_360_final (F14), not the mart.
+team: customer_analytics
+templates:
+  - id: ca.segment_summary_final
+    by: [priya.raman, grace.nakamura, elliot.fairbanks]
+    weight: 8
+    findings: [F14]
+    params: {st: "choice:OK|WA|KS|MO|AR|TX"}
+    sql: |
+      SELECT segment,
+             COUNT(*) AS customers,
+             ROUND(AVG(total_deposit_balance), 2) AS avg_balance,
+             ROUND(AVG(churn_risk), 4) AS avg_churn_risk,
+             SUM(open_card_accounts) AS card_accounts
+      FROM sbx_customer_analytics.customer_360_final
+      [[opt: WHERE state_code = '{{st}}']]
+      GROUP BY segment
+      ORDER BY customers DESC
+
+  - id: ca.high_value_at_risk_final
+    by: [priya.raman, elliot.fairbanks]
+    weight: 5
+    findings: [F14]
+    params: {thr: "choice:0.5|0.6|0.7", bal: "choice:25000|50000|100000", n: "choice:100|500|1000"}
+    sql: |
+      SELECT cif_number, full_name, segment, total_deposit_balance, churn_risk, product_count
+      FROM sbx_customer_analytics.customer_360_final
+      WHERE churn_risk >= {{thr}} AND total_deposit_balance >= {{bal}}
+      ORDER BY total_deposit_balance DESC
+      LIMIT {{n}}
+
+  - id: ca.fixed_copy_check
+    by: [tom.okafor]
+    weight: 1
+    findings: [F14]
+    sql: |
+      SELECT COUNT(*) AS n, COUNTIF(churn_risk IS NULL) AS no_score
+      FROM sbx_customer_analytics.customer_360_final_FIXED
+
+  - id: ca.final_vs_v2
+    by: [grace.nakamura]
+    weight: 1
+    findings: [F14]
+    sql: |
+      SELECT f.segment, COUNT(*) AS n_final, COUNTIF(v.customer_key IS NULL) AS new_since_v2
+      FROM sbx_customer_analytics.customer_360_final f
+      LEFT JOIN sbx_customer_analytics.customer_360_v2 v USING (customer_key)
+      GROUP BY f.segment
+
+  - id: ca.product_penetration
+    weight: 3
+    sql: |
+      SELECT c.segment, h.[[alt: product_family ;; product_line]] AS grp, COUNT(DISTINCT h.customer_key) AS holders
+      FROM `fennmoor-dw.dw_customer.customer_product_holdings` h
+      JOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key)
+      WHERE h.open_accounts > 0
+      GROUP BY 1, 2
+      ORDER BY 1, 3 DESC
+
+  - id: ca.cross_sell_ladder
+    weight: 2
+    sql: |
+      WITH per_customer AS (
+        SELECT customer_key, COUNT(DISTINCT product_family) AS families
+        FROM `fennmoor-dw.dw_customer.customer_product_holdings`
+        WHERE open_accounts > 0
+        GROUP BY customer_key
+      )
+      SELECT families,
+             COUNT(*) AS customers,
+             SUM(COUNT(*)) OVER (ORDER BY families DESC) AS customers_with_at_least
+      FROM per_customer
+      GROUP BY families
+      ORDER BY families
+
+  - id: ca.balance_trend_by_segment
+    weight: 4
+    params: {start: "month:-13..-6"}
+    sql: |
+      SELECT m.month_start, c.segment,
+             SUM(m.avg_daily_total_balance) AS total_avg_balance,
+             COUNT(DISTINCT m.customer_key) AS customers
+      FROM `fennmoor-dw.dw_customer.customer_monthly_summary` m
+      JOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key)
+      WHERE m.month_start >= '{{start}}'
+      [[opt: AND c.state_code IN ('OK', 'KS')]]
+      GROUP BY 1, 2
+      ORDER BY 1, 2
+
+  - id: ca.closures_by_reason
+    weight: 4
+    params: {start: "month:-6..-2"}
+    sql: |
+      SELECT DATE_TRUNC(close_date, [[alt: MONTH ;; WEEK]]) AS period, account_family, close_reason, COUNT(*) AS closures
+      FROM `fennmoor-dw.dw_core.fct_account_closures`
+      WHERE close_date >= '{{start}}'
+      [[opt: AND is_voluntary]]
+      GROUP BY ALL
+      ORDER BY period, closures DESC
+
+  - id: ca.closure_tenure
+    weight: 2
+    params: {start: "date:-180..-120", end: "date:-10..-1"}
+    sql: |
+      SELECT account_family,
+             APPROX_QUANTILES(tenure_days, 4) AS tenure_quartiles,
+             AVG(tenure_days) AS avg_tenure_days
+      FROM `fennmoor-dw.dw_core.fct_account_closures`
+      WHERE is_voluntary AND close_date BETWEEN '{{start}}' AND '{{end}}'
+      GROUP BY account_family
+
+  - id: ca.churn_v3_calibration
+    by: [priya.raman, grace.nakamura]
+    weight: 2
+    active: {from: 2026-05-25}
+    params: {d: "date:-9..-3"}
+    sql: |
+      WITH scored AS (
+        SELECT customer_key, churn_probability,
+               NTILE(10) OVER (ORDER BY churn_probability) AS decile
+        FROM `fennmoor-dw.ml_scores.churn_score_v3`
+        WHERE score_date = '{{d}}'
+      ),
+      closed AS (
+        SELECT DISTINCT customer_key
+        FROM `fennmoor-dw.dw_core.fct_account_closures`
+        WHERE close_date > '{{d}}' AND is_voluntary
+      )
+      SELECT decile, COUNT(*) AS n,
+             COUNTIF(closed.customer_key IS NOT NULL) / COUNT(*) AS closed_rate,
+             AVG(churn_probability) AS avg_p
+      FROM scored LEFT JOIN closed USING (customer_key)
+      GROUP BY decile
+      ORDER BY decile
+
+  - id: ca.churn_v2_backtest
+    by: [tom.okafor]
+    weight: 3
+    findings: [F11]
+    active: {from: 2026-05-15}
+    notes: Still on v2 after the cutover; the dates stop at 2026-05-14 and he has not noticed.
+    params: {start: "date:-60..-30"}
+    sql: |
+      SELECT score_date, COUNT(*) AS scored, AVG(churn_score) AS avg_score
+      FROM `fennmoor-dw.ml_scores.churn_score_v2`
+      WHERE score_date >= '{{start}}'
+      GROUP BY score_date
+      ORDER BY score_date DESC
+      LIMIT 30
+
+  - id: ca.churn_by_segment_v3
+    weight: 3
+    active: {from: 2026-05-15}
+    sql: |
+      SELECT c.segment, AVG(s.churn_probability) AS avg_churn, COUNTIF(s.risk_band = 'HIGH') AS high_risk
+      FROM `fennmoor-dw.ml_scores.churn_score_v3` s
+      JOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key)
+      WHERE s.score_date = (SELECT MAX(score_date) FROM `fennmoor-dw.ml_scores.churn_score_v3`)
+      GROUP BY c.segment
+
+  - id: ca.churn_by_segment_v2
+    weight: 3
+    active: {until: 2026-05-14}
+    sql: |
+      SELECT c.segment, AVG(s.churn_score) AS avg_churn, COUNTIF(s.churn_score >= 0.6) AS high_risk
+      FROM `fennmoor-dw.ml_scores.churn_score_v2` s
+      JOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key)
+      WHERE s.score_date = (SELECT MAX(score_date) FROM `fennmoor-dw.ml_scores.churn_score_v2`)
+      GROUP BY c.segment
+
+  - id: ca.branch_preference_mix
+    by: [grace.nakamura]
+    weight: 3
+    findings: [F16]
+    notes: Keeps running after 2026-04-20; the NULL bucket quietly grows.
+    sql: |
+      SELECT c.preferred_branch_id, b.branch_name, b.region,
+             COUNT(*) AS customers, SUM(x.total_deposit_balance) AS deposits
+      FROM `fennmoor-dw.dw_core.dim_customer` c
+      LEFT JOIN `fennmoor-dw.dw_core.dim_branch` b ON b.branch_id = c.preferred_branch_id
+      JOIN `fennmoor-dw.dw_customer.customer_360` x USING (customer_key)
+      GROUP BY 1, 2, 3
+      ORDER BY customers DESC
+
+  - id: ca.new_accounts_by_channel
+    weight: 2
+    params: {start: "date:-120..-60"}
+    sql: |
+      SELECT DATE_TRUNC(open_date, WEEK) AS wk, open_channel, COUNT(*) AS new_accounts
+      FROM `fennmoor-dw.dw_core.dim_account`
+      WHERE account_family = '[[alt: DEPOSIT ;; CARD]]' AND open_date >= '{{start}}'
+      GROUP BY 1, 2
+      ORDER BY 1, 2
+
+  - id: ca.called_before_closing
+    by: [priya.raman]
+    weight: 2
+    params: {start: "date:-120..-60"}
+    sql: |
+      WITH closed AS (
+        SELECT customer_key, MIN(close_date) AS close_date
+        FROM `fennmoor-dw.dw_core.fct_account_closures`
+        WHERE is_voluntary AND close_date >= '{{start}}'
+        GROUP BY customer_key
+      )
+      SELECT f.site_id, COUNT(DISTINCT closed.customer_key) AS closers_who_called
+      FROM closed
+      JOIN `fennmoor-dw.dw_contact_center.fct_calls` f
+        ON f.customer_key = closed.customer_key
+       AND f.conversation_date BETWEEN DATE_SUB(closed.close_date, INTERVAL 30 DAY) AND closed.close_date
+      GROUP BY f.site_id
+
+  - id: ca.customer_lookup
+    weight: 4
+    params: {cif: "cif"}
+    sql: |
+      SELECT * FROM `fennmoor-dw.dw_customer.customer_360` WHERE cif_number = '{{cif}}'
+
+  - id: ca.digital_vs_balance
+    weight: 2
+    sql: |
+      SELECT is_digitally_enrolled, web_sessions_30d > 0 AS web_active,
+             COUNT(*) AS customers, AVG(total_deposit_balance) AS avg_balance
+      FROM `fennmoor-dw.dw_customer.customer_360`
+      GROUP BY 1, 2
+
+  - id: ca.profitability_deciles
+    by: [elliot.fairbanks]
+    weight: 2
+    params: {start: "month:-12..-6"}
+    sql: |
+      WITH rev AS (
+        SELECT customer_key, SUM(total_revenue) AS revenue
+        FROM `fennmoor-dw.dw_finance.fct_customer_profitability_monthly`
+        WHERE month_start >= '{{start}}'
+        GROUP BY customer_key
+      )
+      SELECT decile, COUNT(*) AS customers, SUM(revenue) AS revenue
+      FROM (SELECT customer_key, revenue, NTILE(10) OVER (ORDER BY revenue DESC) AS decile FROM rev)
+      GROUP BY decile
+      ORDER BY decile
+
+  - id: ca.legacy_households
+    by: [elliot.fairbanks]
+    weight: 1
+    sql: |
+      SELECT COUNT(DISTINCT HH_ID) AS legacy_households,
+             (SELECT COUNT(DISTINCT sf_household_id) FROM `fennmoor-dw.dw_core.dim_customer`) AS crm_households
+      FROM legacy_edw.CUST_MSTR
+
+  - id: ca.fee_sensitivity
+    weight: 2
+    params: {start: "date:-120..-90", end: "date:-5..-1"}
+    sql: |
+      SELECT c.segment, f.fee_type,
+             SUM(f.net_fee) AS net, SUM(f.fee_amount) AS gross, COUNTIF(f.is_waived) AS waived
+      FROM `fennmoor-dw.dw_core.fct_fees` f
+      JOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key)
+      WHERE f.assessed_date BETWEEN '{{start}}' AND '{{end}}'
+      GROUP BY ALL
+
+  - id: ca.fees_then_closed
+    by: [priya.raman, tom.okafor]
+    weight: 2
+    params: {start: "date:-180..-90"}
+    sql: |
+      WITH heavy AS (
+        SELECT customer_key, COUNT(*) AS fees
+        FROM `fennmoor-dw.dw_core.fct_fees`
+        WHERE assessed_date >= '{{start}}' AND fee_type IN ('OD', 'NSF')
+        GROUP BY customer_key
+        HAVING fees >= 3
+      )
+      SELECT COUNT(*) AS heavy_fee_customers, COUNTIF(c.customer_key IS NOT NULL) AS later_closed
+      FROM heavy
+      LEFT JOIN (SELECT DISTINCT customer_key FROM `fennmoor-dw.dw_core.fct_account_closures` WHERE close_date >= '{{start}}') c
+        USING (customer_key)
+
+  - id: ca.board_numbers
+    by: [priya.raman]
+    weight: 1
+    cadence: monthly
+    sql: |
+      SELECT * FROM sbx_priya_raman.q2_board_deck_numbers ORDER BY customers DESC
+
+  - id: ca.cohort_retention
+    by: [grace.nakamura]
+    weight: 1
+    params: {start: "month:-36..-24"}
+    sql: |
+      WITH first_open AS (
+        SELECT customer_key, DATE_TRUNC(MIN(open_date), MONTH) AS cohort
+        FROM `fennmoor-dw.dw_core.dim_account`
+        WHERE account_family = 'DEPOSIT'
+        GROUP BY customer_key
+      ),
+      closed AS (
+        SELECT customer_key, MIN(close_date) AS closed_on
+        FROM `fennmoor-dw.dw_core.fct_account_closures`
+        WHERE account_family = 'DEPOSIT'
+        GROUP BY customer_key
+      )
+      SELECT cohort, COUNT(*) AS n,
+             COUNTIF(closed_on IS NOT NULL AND DATE_DIFF(closed_on, cohort, MONTH) <= 12) AS closed_within_12m
+      FROM first_open LEFT JOIN closed USING (customer_key)
+      WHERE cohort >= '{{start}}'
+      GROUP BY cohort
+      ORDER BY cohort
+
+  - id: ca.pdt_peek
+    by: [tom.okafor]
+    weight: 1
+    sql: |
+      SELECT segment, COUNT(*) FROM looker_scratch.LR_6H0IZB3PQ4C6N_customer_facts GROUP BY 1
+
+  - id: ca.state_segment_matrix
+    weight: 2
+    sql: |
+      SELECT state_code, segment, COUNT(*) AS n
+      FROM `fennmoor-dw.dw_core.dim_customer`
+      WHERE customer_status = 'A' AND NOT is_deceased
+      GROUP BY state_code, segment
+
+  - id: ca.cohort_table_peek
+    by: [tom.okafor]
+    weight: 2
+    params: {d: "int:30..90"}
+    sql: |
+      SELECT * FROM sbx_customer_analytics.churn_cohort_analysis_2026q1 WHERE days_to_close <= {{d}} LIMIT 1000
+
+  - id: ca.legacy_balances
+    by: [elliot.fairbanks]
+    weight: 1
+    findings: [F05]
+    params: {d: "date:-3..-1"}
+    sql: |
+      SELECT PROD_CD, SUM(LDGR_BAL_AMT) AS balance FROM legacy_edw.ACCT_DLY_BAL WHERE BAL_DT = '{{d}}' GROUP BY PROD_CD
+
+  # ---- breadth: everyday segment, product and branch cuts ------------------
+  - id: ca.deposit_flows_by_segment
+    weight: 3
+    params: {start: "date:-60..-30", end: "date:-2..-1"}
+    sql: |
+      SELECT c.segment, t.transaction_type,
+             SUM(IF(t.signed_amount > 0, t.signed_amount, 0)) AS inflows,
+             SUM(IF(t.signed_amount < 0, -t.signed_amount, 0)) AS outflows
+      FROM `fennmoor-dw.dw_core.fct_deposit_transactions` t
+      JOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key)
+      WHERE t.posted_date BETWEEN '{{start}}' AND '{{end}}' [[opt: AND NOT t.is_reversal]]
+      GROUP BY 1, 2
+
+  - id: ca.direct_deposit_customers
+    weight: 2
+    params: {start: "date:-60..-30"}
+    sql: |
+      SELECT DATE_TRUNC(posted_date, [[alt: MONTH ;; WEEK]]) AS period, COUNT(DISTINCT customer_key) AS customers_with_ach_credit
+      FROM `fennmoor-dw.dw_core.fct_deposit_transactions`
+      WHERE transaction_type = 'ACH_CR' AND posted_date >= '{{start}}'
+      GROUP BY period
+      ORDER BY period
+
+  - id: ca.balances_by_product_line
+    weight: 3
+    params: {d: "date:-3..-1"}
+    sql: |
+      SELECT p.[[alt: product_line ;; product_family ;; reporting_category]] AS grp, COUNT(DISTINCT b.account_key) AS accounts, SUM(b.ledger_balance) AS balance
+      FROM `fennmoor-dw.dw_core.fct_daily_account_balances` b
+      JOIN `fennmoor-dw.dw_core.dim_product` p USING (product_code)
+      WHERE b.balance_date = '{{d}}'
+      GROUP BY grp
+      ORDER BY balance DESC
+
+  - id: ca.business_day_balances
+    weight: 1
+    params: {start: "date:-45..-30"}
+    sql: |
+      SELECT d.day_of_week, AVG(x.total) AS avg_total_balance
+      FROM (
+        SELECT balance_date, SUM(ledger_balance) AS total
+        FROM `fennmoor-dw.dw_core.fct_daily_account_balances`
+        WHERE balance_date >= '{{start}}'
+        GROUP BY balance_date
+      ) x
+      JOIN `fennmoor-dw.dw_core.dim_date` d ON d.date_day = x.balance_date
+      WHERE d.is_business_day
+      GROUP BY d.day_of_week
+
+  - id: ca.monthly_balance_distribution
+    weight: 2
+    params: {m: "month:-3..-1"}
+    sql: |
+      SELECT CASE WHEN avg_daily_total_balance < 1000 THEN '<1k' WHEN avg_daily_total_balance < 10000 THEN '1k-10k'
+                  WHEN avg_daily_total_balance < 100000 THEN '10k-100k' ELSE '100k+' END AS band,
+             COUNT(*) AS customers
+      FROM `fennmoor-dw.dw_customer.customer_monthly_summary`
+      WHERE month_start = '{{m}}'
+      GROUP BY band
+
+  - id: ca.cards_wallet_adoption
+    by: [elliot.fairbanks]
+    weight: 2
+    sql: |
+      SELECT digital_wallet, [[alt: card_role ;; is_virtual]] AS cut, COUNT(*) AS cards
+      FROM `fennmoor-dw.dw_core.dim_card`
+      WHERE status = 'A'
+      GROUP BY 1, 2
+
+  - id: ca.top_merchants_by_segment
+    weight: 2
+    params: {start: "date:-30..-14", seg: "choice:affluent|mass_affluent|mass"}
+    sql: |
+      SELECT m.merchant_name, m.category_group, SUM(t.amount) AS spend
+      FROM `fennmoor-dw.dw_core.fct_card_transactions` t
+      JOIN `fennmoor-dw.dw_core.dim_merchant` m USING (merchant_id)
+      JOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key)
+      WHERE t.post_date >= '{{start}}' AND t.is_purchase AND c.segment = '{{seg}}'
+      GROUP BY 1, 2
+      ORDER BY spend DESC
+      LIMIT 50
+
+  - id: ca.contact_rate_by_segment
+    weight: 2
+    params: {start: "date:-60..-30"}
+    sql: |
+      SELECT c.segment, COUNT(DISTINCT f.customer_key) AS callers, COUNT(*) AS contacts
+      FROM `fennmoor-dw.dw_contact_center.fct_calls` f
+      JOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key)
+      WHERE f.conversation_date >= '{{start}}'
+      GROUP BY c.segment
+
+  - id: ca.csat_by_segment
+    weight: 1
+    params: {start: "date:-60..-30"}
+    sql: |
+      SELECT c.segment, AVG(s.csat_score) AS csat, COUNT(*) AS surveys
+      FROM `fennmoor-dw.dw_contact_center.fct_csat` s
+      JOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key)
+      WHERE s.conversation_date >= '{{start}}'
+      GROUP BY c.segment
+
+  - id: ca.credit_apps_existing_customers
+    weight: 1
+    params: {start: "date:-90..-45"}
+    sql: |
+      SELECT c.segment, COUNT(*) AS apps, COUNTIF(a.final_outcome = 'APPROVE') AS approved
+      FROM `fennmoor-dw.dw_risk.fct_credit_applications` a
+      JOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key)
+      WHERE a.submitted_date >= '{{start}}'
+      GROUP BY c.segment
+
+  - id: ca.nbo_by_segment
+    weight: 1
+    sql: |
+      SELECT c.segment, n.offer_product_code, COUNT(*) AS customers
+      FROM `fennmoor-dw.ml_scores.next_best_offer` n
+      JOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key)
+      WHERE n.rank = 1 AND n.score_date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+      GROUP BY 1, 2
+      ORDER BY 1, 3 DESC
+
+  - id: ca.identity_crosswalk_lookup
+    by: [priya.raman]
+    weight: 1
+    params: {cif: "cif"}
+    sql: |
+      SELECT * FROM `fennmoor-dw.dw_intermediate.int_customer_identity` WHERE cif_number = '{{cif}}'

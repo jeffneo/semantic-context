@@ -1,0 +1,20 @@
+[project]
+name = "qlsc-parse"
+version = "0.1.0"
+description = "Stateless SQL parse service: query-log texts -> shapes -> parse records"
+requires-python = ">=3.11"
+dependencies = ["sqlglot[c]==30.19.0"]
+
+[project.optional-dependencies]
+serve = ["gunicorn>=23"]
+test = ["pytest>=8"]
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["qlsc_parse"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

@@ -1,0 +1,659 @@
+# =============================================================================
+# Raw sources II: Salesforce, Genesys, legacy Avaya, finance, HR, reference
+# =============================================================================
+# The notebook's test question - "which call centers see the most
+# cancellations, and what did they cost last year" - is answerable from these
+# plus core ACCOUNT.CLS_RSN_CD, but only by resolving several deliberate
+# obstacles:
+#   - the site lives in the Genesys QUEUE NAME prefix (TUL_, SPK_, MNL_), not
+#     in a column; reference_data.contact_center_site maps prefix -> site
+#   - the caller's CIF is inside participant.attributes JSON
+#   - owned sites' cost is payroll + facilities in the GL by cost center, but
+#     the outsourced BPO site (MNL) only appears as vendor invoices
+#   - closure calls are wrap-up 'ACCT_MAINT' before 2026-06-02 and
+#     'ACCT_CLOSE' after (see 00_estate.yaml log_window.events)
+#   - pre-Oct-2025 history is in Avaya CDR monthly shards with different codes
+# =============================================================================
+
+dataset: salesforce
+defaults: {mixins: [fivetran_salesforce], stage: sf, refresh: fivetran-1h}
+tables:
+  - name: account
+    subject: household
+    desc: >-
+      Salesforce Account, used as the HOUSEHOLD. A third `account_id` meaning
+      in this estate (after deposit and card accounts).
+    grain: id
+    rows: 1720000
+    columns:
+      - "id | STRING || customer.sf_household_id | pk required"
+      - "name | STRING"
+      - "type | STRING"
+      - "record_type_id | STRING"
+      - "owner_id | STRING || crm.user_id"
+      - "primary_branch__c | STRING || branch.id"           # branch number stored as STRING
+      - "household_segment__c | STRING || customer.segment"
+      - "total_relationship_balance__c | NUMERIC || money.balance | unit=usd"
+      - "billing_state | STRING || geo.state"
+      - "billing_postal_code | STRING || geo.zip"
+
+  - name: contact
+    subject: customer_master
+    desc: One Contact per person known to CRM. cif_number__c links to core.
+    grain: id
+    rows: 2610000
+    columns:
+      - "id | STRING || customer.sf_contact_id | pk required"
+      - "account_id | STRING || customer.sf_household_id"
+      - "cif_number__c | STRING || customer.cif"
+      - "first_name | STRING || pii.name | pii=name"
+      - "last_name | STRING || pii.name | pii=name"
+      - "email | STRING || pii.email | pii=email"
+      - "phone | STRING || pii.phone | pii=phone"
+      - "mobile_phone | STRING || pii.phone | pii=phone"
+      - "birthdate | DATE || pii.dob | pii=dob"
+      - "mailing_street | STRING || pii.address | pii=address"
+      - "mailing_city | STRING"
+      - "mailing_state | STRING || geo.state"
+      - "mailing_postal_code | STRING || geo.zip"
+      - "do_not_call | BOOL"
+      - "has_opted_out_of_email | BOOL"
+      - "preferred_channel__c | STRING"
+      - "owner_id | STRING || crm.user_id"
+
+  - name: case
+    subject: cases
+    desc: >-
+      Service cases. genesys_conversation_id__c links a case to the call that
+      opened it (populated ~70% of the time).
+    grain: id
+    rows: 5400000
+    partition: DATE(created_date)
+    columns:
+      - "id | STRING || case.id | pk required"
+      - "case_number | STRING"
+      - "contact_id | STRING || customer.sf_contact_id"
+      - "account_id | STRING || customer.sf_household_id"
+      - "origin | STRING"                                    # Phone, Web, Email, Branch, Chat
+      - "type | STRING"
+      - "reason | STRING"                                    # Fee Dispute, Account Closure, Card Issue, Fraud, ...
+      - "sub_reason__c | STRING"
+      - "status | STRING"
+      - "priority | STRING"
+      - "subject | STRING"
+      - "description | STRING ||| pii=free_text"
+      - "closed_date | TIMESTAMP"
+      - "is_closed | BOOL"
+      - "is_escalated | BOOL"
+      - "owner_id | STRING || crm.user_id"
+      - "genesys_conversation_id__c | STRING || call.conversation_id"
+      - "related_account_number__c | STRING || deposit_account.number | pii=account_number"
+
+  - name: opportunity
+    subject: crm_opportunities
+    desc: Sales opportunities (new products for existing customers).
+    grain: id
+    rows: 1300000
+    columns:
+      - "id | STRING ||| pk required"
+      - "account_id | STRING || customer.sf_household_id"
+      - "primary_contact__c | STRING || customer.sf_contact_id"
+      - "name | STRING"
+      - "stage_name | STRING"
+      - "amount | NUMERIC || money.balance | unit=usd"
+      - "close_date | DATE"
+      - "product_code__c | STRING || product.code"
+      - "lead_source | STRING"
+      - "campaign_id | STRING || crm.campaign_id"
+      - "is_won | BOOL"
+      - "probability | NUMERIC ||| unit=pct"
+      - "owner_id | STRING || crm.user_id"
+
+  - name: task
+    subject: crm_activities
+    desc: >-
+      Activities, including logged calls. what_id is polymorphic (case,
+      opportunity or financial account) - a join that needs the id prefix.
+    grain: id
+    rows: 38000000
+    partition: activity_date
+    columns:
+      - "id | STRING ||| pk required"
+      - "who_id | STRING || customer.sf_contact_id"
+      - "what_id | STRING"
+      - "subject | STRING"
+      - "type | STRING"
+      - "status | STRING"
+      - "activity_date | DATE || date.day"
+      - "call_duration_in_seconds | INT64 || metric.duration | unit=sec"
+      - "call_disposition | STRING"
+      - "owner_id | STRING || crm.user_id"
+
+  - name: user
+    subject: crm_users
+    desc: Salesforce users (bankers, service reps, managers).
+    grain: id
+    rows: 4100
+    columns:
+      - "id | STRING || crm.user_id | pk required"
+      - "name | STRING || pii.name | pii=name"
+      - "email | STRING || pii.email | pii=email"
+      - "username | STRING"
+      - "profile_id | STRING"
+      - "user_role_id | STRING"
+      - "is_active | BOOL"
+      - "employee_number | STRING || employee.id"
+      - "department | STRING"
+      - "division | STRING"
+
+  - name: campaign
+    subject: crm_campaigns
+    desc: CRM campaigns. braze_campaign_id__c links to the marketing platform.
+    grain: id
+    rows: 3900
+    columns:
+      - "id | STRING || crm.campaign_id | pk required"
+      - "name | STRING"
+      - "type | STRING"
+      - "status | STRING"
+      - "start_date | DATE"
+      - "end_date | DATE"
+      - "braze_campaign_id__c | STRING || campaign.id"
+      - "budgeted_cost | NUMERIC || money.cost | unit=usd"
+      - "actual_cost | NUMERIC || money.cost | unit=usd"
+
+  - name: campaign_member
+    subject: crm_campaigns
+    desc: Contacts and leads in campaigns.
+    grain: id
+    rows: 21000000
+    columns:
+      - "id | STRING ||| pk required"
+      - "campaign_id | STRING || crm.campaign_id"
+      - "contact_id | STRING || customer.sf_contact_id"
+      - "lead_id | STRING || crm.lead_id"
+      - "status | STRING"
+      - "has_responded | BOOL"
+      - "first_responded_date | DATE"
+
+  - name: lead
+    subject: crm_leads
+    desc: Prospects not yet customers.
+    grain: id
+    rows: 900000
+    columns:
+      - "id | STRING || crm.lead_id | pk required"
+      - "first_name | STRING || pii.name | pii=name"
+      - "last_name | STRING || pii.name | pii=name"
+      - "email | STRING || pii.email | pii=email"
+      - "phone | STRING || pii.phone | pii=phone"
+      - "status | STRING"
+      - "lead_source | STRING"
+      - "converted_contact_id | STRING || customer.sf_contact_id"
+      - "is_converted | BOOL"
+
+  - name: financial_account__c
+    subject: deposit_accounts
+    desc: >-
+      Custom object mirroring core accounts into CRM. core_account_id__c is
+      the core ACCT_ID stored as a STRING.
+    grain: id
+    rows: 3300000
+    columns:
+      - "id | STRING ||| pk required"
+      - "name | STRING"
+      - "account_number__c | STRING || deposit_account.number | pii=account_number"
+      - "core_account_id__c | STRING || deposit_account.id"
+      - "primary_owner__c | STRING || customer.sf_contact_id"
+      - "product_code__c | STRING || product.code"
+      - "balance__c | NUMERIC || money.balance | unit=usd"
+      - "open_date__c | DATE"
+      - "status__c | STRING"
+
+  - name: record_type
+    subject: crm_users
+    desc: Salesforce record types.
+    grain: id
+    rows: 64
+    columns:
+      - "id | STRING ||| pk required"
+      - "name | STRING"
+      - "developer_name | STRING"
+      - "sobject_type | STRING"
+      - "is_active | BOOL"
+
+  - name: case_history
+    subject: cases
+    desc: Field-level case audit trail. Synced, never staged, never read.
+    grain: id
+    rows: 61000000
+    stage: false
+    status: write_only
+    columns:
+      - "id | STRING ||| pk"
+      - "case_id | STRING || case.id"
+      - "field | STRING"
+      - "old_value | STRING"
+      - "new_value | STRING"
+      - "created_by_id | STRING"
+---
+dataset: genesys_cloud
+defaults: {mixins: [fivetran], stage: genesys, refresh: fivetran-30m}
+tables:
+  - name: conversation
+    subject: calls
+    desc: One row per contact (voice, chat, email, callback). Live since 2025-10-01.
+    grain: conversation_id
+    rows: 7900000
+    partition: DATE(conversation_start)
+    columns:
+      - "conversation_id | STRING || call.conversation_id | pk required"
+      - "conversation_start | TIMESTAMP"
+      - "conversation_end | TIMESTAMP"
+      - "originating_direction | STRING"
+      - "media_type | STRING"                                # voice, chat, email, callback
+      - "division_id | STRING || genesys.division_id"
+      - "ani_hash | STRING || pii.phone | pii=phone_hash"
+      - "dnis | STRING"
+      - "external_tag | STRING"
+
+  - name: participant
+    subject: calls
+    desc: >-
+      Participants in a conversation (customer, ivr, acd, agent). The caller's
+      CIF is only in `attributes` JSON, at $.cif, set by the IVR after
+      authentication - absent for unauthenticated callers.
+    grain: participant_id
+    rows: 31000000
+    partition: DATE(start_time)
+    columns:
+      - "participant_id | STRING || call.participant_id | pk required"
+      - "conversation_id | STRING || call.conversation_id | required"
+      - "purpose | STRING"                                   # customer, ivr, acd, agent, external
+      - "user_id | STRING || agent.genesys_user_id"
+      - "queue_id | STRING || queue.id"
+      - "participant_name | STRING ||| pii=name"
+      - "start_time | TIMESTAMP"
+      - "end_time | TIMESTAMP"
+      - "attributes | JSON ||| contains=customer.cif@$.cif"
+    stage_add:
+      - "cif_number | STRING | JSON_VALUE(src.attributes, '$.cif') | customer.cif"
+      - "ivr_auth_result | STRING | JSON_VALUE(src.attributes, '$.ivr_auth')"
+      - "intent | STRING | JSON_VALUE(src.attributes, '$.intent')"
+
+  - name: segment
+    subject: call_segments
+    desc: Timed segments of a participant session (ivr, alert, interact, hold, wrapup).
+    grain: segment_id
+    rows: 96000000
+    partition: DATE(segment_start)
+    cluster: [conversation_id]
+    columns:
+      - "segment_id | STRING ||| pk required"
+      - "conversation_id | STRING || call.conversation_id | required"
+      - "participant_id | STRING || call.participant_id"
+      - "segment_type | STRING"
+      - "segment_start | TIMESTAMP"
+      - "segment_end | TIMESTAMP"
+      - "queue_id | STRING || queue.id"
+      - "wrap_up_code | STRING || call.wrapup_code"
+      - "wrap_up_note | STRING ||| pii=free_text"
+      - "disconnect_type | STRING"
+
+  - name: queue
+    subject: queues
+    desc: >-
+      Routing queues. The site is encoded ONLY in the name prefix:
+      TUL_Retail_Service, SPK_Card_Services, MNL_BPO_Overflow, ...
+    grain: id
+    rows: 86
+    columns:
+      - "id | STRING || queue.id | pk required"
+      - "name | STRING"
+      - "division_id | STRING || genesys.division_id"
+      - "description | STRING"
+      - "acw_timeout_ms | INT64 || metric.duration | unit=ms"
+      - "skill_evaluation_method | STRING"
+
+  - name: user
+    subject: agents
+    desc: >-
+      Genesys users (agents, supervisors). employee_id is blank for BPO agents,
+      who are not Fennmoor employees.
+    grain: id
+    rows: 1450
+    columns:
+      - "id | STRING || agent.genesys_user_id | pk required"
+      - "name | STRING || pii.name | pii=name"
+      - "email | STRING || pii.email | pii=email"
+      - "department | STRING"
+      - "title | STRING"
+      - "manager_id | STRING || agent.genesys_user_id"
+      - "location_name | STRING"                             # 'Tulsa OK', 'Spokane WA', 'Manila (Harbinger)'
+      - "employee_id | STRING || employee.id"
+      - "state | STRING"
+
+  - name: wrapup_code
+    subject: dispositions
+    desc: >-
+      Wrap-up (disposition) codes. ACCT_CLOSE added 2026-06-02; before that,
+      closures were coded ACCT_MAINT.
+    grain: id
+    rows: 57
+    columns:
+      - "id | STRING || call.wrapup_code | pk required"
+      - "name | STRING"
+      - "description | STRING"
+
+  - name: evaluation
+    subject: quality
+    desc: QA evaluations of agent interactions.
+    grain: evaluation_id
+    rows: 210000
+    columns:
+      - "evaluation_id | STRING ||| pk required"
+      - "conversation_id | STRING || call.conversation_id"
+      - "agent_id | STRING || agent.genesys_user_id"
+      - "evaluator_id | STRING || agent.genesys_user_id"
+      - "form_name | STRING"
+      - "total_score | NUMERIC ||| unit=pct"
+      - "critical_score | NUMERIC ||| unit=pct"
+      - "released_date | TIMESTAMP"
+
+  - name: survey_response
+    subject: surveys
+    desc: Post-contact survey responses.
+    grain: survey_id
+    rows: 640000
+    columns:
+      - "survey_id | STRING ||| pk required"
+      - "conversation_id | STRING || call.conversation_id"
+      - "agent_user_id | STRING || agent.genesys_user_id"
+      - "sent_at | TIMESTAMP"
+      - "completed_at | TIMESTAMP"
+      - "csat_score | INT64 || metric.csat"
+      - "nps_score | INT64 || metric.nps"
+      - "verbatim | STRING ||| pii=free_text"
+
+  - name: ivr_flow_outcome
+    subject: ivr
+    desc: IVR flow outcomes (self-serve, authentication, transfer to agent).
+    grain: conversation_id, outcome_id
+    rows: 12000000
+    partition: DATE(outcome_start)
+    columns:
+      - "conversation_id | STRING || call.conversation_id | required"
+      - "flow_id | STRING"
+      - "flow_name | STRING"
+      - "outcome_id | STRING"
+      - "outcome_name | STRING"                              # SELF_SERVE_BAL, AUTH_OK, AUTH_FAIL, XFER_AGENT, CLOSE_INTENT
+      - "outcome_value | STRING"
+      - "outcome_start | TIMESTAMP"
+      - "outcome_end | TIMESTAMP"
+---
+dataset: contact_center_legacy
+defaults: {stage: false, refresh: frozen}
+tables:
+  - name: cdr_
+    subject: calls
+    desc: >-
+      Avaya call detail records, one shard per month, 202301-202509. Frozen
+      at the Genesys cutover. Local DATETIME, raw ANI (unhashed phone), legacy
+      disposition codes. Queried with the wildcard cdr_* - often with no
+      _TABLE_SUFFIX filter (planted cost finding F09).
+    shard: {suffix: YYYYMM, from: 2023-01, to: 2025-09}
+    grain: CALL_ID
+    rows: 1100000           # per shard
+    status: frozen
+    columns:
+      - "CALL_ID | STRING || call.legacy_call_id | pk required"
+      - "CALL_START_DTTM | DATETIME"
+      - "CALL_END_DTTM | DATETIME"
+      - "ANI | STRING || pii.phone | pii=phone"
+      - "DNIS | STRING"
+      - "SPLIT_SKILL | STRING"
+      - "AGENT_LOGIN_ID | STRING || agent.avaya_login_id"
+      - "AGENT_EXT | STRING"
+      - "SITE_CD | STRING || cc_site.id"
+      - "TALK_SEC | INT64 || metric.duration | unit=sec"
+      - "HOLD_SEC | INT64 || metric.duration | unit=sec"
+      - "ACW_SEC | INT64 || metric.duration | unit=sec"
+      - "ABANDON_FLG | STRING"
+      - "DISPOSITION_CD | STRING || call.wrapup_code"
+      - "TRANSFER_FLG | STRING"
+      - "CIF_NO | STRING || customer.cif"
+
+  - name: AGENT_ROSTER
+    subject: agents
+    desc: Avaya-era agent roster.
+    grain: AGENT_LOGIN_ID
+    rows: 2300
+    status: frozen
+    columns:
+      - "AGENT_LOGIN_ID | STRING || agent.avaya_login_id | pk required"
+      - "AGENT_NM | STRING || pii.name | pii=name"
+      - "EMP_ID | STRING || employee.id"
+      - "SITE_CD | STRING || cc_site.id"
+      - "TEAM_NM | STRING"
+      - "SUPV_NM | STRING || pii.name | pii=name"
+      - "HIRE_DT | DATE"
+      - "TERM_DT | DATE"
+      - "ACTIVE_FLG | STRING"
+
+  - name: SITE_LKP
+    subject: cc_sites
+    desc: >-
+      Avaya-era site lookup. Duplicates reference_data.contact_center_site
+      with different column names and no cost center.
+    grain: SITE_CD
+    rows: 3
+    status: frozen
+    columns:
+      - "SITE_CD | STRING || cc_site.id | pk required"
+      - "SITE_DESC | STRING"
+      - "SITE_ST | STRING || geo.state"
+      - "OUTSRC_FLG | STRING"
+---
+dataset: reference_data
+defaults: {mixins: [manual_upload], stage: ref, refresh: manual}
+tables:
+  - name: contact_center_site
+    subject: cc_sites
+    desc: >-
+      Contact-center sites. The bridge from Genesys queue-name prefix to site,
+      and from site to finance cost center.
+    grain: site_id
+    rows: 3
+    columns:
+      - "site_id | STRING || cc_site.id | pk required"
+      - "site_name | STRING"
+      - "city | STRING"
+      - "state | STRING || geo.state"
+      - "country | STRING"
+      - "operator | STRING"                                  # Fennmoor Bank | Harbinger BPO Services
+      - "is_outsourced | BOOL"
+      - "cost_center_id | STRING || finance.cost_center_id"
+      - "seat_count | INT64"
+      - "go_live_date | DATE"
+      - "genesys_queue_prefix | STRING"                      # 'TUL_', 'SPK_', 'MNL_'
+
+  - name: holiday_calendar
+    subject: calendar
+    desc: Bank and Federal Reserve holidays.
+    grain: holiday_date
+    rows: 140
+    columns:
+      - "holiday_date | DATE || date.day | pk required"
+      - "holiday_name | STRING"
+      - "is_bank_holiday | BOOL"
+      - "fed_closed | BOOL"
+
+  - name: zip_region_map
+    subject: geography
+    desc: ZIP to MSA and Fennmoor sales region.
+    grain: zip
+    rows: 41000
+    columns:
+      - "zip | STRING || geo.zip | pk required"
+      - "state | STRING || geo.state"
+      - "msa_name | STRING"
+      - "fennmoor_region | STRING"
+      - "market_cd | STRING"
+
+  - name: fx_rate_daily
+    subject: fx
+    desc: Daily FX rates for the small amount of foreign card spend.
+    grain: rate_date, from_ccy, to_ccy
+    rows: 36000
+    columns:
+      - "rate_date | DATE || date.day | required"
+      - "from_ccy | STRING"
+      - "to_ccy | STRING"
+      - "rate | NUMERIC"
+
+  - name: product_hierarchy_FINAL_v3
+    stage_name: stg_ref__product_hierarchy
+    subject: product_reference
+    desc: >-
+      Finance's product reporting hierarchy, uploaded from a spreadsheet.
+      The name is exactly what landed. Still the source of truth for finance.
+    grain: prod_cd
+    rows: 214
+    columns:
+      - "prod_cd | STRING || product.code | pk required"
+      - "product_line | STRING"
+      - "product_group | STRING"
+      - "reporting_category | STRING"
+      - "fee_bearing | STRING"                               # 'Y'/'N'/'y'/'' - really
+---
+dataset: gl_erp
+defaults: {mixins: [fivetran], stage: gl, refresh: fivetran-6h}
+tables:
+  - name: gl_account
+    subject: general_ledger
+    desc: Chart of accounts.
+    grain: gl_account_code
+    rows: 2900
+    columns:
+      - "gl_account_code | STRING || gl.account_code | pk required"
+      - "account_name | STRING"
+      - "account_type | STRING"                              # ASSET LIAB EQUITY REVENUE EXPENSE
+      - "parent_code | STRING || gl.account_code"
+      - "is_active | BOOL"
+
+  - name: cost_center
+    subject: cost_centers
+    desc: >-
+      Cost centers. Contact-center sites are 'Contact Center - Tulsa',
+      'Contact Center - Spokane', and 'Vendor Mgmt - BPO Manila'.
+    grain: cost_center_id
+    rows: 640
+    columns:
+      - "cost_center_id | STRING || finance.cost_center_id | pk required"
+      - "cost_center_name | STRING"
+      - "department_code | STRING"
+      - "owner_worker_id | STRING || employee.id"
+      - "region | STRING"
+      - "is_active | BOOL"
+      - "effective_date | DATE"
+
+  - name: journal_line
+    subject: general_ledger
+    desc: GL journal lines. period_name is Oracle-style 'APR-26'.
+    grain: journal_id, line_number
+    rows: 240000000
+    partition: accounting_date
+    cluster: [cost_center_id, gl_account_code]
+    columns:
+      - "journal_id | STRING || gl.journal_id | required"
+      - "line_number | INT64"
+      - "period_name | STRING"
+      - "accounting_date | DATE || date.day"
+      - "gl_account_code | STRING || gl.account_code"
+      - "cost_center_id | STRING || finance.cost_center_id"
+      - "entered_dr | NUMERIC || money.gl_amount | unit=usd"
+      - "entered_cr | NUMERIC || money.gl_amount | unit=usd"
+      - "line_description | STRING"
+      - "source | STRING"                                    # AP, PAYROLL, ALLOC, MANUAL, FA
+      - "currency_code | STRING"
+
+  - name: vendor_invoice
+    subject: vendor_spend
+    desc: >-
+      AP invoices. The only place BPO contact-center cost appears
+      (vendor 'Harbinger BPO Services', cost center of the MNL site).
+    grain: invoice_id
+    rows: 1900000
+    partition: invoice_date
+    columns:
+      - "invoice_id | STRING ||| pk required"
+      - "vendor_name | STRING"
+      - "cost_center_id | STRING || finance.cost_center_id"
+      - "gl_account_code | STRING || gl.account_code"
+      - "invoice_date | DATE || date.day"
+      - "amount | NUMERIC || money.cost | unit=usd"
+      - "po_number | STRING"
+      - "line_description | STRING"
+
+  - name: CC_EXPENSE_SUMMARY
+    subject: expenses
+    desc: >-
+      ERP report extract: monthly actual vs budget by cost center. CC = COST
+      CENTER. Upper-case because it is a report extract, not a table.
+    grain: PERIOD_NAME, CC_ID, GL_ACCT
+    rows: 1100000
+    columns:
+      - "PERIOD_NAME | STRING"
+      - "CC_ID | STRING || finance.cost_center_id | required"
+      - "GL_ACCT | STRING || gl.account_code"
+      - "ACTUAL_AMT | NUMERIC || money.cost | unit=usd"
+      - "BUDGET_AMT | NUMERIC || money.cost | unit=usd"
+      - "VARIANCE_AMT | NUMERIC || money.cost | unit=usd"
+---
+dataset: workday
+defaults: {mixins: [fivetran], stage: wd, refresh: fivetran-24h}
+tables:
+  - name: worker
+    subject: workforce
+    desc: Employees and contingent workers. Restricted.
+    grain: worker_id
+    rows: 5200
+    columns:
+      - "worker_id | STRING || employee.id | pk required"
+      - "legal_name | STRING || pii.name | pii=name"
+      - "preferred_name | STRING || pii.name | pii=name"
+      - "work_email | STRING || pii.email | pii=email"
+      - "hire_date | DATE"
+      - "termination_date | DATE"
+      - "job_profile | STRING"
+      - "job_family | STRING"
+      - "management_level | STRING"
+      - "cost_center_id | STRING || finance.cost_center_id"
+      - "location | STRING"
+      - "supervisor_worker_id | STRING || employee.id"
+      - "worker_status | STRING"
+
+  - name: position
+    subject: workforce
+    desc: Position assignments and FTE.
+    grain: position_id, effective_date
+    rows: 9100
+    columns:
+      - "position_id | STRING ||| pk required"
+      - "worker_id | STRING || employee.id"
+      - "job_profile | STRING"
+      - "effective_date | DATE"
+      - "fte | NUMERIC"
+      - "scheduled_hours | NUMERIC"
+
+  - name: compensation
+    subject: compensation
+    desc: Base pay history. Restricted; read only by finance's cost model.
+    grain: worker_id, effective_date
+    rows: 23000
+    columns:
+      - "worker_id | STRING || employee.id | required"
+      - "effective_date | DATE"
+      - "base_pay_annual | NUMERIC || money.cost | unit=usd policy=restricted"
+      - "bonus_target_pct | NUMERIC ||| unit=pct"
+      - "currency_code | STRING"

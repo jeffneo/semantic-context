@@ -1,0 +1,240 @@
+# Fraud strategy: strong SQL, Jupyter. Lives in raw authorization data and
+# is the team most likely to join card and deposit accounts on account_id (F03).
+team: fraud_strategy
+templates:
+  - id: fr.confirm_rate_by_channel
+    weight: 5
+    params: {start: "date:-60..-30", end: "date:-3..-1"}
+    sql: |
+      SELECT channel, COUNT(*) AS alerts, COUNTIF(is_confirmed_fraud) AS confirmed,
+             SAFE_DIVIDE(COUNTIF(is_confirmed_fraud), COUNT(*)) AS confirm_rate
+      FROM `fennmoor-dw.dw_risk.fct_fraud_alerts`
+      WHERE alert_date BETWEEN '{{start}}' AND '{{end}}'
+      GROUP BY channel
+      ORDER BY confirm_rate DESC
+
+  - id: fr.rule_performance
+    weight: 4
+    params: {start: "date:-30..-7"}
+    sql: |
+      SELECT rule_id, COUNT(*) AS alerts, COUNTIF(is_confirmed_fraud) AS confirmed, SUM(loss_amount) AS losses
+      FROM `fennmoor-dw.dw_risk.fct_fraud_alerts`
+      WHERE alert_date >= '{{start}}'
+      GROUP BY rule_id
+      HAVING COUNT(*) > 50
+      ORDER BY confirmed DESC
+
+  - id: fr.rule_names_raw
+    weight: 2
+    params: {d: "date:-3..-1"}
+    sql: |
+      SELECT r.rule_name, a.alert_status, COUNT(*) AS n
+      FROM `fennmoor-raw.fraud_platform.alert` a
+      JOIN `fennmoor-raw.fraud_platform.rule` r ON r.rule_id = a.rule_id AND r.active
+      WHERE DATE(a.alert_ts) = '{{d}}'
+      GROUP BY 1, 2
+
+  - id: fr.ato_logins
+    by: [rachel.kim]
+    weight: 4
+    params: {start: "date:-7..-2", n: "choice:5|10|20"}
+    sql: |
+      SELECT olb_user_id,
+             COUNTIF(NOT is_success) AS failed,
+             COUNT(DISTINCT device_id) AS devices,
+             COUNT(DISTINCT geo_country) AS countries
+      FROM `fennmoor-dw.dw_digital.fct_digital_logins`
+      WHERE event_date >= '{{start}}'
+      GROUP BY olb_user_id
+      HAVING failed >= {{n}} OR countries > 1
+      ORDER BY failed DESC
+      LIMIT 500
+
+  - id: fr.ato_sandbox_read
+    by: [rachel.kim]
+    weight: 2
+    sql: |
+      SELECT * FROM sbx_fraud.ato_signals_login WHERE failed_logins >= 10 ORDER BY event_date DESC
+
+  - id: fr.p2p_holds
+    weight: 3
+    params: {start: "date:-45..-14"}
+    sql: |
+      SELECT initiated_date, COUNTIF(fraud_hold) AS holds, COUNT(*) AS transfers, SUM(IF(fraud_hold, amount, 0)) AS held_amount
+      FROM `fennmoor-dw.dw_digital.fct_p2p_transfers`
+      WHERE initiated_date >= '{{start}}'
+      GROUP BY initiated_date
+      ORDER BY initiated_date
+
+  - id: fr.p2p_scams_read
+    weight: 2
+    sql: |
+      SELECT fraud_type, COUNT(*) AS alerts, SUM(loss_amount) AS losses FROM sbx_fraud.p2p_scam_cases_2026 GROUP BY fraud_type
+
+  - id: fr.auth_declines
+    weight: 3
+    params: {d: "date:-2..-1"}
+    sql: |
+      SELECT decline_reason, channel, COUNT(*) AS declines
+      FROM `fennmoor-raw.card_processor.authorization`
+      WHERE DATE(auth_ts) = '{{d}}' AND response_code != '00'
+      GROUP BY 1, 2
+      ORDER BY declines DESC
+
+  - id: fr.cnp_velocity
+    by: [olumide.bankole]
+    weight: 3
+    params: {start: "date:-3..-2", end: "date:-1..-1"}
+    sql: |
+      WITH a AS (
+        SELECT account_id, card_token, auth_ts, amount_cents
+        FROM `fennmoor-raw.card_processor.authorization`
+        WHERE DATE(auth_ts) BETWEEN '{{start}}' AND '{{end}}' AND channel = 'CNP'
+      )
+      SELECT account_id, COUNT(*) AS n, SUM(amount_cents) / 100 AS amount_usd, MIN(auth_ts) AS first_seen, MAX(auth_ts) AS last_seen
+      FROM a
+      GROUP BY account_id
+      HAVING n >= 20
+      ORDER BY n DESC
+      LIMIT 200
+
+  - id: fr.score_vs_confirmed
+    weight: 2
+    sql: |
+      SELECT CAST(FLOOR(model_score / 100) * 100 AS INT64) AS score_band, COUNT(*) AS alerts, COUNTIF(is_confirmed_fraud) AS confirmed
+      FROM `fennmoor-dw.dw_risk.fct_fraud_alerts`
+      GROUP BY score_band
+      ORDER BY score_band
+
+  - id: fr.bust_out_read
+    by: [olumide.bankole]
+    weight: 2
+    sql: |
+      SELECT * FROM sbx_fraud.bust_out_candidates ORDER BY card_balance DESC LIMIT 500
+
+  - id: fr.card_deposit_join
+    by: [rachel.kim]
+    weight: 2
+    findings: [F03]
+    notes: account_id means different things in the two sources; the join still returns rows.
+    params: {start: "date:-30..-14"}
+    sql: |
+      SELECT s.account_id, SUM(s.amount) AS card_spend, ANY_VALUE(a.account_status_code) AS dda_status
+      FROM `fennmoor-dw.dw_staging.stg_cards__settlement` s
+      JOIN `fennmoor-dw.dw_staging.stg_core__account` a ON a.account_id = s.account_id
+      WHERE s.post_date >= '{{start}}'
+      GROUP BY s.account_id
+      HAVING card_spend > 5000
+
+  - id: fr.realtime_score_distribution
+    weight: 2
+    params: {d: "date:-2..-1"}
+    sql: |
+      SELECT model_name, model_version, APPROX_QUANTILES(score, 10) AS deciles, COUNT(*) AS n
+      FROM `fennmoor-raw.fraud_platform.model_score_realtime`
+      WHERE DATE(scored_at) = '{{d}}'
+      GROUP BY 1, 2
+
+  - id: fr.disputes
+    weight: 2
+    params: {start: "date:-60..-30"}
+    sql: |
+      SELECT reason_code, COUNT(*) AS disputes, SUM(dispute_amount_cents) / 100 AS disputed_usd
+      FROM `fennmoor-raw.card_processor.dispute`
+      WHERE opened_date >= '{{start}}'
+      GROUP BY reason_code
+      ORDER BY disputes DESC
+
+  - id: fr.loss_by_type
+    weight: 2
+    sql: |
+      SELECT DATE_TRUNC(alert_date, MONTH) AS m, fraud_type, SUM(loss_amount) AS losses
+      FROM `fennmoor-dw.dw_risk.fct_fraud_alerts`
+      WHERE is_confirmed_fraud
+      GROUP BY 1, 2
+      ORDER BY 1, 3 DESC
+
+  - id: fr.mobile_deposit_rejects
+    weight: 1
+    params: {start: "date:-30..-7"}
+    sql: |
+      SELECT reject_reason, COUNT(*) AS rejects, SUM(amount) AS amount
+      FROM `fennmoor-raw.digital_banking.mobile_deposit`
+      WHERE DATE(submitted_at) >= '{{start}}' AND status = 'REJECTED'
+      GROUP BY reject_reason
+
+  # ---- breadth -------------------------------------------------------------
+  - id: fr.p2p_by_direction
+    weight: 2
+    params: {start: "date:-30..-14"}
+    sql: |
+      SELECT direction, status, COUNT(*) AS transfers, SUM(amount) AS amount
+      FROM `fennmoor-dw.dw_digital.fct_p2p_transfers`
+      WHERE initiated_date >= '{{start}}' [[opt: AND amount >= 500]]
+      GROUP BY 1, 2
+
+  - id: fr.p2p_new_payees
+    by: [rachel.kim]
+    weight: 2
+    params: {start: "date:-14..-7"}
+    sql: |
+      SELECT olb_user_id, COUNT(*) AS sends, SUM(amount) AS sent
+      FROM `fennmoor-dw.dw_digital.fct_p2p_transfers`
+      WHERE direction = 'SEND' AND initiated_date >= '{{start}}'
+      GROUP BY olb_user_id
+      HAVING sends >= 5
+      ORDER BY sent DESC
+      LIMIT 200
+
+  - id: fr.wallet_fraud
+    weight: 2
+    params: {start: "date:-60..-30"}
+    sql: |
+      SELECT c.digital_wallet, COUNT(*) AS alerts, COUNTIF(a.is_confirmed_fraud) AS confirmed
+      FROM `fennmoor-dw.dw_risk.fct_fraud_alerts` a
+      JOIN `fennmoor-dw.dw_core.dim_card` c ON c.cif_number = a.cif_number
+      WHERE a.alert_date >= '{{start}}' AND a.entity_type = 'CARD'
+      GROUP BY 1
+
+  - id: fr.high_risk_merchants
+    weight: 2
+    params: {start: "date:-30..-7"}
+    sql: |
+      SELECT m.merchant_name, m.mcc_description, COUNT(*) AS txns, SUM(t.amount) AS amount
+      FROM `fennmoor-dw.dw_core.fct_card_transactions` t
+      JOIN `fennmoor-dw.dw_core.dim_merchant` m USING (merchant_id)
+      WHERE t.post_date >= '{{start}}' AND m.category_group IN ('[[alt: GAMBLING ;; CRYPTO ;; MONEY_TRANSFER]]')
+      GROUP BY 1, 2
+      ORDER BY amount DESC
+      LIMIT 100
+
+  - id: fr.deposit_velocity
+    weight: 2
+    params: {d: "date:-3..-1"}
+    sql: |
+      SELECT core_account_id, COUNT(*) AS txns, SUM(ABS(signed_amount)) AS moved
+      FROM `fennmoor-dw.dw_core.fct_deposit_transactions`
+      WHERE posted_date = '{{d}}' AND transaction_type IN ('[[alt: WIRE ;; P2P ;; ACH_DR]]')
+      GROUP BY core_account_id
+      HAVING txns >= 10
+      ORDER BY moved DESC
+
+  - id: fr.login_risk_distribution
+    weight: 1
+    params: {d: "date:-3..-1"}
+    sql: |
+      SELECT CAST(FLOOR(risk_score / 100) * 100 AS INT64) AS band, COUNT(*) AS logins, COUNTIF(NOT is_success) AS failed
+      FROM `fennmoor-dw.dw_digital.fct_digital_logins`
+      WHERE event_date = '{{d}}'
+      GROUP BY band
+      ORDER BY band
+
+  - id: fr.alert_calendar
+    weight: 1
+    params: {start: "date:-60..-30"}
+    sql: |
+      SELECT d.day_of_week, d.is_bank_holiday, COUNT(*) AS alerts
+      FROM `fennmoor-dw.dw_risk.fct_fraud_alerts` a
+      JOIN `fennmoor-dw.dw_core.dim_date` d ON d.date_day = a.alert_date
+      WHERE a.alert_date >= '{{start}}'
+      GROUP BY 1, 2

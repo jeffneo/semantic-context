@@ -1,0 +1,124 @@
+name: qlsc
+
+# Restore target for old/jeffdavis-verizonBQ.backup (Aura, Neo4j 2026.07).
+# The backup's embedded metadata script reports:
+#   CREATE DATABASE $database ... DEFAULT LANGUAGE CYPHER 5 TOPOLOGY 3 PRIMARIES
+#   /* Metadata Security Component Version: Neo4j 2026.07 */
+# so the image is pinned to 2026.07 to restore without a store migration, and
+# the restored database (`querylog`) is created with CYPHER 5 as its default language.
+
+services:
+  neo4j:
+    image: ${NEO4J_IMAGE:-neo4j:2026.07.1-enterprise}
+    container_name: qlsc-neo4j
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?set NEO4J_PASSWORD in .env}
+      NEO4J_ACCEPT_LICENSE_AGREEMENT: "eval"
+      NEO4J_PLUGINS: '["apoc","graph-data-science"]'
+      NEO4J_dbms_security_procedures_unrestricted: "apoc.*,gds.*"
+      NEO4J_server_memory_heap_max__size: ${NEO4J_HEAP:-4G}
+      NEO4J_server_memory_pagecache_size: ${NEO4J_PAGECACHE:-2G}
+      NEO4J_gds_enterprise_license__file: /licenses/gds.license
+    ports:
+      - "${NEO4J_HTTP_PORT:-7474}:7474"
+      - "${NEO4J_BOLT_PORT:-7687}:7687"
+    volumes:
+      - neo4j-data:/data
+      - neo4j-logs:/logs
+      - ${GDS_LICENSE_PATH:-./gds.license}:/licenses/gds.license:ro
+      # Backup artifacts. Read-only: restore only ever reads from here, and the
+      # dir is gitignored, so nothing in it belongs in the image.
+      - ./old:/backups:ro
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p ${NEO4J_PASSWORD:?set NEO4J_PASSWORD in .env} 'RETURN 1' || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 40s
+
+  # ---------------------------------------------------------------------------
+  # SQL parse service (pipeline/parser). Stateless: reads only the catalog
+  # snapshot that pipeline/extract.py writes to pipeline/work/. The same image
+  # is what would run on Cloud Run / Lambda.
+  # ---------------------------------------------------------------------------
+  parser:
+    build: ./pipeline/parser
+    image: qlsc-parse:0.1.0
+    container_name: qlsc-parser
+    environment:
+      CATALOG_PATH: /catalog/catalog.json
+      WEB_CONCURRENCY: ${PARSER_WORKERS:-4}
+    ports:
+      - "${PARSER_PORT:-8090}:8080"
+    volumes:
+      - ./pipeline/work:/catalog:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/healthz')"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  # ---------------------------------------------------------------------------
+  # Neo4j Enterprise Studio. Behind the `nes` profile so plain `up` stays fast.
+  # ---------------------------------------------------------------------------
+
+  # One-shot provisioner: service account, asset database, Bloom/sharing grants.
+  nes-init:
+    image: ${NEO4J_IMAGE:-neo4j:2026.07.1-enterprise}
+    container_name: qlsc-nes-init
+    profiles: ["nes"]
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    volumes:
+      - ./cypher/nes-setup.cypher:/nes-setup.cypher:ro
+      - ./cypher/nes-init.sh:/nes-init.sh:ro
+    environment:
+      # cypher-shell reads these natively, which keeps the admin password out
+      # of the command line.
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:?set NEO4J_PASSWORD in .env}
+      TOOLS_PASSWORD: ${NES_TOOLS_PASSWORD:?set NES_TOOLS_PASSWORD in .env}
+    entrypoint: ["/bin/sh", "/nes-init.sh"]
+    restart: "no"
+
+  enterprise-studio:
+    image: neo4j/enterprise-studio:latest
+    container_name: qlsc-nes
+    profiles: ["nes"]
+    depends_on:
+      nes-init:
+        condition: service_completed_successfully
+    # Studio exits if it loses its asset store, which happens whenever Neo4j
+    # restarts under it.
+    restart: unless-stopped
+    ports:
+      - "${NES_PORT:-8080}:8080"
+    volumes:
+      - ${NES_LICENSE_PATH:-./nes.license}:/licenses/nes.license:ro
+    environment:
+      NES_license_path: "/licenses/nes.license"
+      NES_server_port: "8080"
+
+      # Where Studio persists dashboards, saved queries, and Perspectives.
+      # Must match cypher/nes-setup.cypher.
+      NES_assetStore_default_uri: "neo4j://neo4j:7687"
+      NES_assetStore_default_database: "tools-storage"
+      NES_assetStore_default_authentication_basic_username: "tools_service"
+      NES_assetStore_default_authentication_basic_password: ${NES_TOOLS_PASSWORD:?set NES_TOOLS_PASSWORD in .env}
+
+      # The deployment users query. Proxy mode over the HTTP connector.
+      NES_neo4jDeployments_qlsc_name: "query-log-semantic-context"
+      NES_neo4jDeployments_qlsc_uri: "http://neo4j:7474"
+    healthcheck:
+      # The Studio image ships no curl or wget, so check the listener on 8080
+      # (hex 1F90) via /proc instead.
+      test: ["CMD-SHELL", "grep -q ':1F90 ' /proc/net/tcp6 /proc/net/tcp 2>/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+volumes:
+  neo4j-data:
+  neo4j-logs:

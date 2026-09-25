@@ -1,0 +1,200 @@
+# =============================================================================
+# Gold questions - the retrieval answer key
+# =============================================================================
+# For each question: the tables a correct answer uses (`expected`, all
+# required unless listed under `acceptable`), tables a careless answer
+# reaches for (`avoid`, each with why), and what the answer must get right
+# (`must_handle`). The notebook's own test question is Q01.
+#
+# Scoring suggestion: recall on expected, penalty per avoid hit, and a
+# pass/fail per must_handle item judged against the answer's SQL.
+# =============================================================================
+
+questions:
+  Q01:
+    question: >-
+      Which contact centers see the most account cancellations, and what did
+      each cost to run last year?
+    expected:
+      - dw_contact_center.fct_contacts_all
+      - dw_contact_center.dim_cc_site
+      - dw_contact_center.fct_cc_site_cost_monthly
+    acceptable:
+      - dw_contact_center.rpt_site_cost_per_contact
+      - dw_contact_center.fct_calls
+      - dw_core.fct_account_closures
+    avoid:
+      legacy_edw.CC_TXN_HIST: CC = credit card, not contact center.
+      legacy_edw.CC_EXPNS_MTHLY: Frozen since 2025-02-28; CC = cost center.
+      legacy_edw.CC_CALL_VOL_DLY: Frozen at the 2025-09-30 Avaya cutover.
+      sbx_finance.cc_cost_per_call_fy25: Joins cost center to site code; returns nothing (F04).
+      gl_erp.vendor_invoice: Already in the GL; adding it double-counts the BPO site (F18).
+    must_handle:
+      - '"Last year" (2025) spans the Avaya -> Genesys cutover on 2025-10-01: volume needs both (fct_contacts_all).'
+      - Site cost is GL expense on each site's cost center, including the BPO site's AP lines.
+      - Closure calls before 2026-06-02 are not coded ACCT_CLOSE (F17) - irrelevant for 2025 Genesys, but Avaya uses CLSACCT/CLOSE.
+      - Attribute contacts to the agent's site, not the queue's (overflow routing).
+
+  Q02:
+    question: What is the churn risk of our high-balance customers?
+    expected:
+      - dw_customer.customer_360
+    acceptable:
+      - ml_scores.churn_score_v3
+      - dw_core.fct_daily_account_balances
+      - reverse_etl.aud_high_value_churn_risk
+    avoid:
+      ml_scores.churn_score_v2: Superseded 2026-05-15; frozen (F11).
+      legacy_edw.CHURN_MDL_SCR: The 2022 model; dead.
+      sbx_marketing.attrition_propensity_2025: Marketing's unsanctioned BQML model (F10).
+      sbx_customer_analytics.customer_360_final: Hand-refreshed copy (F14).
+    must_handle:
+      - Use the latest score_date, not all history.
+
+  Q03:
+    question: Which web pages do customers visit before they call us?
+    expected:
+      - dw_digital.fct_web_sessions
+      - dw_contact_center.fct_calls
+    acceptable:
+      - dw_intermediate.int_digital_sessions
+      - digital_banking.online_user
+    avoid:
+      sbx_marketing.web_to_branch_journeys: Joins GA4 user_id to CIF; matches nothing (F13).
+      analytics_312874659.events_: Raw export; user_id is not a CIF.
+    must_handle:
+      - GA4 identities resolve to customers only via online_user.ga4_user_id.
+      - Only logged-in sessions can be attributed; say what fraction that is.
+
+  Q04:
+    question: Card spend by merchant category and customer segment, last quarter.
+    expected:
+      - dw_core.fct_card_transactions
+      - dw_core.dim_customer
+    acceptable:
+      - looker_scratch.LR_5T7Y9U1I3O5P7_card_spend_by_mcc
+    avoid:
+      sbx_marketing.card_spend_by_segment: "card_spend_usd is cents (F12)."
+      legacy_edw.CC_TXN_HIST: Frozen since 2025-02-28.
+      card_processor.settlement: Raw feed in cents; use the mart.
+    must_handle:
+      - Filter on post_date (the partition column).
+      - Purchases only (is_purchase), not payments/refunds.
+
+  Q05:
+    question: Month-end deposit balances by product line.
+    expected:
+      - dw_core.fct_daily_account_balances
+      - dw_core.dim_product
+    avoid:
+      legacy_edw.EOM_BAL_SNAP: Deprecated chain, even though finance still uses it (F05).
+      legacy_edw.ACCT_DLY_BAL: Deprecated (F05).
+      sbx_finance.eom_bal_by_product_tableau: Built on the deprecated chain (F05).
+    must_handle:
+      - Month-end = last balance_date of each month per account.
+
+  Q06:
+    question: Where do we store Social Security numbers, raw or hashed?
+    expected:
+      - core_banking_cdc.CUSTOMER
+      - aml_kyc.party
+      - legacy_edw.CUST_MSTR
+      - legacy_edw.CUST_MSTR_BKP_20250211
+      - sbx_risk.kyc_review_extract
+    acceptable:
+      - dw_staging.stg_core__customer
+      - dw_core.dim_customer
+      - credit_bureau.consumer_attributes_monthly
+      - dw_compliance.dim_aml_party
+    avoid: {}
+    must_handle:
+      - Separate raw (5 tables) from hashed.
+      - Flag the three raw copies outside restricted datasets (F08).
+
+  Q07:
+    question: What share of fraud alerts are confirmed fraud, by channel?
+    expected:
+      - dw_risk.fct_fraud_alerts
+    avoid:
+      fraud_platform.model_score_realtime: Scores, not alerts; 7.6B rows.
+    must_handle:
+      - Alerts without a case are not confirmed.
+
+  Q08:
+    question: Which marketing campaigns drove credit card applications?
+    expected:
+      - dw_marketing.fct_campaign_attribution
+      - dw_marketing.dim_campaign
+    acceptable:
+      - dw_risk.fct_credit_applications
+    avoid:
+      legacy_edw.MKTG_CMPGN_RESP: Pre-Braze campaign codes.
+      sbx_marketing.campain_results_2025: Email engagement only, no conversions.
+    must_handle:
+      - Conversion behavior identifies card applications.
+
+  Q09:
+    question: Loan delinquency rate by product and branch.
+    expected:
+      - dw_risk.fct_delinquency_daily
+      - dw_core.dim_account
+      - dw_core.dim_branch
+    avoid:
+      legacy_edw.LN_PMT_HIST: Frozen.
+    must_handle:
+      - Denominator is open loans, from dim_account, not only delinquent ones.
+
+  Q10:
+    question: Does customer satisfaction vary with agent tenure?
+    expected:
+      - dw_contact_center.fct_csat
+      - dw_contact_center.dim_agent
+    avoid:
+      legacy_edw.CC_AGENT_DLY: Avaya era, no surveys.
+    must_handle:
+      - BPO agents have no hire date (not Fennmoor employees).
+
+  Q11:
+    question: How many customers use the mobile app each week?
+    expected:
+      - dw_digital.fct_app_sessions
+    avoid:
+      analytics_312874659.events_: GA4 here is the website, not the app.
+    must_handle:
+      - Count customers (cif_number), not olb_user_ids - joint users have several.
+
+  Q12:
+    question: Contact details for an email campaign to affluent customers.
+    expected:
+      - dw_customer.customer_360
+    acceptable:
+      - dw_core.dim_customer
+    avoid:
+      sbx_marketing.email_list_affluent_apr26: An April extract, stale.
+      legacy_edw.CUST_MSTR: Frozen, and holds raw SSNs.
+    must_handle:
+      - Respect email_opt_in (dim_customer).
+
+  Q13:
+    question: What is in the tables whose names start with CC?
+    expected:
+      - legacy_edw.CC_TXN_HIST
+      - legacy_edw.CC_ACCT_MSTR
+      - legacy_edw.CC_CALL_VOL_DLY
+      - legacy_edw.CC_AGENT_DLY
+      - legacy_edw.CC_EXPNS_MTHLY
+      - gl_erp.CC_EXPENSE_SUMMARY
+    avoid: {}
+    must_handle:
+      - Three different meanings of CC, each named correctly (F04).
+
+  Q14:
+    question: Account closures by reason, deposits versus cards.
+    expected:
+      - dw_core.fct_account_closures
+    acceptable:
+      - dw_intermediate.int_account_closures
+    avoid:
+      legacy_edw.ACCT_MSTR: Frozen.
+    must_handle:
+      - Card and deposit close-reason codes differ (CH vs CUST_REQ) - map them.

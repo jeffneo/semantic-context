@@ -1,0 +1,596 @@
+# =============================================================================
+# Raw sources III: GA4, Amplitude, online banking, Braze, fraud, AML
+# =============================================================================
+# The digital sources are where identity gets hard:
+#   GA4        user_id = SHA-256(olb_user_id), user_pseudo_id = cookie. Neither
+#              is a CIF. Daily sharded tables with nested REPEATED params.
+#   Amplitude  user_id = olb_user_id in plain text; properties as JSON STRINGs.
+#   OLB        online_user is the only crosswalk: olb_user_id <-> cif_number
+#              <-> ga4_user_id.
+#   Braze      external_user_id = CIF (a sixth spelling of the customer id).
+# =============================================================================
+
+dataset: analytics_312874659
+defaults: {stage: ga4, refresh: ga4-daily-export}
+tables:
+  - name: events_
+    subject: web_analytics
+    desc: >-
+      Standard GA4 BigQuery export, one shard per day. event_date is a
+      'YYYYMMDD' STRING; event_timestamp is INT64 microseconds.
+    shard: {suffix: YYYYMMDD, from: 2025-10-01, to: log_end}
+    grain: event row (no natural key)
+    rows: 3400000                 # per shard
+    columns:
+      - "event_date | STRING || date.day"
+      - "event_timestamp | INT64"
+      - "event_name | STRING"
+      - "event_params | ARRAY<STRUCT<key STRING, value STRUCT<string_value STRING, int_value INT64, float_value FLOAT64, double_value FLOAT64>>> ||| contains=web.session_id@ga_session_id"
+      - "event_previous_timestamp | INT64"
+      - "event_value_in_usd | FLOAT64"
+      - "event_bundle_sequence_id | INT64"
+      - "event_server_timestamp_offset | INT64"
+      - "user_id | STRING || customer.ga4_user_id"
+      - "user_pseudo_id | STRING || customer.ga4_pseudo_id"
+      - "privacy_info | STRUCT<analytics_storage STRING, ads_storage STRING, uses_transient_token STRING>"
+      - "user_properties | ARRAY<STRUCT<key STRING, value STRUCT<string_value STRING, int_value INT64, float_value FLOAT64, double_value FLOAT64, set_timestamp_micros INT64>>>"
+      - "user_first_touch_timestamp | INT64"
+      - "user_ltv | STRUCT<revenue FLOAT64, currency STRING>"
+      - "device | STRUCT<category STRING, mobile_brand_name STRING, mobile_model_name STRING, operating_system STRING, operating_system_version STRING, language STRING, is_limited_ad_tracking STRING, web_info STRUCT<browser STRING, browser_version STRING, hostname STRING>>"
+      - "geo | STRUCT<city STRING, country STRING, continent STRING, region STRING, sub_continent STRING, metro STRING>"
+      - "traffic_source | STRUCT<name STRING, medium STRING, source STRING>"
+      - "collected_traffic_source | STRUCT<manual_campaign_id STRING, manual_campaign_name STRING, manual_source STRING, manual_medium STRING, manual_term STRING, manual_content STRING, gclid STRING>"
+      - "stream_id | STRING || ga4.stream_id"
+      - "platform | STRING"
+      - "is_active_user | BOOL"
+      - "batch_event_index | INT64"
+      - "batch_page_id | INT64"
+      - "batch_ordering_id | INT64"
+    # Flattened the way the dbt-ga4 package does it: params pulled out of the
+    # REPEATED event_params, structs unpacked, the STRING date parsed.
+    stage_columns:
+      - "event_date | DATE | PARSE_DATE('%Y%m%d', src.event_date) | date.day"
+      - "event_ts | TIMESTAMP | TIMESTAMP_MICROS(src.event_timestamp)"
+      - "event_name | STRING | src.event_name"
+      - "user_id | STRING | src.user_id | customer.ga4_user_id"
+      - "user_pseudo_id | STRING | src.user_pseudo_id | customer.ga4_pseudo_id"
+      - "ga_session_id | INT64 | (SELECT ep.value.int_value FROM UNNEST(src.event_params) AS ep WHERE ep.key = 'ga_session_id') | web.session_id"
+      - "ga_session_number | INT64 | (SELECT ep.value.int_value FROM UNNEST(src.event_params) AS ep WHERE ep.key = 'ga_session_number')"
+      - "page_location | STRING | (SELECT ep.value.string_value FROM UNNEST(src.event_params) AS ep WHERE ep.key = 'page_location')"
+      - "page_title | STRING | (SELECT ep.value.string_value FROM UNNEST(src.event_params) AS ep WHERE ep.key = 'page_title')"
+      - "page_referrer | STRING | (SELECT ep.value.string_value FROM UNNEST(src.event_params) AS ep WHERE ep.key = 'page_referrer')"
+      - "engagement_time_msec | INT64 | (SELECT ep.value.int_value FROM UNNEST(src.event_params) AS ep WHERE ep.key = 'engagement_time_msec') | metric.duration | unit=ms"
+      - "application_step | STRING | (SELECT ep.value.string_value FROM UNNEST(src.event_params) AS ep WHERE ep.key = 'application_step')"
+      - "product_code | STRING | (SELECT ep.value.string_value FROM UNNEST(src.event_params) AS ep WHERE ep.key = 'product_code') | product.code"
+      - "device_category | STRING | src.device.category"
+      - "operating_system | STRING | src.device.operating_system"
+      - "browser | STRING | src.device.web_info.browser"
+      - "geo_region | STRING | src.geo.region"
+      - "geo_city | STRING | src.geo.city"
+      - "traffic_source | STRING | src.traffic_source.source"
+      - "traffic_medium | STRING | src.traffic_source.medium"
+      - "campaign_name | STRING | src.collected_traffic_source.manual_campaign_name"
+      - "gclid | STRING | src.collected_traffic_source.gclid"
+
+  - name: pseudonymous_users_
+    subject: web_analytics
+    desc: GA4 user-level export keyed by cookie id, one shard per day.
+    shard: {suffix: YYYYMMDD, from: 2025-10-01, to: log_end}
+    grain: pseudo_user_id
+    rows: 410000
+    stage: false
+    columns:
+      - "pseudo_user_id | STRING || customer.ga4_pseudo_id | pk"
+      - "stream_id | STRING || ga4.stream_id"
+      - "user_info | STRUCT<last_active_timestamp_micros INT64, user_first_touch_timestamp_micros INT64, first_purchase_date STRING>"
+      - "device | STRUCT<operating_system STRING, category STRING, mobile_brand_name STRING, mobile_model_name STRING, unified_screen_name STRING>"
+      - "geo | STRUCT<city STRING, country STRING, continent STRING, region STRING>"
+      - "audiences | ARRAY<STRUCT<id INT64, name STRING, membership_start_timestamp_micros INT64, membership_expiry_timestamp_micros INT64, npa BOOL>>"
+      - "user_ltv | STRUCT<revenue_in_usd FLOAT64, sessions INT64, engagement_time_millis INT64, engaged_sessions INT64, session_duration_micros INT64>"
+      - "occurrence_date | STRING"
+      - "last_updated_date | STRING"
+
+  - name: users_
+    subject: web_analytics
+    desc: GA4 user-level export keyed by user_id (logged-in users only).
+    shard: {suffix: YYYYMMDD, from: 2025-10-01, to: log_end}
+    grain: user_id
+    rows: 190000
+    stage: false
+    status: dead
+    columns:
+      - "user_id | STRING || customer.ga4_user_id | pk"
+      - "user_info | STRUCT<last_active_timestamp_micros INT64, user_first_touch_timestamp_micros INT64, first_purchase_date STRING>"
+      - "audiences | ARRAY<STRUCT<id INT64, name STRING, membership_start_timestamp_micros INT64, membership_expiry_timestamp_micros INT64, npa BOOL>>"
+      - "occurrence_date | STRING"
+      - "last_updated_date | STRING"
+---
+dataset: amplitude_mobile
+defaults: {stage: amp, refresh: amplitude-hourly-export}
+tables:
+  - name: EVENTS_318842
+    subject: app_analytics
+    desc: >-
+      Amplitude's BigQuery export for the mobile app. user_id is the plain
+      olb_user_id. event_properties and user_properties are JSON as STRING.
+    grain: _insert_id
+    rows: 3100000000
+    partition: DATE(event_time)
+    cluster: [event_type, user_id]
+    columns:
+      - "_insert_id | STRING ||| pk"
+      - "amplitude_id | INT64 || amplitude.id"
+      - "user_id | STRING || customer.olb_user_id"
+      - "device_id | STRING"
+      - "event_type | STRING"
+      - "event_time | TIMESTAMP"
+      - "client_event_time | TIMESTAMP"
+      - "server_upload_time | TIMESTAMP"
+      - "session_id | INT64"                                 # epoch millis - yet another session id space
+      - "event_properties | STRING"
+      - "user_properties | STRING"
+      - "os_name | STRING"
+      - "os_version | STRING"
+      - "device_model | STRING"
+      - "platform | STRING"
+      - "version_name | STRING"
+      - "country | STRING"
+      - "region | STRING"
+      - "city | STRING"
+      - "ip_address | STRING || pii.ip | pii=ip"
+      - "language | STRING"
+    stage_add:
+      - "event_date | DATE | DATE(src.event_time, 'America/Chicago') | date.day"
+      - "screen_name | STRING | JSON_VALUE(src.event_properties, '$.screen_name')"
+      - "product_code | STRING | JSON_VALUE(src.event_properties, '$.product_code') | product.code"
+      - "app_build | STRING | JSON_VALUE(src.user_properties, '$.app_build')"
+
+  - name: MERGE_IDS_318842
+    subject: app_analytics
+    desc: Amplitude id merges (anonymous device id merged into a known user).
+    grain: amplitude_id, merged_amplitude_id
+    rows: 7400000
+    columns:
+      - "amplitude_id | INT64 || amplitude.id"
+      - "merged_amplitude_id | INT64 || amplitude.id"
+      - "merge_server_time | TIMESTAMP"
+      - "merge_event_time | TIMESTAMP"
+---
+dataset: digital_banking
+defaults: {mixins: [fivetran], stage: olb, refresh: fivetran-1h}
+tables:
+  - name: online_user
+    subject: olb_users
+    desc: >-
+      Online/mobile banking enrollments. The only crosswalk between the
+      digital ids (olb_user_id, ga4_user_id) and the CIF.
+    grain: olb_user_id
+    rows: 1560000
+    columns:
+      - "olb_user_id | STRING || customer.olb_user_id | pk required"
+      - "cif_number | STRING || customer.cif | required"
+      - "ga4_user_id | STRING || customer.ga4_user_id"
+      - "username | STRING || pii.email | pii=email"
+      - "enrolled_at | TIMESTAMP"
+      - "enrollment_channel | STRING"
+      - "status | STRING"
+      - "mfa_method | STRING"
+      - "last_login_at | TIMESTAMP"
+      - "is_business | BOOL"
+
+  - name: login_event
+    subject: olb_logins
+    desc: Every login attempt, web and app.
+    grain: login_event_id
+    rows: 910000000
+    partition: DATE(event_ts)
+    cluster: [olb_user_id]
+    columns:
+      - "login_event_id | STRING ||| pk required"
+      - "olb_user_id | STRING || customer.olb_user_id"
+      - "session_id | STRING || olb.session_id"
+      - "event_ts | TIMESTAMP"
+      - "channel | STRING"                                   # WEB, IOS, ANDROID
+      - "result | STRING"                                    # SUCCESS, BAD_PWD, MFA_FAIL, LOCKED
+      - "ip_address | STRING || pii.ip | pii=ip"
+      - "device_id | STRING || device.id"
+      - "geo_country | STRING"
+      - "user_agent | STRING"
+      - "risk_score | INT64 || score.fraud"
+
+  - name: device
+    subject: devices
+    desc: Registered devices.
+    grain: device_id
+    rows: 2900000
+    columns:
+      - "device_id | STRING || device.id | pk required"
+      - "olb_user_id | STRING || customer.olb_user_id"
+      - "platform | STRING"
+      - "model | STRING"
+      - "os_version | STRING"
+      - "registered_at | TIMESTAMP"
+      - "last_seen_at | TIMESTAMP"
+      - "trusted | BOOL"
+
+  - name: bill_pay
+    subject: bill_pay
+    desc: Bill payments.
+    grain: payment_id
+    rows: 140000000
+    partition: sent_date
+    columns:
+      - "payment_id | STRING ||| pk required"
+      - "olb_user_id | STRING || customer.olb_user_id"
+      - "from_account_id | INT64 || deposit_account.id"
+      - "payee_id | STRING"
+      - "payee_name | STRING"
+      - "amount | NUMERIC || money.txn_amount | unit=usd"
+      - "scheduled_date | DATE"
+      - "sent_date | DATE || date.day"
+      - "status | STRING"
+      - "is_recurring | BOOL"
+
+  - name: p2p_transfer
+    subject: p2p
+    desc: Zelle transfers sent and received.
+    grain: transfer_id
+    rows: 88000000
+    partition: DATE(initiated_at)
+    columns:
+      - "transfer_id | STRING ||| pk required"
+      - "olb_user_id | STRING || customer.olb_user_id"
+      - "from_account_id | INT64 || deposit_account.id"
+      - "direction | STRING"
+      - "counterparty_token | STRING"
+      - "counterparty_name | STRING || pii.name | pii=name"
+      - "amount | NUMERIC || money.txn_amount | unit=usd"
+      - "initiated_at | TIMESTAMP"
+      - "status | STRING"
+      - "fraud_hold | BOOL"
+
+  - name: mobile_deposit
+    subject: mobile_deposit
+    desc: >-
+      Mobile check deposits. Here `account_id` IS the core deposit account id
+      (consistent with core, inconsistent with card_processor).
+    grain: deposit_id
+    rows: 19000000
+    partition: DATE(submitted_at)
+    columns:
+      - "deposit_id | STRING ||| pk required"
+      - "olb_user_id | STRING || customer.olb_user_id"
+      - "account_id | INT64 || deposit_account.id"
+      - "amount | NUMERIC || money.txn_amount | unit=usd"
+      - "check_number | STRING"
+      - "submitted_at | TIMESTAMP"
+      - "status | STRING"
+      - "hold_until_date | DATE"
+      - "reject_reason | STRING"
+
+  - name: alert_subscription
+    subject: alerts
+    desc: Customer alert preferences.
+    grain: olb_user_id, alert_type, channel
+    rows: 6100000
+    columns:
+      - "olb_user_id | STRING || customer.olb_user_id | required"
+      - "alert_type | STRING"
+      - "channel | STRING"
+      - "threshold_amount | NUMERIC || money.txn_amount | unit=usd"
+      - "enabled | BOOL"
+      - "updated_at | TIMESTAMP"
+
+  - name: secure_message
+    subject: olb_users
+    desc: Secure messages to/from the bank. Synced, never staged, never read.
+    grain: message_id
+    rows: 4400000
+    stage: false
+    status: write_only
+    columns:
+      - "message_id | STRING ||| pk"
+      - "olb_user_id | STRING || customer.olb_user_id"
+      - "thread_id | STRING"
+      - "direction | STRING"
+      - "subject | STRING"
+      - "body | STRING ||| pii=free_text"
+      - "sent_at | TIMESTAMP"
+---
+dataset: braze
+defaults: {mixins: [fivetran], stage: braze, refresh: fivetran-1h}
+tables:
+  - name: campaign
+    subject: campaigns
+    desc: Braze campaigns.
+    grain: id
+    rows: 5200
+    columns:
+      - "id | STRING || campaign.id | pk required"
+      - "name | STRING"
+      - "created_at | TIMESTAMP"
+      - "channels | ARRAY<STRING>"
+      - "tags | ARRAY<STRING>"
+      - "archived | BOOL"
+      - "first_sent | TIMESTAMP"
+      - "last_sent | TIMESTAMP"
+
+  - name: canvas
+    subject: campaigns
+    desc: Braze canvases (multi-step journeys).
+    grain: id
+    rows: 610
+    columns:
+      - "id | STRING || canvas.id | pk required"
+      - "name | STRING"
+      - "created_at | TIMESTAMP"
+      - "tags | ARRAY<STRING>"
+      - "archived | BOOL"
+      - "enabled | BOOL"
+
+  - name: message_send
+    subject: message_delivery
+    desc: One row per message delivered to one user.
+    grain: id
+    rows: 1300000000
+    partition: DATE(sent_at)
+    cluster: [external_user_id]
+    columns:
+      - "id | STRING || message.send_id | pk required"
+      - "user_id | STRING || braze.user_id"
+      - "external_user_id | STRING || customer.cif"
+      - "campaign_id | STRING || campaign.id"
+      - "canvas_id | STRING || canvas.id"
+      - "canvas_step_id | STRING"
+      - "channel | STRING"                                   # email, push, sms, in_app
+      - "sent_at | TIMESTAMP"
+      - "message_variation_id | STRING"
+      - "dispatch_id | STRING || braze.dispatch_id"
+
+  - name: email_event
+    subject: engagement
+    desc: Email engagement events (delivery, open, click, bounce, unsubscribe).
+    grain: id
+    rows: 2200000000
+    partition: DATE(event_time)
+    columns:
+      - "id | STRING ||| pk required"
+      - "event_type | STRING"
+      - "external_user_id | STRING || customer.cif"
+      - "campaign_id | STRING || campaign.id"
+      - "canvas_id | STRING || canvas.id"
+      - "dispatch_id | STRING || braze.dispatch_id"
+      - "email_address | STRING || pii.email | pii=email"
+      - "url | STRING"
+      - "event_time | TIMESTAMP"
+
+  - name: push_event
+    subject: engagement
+    desc: Push notification events.
+    grain: id
+    rows: 900000000
+    partition: DATE(event_time)
+    columns:
+      - "id | STRING ||| pk required"
+      - "event_type | STRING"
+      - "external_user_id | STRING || customer.cif"
+      - "campaign_id | STRING || campaign.id"
+      - "canvas_id | STRING || canvas.id"
+      - "platform | STRING"
+      - "event_time | TIMESTAMP"
+
+  - name: conversion
+    subject: conversions
+    desc: Campaign conversion events.
+    grain: id
+    rows: 31000000
+    partition: DATE(event_time)
+    columns:
+      - "id | STRING ||| pk required"
+      - "external_user_id | STRING || customer.cif"
+      - "campaign_id | STRING || campaign.id"
+      - "canvas_id | STRING || canvas.id"
+      - "conversion_behavior | STRING"
+      - "event_time | TIMESTAMP"
+
+  - name: user_profile
+    subject: marketing_profiles
+    desc: Braze user export. external_id is the CIF.
+    grain: external_id
+    rows: 2050000
+    columns:
+      - "external_id | STRING || customer.cif | pk required"
+      - "braze_id | STRING || braze.user_id"
+      - "email | STRING || pii.email | pii=email"
+      - "phone | STRING || pii.phone | pii=phone"
+      - "first_name | STRING || pii.name | pii=name"
+      - "email_subscribe | STRING"
+      - "push_subscribe | STRING"
+      - "custom_attributes | JSON"
+      - "updated_at | TIMESTAMP"
+---
+dataset: fraud_platform
+defaults: {mixins: [fivetran], stage: fraud, refresh: fivetran-30m}
+tables:
+  - name: alert
+    subject: fraud_alerts
+    desc: >-
+      Fraud alerts. entity_ref is POLYMORPHIC by entity_type: a card_token, a
+      core ACCT_ID as string, an olb session id, or a p2p transfer id.
+    grain: alert_id
+    rows: 26000000
+    partition: DATE(alert_ts)
+    columns:
+      - "alert_id | STRING || fraud.alert_id | pk required"
+      - "alert_ts | TIMESTAMP"
+      - "entity_type | STRING"                               # CARD, ACCOUNT, OLB_SESSION, P2P
+      - "entity_ref | STRING"
+      - "cif_number | STRING || customer.cif"
+      - "rule_id | STRING || fraud.rule_id"
+      - "model_score | INT64 || score.fraud"
+      - "alert_status | STRING"
+      - "priority | STRING"
+      - "channel | STRING"
+      - "amount | NUMERIC || money.txn_amount | unit=usd"
+      - "disposition | STRING"
+      - "dispositioned_at | TIMESTAMP"
+      - "analyst_id | STRING || employee.id"
+
+  - name: fraud_case
+    subject: fraud_cases
+    desc: Fraud investigation cases.
+    grain: case_id
+    rows: 1400000
+    partition: DATE(opened_at)
+    columns:
+      - "case_id | STRING || fraud.case_id | pk required"
+      - "opened_at | TIMESTAMP"
+      - "closed_at | TIMESTAMP"
+      - "case_type | STRING"
+      - "status | STRING"
+      - "cif_number | STRING || customer.cif"
+      - "total_loss_amount | NUMERIC || money.cost | unit=usd"
+      - "recovered_amount | NUMERIC || money.cost | unit=usd"
+      - "confirmed_fraud | BOOL"
+      - "fraud_type | STRING"                                # ATO, CNP, CHECK, ELDER, P2P_SCAM, FIRST_PARTY
+      - "assigned_analyst | STRING || employee.id"
+
+  - name: case_alert_link
+    subject: fraud_cases
+    desc: Alerts rolled up into cases.
+    grain: case_id, alert_id
+    rows: 3900000
+    columns:
+      - "case_id | STRING || fraud.case_id | required"
+      - "alert_id | STRING || fraud.alert_id | required"
+
+  - name: rule
+    subject: fraud_rules
+    desc: Fraud rules and thresholds.
+    grain: rule_id, rule_version
+    rows: 1900
+    columns:
+      - "rule_id | STRING || fraud.rule_id | required"
+      - "rule_version | INT64"
+      - "rule_name | STRING"
+      - "channel | STRING"
+      - "active | BOOL"
+      - "threshold | NUMERIC"
+      - "created_at | TIMESTAMP"
+
+  - name: model_score_realtime
+    subject: fraud_scores
+    desc: Every real-time model score. Very large; almost always read by partition.
+    grain: score_id
+    rows: 7600000000
+    partition: DATE(scored_at)
+    cluster: [entity_type, model_name]
+    columns:
+      - "score_id | STRING ||| pk required"
+      - "scored_at | TIMESTAMP"
+      - "entity_type | STRING"
+      - "entity_ref | STRING"
+      - "model_name | STRING"
+      - "model_version | STRING"
+      - "score | INT64 || score.fraud"
+      - "reason_codes | ARRAY<STRING>"
+---
+dataset: aml_kyc
+defaults: {mixins: [fivetran], stage: aml, refresh: fivetran-1h}
+tables:
+  - name: party
+    subject: aml_parties
+    desc: AML vendor's party master; crosswalk party_id <-> CIF. Restricted.
+    grain: party_id
+    rows: 2480000
+    columns:
+      - "party_id | STRING || customer.aml_party_id | pk required"
+      - "cif_number | STRING || customer.cif"
+      - "party_type | STRING"
+      - "full_name | STRING || pii.name | pii=name"
+      - "dob | DATE || pii.dob | pii=dob"
+      - "tax_id | STRING || pii.ssn | pii=ssn policy=restricted"
+      - "country_of_citizenship | STRING"
+      - "pep_flag | BOOL"
+      - "risk_rating | STRING || score.aml_risk"
+      - "risk_rating_date | DATE"
+      - "onboarding_date | DATE"
+
+  - name: kyc_review
+    subject: kyc
+    desc: KYC reviews (onboarding, periodic, event-triggered).
+    grain: review_id
+    rows: 5900000
+    columns:
+      - "review_id | STRING ||| pk required"
+      - "party_id | STRING || customer.aml_party_id"
+      - "review_type | STRING"
+      - "started_at | TIMESTAMP"
+      - "completed_at | TIMESTAMP"
+      - "outcome | STRING"
+      - "reviewer_id | STRING || employee.id"
+      - "next_review_due | DATE"
+      - "edd_required | BOOL"
+
+  - name: screening_hit
+    subject: sanctions_screening
+    desc: Watchlist screening hits (OFAC SDN, PEP, adverse media).
+    grain: hit_id
+    rows: 830000
+    columns:
+      - "hit_id | STRING ||| pk required"
+      - "party_id | STRING || customer.aml_party_id"
+      - "list_name | STRING"
+      - "match_score | NUMERIC"
+      - "matched_name | STRING || pii.name | pii=name"
+      - "status | STRING"
+      - "reviewed_at | TIMESTAMP"
+      - "reviewer_id | STRING || employee.id"
+
+  - name: transaction_alert
+    subject: aml_alerts
+    desc: Transaction-monitoring alerts.
+    grain: alert_id
+    rows: 1700000
+    partition: alert_date
+    columns:
+      - "alert_id | STRING || aml.alert_id | pk required"
+      - "party_id | STRING || customer.aml_party_id"
+      - "scenario_code | STRING"                             # STRUCTURING, RAPID_MOVE, HIGH_RISK_GEO, CASH_INTENSIVE
+      - "alert_date | DATE || date.day"
+      - "total_amount | NUMERIC || money.txn_amount | unit=usd"
+      - "status | STRING"
+      - "assigned_to | STRING || employee.id"
+      - "closed_date | DATE"
+      - "escalated_to_case | BOOL"
+
+  - name: sar_filing
+    subject: regulatory_filings
+    desc: Suspicious Activity Reports. The most restricted table in the estate.
+    grain: sar_id
+    rows: 41000
+    columns:
+      - "sar_id | STRING || aml.sar_id | pk required"
+      - "party_id | STRING || customer.aml_party_id"
+      - "alert_ids | ARRAY<STRING>"
+      - "filing_date | DATE"
+      - "activity_start | DATE"
+      - "activity_end | DATE"
+      - "amount_involved | NUMERIC || money.txn_amount | unit=usd"
+      - "narrative | STRING ||| pii=free_text policy=restricted"
+      - "bsa_id | STRING"
+      - "status | STRING"
+
+  - name: ctr_filing
+    subject: regulatory_filings
+    desc: Currency Transaction Reports (cash over $10k).
+    grain: ctr_id
+    rows: 390000
+    columns:
+      - "ctr_id | STRING ||| pk required"
+      - "party_id | STRING || customer.aml_party_id"
+      - "txn_date | DATE || date.day"
+      - "cash_in_amount | NUMERIC || money.txn_amount | unit=usd"
+      - "cash_out_amount | NUMERIC || money.txn_amount | unit=usd"
+      - "filing_date | DATE"
+      - "branch_id | INT64 || branch.id"

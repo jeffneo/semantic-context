@@ -1,0 +1,59 @@
+{
+ "validation": {
+  "Table": {
+   "ok": 322,
+   "retried": 1
+  },
+  "Variable": {
+   "ok": 1358,
+   "retried": 28
+  },
+  "Subject": {
+   "ok": 100
+  },
+  "boilerplate": 0
+ },
+ "F04": {
+  "verdict": "pass",
+  "hits": [
+   "legacy_edw.CC_TXN_HIST (credit card)",
+   "legacy_edw.CC_ACCT_MSTR (credit card)",
+   "legacy_edw.CC_CALL_VOL_DLY (contact center)",
+   "legacy_edw.CC_AGENT_DLY (contact center)",
+   "sbx_cx_ops.cc_closure_calls_apr_may (contact center)",
+   "sbx_cx_ops.cc_site_scorecard_2026 (contact center)",
+   "legacy_edw.CC_EXPNS_MTHLY (cost center)",
+   "gl_erp.CC_EXPENSE_SUMMARY (cost center)"
+  ],
+  "misses": []
+ },
+ "retrieval": {
+  "full": {
+   "recall@5": 0.5142857142857143,
+   "recall@10": 0.7190476190476189,
+   "hit@5": 1.0,
+   "avoid_in_top10": 16
+  },
+  "tables_only": {
+   "recall@5": 0.5142857142857143,
+   "recall@10": 0.7190476190476189,
+   "hit@5": 1.0,
+   "avoid_in_top10": 16
+  },
+  "no_usage_prior": {
+   "recall@5": 0.37142857142857144,
+   "recall@10": 0.5619047619047619,
+   "hit@5": 0.9285714285714286,
+   "avoid_in_top10": 15
+  }
+ },
+ "domains": {
+  "nmi_proposed": 0.7599463580712867,
+  "nmi_graph_areas": 0.6826335999545027,
+  "proposed": 21
+ },
+ "naming": {
+  "identifier_variables": 49,
+  "nearest_concept_correct": 43
+ }
+}

@@ -1,0 +1,185 @@
+# Data science: expert SQL from Vertex Workbench notebooks - feature pulls,
+# label construction, model monitoring. Also reads the unprotected KYC copy (F08).
+team: data_science
+templates:
+  - id: ds.feature_pull
+    weight: 5
+    params: {d: "date:-7..-1", seg: "choice:mass|mass_affluent|affluent"}
+    sql: |
+      SELECT * FROM `fennmoor-dw.ml_features.feat_customer_daily`
+      WHERE as_of_date = '{{d}}'
+      [[opt: AND segment = '{{seg}}']]
+
+  - id: ds.label_build
+    by: [farah.siddiqui]
+    weight: 2
+    params: {d: "date:-130..-100"}
+    sql: |
+      WITH f AS (
+        SELECT * FROM `fennmoor-dw.ml_features.feat_customer_daily` WHERE as_of_date = '{{d}}'
+      ),
+      y AS (
+        SELECT DISTINCT customer_key
+        FROM `fennmoor-dw.dw_core.fct_account_closures`
+        WHERE is_voluntary AND close_date BETWEEN '{{d}}' AND DATE_ADD('{{d}}', INTERVAL 90 DAY)
+      )
+      SELECT f.*, y.customer_key IS NOT NULL AS label
+      FROM f LEFT JOIN y USING (customer_key)
+
+  - id: ds.v3_monitoring
+    weight: 3
+    active: {from: 2026-05-15}
+    params: {start: "date:-14..-7"}
+    sql: |
+      SELECT score_date, model_version, AVG(churn_probability) AS mean_p,
+             APPROX_QUANTILES(churn_probability, 10) AS deciles, COUNT(*) AS n
+      FROM `fennmoor-dw.ml_scores.churn_score_v3`
+      WHERE score_date >= '{{start}}'
+      GROUP BY 1, 2
+      ORDER BY 1
+
+  - id: ds.v2_v3_bridge
+    by: [noah.brennan]
+    weight: 2
+    findings: [F11]
+    active: {from: 2026-05-15, until: 2026-05-31}
+    notes: Compares the last v2 scores with the first v3 scores.
+    sql: |
+      SELECT CORR(a.churn_score, b.churn_probability) AS rank_agreement, COUNT(*) AS n
+      FROM (SELECT customer_key, churn_score FROM `fennmoor-dw.ml_scores.churn_score_v2` WHERE score_date = '2026-05-14') a
+      JOIN (SELECT customer_key, churn_probability FROM `fennmoor-dw.ml_scores.churn_score_v3` WHERE score_date = '2026-05-15') b
+        USING (customer_key)
+
+  - id: ds.feature_drift
+    weight: 2
+    params: {start: "date:-60..-30"}
+    sql: |
+      SELECT as_of_date, AVG(avg_balance_30d) AS balance, AVG(logins_30d) AS logins, AVG(contacts_90d) AS contacts
+      FROM `fennmoor-dw.ml_features.feat_customer_daily`
+      WHERE as_of_date >= '{{start}}'
+      GROUP BY as_of_date
+      ORDER BY as_of_date
+
+  - id: ds.kyc_join
+    by: [farah.siddiqui]
+    weight: 1
+    notes: Uses the unprotected KYC copy in sbx_risk as a feature source (F08).
+    sql: |
+      SELECT k.risk_rating, COUNT(*) AS customers, AVG(c.total_deposit_balance) AS avg_balance
+      FROM sbx_risk.kyc_review_extract k
+      JOIN `fennmoor-dw.dw_customer.customer_360` c ON c.cif_number = k.cif_number
+      GROUP BY k.risk_rating
+
+  - id: ds.attrition_vs_v3
+    by: [noah.brennan]
+    weight: 1
+    findings: [F10]
+    active: {from: 2026-05-20}
+    sql: |
+      SELECT CORR(a.attrition_propensity, s.churn_probability) AS agreement, COUNT(*) AS n
+      FROM sbx_marketing.attrition_propensity_2025 a
+      JOIN `fennmoor-dw.dw_core.dim_customer` c ON c.cif_number = a.cif_number
+      JOIN `fennmoor-dw.ml_scores.churn_score_v3` s ON s.customer_key = c.customer_key
+      WHERE s.score_date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+        AND a.model_run_date = (SELECT MAX(model_run_date) FROM sbx_marketing.attrition_propensity_2025)
+
+  - id: ds.nbo_uplift
+    weight: 1
+    params: {d: "date:-30..-14"}
+    sql: |
+      SELECT n.offer_product_code, COUNT(*) AS offered, COUNTIF(h.open_accounts > 0) AS already_held
+      FROM `fennmoor-dw.ml_scores.next_best_offer` n
+      LEFT JOIN `fennmoor-dw.dw_customer.customer_product_holdings` h
+        ON h.customer_key = n.customer_key AND h.product_code = n.offer_product_code
+      WHERE n.rank = 1 AND n.score_date = '{{d}}'
+      GROUP BY n.offer_product_code
+
+  - id: ds.sample_360
+    weight: 2
+    sql: |
+      SELECT * FROM `fennmoor-dw.dw_customer.customer_360` TABLESAMPLE SYSTEM ([[alt: 1 ;; 5]] PERCENT)
+
+  - id: ds.txn_features
+    weight: 2
+    params: {start: "date:-90..-60", end: "date:-1..-1"}
+    sql: |
+      SELECT customer_key, COUNT(*) AS txns, SUM(amount) AS spend, COUNT(DISTINCT mcc) AS distinct_mcc,
+             COUNTIF(is_foreign) AS foreign_txns
+      FROM `fennmoor-dw.dw_core.fct_card_transactions`
+      WHERE post_date BETWEEN '{{start}}' AND '{{end}}' AND is_purchase
+      GROUP BY customer_key
+
+  - id: ds.call_features
+    weight: 2
+    params: {start: "date:-90..-60"}
+    sql: |
+      SELECT customer_key, COUNT(*) AS contacts, COUNTIF(is_account_closure_call) AS closure_calls,
+             AVG(handle_sec) AS avg_handle_sec
+      FROM `fennmoor-dw.dw_contact_center.fct_calls`
+      WHERE conversation_date >= '{{start}}' AND customer_key IS NOT NULL
+      GROUP BY customer_key
+
+  - id: ds.web_features
+    weight: 2
+    params: {start: "date:-60..-30"}
+    sql: |
+      SELECT customer_key, COUNT(*) AS sessions, SUM(page_views) AS page_views, COUNTIF(visited_help) AS help_sessions
+      FROM `fennmoor-dw.dw_digital.fct_web_sessions`
+      WHERE customer_key IS NOT NULL AND session_date >= '{{start}}'
+      GROUP BY customer_key
+
+  - id: ds.borrowed_customer_table
+    by: [noah.brennan]
+    weight: 1
+    findings: [F14]
+    sql: |
+      SELECT * FROM sbx_customer_analytics.customer_360_final WHERE churn_risk IS NOT NULL LIMIT 50000
+
+  # ---- breadth -------------------------------------------------------------
+  - id: ds.balance_features
+    weight: 2
+    params: {start: "month:-6..-4"}
+    sql: |
+      SELECT customer_key, AVG(avg_daily_total_balance) AS mean_balance, STDDEV(avg_daily_total_balance) AS sd_balance,
+             MAX(max_daily_total_balance) AS peak_balance
+      FROM `fennmoor-dw.dw_customer.customer_monthly_summary`
+      WHERE month_start >= '{{start}}'
+      GROUP BY customer_key
+
+  - id: ds.deposit_txn_features
+    weight: 2
+    params: {start: "date:-90..-60", end: "date:-1..-1"}
+    sql: |
+      SELECT customer_key, COUNTIF(transaction_type = 'ACH_CR') AS ach_credits, COUNTIF(transaction_type = 'ATM') AS atm_txns,
+             SUM(IF(signed_amount < 0, -signed_amount, 0)) AS outflows
+      FROM `fennmoor-dw.dw_core.fct_deposit_transactions`
+      WHERE posted_date BETWEEN '{{start}}' AND '{{end}}'
+      GROUP BY customer_key
+
+  - id: ds.bureau_features
+    weight: 1
+    params: {m: "month:-3..-1"}
+    sql: |
+      SELECT customer_key, fico_08, utilization_pct, num_delinquent_30_24m, estimated_income
+      FROM `fennmoor-dw.dw_risk.fct_bureau_monthly`
+      WHERE archive_month = '{{m}}'
+
+  - id: ds.app_features
+    weight: 1
+    params: {start: "date:-60..-30"}
+    sql: |
+      SELECT cif_number, COUNT(*) AS app_sessions, SUM(screens) AS screens
+      FROM `fennmoor-dw.dw_digital.fct_app_sessions`
+      WHERE session_date >= '{{start}}'
+      GROUP BY cif_number
+
+  - id: ds.merchant_embedding_input
+    by: [noah.brennan]
+    weight: 1
+    params: {start: "date:-60..-30"}
+    sql: |
+      SELECT t.customer_key, m.category_group, COUNT(*) AS txns
+      FROM `fennmoor-dw.dw_core.fct_card_transactions` t
+      JOIN `fennmoor-dw.dw_core.dim_merchant` m USING (merchant_id)
+      WHERE t.post_date >= '{{start}}' AND t.is_purchase
+      GROUP BY 1, 2

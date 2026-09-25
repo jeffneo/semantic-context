@@ -1,0 +1,301 @@
+# Contact-center ops: basic SQL, lower-case, SELECT * and LIMIT. Full-scans the
+# Avaya shards (F09) and filters closures on a wrap-up code that changed
+# mid-window (F17).
+team: cx_ops
+templates:
+  - id: cx.calls_by_site_today
+    weight: 6
+    sql: |
+      select site_id, count(*) from `fennmoor-dw.dw_contact_center.fct_calls` where conversation_date = current_date() group by site_id
+
+  - id: cx.calls_star
+    weight: 3
+    params: {d: "date:-2..-1"}
+    sql: |
+      select * from `fennmoor-dw.dw_contact_center.fct_calls` where conversation_date = '{{d}}' limit 1000
+
+  - id: cx.closure_calls_new_code
+    by: [jerome.baptiste, carla.mendoza]
+    weight: 4
+    findings: [F17]
+    active: {from: 2026-06-02}
+    notes: Undercounts anything before 2026-06-02 when the range reaches back that far.
+    params: {start: "date:-30..-7"}
+    sql: |
+      select site_id, count(*) as closure_calls
+      from `fennmoor-dw.dw_contact_center.fct_calls`
+      where wrapup_code_name = 'ACCT_CLOSE' and conversation_date >= '{{start}}'
+      group by 1 order by 2 desc
+
+  - id: cx.closure_calls_old_code
+    by: [jerome.baptiste, carla.mendoza]
+    weight: 4
+    findings: [F17]
+    active: {until: 2026-06-01}
+    params: {start: "date:-30..-7"}
+    sql: |
+      select site_id, count(*) as closure_calls
+      from `fennmoor-dw.dw_contact_center.fct_calls`
+      where wrapup_code_name = 'ACCT_MAINT' and conversation_date >= '{{start}}'
+      group by 1 order by 2 desc
+
+  - id: cx.closure_flag
+    by: [hannah.sorensen]
+    weight: 2
+    params: {start: "date:-30..-7", end: "date:-2..-1"}
+    sql: |
+      select site_id, countif(is_account_closure_call) as closure_calls, count(*) as contacts
+      from `fennmoor-dw.dw_contact_center.fct_calls`
+      where conversation_date between '{{start}}' and '{{end}}'
+      group by 1
+
+  - id: cx.aht_by_site_week
+    weight: 4
+    params: {start: "date:-60..-28"}
+    sql: |
+      select date_trunc(conversation_date, week) as wk, site_id, avg(handle_sec) as aht
+      from `fennmoor-dw.dw_contact_center.fct_calls`
+      where media_type = 'voice' and conversation_date >= '{{start}}'
+      group by 1, 2 order by 1, 2
+
+  - id: cx.abandon_rate
+    weight: 3
+    params: {start: "date:-30..-14"}
+    sql: |
+      select conversation_date, countif(is_abandoned) / count(*) as abandon_rate
+      from `fennmoor-dw.dw_contact_center.fct_calls`
+      where media_type = 'voice' and conversation_date >= '{{start}}'
+      group by 1 order by 1
+
+  - id: cx.cdr_all_sites
+    by: [carla.mendoza]
+    weight: 2
+    findings: [F09]
+    notes: No _TABLE_SUFFIX filter - every Avaya shard, every time.
+    sql: |
+      select SITE_CD, count(*) from `fennmoor-raw.contact_center_legacy.cdr_*` group by 1
+
+  - id: cx.cdr_same_month_last_year
+    by: [jerome.baptiste]
+    weight: 2
+    findings: [F09]
+    notes: Filters on the call date, not the shard suffix - still a full scan.
+    params: {m: "int:4..6"}
+    sql: |
+      select format_datetime('%Y-%m', CALL_START_DTTM) as mon, SITE_CD, count(*) as calls
+      from `fennmoor-raw.contact_center_legacy.cdr_*`
+      where extract(month from CALL_START_DTTM) = {{m}}
+      group by 1, 2 order by 1
+
+  - id: cx.cdr_one_month
+    by: [hannah.sorensen]
+    weight: 1
+    params: {ym: "yyyymm:-20..-9"}
+    sql: |
+      select SITE_CD, DISPOSITION_CD, count(*) as calls
+      from `fennmoor-raw.contact_center_legacy.cdr_*`
+      where _TABLE_SUFFIX = '{{ym}}'
+      group by 1, 2
+
+  - id: cx.legacy_volume_yoy
+    weight: 2
+    params: {s: "date:-420..-390", e: "date:-380..-360"}
+    sql: |
+      select CALL_DT, SITE_CD, sum(CALLS_OFFRD) as offered, sum(CALLS_HNDLD) as handled
+      from legacy_edw.CC_CALL_VOL_DLY
+      where CALL_DT between '{{s}}' and '{{e}}'
+      group by 1, 2 order by 1
+
+  - id: cx.site_cost_per_contact
+    weight: 3
+    sql: |
+      select * from `fennmoor-dw.dw_contact_center.rpt_site_cost_per_contact` order by month_start desc, site_id
+
+  - id: cx.csat_by_site
+    weight: 3
+    params: {start: "date:-30..-14"}
+    sql: |
+      select site_id, avg(csat_score) as csat, countif(is_promoter) - countif(is_detractor) as net_promoters, count(*) as surveys
+      from `fennmoor-dw.dw_contact_center.fct_csat`
+      where conversation_date >= '{{start}}'
+      group by 1
+
+  - id: cx.agent_leaderboard
+    weight: 3
+    params: {start: "date:-14..-7"}
+    sql: |
+      select a.agent_name, a.site_id, sum(d.contacts) as contacts, avg(d.avg_handle_sec) as aht
+      from `fennmoor-dw.dw_contact_center.fct_agent_daily` d
+      join `fennmoor-dw.dw_contact_center.dim_agent` a using (agent_user_id)
+      where d.conversation_date >= '{{start}}'
+      group by 1, 2 order by 3 desc limit 50
+
+  - id: cx.raw_wrapups
+    by: [hannah.sorensen]
+    weight: 2
+    params: {d: "date:-3..-1"}
+    sql: |
+      select w.name, count(*) as n
+      from `fennmoor-raw.genesys_cloud.segment` s
+      join `fennmoor-raw.genesys_cloud.wrapup_code` w on w.id = s.wrap_up_code
+      where date(s.segment_start) = '{{d}}' and s.segment_type = 'wrapup'
+      group by 1 order by 2 desc
+
+  - id: cx.ivr_outcomes
+    weight: 2
+    params: {start: "date:-7..-2"}
+    sql: |
+      select outcome_name, count(*) as n
+      from `fennmoor-raw.genesys_cloud.ivr_flow_outcome`
+      where date(outcome_start) >= '{{start}}'
+      group by 1 order by 2 desc
+
+  - id: cx.overflow
+    by: [hannah.sorensen]
+    weight: 1
+    params: {start: "date:-30..-14"}
+    sql: |
+      select queue_site_id, agent_site_id, count(*) as calls
+      from `fennmoor-dw.dw_contact_center.fct_calls`
+      where conversation_date >= '{{start}}' and queue_site_id != agent_site_id
+      group by 1, 2
+
+  - id: cx.scorecard_read
+    weight: 2
+    sql: |
+      select * from sbx_cx_ops.cc_site_scorecard_2026 order by month_start desc
+
+  - id: cx.closure_pull_read
+    by: [hannah.sorensen]
+    weight: 2
+    findings: [F17]
+    active: {from: 2026-06-09}
+    sql: |
+      select wrapup_code_name, conversation_date, count(*) as n
+      from sbx_cx_ops.cc_closure_calls_apr_may
+      group by 1, 2 order by 2
+
+  - id: cx.who_is_closing
+    weight: 2
+    params: {d: "date:-2..-1"}
+    sql: |
+      select c.cif_number, c.full_name, f.conversation_date, f.wrapup_code_name
+      from `fennmoor-dw.dw_contact_center.fct_calls` f
+      join `fennmoor-dw.dw_core.dim_customer` c using (customer_key)
+      where f.is_account_closure_call and f.conversation_date = '{{d}}'
+
+  - id: cx.cdr_rollup_read
+    weight: 1
+    sql: |
+      select * from sbx_cx_ops.cdr_history_rollup order by month_start desc
+
+  - id: cx.multi_year_trend
+    by: [jerome.baptiste]
+    weight: 2
+    params: {start: "month:-18..-12"}
+    sql: |
+      select date_trunc(conversation_date, month) as m, site_id, source_system,
+             count(*) as contacts, countif(is_account_closure_call) as closure_calls
+      from `fennmoor-dw.dw_contact_center.fct_contacts_all`
+      where conversation_date >= '{{start}}'
+      group by 1, 2, 3 order by 1
+
+  # ---- breadth -------------------------------------------------------------
+  - id: cx.site_monthly
+    weight: 3
+    sql: |
+      select * from `fennmoor-dw.dw_contact_center.agg_site_monthly` [[opt: where site_id = 'MNL']] order by month_start desc
+
+  - id: cx.site_monthly_trend
+    weight: 2
+    params: {start: "month:-6..-3"}
+    sql: |
+      select month_start, site_id, contacts, closure_calls, round(avg_handle_sec / 60, 1) as aht_min
+      from `fennmoor-dw.dw_contact_center.agg_site_monthly`
+      where month_start >= '{{start}}'
+      order by month_start, site_id
+
+  - id: cx.agent_daily
+    weight: 3
+    params: {d: "date:-3..-1"}
+    sql: |
+      select * from `fennmoor-dw.dw_contact_center.fct_agent_daily` where conversation_date = '{{d}}' [[opt: and site_id = 'TUL']] order by contacts desc
+
+  - id: cx.agent_transfers
+    weight: 2
+    params: {start: "date:-14..-7"}
+    sql: |
+      select agent_user_id, sum(transfers) as total_transfers, sum(contacts) as total_contacts, sum(transfers) / sum(contacts) as transfer_rate
+      from `fennmoor-dw.dw_contact_center.fct_agent_daily`
+      where conversation_date >= '{{start}}'
+      group by 1
+      having sum(contacts) > 50
+      order by transfer_rate desc
+
+  - id: cx.queue_volume
+    weight: 3
+    params: {start: "date:-14..-7"}
+    sql: |
+      select q.line_of_business, q.site_id, count(*) as calls
+      from `fennmoor-dw.dw_contact_center.fct_calls` f
+      join `fennmoor-dw.dw_contact_center.dim_queue` q using (queue_id)
+      where f.conversation_date >= '{{start}}'
+      group by 1, 2 order by 3 desc
+
+  - id: cx.queue_list
+    weight: 1
+    sql: |
+      select * from `fennmoor-dw.dw_contact_center.dim_queue` order by site_id, queue_name
+
+  - id: cx.calls_by_weekday
+    weight: 2
+    params: {start: "date:-60..-30"}
+    sql: |
+      select d.day_of_week, count(*) as calls, count(*) / count(distinct f.conversation_date) as calls_per_day
+      from `fennmoor-dw.dw_contact_center.fct_calls` f
+      join `fennmoor-dw.dw_core.dim_date` d on d.date_day = f.conversation_date
+      where f.conversation_date >= '{{start}}' and not d.is_bank_holiday
+      group by 1
+
+  - id: cx.csat_trend
+    weight: 2
+    params: {start: "date:-60..-30"}
+    sql: |
+      select date_trunc(conversation_date, week) as wk, avg(csat_score) as csat, avg(nps_score) as nps
+      from `fennmoor-dw.dw_contact_center.fct_csat`
+      where conversation_date >= '{{start}}'
+      group by 1 order by 1
+
+  - id: cx.detractors
+    weight: 1
+    params: {d: "date:-7..-2"}
+    sql: |
+      select s.conversation_id, s.agent_user_id, s.nps_score, f.wrapup_code_name
+      from `fennmoor-dw.dw_contact_center.fct_csat` s
+      join `fennmoor-dw.dw_contact_center.fct_calls` f using (conversation_id)
+      where s.is_detractor and s.conversation_date = '{{d}}'
+
+  - id: cx.site_cost_trend
+    weight: 2
+    sql: |
+      select month_start, site_id, total_expense, payroll_expense, vendor_expense
+      from `fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly`
+      order by month_start desc, site_id
+
+  - id: cx.cost_per_contact_by_site
+    weight: 2
+    params: {start: "month:-6..-3"}
+    sql: |
+      select site_name, avg(cost_per_contact) as avg_cost_per_contact, sum(closure_calls) as closure_calls
+      from `fennmoor-dw.dw_contact_center.rpt_site_cost_per_contact`
+      where month_start >= '{{start}}'
+      group by 1 order by 2 desc
+
+  - id: cx.contacts_all_yoy
+    weight: 2
+    params: {m: "choice:4|5|6"}
+    sql: |
+      select extract(year from conversation_date) as yr, site_id, count(*) as contacts
+      from `fennmoor-dw.dw_contact_center.fct_contacts_all`
+      where extract(month from conversation_date) = {{m}}
+      group by 1, 2 order by 1, 2

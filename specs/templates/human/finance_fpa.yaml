@@ -1,0 +1,258 @@
+# Finance FP&A: basic SQL, Tableau for everything published. Still on the
+# legacy month-end chain (F05), and gets contact-center cost wrong both ways (F18).
+team: finance_fpa
+templates:
+  - id: fi.gl_by_cost_center
+    weight: 5
+    params: {p: "period:-2..-1"}
+    sql: |
+      SELECT cost_center_id, account_type, SUM(net_amount) AS net
+      FROM `fennmoor-dw.dw_finance.fct_gl_monthly`
+      WHERE period_name = '{{p}}'
+      GROUP BY cost_center_id, account_type
+      ORDER BY cost_center_id
+
+  - id: fi.site_cost
+    weight: 2
+    params: {start: "month:-12..-6"}
+    sql: |
+      SELECT s.site_name, k.month_start, k.total_expense, k.payroll_expense, k.vendor_expense
+      FROM `fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly` k
+      JOIN `fennmoor-dw.dw_contact_center.dim_cc_site` s USING (site_id)
+      WHERE k.month_start >= '{{start}}'
+      ORDER BY k.month_start, s.site_name
+
+  - id: fi.site_cost_double_count
+    by: [ruth.esposito]
+    weight: 2
+    findings: [F18]
+    notes: Adds AP invoices on top of GL expense - the invoices are already in the GL.
+    params: {start: "month:-12..-6"}
+    sql: |
+      SELECT s.site_id, gl.m, gl.gl_expense + IFNULL(ap.invoices, 0) AS total_site_cost
+      FROM (
+        SELECT cost_center_id, DATE_TRUNC(accounting_date, MONTH) AS m, SUM(entered_dr - entered_cr) AS gl_expense
+        FROM `fennmoor-raw.gl_erp.journal_line`
+        WHERE accounting_date >= '{{start}}'
+        GROUP BY 1, 2
+      ) gl
+      JOIN `fennmoor-dw.dw_contact_center.dim_cc_site` s ON s.cost_center_id = gl.cost_center_id
+      LEFT JOIN (
+        SELECT cost_center_id, DATE_TRUNC(invoice_date, MONTH) AS m, SUM(amount) AS invoices
+        FROM `fennmoor-raw.gl_erp.vendor_invoice`
+        GROUP BY 1, 2
+      ) ap ON ap.cost_center_id = gl.cost_center_id AND ap.m = gl.m
+      ORDER BY 1, 2
+
+  - id: fi.site_cost_payroll_only
+    by: [victor.almeida]
+    weight: 1
+    findings: [F18]
+    notes: Payroll lines only - the outsourced Manila site shows almost no cost.
+    params: {start: "date:-365..-300", end: "date:-5..-1"}
+    sql: |
+      SELECT cost_center_id, SUM(entered_dr - entered_cr) AS payroll_cost
+      FROM `fennmoor-raw.gl_erp.journal_line`
+      WHERE source = 'PAYROLL'
+        AND cost_center_id IN (SELECT cost_center_id FROM `fennmoor-dw.dw_contact_center.dim_cc_site`)
+        AND accounting_date BETWEEN '{{start}}' AND '{{end}}'
+      GROUP BY cost_center_id
+
+  - id: fi.eom_snapshot
+    by: [victor.almeida, ruth.esposito]
+    weight: 4
+    params: {m: "month:-2..-1"}
+    sql: |
+      SELECT SNAP_MTH, PROD_CD, SUM(EOM_BAL_AMT) AS balance
+      FROM legacy_edw.EOM_BAL_SNAP
+      WHERE SNAP_MTH = '{{m}}'
+      GROUP BY SNAP_MTH, PROD_CD
+      ORDER BY balance DESC
+
+  - id: fi.eom_tableau_source
+    by: [ruth.esposito]
+    weight: 2
+    params: {m: "month:-6..-3"}
+    sql: |
+      SELECT * FROM sbx_finance.eom_bal_by_product_tableau WHERE snap_month >= '{{m}}' ORDER BY snap_month, reporting_category
+
+  - id: fi.cost_per_call_read
+    by: [ruth.esposito]
+    weight: 1
+    cadence: monthly
+    notes: Always empty (F04) - Ruth thinks the FY25 data "hasn't landed yet".
+    sql: |
+      SELECT * FROM sbx_finance.cc_cost_per_call_fy25
+
+  - id: fi.legacy_cost_center_expense
+    weight: 1
+    sql: |
+      SELECT FISC_PRD, CC_ID, SUM(ACTL_AMT) AS actual, SUM(BDGT_AMT) AS budget
+      FROM legacy_edw.CC_EXPNS_MTHLY
+      WHERE FISC_PRD >= '[[alt: 2024-07 ;; 2024-10 ;; 2025-01]]'
+      GROUP BY FISC_PRD, CC_ID
+
+  - id: fi.fee_income_trend
+    weight: 3
+    params: {start: "month:-12..-6"}
+    sql: |
+      SELECT month_start, fee_type, net_fees, waived_fees
+      FROM `fennmoor-dw.dw_finance.fct_fee_income_monthly`
+      WHERE month_start >= '{{start}}'
+      ORDER BY month_start, fee_type
+
+  - id: fi.waiver_ratio
+    weight: 2
+    sql: |
+      SELECT month_start, SUM(waived_fees) / SUM(gross_fees) AS waiver_ratio
+      FROM `fennmoor-dw.dw_finance.fct_fee_income_monthly`
+      GROUP BY month_start
+      ORDER BY month_start
+
+  - id: fi.cc_expense_summary
+    weight: 3
+    params: {p: "period:-2..-1"}
+    sql: |
+      SELECT PERIOD_NAME, CC_ID, SUM(ACTUAL_AMT) AS actual, SUM(BUDGET_AMT) AS budget, SUM(VARIANCE_AMT) AS variance
+      FROM `fennmoor-raw.gl_erp.CC_EXPENSE_SUMMARY`
+      WHERE PERIOD_NAME = '{{p}}'
+      GROUP BY PERIOD_NAME, CC_ID
+      ORDER BY variance
+
+  - id: fi.contact_center_budget
+    by: [victor.almeida]
+    weight: 2
+    sql: |
+      SELECT e.CC_ID, c.cost_center_name, SUM(e.ACTUAL_AMT) AS actual, SUM(e.BUDGET_AMT) AS budget
+      FROM `fennmoor-raw.gl_erp.CC_EXPENSE_SUMMARY` e
+      JOIN `fennmoor-dw.dw_finance.dim_cost_center` c ON c.cost_center_id = e.CC_ID
+      WHERE c.cost_center_name LIKE 'Contact Center%' OR c.cost_center_name LIKE '%BPO%'
+      GROUP BY 1, 2
+
+  - id: fi.profitability_by_segment
+    weight: 2
+    params: {start: "month:-6..-3"}
+    sql: |
+      SELECT c.segment, p.month_start, SUM(p.total_revenue) AS revenue
+      FROM `fennmoor-dw.dw_finance.fct_customer_profitability_monthly` p
+      JOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key)
+      WHERE p.month_start >= '{{start}}'
+      GROUP BY 1, 2
+      ORDER BY 2, 1
+
+  - id: fi.interest_accrued
+    weight: 1
+    params: {start: "date:-120..-90"}
+    sql: |
+      SELECT DATE_TRUNC(balance_date, MONTH) AS m, SUM(accrued_interest) AS interest
+      FROM `fennmoor-dw.dw_core.fct_daily_account_balances`
+      WHERE balance_date >= '{{start}}'
+      GROUP BY m
+      ORDER BY m
+
+  - id: fi.top_vendors
+    weight: 2
+    params: {start: "date:-120..-60"}
+    sql: |
+      SELECT vendor_name, SUM(amount) AS spend
+      FROM `fennmoor-raw.gl_erp.vendor_invoice`
+      WHERE invoice_date >= '{{start}}'
+      GROUP BY vendor_name
+      ORDER BY spend DESC
+      LIMIT 25
+
+  - id: fi.eom_balances_from_mart
+    by: [victor.almeida]
+    weight: 1
+    notes: The correct month-end query, tried once and not adopted.
+    params: {start: "month:-3..-3", end: "date:-1..-1"}
+    sql: |
+      WITH eom AS (
+        SELECT account_key, product_code, DATE_TRUNC(balance_date, MONTH) AS m,
+               ARRAY_AGG(ledger_balance ORDER BY balance_date DESC LIMIT 1)[OFFSET(0)] AS eom_balance
+        FROM `fennmoor-dw.dw_core.fct_daily_account_balances`
+        WHERE balance_date BETWEEN '{{start}}' AND '{{end}}'
+        GROUP BY 1, 2, 3
+      )
+      SELECT m, p.product_line, SUM(eom_balance) AS balance
+      FROM eom JOIN `fennmoor-dw.dw_core.dim_product` p USING (product_code)
+      GROUP BY 1, 2
+      ORDER BY 1, 2
+
+  # ---- breadth -------------------------------------------------------------
+  - id: fi.cost_center_list
+    weight: 2
+    sql: |
+      SELECT cost_center_id, cost_center_name, department_code, region
+      FROM `fennmoor-dw.dw_finance.dim_cost_center`
+      WHERE is_active [[opt: AND cost_center_name LIKE '%Contact Center%']]
+      ORDER BY cost_center_id
+
+  - id: fi.gl_by_department
+    weight: 2
+    params: {p: "period:-3..-1"}
+    sql: |
+      SELECT c.department_code, g.account_type, SUM(g.net_amount) AS net
+      FROM `fennmoor-dw.dw_finance.fct_gl_monthly` g
+      JOIN `fennmoor-dw.dw_finance.dim_cost_center` c USING (cost_center_id)
+      WHERE g.period_name = '{{p}}'
+      GROUP BY 1, 2
+      ORDER BY 1
+
+  - id: fi.gl_trend_account
+    weight: 2
+    params: {start: "month:-12..-6"}
+    sql: |
+      SELECT month_start, gl_account_code, SUM(net_amount) AS net
+      FROM `fennmoor-dw.dw_finance.fct_gl_monthly`
+      WHERE month_start >= '{{start}}' AND account_type = '[[alt: REVENUE ;; EXPENSE]]'
+      GROUP BY 1, 2
+      ORDER BY 1, 3 DESC
+
+  - id: fi.fee_income_by_product
+    weight: 2
+    params: {start: "month:-6..-3"}
+    sql: |
+      SELECT p.product_line, f.month_start, SUM(f.net_fees) AS net_fees
+      FROM `fennmoor-dw.dw_finance.fct_fee_income_monthly` f
+      JOIN `fennmoor-dw.dw_core.dim_product` p USING (product_code)
+      WHERE f.month_start >= '{{start}}'
+      GROUP BY 1, 2
+      ORDER BY 2, 1
+
+  - id: fi.profitability_mix
+    weight: 2
+    params: {m: "month:-2..-1"}
+    sql: |
+      SELECT SUM(fee_revenue) AS fees, SUM(interchange_revenue) AS interchange, SUM(deposit_margin) AS margin, COUNT(*) AS customers
+      FROM `fennmoor-dw.dw_finance.fct_customer_profitability_monthly`
+      WHERE month_start = '{{m}}'
+
+  - id: fi.monthly_close_days
+    weight: 1
+    params: {m: "month:-2..-1"}
+    sql: |
+      SELECT fiscal_period_name, COUNTIF(is_business_day) AS business_days
+      FROM `fennmoor-dw.dw_core.dim_date`
+      WHERE month_start = '{{m}}'
+      GROUP BY fiscal_period_name
+
+  - id: fi.deposit_outflows_monthly
+    weight: 1
+    params: {start: "month:-6..-3"}
+    sql: |
+      SELECT DATE_TRUNC(posted_date, MONTH) AS m, transaction_type, SUM(amount) AS amount
+      FROM `fennmoor-dw.dw_core.fct_deposit_transactions`
+      WHERE posted_date >= '{{start}}' AND transaction_type IN ('WIRE', 'ACH_DR')
+      GROUP BY 1, 2
+      ORDER BY 1
+
+  - id: fi.site_cost_vs_volume
+    weight: 1
+    params: {start: "month:-6..-3"}
+    sql: |
+      SELECT a.month_start, a.site_id, a.contacts, k.total_expense
+      FROM `fennmoor-dw.dw_contact_center.agg_site_monthly` a
+      JOIN `fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly` k USING (site_id, month_start)
+      WHERE a.month_start >= '{{start}}'
+      ORDER BY 1, 2

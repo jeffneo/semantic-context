@@ -1,0 +1,35 @@
+# Secrets and credentials
+.env
+.env.*
+!.env.example
+*.license
+*.pem
+*.key
+service-account*.json
+
+# The previous project's backup and notebook
+old/
+
+# Pipeline outputs, regenerable: extract.py -> parse_log.py -> ... (includes the query-text
+# extracts and the LLM / embedding caches, ~90 MB)
+pipeline/work/
+
+# Spec-side generated data, regenerable with specs/tools/simulate.py (byte-reproducible)
+# and score.py. jobs.ndjson.gz alone is ~70 MB, over GitHub's 50 MB warning.
+specs/build/log/
+specs/build/score/judge_cache/
+specs/build/.dryrun_cache.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+*.swp

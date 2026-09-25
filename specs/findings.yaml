@@ -1,0 +1,424 @@
+# =============================================================================
+# Planted findings - the answer key for "what's wrong with this estate"
+# =============================================================================
+# Each finding says what is true (`truth`), which objects carry it
+# (`objects`, validated by tools/build.py), what the simulated query log must
+# contain for it to be discoverable (`log_signal` - a requirement on the
+# simulator), and what a correct pipeline reports (`detect`).
+#
+# `detectable_from` is honest about what query logs alone can reveal:
+#   logs             INFORMATION_SCHEMA.JOBS: principals, SQL, bytes, time
+#   lineage          column lineage parsed from SQL
+#   schema           INFORMATION_SCHEMA.COLUMNS / TABLES
+#   profiling        needs to look at the data itself
+#   domain_knowledge needs to know what the business means
+# A finding that needs profiling or domain knowledge is a test of how the
+# pipeline says "I can't tell" - not of whether it guesses.
+# =============================================================================
+
+findings:
+  F01:
+    title: One customer, eight id spaces
+    type: identity_resolution
+    truth: >-
+      A customer appears as CIF (core, cards, LOS, bureau, Braze, fraud, AML
+      crosswalk), Salesforce contact and household, OLB login, GA4 user_id
+      (hash of the OLB login), GA4 cookie, Braze internal id, and AML party.
+      int_customer_identity and digital_banking.online_user are the
+      crosswalks. GA4 ids resolve ONLY through online_user.
+    objects:
+      - dw_intermediate.int_customer_identity
+      - digital_banking.online_user
+      - aml_kyc.party
+    log_signal: >-
+      dbt-prod builds int_customer_identity nightly; analysts in 5+ teams join
+      through it and through online_user.
+    detect: >-
+      Recover the crosswalk structure: which id spaces link to CIF directly,
+      which only through a bridge table, and which never link.
+    detectable_from: [lineage, logs]
+
+  F02:
+    title: The CIF has a dozen spellings
+    type: synonym
+    truth: >-
+      CIF_NO, cif_number, CUST_ID, CIF, bank_customer_ref, applicantCifNumber,
+      borrowerCif, cif_number__c, external_id, external_user_id,
+      primary_cif_number and more all mean customer.cif. See SUMMARY.md
+      "Identifier spellings" for the full generated list.
+    objects:
+      - core_banking_cdc.CUSTOMER.CIF_NO
+      - card_processor.card_account.bank_customer_ref
+      - loan_origination.application.applicantCifNumber
+      - salesforce.contact.cif_number__c
+      - braze.user_profile.external_id
+      - credit_bureau.consumer_attributes_monthly.CIF
+      - legacy_edw.CUST_MSTR.CUST_ID
+    log_signal: Joins between these columns appear in dbt models and ad-hoc SQL.
+    detect: One concept, every spelling attached to it.
+    detectable_from: [lineage, logs]
+
+  F03:
+    title: account_id means three different things
+    type: homonym
+    truth: >-
+      `account_id` is a core deposit account (INT64), a card-processor account
+      (INT64, overlapping integer range - joins "work"), and in Salesforce a
+      household (STRING). Name-based matching merges them; it must not.
+    objects:
+      - core_banking_cdc.ACCOUNT.ACCT_ID
+      - dw_staging.stg_core__account.account_id
+      - card_processor.card_account.account_id
+      - dw_staging.stg_cards__card_account.account_id
+      - salesforce.contact.account_id
+      - sbx_fraud.bust_out_candidates
+    log_signal: >-
+      dbt-prod never joins card account_id to deposit account_id. Fraud and
+      marketing analysts do, a few dozen times a month, plus the weekly
+      bust_out_candidates CTAS. Those joins return implausible cardinalities.
+    detect: >-
+      Keep the three id spaces separate. Flag the human-only join as suspect:
+      production never makes it, and it is always one-off.
+    detectable_from: [logs, lineage, schema]
+
+  F04:
+    title: CC means credit card, contact center, or cost center
+    type: abbreviation_ambiguity
+    truth: >-
+      CC_TXN_HIST/CC_ACCT_MSTR are credit card; CC_CALL_VOL_DLY/CC_AGENT_DLY
+      and sbx_cx_ops.cc_* are contact center; CC_EXPNS_MTHLY, CC_EXPENSE_SUMMARY
+      and every CC_ID column are cost center. cc_cost_per_call_fy25 joins a
+      cost-center id to a contact-center site code and returns nothing.
+    objects:
+      - legacy_edw.CC_TXN_HIST
+      - legacy_edw.CC_CALL_VOL_DLY
+      - legacy_edw.CC_EXPNS_MTHLY
+      - gl_erp.CC_EXPENSE_SUMMARY
+      - core_banking_cdc.BRANCH.CC_ID
+      - sbx_finance.cc_cost_per_call_fy25
+    log_signal: The trap table is rebuilt monthly and read by finance.
+    detect: >-
+      Descriptions expand CC correctly per table from context (sibling columns,
+      co-queried tables). Flag the CC_ID = SITE_CD join.
+    detectable_from: [lineage, logs, domain_knowledge]
+
+  F05:
+    title: Deprecated, and still load-bearing
+    type: deprecation
+    truth: >-
+      legacy_edw.ACCT_DLY_BAL was superseded by fct_daily_account_balances on
+      2025-02-28, but composer-legacy still refreshes it nightly. It feeds
+      EOM_BAL_SNAP, which feeds sbx_finance.eom_bal_by_product_tableau, which
+      tableau-finance extracts nightly for the month-end balance report.
+    objects:
+      - legacy_edw.ACCT_DLY_BAL
+      - legacy_edw.EOM_BAL_SNAP
+      - sbx_finance.eom_bal_by_product_tableau
+      - dw_core.fct_daily_account_balances
+    log_signal: >-
+      composer-legacy writes ACCT_DLY_BAL daily and EOM_BAL_SNAP monthly;
+      tableau-finance reads the sandbox table nightly; two finance analysts
+      query EOM_BAL_SNAP directly.
+    detect: >-
+      A deprecated table with live writers AND live downstream readers,
+      traced to a production report. Turning it off would break finance.
+    detectable_from: [logs, lineage]
+
+  F06:
+    title: Dead tables
+    type: dead
+    truth: >-
+      Every table with status: dead. Nothing reads them in the window - except
+      the elementary-dq monitor, which checks every raw, dbt, legacy and ML
+      table (not sandboxes or Looker scratch), so the non-sandbox dead tables
+      still look alive until monitoring traffic is excluded (see F19).
+    objects:
+      - core_banking_cdc.STANDING_ORDER
+      - core_banking_cdc.ATM_TERMINAL
+      - card_processor.card_account_hist_2019
+      - credit_bureau.consumer_attributes_2019_archive
+      - legacy_edw.CHURN_MDL_SCR
+      - legacy_edw.CUST_MSTR_BKP_20250211
+      - legacy_edw.ACCT_DLY_BAL_OLD
+      - looker_scratch.LR_2K9WQXM1T7B8E_customer_facts
+      - sbx_customer_analytics.tmp_cust_bal_check
+      - sbx_tom_okafor.tom_test
+    log_signal: Zero reads by any principal except elementary-dq.
+    detect: Dead once monitoring traffic is excluded; alive if it is not.
+    detectable_from: [logs]
+
+  F07:
+    title: Written every night, read by nobody
+    type: write_only
+    truth: >-
+      feat_card_velocity is rebuilt nightly for a retired model; Salesforce
+      case_history and OLB secure_message are synced by Fivetran and never
+      queried.
+    objects:
+      - ml_features.feat_card_velocity
+      - salesforce.case_history
+      - digital_banking.secure_message
+    log_signal: Daily writes (dbt-prod / fivetran-sync), no reads beyond elementary-dq.
+    detect: Write-only tables, with the compute they cost.
+    detectable_from: [logs]
+
+  F08:
+    title: Raw SSNs outside the restricted zone
+    type: pii_exposure
+    truth: >-
+      SSNs are raw only in core_banking_cdc.CUSTOMER.TAX_ID (behind a column
+      policy tag) and in the restricted aml_kyc dataset, and hashed from
+      staging on. But the legacy CUST_MSTR, its backup, and a 2025 sandbox
+      CTAS of the AML party table hold RAW SSNs unprotected - BigQuery policy
+      tags do not carry through CREATE TABLE AS SELECT, so the copy silently
+      dropped the protection.
+    objects:
+      - legacy_edw.CUST_MSTR.SSN_NBR
+      - legacy_edw.CUST_MSTR_BKP_20250211.SSN_NBR
+      - sbx_risk.kyc_review_extract.tax_id
+      - aml_kyc.party.tax_id
+    log_signal: >-
+      kyc_review_extract was created by a CTAS in the window's history; risk
+      and data science analysts query it occasionally.
+    detect: >-
+      Lineage from a restricted source into an unrestricted dataset, plus
+      name-based SSN detection on the legacy tables.
+    detectable_from: [lineage, schema]
+
+  F09:
+    title: Full scans of sharded and partitioned history
+    type: cost
+    truth: >-
+      cdr_* is queried with no _TABLE_SUFFIX filter (all 33 shards) by
+      sbx_cx_ops.cdr_history_rollup and by cx_ops ad-hoc queries; the Looker
+      card-spend explore is often run without a post_date filter; marketing
+      filters GA4 events_* on event_date instead of _TABLE_SUFFIX; and
+      digital product filters the stg_ga4__events view on its parsed date,
+      which cannot prune the shards underneath it. Tableau's nightly fct_fees
+      extract is a full-table read.
+    objects:
+      - contact_center_legacy.cdr_
+      - sbx_cx_ops.cdr_history_rollup
+      - dw_core.fct_card_transactions
+      - analytics_312874659.events_
+      - dw_staging.stg_ga4__events
+    log_signal: >-
+      A small number of jobs with outsized total_bytes_processed; the same
+      SQL shapes repeat.
+    detect: Rank query shapes by bytes; name the missing filter.
+    detectable_from: [logs]
+
+  F10:
+    title: Two teams, two churn models, five column names
+    type: semantic_duplicate
+    truth: >-
+      churn_probability (v3), churn_score (v2), churn_risk (sandbox rename),
+      CHURN_SCR (legacy) and marketing's attrition_propensity are all
+      score.churn_probability. Marketing trained its own model in BQML.
+    objects:
+      - ml_scores.churn_score_v3.churn_probability
+      - ml_scores.churn_score_v2.churn_score
+      - sbx_customer_analytics.customer_360_final.churn_risk
+      - legacy_edw.CHURN_MDL_SCR.CHURN_SCR
+      - sbx_marketing.attrition_propensity_2025.attrition_propensity
+    log_signal: Both models are read regularly by different teams.
+    detect: One concept, competing sources; say which is sanctioned.
+    detectable_from: [lineage, logs, domain_knowledge]
+
+  F11:
+    title: Migration stragglers
+    type: migration
+    truth: >-
+      churn_score_v3 replaced v2 on 2026-05-15. v2 stops being written that
+      day; the Churn Risk Looker PDT and one analyst keep reading it.
+    objects:
+      - ml_scores.churn_score_v2
+      - ml_scores.churn_score_v3
+      - looker_scratch.LR_8B3N0C5D2X7Z1_churn_explore
+    log_signal: >-
+      vertex-scoring writes v2 until 2026-05-14 and v3 from 2026-05-15;
+      looker-prod reads v2 every day of the window.
+    detect: Readers of a table whose writer stopped - with the stop date.
+    detectable_from: [logs]
+
+  F12:
+    title: A column named _usd that holds cents
+    type: unit_mismatch
+    truth: >-
+      sbx_marketing.card_spend_by_segment.card_spend_usd is SUM(amount_cents)
+      from the raw processor feed - 100x any dollar figure it is compared to.
+    objects:
+      - sbx_marketing.card_spend_by_segment.card_spend_usd
+      - card_processor.settlement.amount_cents
+    log_signal: The table is read alongside dollar tables in marketing decks.
+    detect: >-
+      Lineage reaches a unit=cents source through a SUM with no /100, while
+      the name claims USD.
+    detectable_from: [lineage]
+
+  F13:
+    title: A join that matches nothing
+    type: wrong_join
+    truth: >-
+      web_to_branch_journeys joins GA4 user_id (SHA-256 of the OLB login) to
+      cif_number. Different id spaces - zero rows, every week.
+    objects:
+      - sbx_marketing.web_to_branch_journeys
+      - analytics_312874659.events_.user_id
+      - dw_core.dim_customer.cif_number
+    log_signal: Weekly CTAS by luis.carvajal; the output is always empty.
+    detect: >-
+      Flag the join; point to the online_user bridge that the dbt models use
+      for the same purpose.
+    detectable_from: [lineage, logs]
+
+  F14:
+    title: The _final_FIXED chain
+    type: copy_sprawl
+    truth: >-
+      customer_360 -> customer_360_v2 -> customer_360_final ->
+      customer_360_final_FIXED. _final is the team's de facto table; the
+      newest, _FIXED, is the least used; _v2 is a stale snapshot.
+    objects:
+      - dw_customer.customer_360
+      - sbx_customer_analytics.customer_360_v2
+      - sbx_customer_analytics.customer_360_final
+      - sbx_customer_analytics.customer_360_final_FIXED
+    log_signal: >-
+      Reads: _final >> customer_360 (by this team) > _v2 > _FIXED. Each copy
+      is a CTAS from the previous one.
+    detect: Near-duplicate chain, which copy is actually used, consolidation target.
+    detectable_from: [lineage, logs, schema]
+
+  F15:
+    title: Hub keys
+    type: topology
+    truth: >-
+      date.day, customer.key / customer.cif, account.key, product.code and
+      branch.id appear in most fact tables. Clustering on raw co-occurrence
+      collapses into one blob - the failure the current graph shows with
+      plant_id. The subject labels in 00_estate.yaml are the target partition.
+    objects:
+      - dw_core.dim_date.date_day
+      - dw_core.dim_customer.customer_key
+      - dw_core.dim_account.account_key
+    log_signal: Emerges from the model SQL naturally.
+    detect: Down-weight hubs; recover subjects (scored against table.subject).
+    detectable_from: [lineage, logs]
+
+  F16:
+    title: A column that went null
+    type: silent_breakage
+    truth: >-
+      Core stopped populating PREF_BRNCH_ID on 2026-04-20. dim_customer still
+      selects it; branch analyses that group by preferred_branch_id quietly
+      degrade to one NULL bucket.
+    objects:
+      - core_banking_cdc.CUSTOMER.PREF_BRNCH_ID
+      - dw_core.dim_customer.preferred_branch_id
+    log_signal: Queries keep grouping by preferred_branch_id after 2026-04-20.
+    detect: >-
+      Not visible in query logs. A pipeline should say so rather than guess;
+      data profiling reveals it.
+    detectable_from: [profiling]
+
+  F17:
+    title: The code for "closure call" changed mid-window
+    type: silent_breakage
+    truth: >-
+      Before 2026-06-02 closure calls were wrap-up ACCT_MAINT (+ IVR intent
+      CLOSE_ACCOUNT); after, ACCT_CLOSE. Queries filtering on 'ACCT_CLOSE'
+      alone undercount everything before June.
+    objects:
+      - genesys_cloud.wrapup_code
+      - dw_contact_center.fct_calls.wrapup_code_name
+      - dw_contact_center.fct_calls.is_account_closure_call
+    log_signal: >-
+      The literal 'ACCT_CLOSE' first appears in query text on 2026-06-02;
+      cx_ops pulls cc_closure_calls_apr_may on 2026-06-09 to investigate.
+    detect: New literal values in filters on a column, and when they appeared.
+    detectable_from: [logs, profiling]
+
+  F18:
+    title: BPO cost counted twice
+    type: semantic_trap
+    truth: >-
+      Harbinger BPO invoices post to the GL (source = 'AP'). Adding
+      gl_erp.vendor_invoice on top of GL expense double-counts the Manila
+      site. Using only PAYROLL lines misses it entirely.
+    objects:
+      - gl_erp.journal_line
+      - gl_erp.vendor_invoice
+      - dw_contact_center.fct_cc_site_cost_monthly
+    log_signal: Some finance and cx_ops ad-hoc queries do each of the wrong things.
+    detect: Needs to know that AP is a GL sub-ledger.
+    detectable_from: [domain_knowledge]
+
+  F19:
+    title: The monitor touches everything
+    type: confound
+    truth: >-
+      elementary-dq runs COUNT(*), MAX(_loaded_at) and null-rate checks on
+      nearly every table every few hours. Its queries co-reference unrelated
+      tables and keep dead tables looking alive.
+    objects:
+      - data_quality.elementary_test_results
+      - data_quality.freshness_checks
+    log_signal: ~6% of all jobs, near-identical templated SQL across tables.
+    detect: >-
+      Identify monitoring principals and query shapes, and exclude them from
+      co-usage and liveness.
+    detectable_from: [logs]
+
+  # ---- emergent from BigQuery's cost model -------------------------------
+  # Not planted as mistakes in the spec: they fall out of how BigQuery bills
+  # the SQL the estate actually runs. Found by the simulator's cost model and
+  # checked in build/log/SIMULATION.md.
+  F20:
+    title: LIMIT does not save money
+    type: cost
+    truth: >-
+      SELECT * ... LIMIT 10 against a large table or staging view scans every
+      column of every row - LIMIT prunes nothing in BigQuery. Data
+      engineering's staging smoke tests and cx_ops' "select * ... limit 1000"
+      are among the costliest human queries.
+    objects:
+      - dw_staging.stg_cards__authorization
+      - dw_staging.stg_core__deposit_transaction
+      - dw_contact_center.fct_calls
+    log_signal: Human SELECT * ... LIMIT jobs billing hundreds of GiB.
+    detect: Flag SELECT * with LIMIT over large tables; suggest the table preview or a partition filter.
+    detectable_from: [logs]
+
+  F21:
+    title: Health checks that scan data
+    type: cost
+    truth: >-
+      dbt source freshness runs MAX(loaded_at) over raw tables with no
+      partition filter - over the 3.7B-row daily balance table that is a
+      multi-hundred-GiB scan four times a day. Looker datagroup triggers run
+      SELECT MAX(post_date) against card transactions every 15 minutes.
+    objects:
+      - core_banking_cdc.ACCOUNT_BALANCE_DLY
+      - core_banking_cdc.DEPOSIT_TXN
+      - dw_core.fct_card_transactions
+    log_signal: dbt-prod freshness and looker-prod trigger jobs with large byte counts.
+    detect: Attribute cost to monitoring/metadata queries; suggest INFORMATION_SCHEMA or partition filters.
+    detectable_from: [logs]
+
+  F22:
+    title: Incremental models that rescan their source
+    type: cost
+    truth: >-
+      fct_app_sessions and int_digital_sessions are incremental, but their
+      date filter applies after a GROUP BY (and, for GA4, through a view that
+      parses the date), so BigQuery cannot prune the source: every nightly
+      run scans all of Amplitude or every GA4 shard.
+    objects:
+      - dw_digital.fct_app_sessions
+      - dw_intermediate.int_digital_sessions
+      - amplitude_mobile.EVENTS_318842
+      - analytics_312874659.events_
+    log_signal: Nightly dbt-prod jobs whose bytes grow with source history, not with the increment.
+    detect: Incremental model whose scan is not proportional to its time filter.
+    detectable_from: [logs, lineage]

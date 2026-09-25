@@ -1,0 +1,57 @@
+{
+ "identifier_variables": {
+  "columns": 675,
+  "pairwise_precision": 0.9948420373952289,
+  "pairwise_recall": 0.5320689655172414,
+  "ari": 0.6849293050689073,
+  "consumed_columns": 548,
+  "consumed_precision": 0.9947078280044102,
+  "consumed_recall": 0.7141047965806554,
+  "consumed_ari": 0.8252102444384508
+ },
+ "other_variables": {
+  "columns": 699,
+  "pairwise_precision": 1.0
+ },
+ "suspect_joins": {
+  "flagged": 5,
+  "truly_wrong": 5,
+  "true_positive": 5
+ },
+ "F01": {
+  "verdict": "pass",
+  "detail": "crosswalks recognized: int_customer_identity, online_user, aml party; customer id spaces in or linked to the entity: customer.aml_party_id, customer.cif, customer.ga4_user_id, customer.key, customer.olb_user_id, customer.segment, customer.sf_contact_id"
+ },
+ "F02": {
+  "verdict": "pass",
+  "detail": "6/7 spellings in the CIF variable; 1 never used in the window, so no evidence either way (legacy_edw.CUST_MSTR.CUST_ID)"
+ },
+ "F03": {
+  "verdict": "pass",
+  "detail": "deposit / card / Salesforce account_id kept apart: yes (3 variables); the bust_out_candidates join flagged suspect: yes"
+ },
+ "F04": {
+  "verdict": "partial",
+  "detail": "the CC_ID = SITE_CD join flagged suspect: yes; expanding 'CC' per table is M5 (naming)"
+ },
+ "F10": {
+  "verdict": "partial",
+  "detail": "3/5 churn columns grouped as competing measures; v3 named sanctioned: yes; unused in the window: legacy_edw.CHURN_MDL_SCR.CHURN_SCR; not linked: sbx_customer_analytics.customer_360_final.churn_risk"
+ },
+ "F12": {
+  "verdict": "pass",
+  "detail": "card_spend_usd traced to amount_cents with no /100: yes"
+ },
+ "F13": {
+  "verdict": "pass",
+  "detail": "GA4 user_id = cif_number flagged: yes; the online_user bridge named: yes; traced to web_to_branch_journeys: yes"
+ },
+ "F15": {
+  "verdict": "pass",
+  "detail": "3/3 planted hubs flagged (dw_core.dim_date.date_day, dw_core.dim_customer.customer_key, dw_core.dim_account.account_key); 8 hubs in total; recovering subjects around them is M4"
+ },
+ "F16": {
+  "verdict": "pass",
+  "detail": "no finding claims preferred_branch_id broke; the pipeline states that data-level breakage is not determinable from usage"
+ }
+}

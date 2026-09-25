@@ -1,0 +1,269 @@
+# Risk & credit analytics: strong SQL in an old SAS habit - upper-case
+# everything, positional GROUP BY. Reads raw loan-origination data directly.
+team: risk_analytics
+templates:
+  - id: rk.bucket_mix
+    weight: 5
+    params: {d: "date:-3..-1"}
+    sql: |
+      SELECT SNAPSHOT_DATE, BUCKET, COUNT(*) AS LOANS, SUM(PAST_DUE_AMOUNT) AS PAST_DUE
+      FROM `fennmoor-dw.dw_risk.fct_delinquency_daily`
+      WHERE SNAPSHOT_DATE = '{{d}}'
+      GROUP BY 1, 2
+      ORDER BY 2
+
+  - id: rk.roll_rates
+    by: [samuel.achterberg]
+    weight: 3
+    params: {d0: "date:-35..-30", d1: "date:-5..-1"}
+    sql: |
+      WITH T0 AS (SELECT ACCOUNT_KEY, BUCKET FROM `fennmoor-dw.dw_risk.fct_delinquency_daily` WHERE SNAPSHOT_DATE = '{{d0}}'),
+           T1 AS (SELECT ACCOUNT_KEY, BUCKET FROM `fennmoor-dw.dw_risk.fct_delinquency_daily` WHERE SNAPSHOT_DATE = '{{d1}}')
+      SELECT T0.BUCKET AS FROM_BUCKET, COALESCE(T1.BUCKET, 'CURED') AS TO_BUCKET, COUNT(*) AS N
+      FROM T0 LEFT JOIN T1 USING (ACCOUNT_KEY)
+      GROUP BY 1, 2
+      ORDER BY 1, 2
+
+  - id: rk.dlq_rate_product_branch
+    weight: 3
+    params: {d: "date:-3..-1"}
+    sql: |
+      WITH OPEN_LOANS AS (
+        SELECT PRODUCT_CODE, BRANCH_ID, COUNT(*) AS N
+        FROM `fennmoor-dw.dw_core.dim_account`
+        WHERE ACCOUNT_FAMILY = 'LOAN' AND IS_OPEN
+        GROUP BY 1, 2
+      ),
+      DLQ AS (
+        SELECT A.PRODUCT_CODE, A.BRANCH_ID, COUNT(*) AS D
+        FROM `fennmoor-dw.dw_risk.fct_delinquency_daily` DD
+        JOIN `fennmoor-dw.dw_core.dim_account` A USING (ACCOUNT_KEY)
+        WHERE DD.SNAPSHOT_DATE = '{{d}}' AND DD.DPD >= [[alt: 30 ;; 60 ;; 90]]
+        GROUP BY 1, 2
+      )
+      SELECT O.PRODUCT_CODE, B.BRANCH_NAME, O.N, COALESCE(DLQ.D, 0) AS DLQ, SAFE_DIVIDE(DLQ.D, O.N) AS RATE
+      FROM OPEN_LOANS O
+      LEFT JOIN DLQ USING (PRODUCT_CODE, BRANCH_ID)
+      LEFT JOIN `fennmoor-dw.dw_core.dim_branch` B ON B.BRANCH_ID = O.BRANCH_ID
+      ORDER BY RATE DESC
+
+  - id: rk.approval_rates
+    weight: 4
+    params: {start: "date:-90..-30", end: "date:-3..-1"}
+    sql: |
+      SELECT PRODUCT_CODE, CHANNEL, COUNT(*) AS APPS,
+             COUNTIF(FINAL_OUTCOME = 'APPROVE') AS APPROVED,
+             AVG(CREDIT_SCORE_AT_APP) AS AVG_FICO
+      FROM `fennmoor-dw.dw_risk.fct_credit_applications`
+      WHERE SUBMITTED_DATE BETWEEN '{{start}}' AND '{{end}}'
+      GROUP BY 1, 2
+      ORDER BY 3 DESC
+
+  - id: rk.fico_distribution
+    weight: 2
+    params: {m: "month:-3..-1"}
+    sql: |
+      SELECT CASE WHEN FICO_08 >= 740 THEN '740+' WHEN FICO_08 >= 670 THEN '670-739'
+                  WHEN FICO_08 >= 580 THEN '580-669' ELSE '<580' END AS FICO_BAND,
+             COUNT(*) AS N
+      FROM `fennmoor-dw.dw_risk.fct_bureau_monthly`
+      WHERE ARCHIVE_MONTH = '{{m}}'
+      GROUP BY 1
+      ORDER BY 1
+
+  - id: rk.fico_migration_read
+    by: [mei-lin.zhou]
+    weight: 2
+    sql: |
+      SELECT * FROM sbx_risk.bureau_fico_migration ORDER BY ARCHIVE_MONTH DESC, FICO_BAND
+
+  - id: rk.raw_decisions
+    weight: 2
+    params: {start: "date:-30..-7"}
+    sql: |
+      SELECT decidedBy, outcome, COUNT(*) AS n
+      FROM `fennmoor-raw.loan_origination.decision`
+      WHERE DATE(decidedAt) >= '{{start}}'
+      GROUP BY 1, 2
+
+  - id: rk.raw_dti
+    by: [deepak.venkataraman]
+    weight: 1
+    params: {start: "date:-60..-30"}
+    sql: |
+      SELECT bureau, APPROX_QUANTILES(dtiRatio, 10) AS DTI_DECILES
+      FROM `fennmoor-raw.loan_origination.credit_pull`
+      WHERE pulledAt >= TIMESTAMP('{{start}}')
+      GROUP BY 1
+
+  - id: rk.kyc_extract_high_risk
+    by: [mei-lin.zhou]
+    weight: 2
+    sql: |
+      SELECT party_id, cif_number, full_name, risk_rating, pep_flag
+      FROM sbx_risk.kyc_review_extract
+      WHERE risk_rating = 'H'
+
+  - id: rk.kyc_extract_tin_lookup
+    by: [deepak.venkataraman]
+    weight: 1
+    notes: Reads the raw SSN from an unprotected sandbox copy (F08).
+    params: {pfx: "choice:4|5|6"}
+    sql: |
+      SELECT cif_number, tax_id, full_name FROM sbx_risk.kyc_review_extract WHERE tax_id LIKE '{{pfx}}%' LIMIT 100
+
+  - id: rk.legacy_loan_payments
+    weight: 1
+    sql: |
+      SELECT EXTRACT(YEAR FROM PMT_DT) AS YR, COUNTIF(LATE_IND = 'Y') AS LATE, COUNT(*) AS N
+      FROM legacy_edw.LN_PMT_HIST
+      GROUP BY 1
+      ORDER BY 1
+
+  - id: rk.payment_lateness
+    weight: 2
+    params: {start: "month:-12..-6"}
+    sql: |
+      SELECT DATE_TRUNC(PAYMENT_DATE, MONTH) AS MTH, COUNTIF(IS_LATE) / COUNT(*) AS LATE_RATE, COUNTIF(IS_RETURNED) AS RETURNED
+      FROM `fennmoor-dw.dw_risk.fct_loan_payments`
+      WHERE PAYMENT_DATE >= '{{start}}'
+      GROUP BY 1
+      ORDER BY 1
+
+  - id: rk.charge_offs
+    by: [samuel.achterberg]
+    weight: 2
+    params: {start: "date:-180..-90"}
+    sql: |
+      SELECT productCode, COUNT(*) AS N, SUM(chargeOffAmount) AS CHARGED_OFF
+      FROM `fennmoor-raw.loan_origination.loan`
+      WHERE chargeOffDate >= '{{start}}'
+      GROUP BY 1
+      ORDER BY 3 DESC
+
+  - id: rk.recon_breaks
+    by: [deepak.venkataraman]
+    weight: 1
+    findings: [F05]
+    sql: |
+      SELECT * FROM sbx_risk.acct_bal_legacy_recon WHERE ABS(diff) > 0.01 ORDER BY ABS(diff) DESC LIMIT 200
+
+  - id: rk.roll_rates_read
+    weight: 2
+    sql: |
+      SELECT * FROM sbx_risk.dlq_roll_rates_2026 ORDER BY month_start, bucket
+
+  - id: rk.churn_vs_fico
+    by: [samuel.achterberg]
+    weight: 1
+    active: {from: 2026-05-18}
+    params: {d: "date:-3..-1"}
+    sql: |
+      SELECT R.RISK_BAND, COUNT(*) AS N, AVG(B.FICO_08) AS AVG_FICO
+      FROM `fennmoor-dw.ml_scores.churn_score_v3` R
+      JOIN `fennmoor-dw.dw_risk.fct_bureau_monthly` B
+        ON B.CUSTOMER_KEY = R.CUSTOMER_KEY AND B.ARCHIVE_MONTH = DATE_TRUNC(R.SCORE_DATE, MONTH)
+      WHERE R.SCORE_DATE = '{{d}}'
+      GROUP BY 1
+
+  - id: rk.overdraft_limits_raw
+    weight: 1
+    sql: |
+      SELECT PROD_CD, COUNT(*) AS ACCTS, AVG(OD_LMT_AMT) AS AVG_OD_LIMIT
+      FROM `fennmoor-raw.core_banking_cdc.ACCOUNT`
+      WHERE ACCT_STAT_CD = 'A'
+      GROUP BY 1
+      ORDER BY 2 DESC
+
+  - id: rk.utilization_trend
+    weight: 2
+    sql: |
+      SELECT ARCHIVE_MONTH, AVG(UTILIZATION_PCT) AS AVG_UTIL,
+             APPROX_QUANTILES(UTILIZATION_PCT, 10)[OFFSET(9)] AS P90_UTIL
+      FROM `fennmoor-dw.dw_risk.fct_bureau_monthly`
+      GROUP BY 1
+      ORDER BY 1
+
+  # ---- breadth -------------------------------------------------------------
+  - id: rk.applications_by_week
+    weight: 3
+    params: {start: "date:-120..-60"}
+    sql: |
+      SELECT DATE_TRUNC(SUBMITTED_DATE, WEEK) AS WK, [[alt: PRODUCT_CODE ;; CHANNEL]] AS CUT, COUNT(*) AS APPS
+      FROM `fennmoor-dw.dw_risk.fct_credit_applications`
+      WHERE SUBMITTED_DATE >= '{{start}}'
+      GROUP BY 1, 2
+      ORDER BY 1, 2
+
+  - id: rk.approved_amounts
+    weight: 2
+    params: {start: "date:-90..-30"}
+    sql: |
+      SELECT P.PRODUCT_LINE, AVG(A.APPROVED_AMOUNT) AS AVG_APPROVED, AVG(A.APPROVED_APR) AS AVG_APR, COUNT(*) AS N
+      FROM `fennmoor-dw.dw_risk.fct_credit_applications` A
+      JOIN `fennmoor-dw.dw_core.dim_product` P USING (PRODUCT_CODE)
+      WHERE A.FINAL_OUTCOME = 'APPROVE' AND A.SUBMITTED_DATE >= '{{start}}'
+      GROUP BY 1
+
+  - id: rk.approval_by_fico_band
+    weight: 2
+    params: {start: "date:-90..-30"}
+    sql: |
+      SELECT CASE WHEN CREDIT_SCORE_AT_APP >= 740 THEN '740+' WHEN CREDIT_SCORE_AT_APP >= 670 THEN '670-739'
+                  WHEN CREDIT_SCORE_AT_APP >= 580 THEN '580-669' ELSE '<580' END AS FICO_BAND,
+             COUNT(*) AS APPS, COUNTIF(FINAL_OUTCOME = 'APPROVE') / COUNT(*) AS APPROVAL_RATE
+      FROM `fennmoor-dw.dw_risk.fct_credit_applications`
+      WHERE SUBMITTED_DATE >= '{{start}}'
+      GROUP BY 1
+      ORDER BY 1
+
+  - id: rk.payments_by_product
+    weight: 2
+    params: {start: "month:-6..-3"}
+    sql: |
+      SELECT A.PRODUCT_CODE, DATE_TRUNC(P.PAYMENT_DATE, MONTH) AS MTH, SUM(P.PRINCIPAL) AS PRINCIPAL, SUM(P.INTEREST) AS INTEREST
+      FROM `fennmoor-dw.dw_risk.fct_loan_payments` P
+      JOIN `fennmoor-dw.dw_core.dim_account` A USING (ACCOUNT_KEY)
+      WHERE P.PAYMENT_DATE >= '{{start}}'
+      GROUP BY 1, 2
+      ORDER BY 2, 1
+
+  - id: rk.returned_payments
+    weight: 1
+    params: {start: "date:-60..-30"}
+    sql: |
+      SELECT PAYMENT_DATE, COUNTIF(IS_RETURNED) AS RETURNED, COUNT(*) AS N
+      FROM `fennmoor-dw.dw_risk.fct_loan_payments`
+      WHERE PAYMENT_DATE >= '{{start}}'
+      GROUP BY 1
+      ORDER BY 1
+
+  - id: rk.dlq_by_product_line
+    weight: 2
+    params: {d: "date:-3..-1"}
+    sql: |
+      SELECT P.PRODUCT_LINE, D.BUCKET, COUNT(*) AS LOANS
+      FROM `fennmoor-dw.dw_risk.fct_delinquency_daily` D
+      JOIN `fennmoor-dw.dw_core.dim_product` P USING (PRODUCT_CODE)
+      WHERE D.SNAPSHOT_DATE = '{{d}}'
+      GROUP BY 1, 2
+      ORDER BY 1, 2
+
+  - id: rk.bureau_income_bands
+    weight: 1
+    params: {m: "month:-2..-1"}
+    sql: |
+      SELECT CASE WHEN ESTIMATED_INCOME < 50000 THEN '<50k' WHEN ESTIMATED_INCOME < 100000 THEN '50-100k' ELSE '100k+' END AS INCOME_BAND,
+             AVG(FICO_08) AS AVG_FICO, AVG(UTILIZATION_PCT) AS AVG_UTIL, COUNT(*) AS N
+      FROM `fennmoor-dw.dw_risk.fct_bureau_monthly`
+      WHERE ARCHIVE_MONTH = '{{m}}'
+      GROUP BY 1
+
+  - id: rk.overdraft_usage
+    weight: 1
+    params: {start: "date:-60..-30"}
+    sql: |
+      SELECT FEE_TYPE, COUNT(*) AS FEES, SUM(NET_FEE) AS NET
+      FROM `fennmoor-dw.dw_core.fct_fees`
+      WHERE FEE_TYPE IN ('OD', 'NSF') AND ASSESSED_DATE >= '{{start}}'
+      GROUP BY 1

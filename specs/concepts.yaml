@@ -1,0 +1,468 @@
+# =============================================================================
+# Concepts - ground truth for the semantic layer
+# =============================================================================
+# Every column that carries an identifier, PII, money or a key metric is
+# tagged with one of these ids. This is the answer key the pipeline's
+# Concept / Joined layer is scored against:
+#   - columns sharing an identifier concept are legitimately joinable
+#   - columns with the SAME NAME but different concepts are traps (homonyms)
+#   - columns with DIFFERENT NAMES but the same concept are synonyms to recover
+#
+# kind: identifier | pii | measure | score | timestamp | attribute
+# home: the column that is the system of record for an identifier (its pk).
+# id_space: identifiers with different id_space values are never joinable,
+#           even when names and types match.
+# =============================================================================
+
+concepts:
+  # ---- customer identity ---------------------------------------------------
+  # The customer is represented in eight id spaces. int_customer_identity is
+  # the crosswalk; resolving it is the single most valuable thing the
+  # semantic layer can do for this bank.
+  customer.cif:
+    kind: identifier
+    id_space: cif
+    home: core_banking_cdc.CUSTOMER.CIF_NO
+    desc: >-
+      Customer Information File number - the bank's master customer id,
+      assigned by core banking. 10-digit zero-padded string.
+  customer.key:
+    kind: identifier
+    id_space: dw_customer_key
+    home: dw_core.dim_customer.customer_key
+    desc: Warehouse surrogate key for a customer (INT64, dbt-generated).
+  customer.sf_contact_id:
+    kind: identifier
+    id_space: salesforce_contact
+    home: salesforce.contact.id
+    desc: Salesforce Contact id (18-char). One per person in CRM.
+  customer.sf_household_id:
+    kind: identifier
+    id_space: salesforce_account
+    home: salesforce.account.id
+    desc: Salesforce Account id, used by the bank as a household.
+  customer.olb_user_id:
+    kind: identifier
+    id_space: olb_user
+    home: digital_banking.online_user.olb_user_id
+    desc: >-
+      Online/mobile banking login id. Amplitude's user_id is set to this value
+      directly. One customer can have more than one (joint, business).
+  customer.ga4_user_id:
+    kind: identifier
+    id_space: ga4_user
+    home: digital_banking.online_user.ga4_user_id
+    desc: >-
+      GA4 user_id = SHA-256 hex of olb_user_id, set by the web tag on login.
+      NOT a CIF - joining it directly to cif_number is a planted trap.
+  customer.ga4_pseudo_id:
+    kind: identifier
+    id_space: ga4_device
+    home: analytics_312874659.events_*.user_pseudo_id
+    desc: GA4 cookie/device id. Pre-login traffic only has this.
+  customer.aml_party_id:
+    kind: identifier
+    id_space: aml_party
+    home: aml_kyc.party.party_id
+    desc: AML vendor's party id. Crosswalk to CIF lives in aml_kyc.party.
+  customer.legacy_household_id:
+    kind: identifier
+    id_space: legacy_household
+    home: legacy_edw.CUST_MSTR.HH_ID
+    desc: Teradata-era household id. Not the Salesforce household.
+  customer.segment:
+    kind: attribute
+    desc: Marketing segment (mass, mass_affluent, affluent, private, small_business).
+
+  # ---- accounts ------------------------------------------------------------
+  deposit_account.id:
+    kind: identifier
+    id_space: core_account
+    home: core_banking_cdc.ACCOUNT.ACCT_ID
+    desc: >-
+      Core banking internal account id (INT64, 7-9 digits). Staged as
+      `account_id`. HOMONYM TRAP: card_processor also has `account_id`, in a
+      different id space with overlapping integer ranges.
+  deposit_account.number:
+    kind: pii
+    home: core_banking_cdc.ACCOUNT.ACCT_NO
+    desc: Customer-facing account number. Sensitive; masked outside restricted datasets.
+  account.key:
+    kind: identifier
+    id_space: dw_account_key
+    home: dw_core.dim_account.account_key
+    desc: Warehouse surrogate key for any account (deposit, card or loan).
+  account.natural_key:
+    kind: identifier
+    id_space: account_natural_key
+    home: dw_intermediate.int_accounts_unioned.account_natural_key
+    desc: "'DEP-<id>', 'CRD-<id>', 'LN-<number>' - the input to account_key."
+  card_account.id:
+    kind: identifier
+    id_space: card_account
+    home: card_processor.card_account.account_id
+    desc: >-
+      Card processor's account id (INT64). Named `account_id` in the source.
+      Same name and type as the deposit account id, different id space.
+  card.token:
+    kind: identifier
+    id_space: card_token
+    home: card_processor.card.card_token
+    desc: Tokenized PAN. The PAN itself is never stored.
+  loan.application_id:
+    kind: identifier
+    id_space: los_application
+    home: loan_origination.application.applicationId
+    desc: Loan origination application id.
+  loan.id:
+    kind: identifier
+    id_space: loan
+    home: loan_origination.loan.loanNumber
+    desc: Booked loan number from the servicing module.
+  product.code:
+    kind: identifier
+    id_space: product
+    home: core_banking_cdc.PRODUCT.PROD_CD
+    desc: Deposit/loan/card product code (e.g. CHK-ESS, SAV-HY, CC-CASHBK).
+  atm.id:
+    kind: identifier
+    id_space: atm
+    home: core_banking_cdc.ATM_TERMINAL.ATM_ID
+    desc: ATM terminal id.
+  branch.id:
+    kind: identifier
+    id_space: branch
+    home: core_banking_cdc.BRANCH.BRNCH_ID
+    desc: Branch number (INT64, 3-4 digits).
+
+  # ---- transactions --------------------------------------------------------
+  deposit_txn.id:
+    kind: identifier
+    id_space: core_txn
+    home: core_banking_cdc.DEPOSIT_TXN.TXN_ID
+    desc: Core deposit transaction id.
+  card_txn.id:
+    kind: identifier
+    id_space: card_settlement
+    home: card_processor.settlement.settlement_id
+    desc: Settled card transaction id.
+  card_auth.id:
+    kind: identifier
+    id_space: card_auth
+    home: card_processor.authorization.auth_id
+    desc: Card authorization id. Settlements carry the auth_id they cleared.
+  merchant.id:
+    kind: identifier
+    id_space: merchant
+    home: card_processor.merchant.merchant_id
+    desc: Card network merchant id.
+  merchant.mcc:
+    kind: identifier
+    id_space: mcc
+    home: card_processor.mcc_code.mcc
+    desc: 4-digit ISO 18245 merchant category code.
+  dispute.id:
+    kind: identifier
+    id_space: dispute
+    home: card_processor.dispute.dispute_id
+    desc: Card dispute / chargeback case id.
+
+  # ---- contact center ------------------------------------------------------
+  call.conversation_id:
+    kind: identifier
+    id_space: genesys_conversation
+    home: genesys_cloud.conversation.conversation_id
+    desc: Genesys Cloud conversation UUID (voice, chat or email).
+  call.legacy_call_id:
+    kind: identifier
+    id_space: avaya_call
+    home: contact_center_legacy.cdr_*.CALL_ID
+    desc: Avaya CDR call id. Pre-Genesys only; history back to 2024.
+  agent.genesys_user_id:
+    kind: identifier
+    id_space: genesys_user
+    home: genesys_cloud.user.id
+    desc: Genesys user UUID for an agent.
+  employee.id:
+    kind: identifier
+    id_space: workday_worker
+    home: workday.worker.worker_id
+    desc: >-
+      Workday worker id - agents, bankers, analysts, collectors. BPO agents
+      are not employees and do not have one.
+  queue.id:
+    kind: identifier
+    id_space: genesys_queue
+    home: genesys_cloud.queue.id
+    desc: Genesys routing queue UUID.
+  cc_site.id:
+    kind: identifier
+    id_space: cc_site
+    home: reference_data.contact_center_site.site_id
+    desc: >-
+      Contact-center site (TUL, SPK, MNL-BPO). Each maps to a finance cost
+      center, which is how site costs are found.
+  call.wrapup_code:
+    kind: attribute
+    desc: Agent disposition code for why the contact happened.
+  agent.avaya_login_id:
+    kind: identifier
+    id_space: avaya_login
+    home: contact_center_legacy.AGENT_ROSTER.AGENT_LOGIN_ID
+    desc: Avaya agent login. Pre-Genesys only.
+  call.participant_id:
+    kind: identifier
+    id_space: genesys_participant
+    home: genesys_cloud.participant.participant_id
+    desc: One participant (caller, IVR, agent) within a Genesys conversation.
+  genesys.division_id:
+    kind: identifier
+    id_space: genesys_division
+    desc: Genesys division (retail service, card services, collections).
+  case.id:
+    kind: identifier
+    id_space: salesforce_case
+    home: salesforce.case.id
+    desc: Salesforce service case id.
+
+  # ---- digital -------------------------------------------------------------
+  web.session_id:
+    kind: identifier
+    id_space: ga4_session
+    home: analytics_312874659.events_*.event_params.ga_session_id
+    desc: >-
+      GA4 session number. Only unique together with user_pseudo_id - a
+      classic source of wrong session counts.
+  olb.session_id:
+    kind: identifier
+    id_space: olb_session
+    home: digital_banking.login_event.session_id
+    desc: Online banking platform session id.
+  ga4.stream_id:
+    kind: identifier
+    id_space: ga4_stream
+    desc: GA4 data stream (web vs app).
+  device.id:
+    kind: identifier
+    id_space: device
+    home: digital_banking.device.device_id
+    desc: Registered mobile device id.
+
+  # ---- marketing -----------------------------------------------------------
+  campaign.id:
+    kind: identifier
+    id_space: braze_campaign
+    home: braze.campaign.id
+    desc: Braze campaign id.
+  canvas.id:
+    kind: identifier
+    id_space: braze_canvas
+    home: braze.canvas.id
+    desc: Braze canvas (multi-step journey) id.
+  message.send_id:
+    kind: identifier
+    id_space: braze_send
+    home: braze.message_send.id
+    desc: One message delivery to one user.
+
+  crm.campaign_id:
+    kind: identifier
+    id_space: salesforce_campaign
+    home: salesforce.campaign.id
+    desc: Salesforce campaign id (not the Braze campaign id).
+  crm.user_id:
+    kind: identifier
+    id_space: salesforce_user
+    home: salesforce.user.id
+    desc: Salesforce user id - owner_id, created_by_id, last_modified_by_id all point here.
+  crm.lead_id:
+    kind: identifier
+    id_space: salesforce_lead
+    home: salesforce.lead.id
+    desc: Salesforce lead id.
+  braze.user_id:
+    kind: identifier
+    id_space: braze_user
+    home: braze.user_profile.braze_id
+    desc: Braze's internal user id. Called braze_id in the profile export, user_id in sends.
+  braze.dispatch_id:
+    kind: identifier
+    id_space: braze_dispatch
+    home: braze.message_send.dispatch_id
+    desc: One dispatch (send batch); ties engagement events back to sends.
+  amplitude.id:
+    kind: identifier
+    id_space: amplitude_user
+    home: amplitude_mobile.EVENTS_318842.amplitude_id
+    desc: Amplitude's internal user id; merges are in MERGE_IDS_318842.
+
+  marketing.legacy_campaign_code:
+    kind: identifier
+    id_space: legacy_campaign
+    desc: Pre-Braze campaign code (legacy_edw only).
+
+  # ---- fraud and compliance ------------------------------------------------
+  fraud.alert_id:
+    kind: identifier
+    id_space: fraud_alert
+    home: fraud_platform.alert.alert_id
+    desc: Fraud platform alert id.
+  fraud.rule_id:
+    kind: identifier
+    id_space: fraud_rule
+    home: fraud_platform.rule.rule_id
+    desc: Fraud rule id.
+  fraud.case_id:
+    kind: identifier
+    id_space: fraud_case
+    home: fraud_platform.fraud_case.case_id
+    desc: Fraud investigation case id.
+  aml.alert_id:
+    kind: identifier
+    id_space: aml_alert
+    home: aml_kyc.transaction_alert.alert_id
+    desc: AML transaction-monitoring alert id.
+  aml.sar_id:
+    kind: identifier
+    id_space: aml_sar
+    home: aml_kyc.sar_filing.sar_id
+    desc: Suspicious Activity Report id. Legally restricted.
+
+  # ---- finance and hr ------------------------------------------------------
+  gl.account_code:
+    kind: identifier
+    id_space: gl_account
+    home: gl_erp.gl_account.gl_account_code
+    desc: General-ledger natural account code.
+  finance.cost_center_id:
+    kind: identifier
+    id_space: cost_center
+    home: gl_erp.cost_center.cost_center_id
+    desc: >-
+      Cost center. Abbreviated CC in finance and legacy tables, colliding with
+      CC = credit card and CC = contact center.
+  gl.journal_id:
+    kind: identifier
+    id_space: gl_journal
+    home: gl_erp.journal_line.journal_id
+    desc: GL journal entry id.
+
+  # ---- calendar and geography ----------------------------------------------
+  # date.day is the dominant hub key: nearly every fact table carries it.
+  date.day:
+    kind: identifier
+    id_space: calendar_date
+    home: dw_core.dim_date.date_day
+    desc: Calendar date.
+  date.month:
+    kind: identifier
+    id_space: calendar_month
+    home: dw_core.dim_date.month_start
+    desc: First day of a calendar month.
+  geo.zip:
+    kind: attribute
+    desc: 5-digit US ZIP code.
+  geo.state:
+    kind: attribute
+    desc: US state code.
+
+  # ---- PII -----------------------------------------------------------------
+  pii.ssn:
+    kind: pii
+    desc: >-
+      Social Security / tax id. Raw only in core_banking_cdc and aml_kyc
+      (restricted); hashed from staging onward. One sandbox copy leaks it
+      unhashed - planted finding F08.
+  pii.ssn_hash:
+    kind: pii
+    desc: SHA-256 of the tax id; still personal data but not reversible.
+  pii.name:     {kind: pii, desc: Person name.}
+  pii.email:    {kind: pii, desc: Email address.}
+  pii.phone:    {kind: pii, desc: Phone number.}
+  pii.address:  {kind: pii, desc: Street address.}
+  pii.contact_point: {kind: pii, desc: "Phone OR email in one column (core CUSTOMER_CONTACT.CNTCT_VAL)."}
+  pii.dob:      {kind: pii, desc: Date of birth.}
+  pii.ip:       {kind: pii, desc: IP address.}
+
+  # ---- money ---------------------------------------------------------------
+  # unit=cents vs unit=usd on the column is load-bearing: card_processor
+  # stores integer cents, everything else stores NUMERIC dollars. Planted
+  # finding F12 sums them together.
+  money.balance:        {kind: measure, desc: Account balance.}
+  money.txn_amount:     {kind: measure, desc: Transaction amount.}
+  money.fee:            {kind: measure, desc: Fee charged to a customer.}
+  money.interest:       {kind: measure, desc: Interest accrued or paid.}
+  money.credit_limit:   {kind: measure, desc: Credit limit on a card or line.}
+  money.loan_principal: {kind: measure, desc: Loan principal amount or balance.}
+  money.cost:           {kind: measure, desc: Operating cost / expense.}
+  money.revenue:        {kind: measure, desc: Income / revenue.}
+  money.income:         {kind: measure, desc: Customer stated or verified income.}
+  money.gl_amount:      {kind: measure, desc: Signed GL debit/credit amount - revenue or expense depending on the account.}
+
+  # ---- scores and metrics --------------------------------------------------
+  # churn_probability is deliberately carried by columns with different
+  # names in different teams' tables (planted finding F10).
+  score.churn_probability:
+    kind: score
+    desc: >-
+      Probability a customer closes all deposit accounts in the next 90 days.
+      Called churn_score, attrition_propensity, CHURN_MDL_SCR, p_attrit...
+  score.fraud:      {kind: score, desc: Transaction or session fraud score 0-999.}
+  score.product_propensity: {kind: score, desc: Probability a customer takes up a given product.}
+  score.credit:     {kind: score, desc: Bureau credit score (FICO 8), 300-850.}
+  score.aml_risk:   {kind: score, desc: Customer AML risk rating (L/M/H or 1-5).}
+  metric.csat:      {kind: measure, desc: Post-contact satisfaction, 1-5.}
+  metric.nps:       {kind: measure, desc: Net promoter response, 0-10.}
+  metric.duration:  {kind: measure, desc: Elapsed time.}
+  metric.count:     {kind: measure, desc: Generic count.}
+
+# =============================================================================
+# Abbreviation glossary - ground truth for description generation
+# =============================================================================
+# The LLM describing clusters should be scored against this. Ambiguous
+# entries are deliberate: the correct expansion depends on context (dataset,
+# sibling columns), and the pipeline must use that context.
+glossary:
+  CIF:   customer information file (master customer id)
+  ACCT:  account
+  BAL:   balance
+  BRNCH: branch
+  PROD:  product
+  TXN:   transaction
+  AMT:   amount
+  DLY:   daily
+  MTHLY: monthly
+  CUST:  customer
+  MSTR:  master
+  XREF:  cross reference
+  DDA:   demand deposit account (checking)
+  APR:   annual percentage rate
+  APY:   annual percentage yield
+  MCC:   merchant category code
+  AHT:   average handle time
+  ACW:   after-call work
+  IVR:   interactive voice response
+  FCR:   first contact resolution
+  CSAT:  customer satisfaction
+  NPS:   net promoter score
+  KYC:   know your customer
+  SAR:   suspicious activity report
+  CTR:   currency transaction report
+  OLB:   online banking
+  DPD:   days past due
+  LOS:   loan origination system
+  BPO:   business process outsourcing (outsourced contact center)
+  PDT:   Looker persistent derived table
+  CC:
+    ambiguous: true
+    meanings:
+      credit card: "legacy_edw.CC_TXN_HIST, CC_ACCT_MSTR; sandbox cc_spend_*"
+      contact center: "legacy_edw.CC_CALL_VOL_DLY, CC_AGENT_DLY; sbx_cx_ops.cc_*"
+      cost center: "gl_erp CC_ID columns; legacy_edw.CC_EXPNS_MTHLY"
+  CD:
+    ambiguous: true
+    meanings:
+      certificate of deposit: "product family CD-*; legacy_edw.CD_MATURITY_SCHED"
+      code: "suffix in core banking columns: PROD_CD, STAT_CD, TXN_TYP_CD"
+  ATM:   automated teller machine
+  ACH:   automated clearing house

@@ -1,0 +1,920 @@
+# =============================================================================
+# fennmoor-dw: domain marts and ML
+# =============================================================================
+# The notebook's test question has a direct answer here:
+#   dw_contact_center.rpt_site_cost_per_contact
+#     <- agg_site_monthly (closure calls per site, from fct_calls)
+#     <- fct_cc_site_cost_monthly (GL expense by the site's cost center)
+# Correct site cost uses the GL only. vendor_invoice is AP detail that is
+# ALREADY in the GL (source = 'AP'); adding it again double-counts the BPO.
+# =============================================================================
+
+dataset: dw_customer
+defaults: {materialized: table, writer: dbt-prod, refresh: "dbt nightly 02:00"}
+tables:
+  - name: customer_360
+    subject: customer_analytics
+    desc: >-
+      One wide row per customer: holdings, balances, card spend, contact
+      history, digital activity and churn risk. The most-copied table in the
+      estate - see the sandboxes.
+    grain: customer_key
+    bq_description: Customer 360. Refreshed nightly. Churn from ml_scores.churn_score_v3.
+    notes: Read churn_score_v2 until the 2026-05-15 cutover; the spec shows the post-cutover state.
+    cluster: [customer_key]
+    with:
+      holdings: |
+        SELECT a.customer_key,
+               COUNTIF(a.account_family = 'DEPOSIT' AND a.is_open) AS open_deposit_accounts,
+               COUNTIF(a.account_family = 'CARD' AND a.is_open) AS open_card_accounts,
+               COUNTIF(a.account_family = 'LOAN' AND a.is_open) AS open_loans,
+               MIN(a.open_date) AS first_account_open_date
+        FROM ref(dim_account) a
+        GROUP BY a.customer_key
+      bal: |
+        SELECT b.customer_key, SUM(b.ledger_balance) AS total_deposit_balance
+        FROM ref(fct_daily_account_balances) b
+        WHERE b.balance_date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+        GROUP BY b.customer_key
+      spend: |
+        SELECT t.customer_key, SUM(IF(t.is_purchase, t.amount, 0)) AS card_spend_90d,
+               COUNT(*) AS card_txn_count_90d
+        FROM ref(fct_card_transactions) t
+        WHERE t.post_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        GROUP BY t.customer_key
+      contacts: |
+        SELECT fc.customer_key, COUNT(*) AS contacts_90d,
+               COUNTIF(fc.is_account_closure_call) AS closure_calls_90d
+        FROM ref(fct_calls) fc
+        WHERE fc.conversation_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        GROUP BY fc.customer_key
+      web: |
+        SELECT ws.customer_key, COUNT(*) AS web_sessions_30d
+        FROM ref(fct_web_sessions) ws
+        WHERE ws.session_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        GROUP BY ws.customer_key
+    from: |
+      ref(dim_customer) c
+      LEFT JOIN holdings h ON h.customer_key = c.customer_key
+      LEFT JOIN bal ON bal.customer_key = c.customer_key
+      LEFT JOIN spend sp ON sp.customer_key = c.customer_key
+      LEFT JOIN contacts ct ON ct.customer_key = c.customer_key
+      LEFT JOIN web w ON w.customer_key = c.customer_key
+      LEFT JOIN ref(churn_score_v3) ch ON ch.customer_key = c.customer_key AND ch.score_date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+    columns:
+      - "customer_key | INT64 | c.customer_key | customer.key | pk"
+      - "cif_number | STRING | c.cif_number | customer.cif"
+      - "full_name | STRING | c.full_name | pii.name | pii=name"
+      - "primary_email | STRING | c.primary_email | pii.email | pii=email"
+      - "segment | STRING | c.segment | customer.segment"
+      - "tenure_months | INT64 | c.tenure_months"
+      - "state_code | STRING | c.state_code | geo.state"
+      - "is_digitally_enrolled | BOOL | c.is_digitally_enrolled"
+      - "open_deposit_accounts | INT64 | COALESCE(h.open_deposit_accounts, 0)"
+      - "open_card_accounts | INT64 | COALESCE(h.open_card_accounts, 0)"
+      - "open_loans | INT64 | COALESCE(h.open_loans, 0)"
+      - "product_count | INT64 | COALESCE(h.open_deposit_accounts, 0) + COALESCE(h.open_card_accounts, 0) + COALESCE(h.open_loans, 0)"
+      - "first_account_open_date | DATE | h.first_account_open_date"
+      - "total_deposit_balance | NUMERIC | COALESCE(bal.total_deposit_balance, 0) | money.balance | unit=usd"
+      - "card_spend_90d | NUMERIC | COALESCE(sp.card_spend_90d, 0) | money.txn_amount | unit=usd"
+      - "card_txn_count_90d | INT64 | COALESCE(sp.card_txn_count_90d, 0) | metric.count"
+      - "contacts_90d | INT64 | COALESCE(ct.contacts_90d, 0) | metric.count"
+      - "closure_calls_90d | INT64 | COALESCE(ct.closure_calls_90d, 0) | metric.count"
+      - "web_sessions_30d | INT64 | COALESCE(w.web_sessions_30d, 0) | metric.count"
+      - "churn_probability | FLOAT64 | ch.churn_probability | score.churn_probability"
+      - "churn_risk_band | STRING | ch.risk_band"
+
+  - name: customer_monthly_summary
+    subject: customer_analytics
+    materialized: incremental
+    desc: Monthly average deposit balance per customer.
+    grain: customer_key, month_start
+    partition: month_start
+    from: ref(fct_daily_account_balances) b
+    group_by: all
+    columns:
+      - "month_start | DATE | DATE_TRUNC(b.balance_date, MONTH) | date.month"
+      - "customer_key | INT64 | b.customer_key | customer.key"
+      - "avg_daily_total_balance | NUMERIC | SUM(b.ledger_balance) / COUNT(DISTINCT b.balance_date) | money.balance | unit=usd"
+      - "max_daily_total_balance | NUMERIC | MAX(b.ledger_balance) | money.balance | unit=usd"
+      - "accounts_with_balance | INT64 | COUNT(DISTINCT b.account_key) | metric.count"
+
+  - name: customer_product_holdings
+    subject: customer_analytics
+    desc: Customer x product holdings, open and closed.
+    grain: customer_key, product_code
+    from: |
+      ref(dim_account) a
+      JOIN ref(dim_product) p ON p.product_code = a.product_code
+    group_by: all
+    columns:
+      - "customer_key | INT64 | a.customer_key | customer.key"
+      - "product_code | STRING | a.product_code | product.code"
+      - "product_family | STRING | p.product_family"
+      - "product_line | STRING | p.product_line"
+      - "open_accounts | INT64 | COUNTIF(a.is_open) | metric.count"
+      - "first_open_date | DATE | MIN(a.open_date)"
+      - "last_close_date | DATE | MAX(a.close_date)"
+---
+dataset: dw_contact_center
+defaults: {materialized: table, writer: dbt-prod, refresh: "dbt nightly 02:00"}
+tables:
+  - name: dim_cc_site
+    subject: cc_sites
+    desc: Contact-center sites with their finance cost center.
+    grain: site_id
+    from: |
+      ref(stg_ref__contact_center_site) s
+      LEFT JOIN ref(stg_gl__cost_center) cc ON cc.cost_center_id = s.cost_center_id
+    columns:
+      - "site_id | STRING | s.site_id | cc_site.id | pk"
+      - "site_name | STRING | s.site_name"
+      - "city | STRING | s.city"
+      - "state | STRING | s.state | geo.state"
+      - "operator | STRING | s.operator"
+      - "is_outsourced | BOOL | s.is_outsourced"
+      - "cost_center_id | STRING | s.cost_center_id | finance.cost_center_id"
+      - "cost_center_name | STRING | cc.cost_center_name"
+      - "seat_count | INT64 | s.seat_count"
+      - "go_live_date | DATE | s.go_live_date"
+      - "queue_prefix | STRING | s.genesys_queue_prefix"
+
+  - name: dim_queue
+    subject: queues
+    desc: Genesys queues with the site parsed from the name prefix.
+    grain: queue_id
+    from: |
+      ref(stg_genesys__queue) q
+      LEFT JOIN ref(stg_ref__contact_center_site) s ON STARTS_WITH(q.name, s.genesys_queue_prefix)
+    columns:
+      - "queue_id | STRING | q.queue_id | queue.id | pk"
+      - "queue_name | STRING | q.name"
+      - "site_id | STRING | s.site_id | cc_site.id"
+      - "line_of_business | STRING | REGEXP_EXTRACT(q.name, r'^[A-Z]+_(.*)$')"
+      - "division_id | STRING | q.division_id | genesys.division_id"
+
+  - name: dim_agent
+    subject: agents
+    desc: >-
+      Agents. site_id comes from the agent's location - which is NOT always
+      the site of the queue they answered (overflow routing). Labor cost sits
+      with the agent's site, so that is the attribution fct_calls uses.
+    grain: agent_user_id
+    from: |
+      ref(stg_genesys__user) u
+      LEFT JOIN ref(stg_wd__worker) w ON w.worker_id = u.employee_id
+    columns:
+      - "agent_user_id | STRING | u.user_id | agent.genesys_user_id | pk"
+      - "agent_name | STRING | u.name | pii.name | pii=name"
+      - "employee_id | STRING | u.employee_id | employee.id"
+      - "location_name | STRING | u.location_name"
+      - "site_id | STRING | CASE WHEN STRPOS(u.location_name, 'Tulsa') > 0 THEN 'TUL' WHEN STRPOS(u.location_name, 'Spokane') > 0 THEN 'SPK' WHEN STRPOS(u.location_name, 'Manila') > 0 THEN 'MNL' END | cc_site.id"
+      - "is_bpo | BOOL | u.employee_id IS NULL"
+      - "hire_date | DATE | w.hire_date"
+      - "tenure_months | INT64 | DATE_DIFF(CURRENT_DATE(), w.hire_date, MONTH)"
+      - "job_profile | STRING | w.job_profile"
+      - "manager_user_id | STRING | u.manager_id | agent.genesys_user_id"
+
+  - name: fct_calls
+    subject: calls
+    materialized: incremental
+    refresh: "dbt hourly incremental"
+    desc: One row per contact since the Genesys go-live (2025-10-01).
+    grain: conversation_id
+    bq_description: Contacts (voice, chat, email). site_id = agent's site.
+    partition: conversation_date
+    cluster: [site_id, customer_key]
+    rows: 7900000
+    from: |
+      ref(int_calls_enriched) c
+      LEFT JOIN ref(dim_customer) cu ON cu.cif_number = c.cif_number
+      LEFT JOIN ref(dim_agent) ag ON ag.agent_user_id = c.agent_user_id
+    columns:
+      - "conversation_id | STRING | c.conversation_id | call.conversation_id | pk"
+      - "conversation_date | DATE | c.conversation_date | date.day"
+      - "conversation_start | TIMESTAMP | c.conversation_start"
+      - "media_type | STRING | c.media_type"
+      - "direction | STRING | c.direction"
+      - "customer_key | INT64 | cu.customer_key | customer.key"
+      - "cif_number | STRING | c.cif_number | customer.cif"
+      - "queue_id | STRING | c.queue_id | queue.id"
+      - "queue_name | STRING | c.queue_name"
+      - "queue_site_id | STRING | c.queue_site_id | cc_site.id"
+      - "agent_user_id | STRING | c.agent_user_id | agent.genesys_user_id"
+      - "agent_site_id | STRING | ag.site_id | cc_site.id"
+      - "site_id | STRING | COALESCE(ag.site_id, c.queue_site_id) | cc_site.id"
+      - "ivr_auth_result | STRING | c.ivr_auth_result"
+      - "ivr_intent | STRING | c.ivr_intent"
+      - "wrapup_code_name | STRING | c.wrapup_code_name | call.wrapup_code"
+      - "is_account_closure_call | BOOL | c.is_account_closure_call"
+      - "talk_sec | INT64 | c.talk_sec | metric.duration | unit=sec"
+      - "hold_sec | INT64 | c.hold_sec | metric.duration | unit=sec"
+      - "acw_sec | INT64 | c.acw_sec | metric.duration | unit=sec"
+      - "handle_sec | INT64 | COALESCE(c.talk_sec, 0) + COALESCE(c.hold_sec, 0) + COALESCE(c.acw_sec, 0) | metric.duration | unit=sec"
+      - "was_transferred | BOOL | c.was_transferred"
+      - "is_abandoned | BOOL | c.is_abandoned"
+      - "is_authenticated | BOOL | c.ivr_auth_result = 'AUTH_OK'"
+
+  - name: fct_contacts_all
+    subject: calls
+    materialized: view
+    desc: >-
+      Genesys contacts unioned with Avaya CDR history for multi-year trends.
+      Legacy dispositions CLSACCT/CLOSE map to closure calls.
+    grain: contact_id
+    with:
+      g: |
+        SELECT fc.conversation_id AS contact_id, 'GENESYS' AS source_system,
+               fc.conversation_date, fc.site_id, fc.cif_number, fc.handle_sec,
+               fc.is_account_closure_call, fc.is_abandoned
+        FROM ref(fct_calls) fc
+      l: |
+        SELECT lc.legacy_call_id, 'AVAYA', lc.conversation_date, lc.site_id, lc.cif_number,
+               lc.talk_sec + lc.hold_sec + lc.acw_sec,
+               lc.disposition_code IN ('CLSACCT', 'CLOSE'), lc.is_abandoned
+        FROM ref(int_calls_legacy_cdr) lc
+      u: |
+        SELECT * FROM g UNION ALL SELECT * FROM l
+    from: u
+    columns:
+      - "contact_id | STRING | u.contact_id || pk"
+      - "source_system | STRING | u.source_system"
+      - "conversation_date | DATE | u.conversation_date | date.day"
+      - "site_id | STRING | u.site_id | cc_site.id"
+      - "cif_number | STRING | u.cif_number | customer.cif"
+      - "handle_sec | INT64 | u.handle_sec | metric.duration | unit=sec"
+      - "is_account_closure_call | BOOL | u.is_account_closure_call"
+      - "is_abandoned | BOOL | u.is_abandoned"
+
+  - name: fct_agent_daily
+    subject: cc_performance
+    desc: Agent x day productivity.
+    grain: agent_user_id, conversation_date
+    partition: conversation_date
+    from: ref(fct_calls) c
+    where: c.agent_user_id IS NOT NULL
+    group_by: all
+    columns:
+      - "agent_user_id | STRING | c.agent_user_id | agent.genesys_user_id"
+      - "conversation_date | DATE | c.conversation_date | date.day"
+      - "site_id | STRING | ANY_VALUE(c.agent_site_id) | cc_site.id"
+      - "contacts | INT64 | COUNT(*) | metric.count"
+      - "handle_sec | INT64 | SUM(c.handle_sec) | metric.duration | unit=sec"
+      - "avg_handle_sec | FLOAT64 | AVG(c.handle_sec) | metric.duration | unit=sec"
+      - "closure_calls | INT64 | COUNTIF(c.is_account_closure_call) | metric.count"
+      - "transfers | INT64 | COUNTIF(c.was_transferred) | metric.count"
+
+  - name: fct_csat
+    subject: surveys
+    desc: Survey responses joined to the contact they rate.
+    grain: survey_id
+    from: |
+      ref(stg_genesys__survey_response) s
+      LEFT JOIN ref(fct_calls) c ON c.conversation_id = s.conversation_id
+    columns:
+      - "survey_id | STRING | s.survey_id || pk"
+      - "conversation_id | STRING | s.conversation_id | call.conversation_id"
+      - "conversation_date | DATE | c.conversation_date | date.day"
+      - "site_id | STRING | c.site_id | cc_site.id"
+      - "agent_user_id | STRING | s.agent_user_id | agent.genesys_user_id"
+      - "customer_key | INT64 | c.customer_key | customer.key"
+      - "csat_score | INT64 | s.csat_score | metric.csat"
+      - "nps_score | INT64 | s.nps_score | metric.nps"
+      - "is_promoter | BOOL | s.nps_score >= 9"
+      - "is_detractor | BOOL | s.nps_score <= 6"
+
+  - name: fct_cc_site_cost_monthly
+    subject: cc_performance
+    desc: >-
+      Monthly cost per contact-center site: GL expense on the site's cost
+      center, split by source. For the BPO site, vendor_expense is the
+      Harbinger invoices as posted to the GL - do not add vendor_invoice again.
+    grain: site_id, month_start
+    with:
+      gl: |
+        SELECT DATE_TRUNC(j.accounting_date, MONTH) AS month_start, j.cost_center_id,
+               SUM(j.entered_dr) - SUM(j.entered_cr) AS total_expense,
+               SUM(IF(j.source = 'PAYROLL', j.entered_dr - j.entered_cr, 0)) AS payroll_expense,
+               SUM(IF(j.source = 'AP', j.entered_dr - j.entered_cr, 0)) AS vendor_expense
+        FROM ref(stg_gl__journal_line) j
+        JOIN ref(stg_gl__gl_account) ga ON ga.gl_account_code = j.gl_account_code
+        WHERE ga.account_type = 'EXPENSE'
+        GROUP BY 1, 2
+    from: |
+      ref(stg_ref__contact_center_site) s
+      JOIN gl ON gl.cost_center_id = s.cost_center_id
+    columns:
+      - "site_id | STRING | s.site_id | cc_site.id"
+      - "month_start | DATE | gl.month_start | date.month"
+      - "cost_center_id | STRING | s.cost_center_id | finance.cost_center_id"
+      - "total_expense | NUMERIC | gl.total_expense | money.cost | unit=usd"
+      - "payroll_expense | NUMERIC | gl.payroll_expense | money.cost | unit=usd"
+      - "vendor_expense | NUMERIC | gl.vendor_expense | money.cost | unit=usd"
+      - "other_expense | NUMERIC | gl.total_expense - gl.payroll_expense - gl.vendor_expense | money.cost | unit=usd"
+
+  - name: agg_site_monthly
+    subject: cc_performance
+    desc: Site x month contact volumes, closure calls and handle time.
+    grain: site_id, month_start
+    from: ref(fct_calls) c
+    group_by: all
+    columns:
+      - "month_start | DATE | DATE_TRUNC(c.conversation_date, MONTH) | date.month"
+      - "site_id | STRING | c.site_id | cc_site.id"
+      - "contacts | INT64 | COUNT(*) | metric.count"
+      - "closure_calls | INT64 | COUNTIF(c.is_account_closure_call) | metric.count"
+      - "unique_callers | INT64 | COUNT(DISTINCT c.customer_key) | metric.count"
+      - "avg_handle_sec | FLOAT64 | AVG(c.handle_sec) | metric.duration | unit=sec"
+
+  - name: rpt_site_cost_per_contact
+    subject: cc_performance
+    desc: >-
+      Site x month: contacts, closure calls, cost, cost per contact. The
+      direct answer to "which call centers see the most cancellations and
+      what do they cost".
+    grain: site_id, month_start
+    from: |
+      ref(agg_site_monthly) a
+      LEFT JOIN ref(fct_cc_site_cost_monthly) k ON k.site_id = a.site_id AND k.month_start = a.month_start
+      LEFT JOIN ref(dim_cc_site) s ON s.site_id = a.site_id
+    columns:
+      - "month_start | DATE | a.month_start | date.month"
+      - "site_id | STRING | a.site_id | cc_site.id"
+      - "site_name | STRING | s.site_name"
+      - "is_outsourced | BOOL | s.is_outsourced"
+      - "contacts | INT64 | a.contacts | metric.count"
+      - "closure_calls | INT64 | a.closure_calls | metric.count"
+      - "total_expense | NUMERIC | k.total_expense | money.cost | unit=usd"
+      - "cost_per_contact | NUMERIC | SAFE_DIVIDE(k.total_expense, a.contacts) | money.cost | unit=usd"
+---
+dataset: dw_digital
+defaults: {materialized: table, writer: dbt-prod, refresh: "dbt nightly 02:00"}
+tables:
+  - name: fct_web_sessions
+    subject: web_analytics
+    materialized: incremental
+    desc: >-
+      GA4 sessions resolved to customers via online_user.ga4_user_id. Only
+      logged-in sessions resolve; the rest keep only user_pseudo_id.
+    grain: session_key
+    partition: session_date
+    cluster: [customer_key]
+    from: |
+      ref(int_digital_sessions) s
+      LEFT JOIN ref(stg_olb__online_user) u ON u.ga4_user_id = s.ga4_user_id
+      LEFT JOIN ref(dim_customer) c ON c.cif_number = u.cif_number
+    columns:
+      - "session_key | STRING | s.session_key | web.session_id | pk"
+      - "session_date | DATE | s.session_date | date.day"
+      - "session_start | TIMESTAMP | s.session_start"
+      - "user_pseudo_id | STRING | s.user_pseudo_id | customer.ga4_pseudo_id"
+      - "ga4_user_id | STRING | s.ga4_user_id | customer.ga4_user_id"
+      - "olb_user_id | STRING | u.olb_user_id | customer.olb_user_id"
+      - "customer_key | INT64 | c.customer_key | customer.key"
+      - "is_logged_in | BOOL | s.ga4_user_id IS NOT NULL"
+      - "page_views | INT64 | s.page_views | metric.count"
+      - "engaged_sec | FLOAT64 | s.engaged_sec | metric.duration | unit=sec"
+      - "landing_page | STRING | s.landing_page"
+      - "traffic_medium | STRING | s.traffic_medium"
+      - "campaign_name | STRING | s.campaign_name"
+      - "device_category | STRING | s.device_category"
+      - "started_application | BOOL | s.started_application"
+      - "submitted_application | BOOL | s.submitted_application"
+      - "visited_help | BOOL | s.visited_help"
+
+  - name: fct_app_sessions
+    subject: app_analytics
+    materialized: incremental
+    desc: Amplitude app sessions resolved to CIF via online_user.
+    grain: app_session_key
+    partition: session_date
+    from: |
+      ref(stg_amp__events) e
+      LEFT JOIN ref(stg_olb__online_user) u ON u.olb_user_id = e.user_id
+    where: e.session_id > 0
+    group_by: all
+    columns:
+      - "app_session_key | STRING | CONCAT(CAST(e.amplitude_id AS STRING), '-', CAST(e.session_id AS STRING)) || pk"
+      - "session_date | DATE | MIN(e.event_date) | date.day"
+      - "olb_user_id | STRING | ANY_VALUE(e.user_id) | customer.olb_user_id"
+      - "cif_number | STRING | ANY_VALUE(u.cif_number) | customer.cif"
+      - "events | INT64 | COUNT(*) | metric.count"
+      - "screens | INT64 | COUNT(DISTINCT e.screen_name) | metric.count"
+      - "platform | STRING | ANY_VALUE(e.platform)"
+      - "app_version | STRING | ANY_VALUE(e.version_name)"
+
+  - name: fct_digital_logins
+    subject: olb_logins
+    materialized: incremental
+    desc: Login attempts with CIF. IP address deliberately not carried.
+    grain: login_event_id
+    partition: event_date
+    from: |
+      ref(stg_olb__login_event) l
+      LEFT JOIN ref(stg_olb__online_user) u ON u.olb_user_id = l.olb_user_id
+    columns:
+      - "login_event_id | STRING | l.login_event_id || pk"
+      - "event_date | DATE | DATE(l.event_ts, 'America/Chicago') | date.day"
+      - "event_ts | TIMESTAMP | l.event_ts"
+      - "olb_user_id | STRING | l.olb_user_id | customer.olb_user_id"
+      - "cif_number | STRING | u.cif_number | customer.cif"
+      - "channel | STRING | l.channel"
+      - "result | STRING | l.result"
+      - "is_success | BOOL | l.result = 'SUCCESS'"
+      - "risk_score | INT64 | l.risk_score | score.fraud"
+      - "device_id | STRING | l.device_id | device.id"
+      - "geo_country | STRING | l.geo_country"
+
+  - name: fct_account_opening_funnel
+    subject: digital_funnels
+    desc: Daily web account-opening funnel by traffic source and device.
+    grain: session_date, traffic_medium, campaign_name, device_category
+    from: ref(fct_web_sessions) s
+    group_by: all
+    columns:
+      - "session_date | DATE | s.session_date | date.day"
+      - "traffic_medium | STRING | s.traffic_medium"
+      - "campaign_name | STRING | s.campaign_name"
+      - "device_category | STRING | s.device_category"
+      - "sessions | INT64 | COUNT(*) | metric.count"
+      - "started | INT64 | COUNTIF(s.started_application) | metric.count"
+      - "submitted | INT64 | COUNTIF(s.submitted_application) | metric.count"
+      - "conversion_rate | FLOAT64 | SAFE_DIVIDE(COUNTIF(s.submitted_application), COUNTIF(s.started_application))"
+
+  - name: fct_p2p_transfers
+    subject: p2p
+    materialized: incremental
+    desc: Zelle transfers with CIF.
+    grain: transfer_id
+    partition: initiated_date
+    from: |
+      ref(stg_olb__p2p_transfer) p
+      LEFT JOIN ref(stg_olb__online_user) u ON u.olb_user_id = p.olb_user_id
+    columns:
+      - "transfer_id | STRING | p.transfer_id || pk"
+      - "initiated_date | DATE | DATE(p.initiated_at, 'America/Chicago') | date.day"
+      - "olb_user_id | STRING | p.olb_user_id | customer.olb_user_id"
+      - "cif_number | STRING | u.cif_number | customer.cif"
+      - "core_account_id | INT64 | p.from_account_id | deposit_account.id"
+      - "direction | STRING | p.direction"
+      - "amount | NUMERIC | p.amount | money.txn_amount | unit=usd"
+      - "status | STRING | p.status"
+      - "fraud_hold | BOOL | p.fraud_hold"
+---
+dataset: dw_marketing
+defaults: {materialized: table, writer: dbt-prod, refresh: "dbt nightly 02:00"}
+tables:
+  - name: dim_campaign
+    subject: campaigns
+    desc: Braze campaigns with the matching Salesforce campaign and cost.
+    grain: campaign_id
+    from: |
+      ref(stg_braze__campaign) b
+      LEFT JOIN ref(stg_sf__campaign) s ON s.braze_campaign_id = b.campaign_id
+    columns:
+      - "campaign_id | STRING | b.campaign_id | campaign.id | pk"
+      - "campaign_name | STRING | b.name"
+      - "channels | ARRAY<STRING> | b.channels"
+      - "tags | ARRAY<STRING> | b.tags"
+      - "first_sent | TIMESTAMP | b.first_sent"
+      - "last_sent | TIMESTAMP | b.last_sent"
+      - "is_archived | BOOL | b.archived"
+      - "sf_campaign_id | STRING | s.campaign_id | crm.campaign_id"
+      - "budgeted_cost | NUMERIC | s.budgeted_cost | money.cost | unit=usd"
+      - "actual_cost | NUMERIC | s.actual_cost | money.cost | unit=usd"
+
+  - name: fct_campaign_sends
+    subject: message_delivery
+    materialized: incremental
+    desc: Message sends with customer key.
+    grain: message_send_id
+    partition: sent_date
+    cluster: [campaign_id, customer_key]
+    from: |
+      ref(stg_braze__message_send) m
+      LEFT JOIN ref(dim_customer) c ON c.cif_number = m.external_user_id
+    columns:
+      - "message_send_id | STRING | m.message_send_id | message.send_id | pk"
+      - "sent_date | DATE | DATE(m.sent_at, 'America/Chicago') | date.day"
+      - "sent_at | TIMESTAMP | m.sent_at"
+      - "cif_number | STRING | m.external_user_id | customer.cif"
+      - "customer_key | INT64 | c.customer_key | customer.key"
+      - "campaign_id | STRING | m.campaign_id | campaign.id"
+      - "canvas_id | STRING | m.canvas_id | canvas.id"
+      - "channel | STRING | m.channel"
+      - "dispatch_id | STRING | m.dispatch_id | braze.dispatch_id"
+
+  - name: fct_campaign_engagement
+    subject: engagement
+    materialized: incremental
+    desc: Email engagement per campaign dispatch per customer.
+    grain: campaign_id, dispatch_id, cif_number
+    partition: event_date
+    from: ref(stg_braze__email_event) e
+    group_by: all
+    columns:
+      - "campaign_id | STRING | e.campaign_id | campaign.id"
+      - "dispatch_id | STRING | e.dispatch_id | braze.dispatch_id"
+      - "cif_number | STRING | e.external_user_id | customer.cif"
+      - "event_date | DATE | MIN(DATE(e.event_time, 'America/Chicago')) | date.day"
+      - "delivered | BOOL | LOGICAL_OR(e.event_type = 'delivery')"
+      - "opened | BOOL | LOGICAL_OR(e.event_type = 'open')"
+      - "clicked | BOOL | LOGICAL_OR(e.event_type = 'click')"
+      - "unsubscribed | BOOL | LOGICAL_OR(e.event_type = 'unsubscribe')"
+      - "bounced | BOOL | LOGICAL_OR(e.event_type = 'bounce')"
+
+  - name: fct_campaign_attribution
+    subject: attribution
+    desc: Conversions attributed to the last send of the same campaign.
+    grain: conversion_id
+    from: |
+      ref(stg_braze__conversion) cv
+      JOIN ref(fct_campaign_sends) s
+        ON s.cif_number = cv.external_user_id AND s.campaign_id = cv.campaign_id AND s.sent_at <= cv.event_time
+    qualify: ROW_NUMBER() OVER (PARTITION BY cv.conversion_id ORDER BY s.sent_at DESC) = 1
+    columns:
+      - "conversion_id | STRING | cv.conversion_id || pk"
+      - "conversion_at | TIMESTAMP | cv.event_time"
+      - "cif_number | STRING | cv.external_user_id | customer.cif"
+      - "customer_key | INT64 | s.customer_key | customer.key"
+      - "campaign_id | STRING | cv.campaign_id | campaign.id"
+      - "conversion_behavior | STRING | cv.conversion_behavior"
+      - "attributed_send_id | STRING | s.message_send_id | message.send_id"
+      - "hours_since_send | INT64 | TIMESTAMP_DIFF(cv.event_time, s.sent_at, HOUR) | metric.duration"
+---
+dataset: dw_risk
+defaults: {materialized: table, writer: dbt-prod, refresh: "dbt nightly 02:00"}
+tables:
+  - name: fct_credit_applications
+    subject: loan_applications
+    desc: Applications with their final underwriting decision.
+    grain: application_id
+    partition: submitted_date
+    with:
+      d: |
+        SELECT x.application_id, x.outcome, x.approved_amount, x.approved_apr
+        FROM ref(stg_los__decision) x
+        QUALIFY ROW_NUMBER() OVER (PARTITION BY x.application_id ORDER BY x.decision_seq DESC) = 1
+    from: |
+      ref(stg_los__application) a
+      LEFT JOIN d ON d.application_id = a.application_id
+      LEFT JOIN ref(dim_customer) c ON c.cif_number = a.applicant_cif_number
+    columns:
+      - "application_id | STRING | a.application_id | loan.application_id | pk"
+      - "submitted_date | DATE | DATE(a.submitted_at, 'America/Chicago') | date.day"
+      - "customer_key | INT64 | c.customer_key | customer.key"
+      - "applicant_cif_number | STRING | a.applicant_cif_number | customer.cif"
+      - "product_code | STRING | a.product_code | product.code"
+      - "channel | STRING | a.channel"
+      - "requested_amount | NUMERIC | a.requested_amount | money.loan_principal | unit=usd"
+      - "final_outcome | STRING | d.outcome"
+      - "approved_amount | NUMERIC | d.approved_amount | money.loan_principal | unit=usd"
+      - "approved_apr | NUMERIC | d.approved_apr || unit=pct"
+      - "credit_score_at_app | INT64 | a.credit_score_at_app | score.credit"
+      - "branch_id | INT64 | a.branch_number | branch.id"
+      - "offer_code | STRING | a.offer_code"
+
+  - name: fct_delinquency_daily
+    subject: delinquency
+    materialized: incremental
+    desc: Daily loan delinquency.
+    grain: snapshot_date, account_key
+    partition: snapshot_date
+    from: |
+      ref(stg_los__delinquency_snapshot) d
+      JOIN ref(dim_account) a ON a.loan_number = d.loan_number
+    columns:
+      - "snapshot_date | DATE | d.snapshot_date | date.day"
+      - "account_key | INT64 | a.account_key | account.key"
+      - "customer_key | INT64 | a.customer_key | customer.key"
+      - "loan_number | STRING | d.loan_number | loan.id"
+      - "product_code | STRING | a.product_code | product.code"
+      - "dpd | INT64 | d.dpd"
+      - "bucket | STRING | d.bucket"
+      - "past_due_amount | NUMERIC | d.past_due_amount | money.balance | unit=usd"
+
+  - name: fct_loan_payments
+    subject: loan_payments
+    materialized: incremental
+    desc: Loan payments with account key.
+    grain: payment_id
+    partition: payment_date
+    from: |
+      ref(stg_los__loan_payment) p
+      LEFT JOIN ref(dim_account) a ON a.loan_number = p.loan_number
+    columns:
+      - "payment_id | STRING | p.payment_id || pk"
+      - "payment_date | DATE | p.payment_date | date.day"
+      - "account_key | INT64 | a.account_key | account.key"
+      - "loan_number | STRING | p.loan_number | loan.id"
+      - "amount | NUMERIC | p.amount | money.txn_amount | unit=usd"
+      - "principal | NUMERIC | p.principal_portion | money.loan_principal | unit=usd"
+      - "interest | NUMERIC | p.interest_portion | money.interest | unit=usd"
+      - "fee | NUMERIC | p.fee_portion | money.fee | unit=usd"
+      - "is_late | BOOL | p.is_late"
+      - "is_returned | BOOL | p.returned_flag"
+
+  - name: fct_fraud_alerts
+    subject: fraud_alerts
+    materialized: incremental
+    desc: Fraud alerts with case outcome.
+    grain: alert_id
+    partition: alert_date
+    from: |
+      ref(stg_fraud__alert) a
+      LEFT JOIN ref(stg_fraud__case_alert_link) l ON l.alert_id = a.alert_id
+      LEFT JOIN ref(stg_fraud__fraud_case) fc ON fc.case_id = l.case_id
+      LEFT JOIN ref(dim_customer) c ON c.cif_number = a.cif_number
+    columns:
+      - "alert_id | STRING | a.alert_id | fraud.alert_id | pk"
+      - "alert_date | DATE | DATE(a.alert_ts, 'America/Chicago') | date.day"
+      - "customer_key | INT64 | c.customer_key | customer.key"
+      - "cif_number | STRING | a.cif_number | customer.cif"
+      - "entity_type | STRING | a.entity_type"
+      - "rule_id | STRING | a.rule_id | fraud.rule_id"
+      - "model_score | INT64 | a.model_score | score.fraud"
+      - "channel | STRING | a.channel"
+      - "amount | NUMERIC | a.amount | money.txn_amount | unit=usd"
+      - "disposition | STRING | a.disposition"
+      - "case_id | STRING | l.case_id | fraud.case_id"
+      - "is_confirmed_fraud | BOOL | COALESCE(fc.confirmed_fraud, FALSE)"
+      - "fraud_type | STRING | fc.fraud_type"
+      - "loss_amount | NUMERIC | fc.total_loss_amount | money.cost | unit=usd"
+
+  - name: fct_bureau_monthly
+    subject: credit_bureau
+    materialized: incremental
+    desc: Monthly bureau attributes by customer. SSN hash dropped.
+    grain: archive_month, customer_key
+    partition: archive_month
+    from: |
+      ref(stg_bureau__consumer_attributes_monthly) b
+      LEFT JOIN ref(dim_customer) c ON c.cif_number = b.cif_number
+    columns:
+      - "archive_month | DATE | b.archive_date | date.month"
+      - "customer_key | INT64 | c.customer_key | customer.key"
+      - "fico_08 | INT64 | b.fico_08 | score.credit"
+      - "vantage_4 | INT64 | b.vantage_4 | score.credit"
+      - "utilization_pct | NUMERIC | b.utilization_pct || unit=pct"
+      - "total_revolving_balance | NUMERIC | b.total_revolving_balance | money.balance | unit=usd"
+      - "num_delinquent_30_24m | INT64 | b.num_delinquent_30_24m | metric.count"
+      - "estimated_income | NUMERIC | b.estimated_income | money.income | unit=usd"
+---
+dataset: dw_finance
+defaults: {materialized: table, writer: dbt-prod, refresh: "dbt nightly 02:00"}
+tables:
+  - name: dim_cost_center
+    subject: cost_centers
+    desc: Cost centers.
+    grain: cost_center_id
+    from: ref(stg_gl__cost_center) c
+    columns:
+      - "cost_center_id | STRING | c.cost_center_id | finance.cost_center_id | pk"
+      - "cost_center_name | STRING | c.cost_center_name"
+      - "department_code | STRING | c.department_code"
+      - "region | STRING | c.region"
+      - "is_active | BOOL | c.is_active"
+      - "owner_worker_id | STRING | c.owner_worker_id | employee.id"
+
+  - name: fct_gl_monthly
+    subject: general_ledger
+    desc: GL net amount by month, account and cost center.
+    grain: month_start, gl_account_code, cost_center_id
+    partition: month_start
+    from: |
+      ref(stg_gl__journal_line) j
+      JOIN ref(stg_gl__gl_account) g ON g.gl_account_code = j.gl_account_code
+    group_by: all
+    columns:
+      - "month_start | DATE | DATE_TRUNC(j.accounting_date, MONTH) | date.month"
+      - "period_name | STRING | j.period_name"
+      - "gl_account_code | STRING | j.gl_account_code | gl.account_code"
+      - "account_type | STRING | g.account_type"
+      - "cost_center_id | STRING | j.cost_center_id | finance.cost_center_id"
+      - "net_amount | NUMERIC | SUM(j.entered_dr - j.entered_cr) | money.gl_amount | unit=usd"
+
+  - name: fct_fee_income_monthly
+    subject: revenue
+    desc: Fee income by month, product and fee type.
+    grain: month_start, product_code, fee_type
+    from: ref(fct_fees) f
+    group_by: all
+    columns:
+      - "month_start | DATE | DATE_TRUNC(f.assessed_date, MONTH) | date.month"
+      - "product_code | STRING | f.product_code | product.code"
+      - "fee_type | STRING | f.fee_type"
+      - "gross_fees | NUMERIC | SUM(f.fee_amount) | money.fee | unit=usd"
+      - "waived_fees | NUMERIC | SUM(IF(f.is_waived, f.fee_amount, 0)) | money.fee | unit=usd"
+      - "net_fees | NUMERIC | SUM(f.net_fee) | money.revenue | unit=usd"
+
+  - name: fct_customer_profitability_monthly
+    subject: profitability
+    desc: >-
+      Customer x month revenue estimate: fee revenue, card interchange, and
+      an FTP-based deposit margin (2.1% annualized - finance's assumption).
+    grain: customer_key, month_start
+    with:
+      fees: |
+        SELECT f.customer_key, DATE_TRUNC(f.assessed_date, MONTH) AS month_start, SUM(f.net_fee) AS fee_revenue
+        FROM ref(fct_fees) f
+        GROUP BY 1, 2
+      ic: |
+        SELECT t.customer_key, DATE_TRUNC(t.post_date, MONTH) AS month_start, SUM(t.interchange) AS interchange_revenue
+        FROM ref(fct_card_transactions) t
+        GROUP BY 1, 2
+    from: |
+      ref(customer_monthly_summary) s
+      LEFT JOIN fees ON fees.customer_key = s.customer_key AND fees.month_start = s.month_start
+      LEFT JOIN ic ON ic.customer_key = s.customer_key AND ic.month_start = s.month_start
+    columns:
+      - "customer_key | INT64 | s.customer_key | customer.key"
+      - "month_start | DATE | s.month_start | date.month"
+      - "avg_balance | NUMERIC | s.avg_daily_total_balance | money.balance | unit=usd"
+      - "fee_revenue | NUMERIC | COALESCE(fees.fee_revenue, 0) | money.revenue | unit=usd"
+      - "interchange_revenue | NUMERIC | COALESCE(ic.interchange_revenue, 0) | money.revenue | unit=usd"
+      - "deposit_margin | NUMERIC | s.avg_daily_total_balance * 0.021 / 12 | money.revenue | unit=usd"
+      - "total_revenue | NUMERIC | COALESCE(fees.fee_revenue, 0) + COALESCE(ic.interchange_revenue, 0) + s.avg_daily_total_balance * 0.021 / 12 | money.revenue | unit=usd"
+---
+dataset: dw_compliance
+defaults: {materialized: table, writer: dbt-prod, refresh: "dbt nightly 02:00"}
+tables:
+  - name: dim_aml_party
+    subject: aml_parties
+    desc: AML parties with customer key. Restricted.
+    grain: party_id
+    from: |
+      ref(stg_aml__party) p
+      LEFT JOIN ref(dim_customer) c ON c.cif_number = p.cif_number
+    columns:
+      - "party_id | STRING | p.party_id | customer.aml_party_id | pk"
+      - "cif_number | STRING | p.cif_number | customer.cif"
+      - "customer_key | INT64 | c.customer_key | customer.key"
+      - "party_type | STRING | p.party_type"
+      - "risk_rating | STRING | p.risk_rating | score.aml_risk"
+      - "pep_flag | BOOL | p.pep_flag"
+      - "onboarding_date | DATE | p.onboarding_date"
+      - "tax_id_hash | STRING | p.tax_id_hash | pii.ssn_hash | pii=ssn_hash"
+
+  - name: fct_aml_alerts
+    subject: aml_alerts
+    desc: AML transaction-monitoring alerts.
+    grain: alert_id
+    partition: alert_date
+    from: |
+      ref(stg_aml__transaction_alert) a
+      LEFT JOIN ref(dim_aml_party) p ON p.party_id = a.party_id
+    columns:
+      - "alert_id | STRING | a.alert_id | aml.alert_id | pk"
+      - "alert_date | DATE | a.alert_date | date.day"
+      - "party_id | STRING | a.party_id | customer.aml_party_id"
+      - "customer_key | INT64 | p.customer_key | customer.key"
+      - "scenario_code | STRING | a.scenario_code"
+      - "total_amount | NUMERIC | a.total_amount | money.txn_amount | unit=usd"
+      - "status | STRING | a.status"
+      - "escalated_to_case | BOOL | a.escalated_to_case"
+
+  - name: fct_sar_filings
+    subject: regulatory_filings
+    desc: SAR filings without the narrative.
+    grain: sar_id
+    from: ref(stg_aml__sar_filing) s
+    columns:
+      - "sar_id | STRING | s.sar_id | aml.sar_id | pk"
+      - "party_id | STRING | s.party_id | customer.aml_party_id"
+      - "filing_date | DATE | s.filing_date | date.day"
+      - "amount_involved | NUMERIC | s.amount_involved | money.txn_amount | unit=usd"
+      - "status | STRING | s.status"
+      - "alert_count | INT64 | ARRAY_LENGTH(s.alert_ids) | metric.count"
+
+  - name: fct_kyc_reviews
+    subject: kyc
+    desc: KYC reviews with overdue flag.
+    grain: review_id
+    from: ref(stg_aml__kyc_review) r
+    columns:
+      - "review_id | STRING | r.review_id || pk"
+      - "party_id | STRING | r.party_id | customer.aml_party_id"
+      - "review_type | STRING | r.review_type"
+      - "completed_date | DATE | DATE(r.completed_at) | date.day"
+      - "outcome | STRING | r.outcome"
+      - "edd_required | BOOL | r.edd_required"
+      - "days_to_complete | INT64 | TIMESTAMP_DIFF(r.completed_at, r.started_at, DAY) | metric.duration"
+      - "is_overdue | BOOL | r.next_review_due < CURRENT_DATE()"
+---
+dataset: ml_features
+defaults: {materialized: incremental, writer: dbt-prod, refresh: "dbt nightly 03:00"}
+tables:
+  - name: feat_customer_daily
+    subject: ml_features
+    desc: Daily customer feature snapshot for the churn model.
+    grain: customer_key, as_of_date
+    partition: as_of_date
+    with:
+      bal: |
+        SELECT b.customer_key, AVG(b.ledger_balance) AS avg_balance_30d
+        FROM ref(fct_daily_account_balances) b
+        WHERE b.balance_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        GROUP BY b.customer_key
+      lg: |
+        SELECT fl.cif_number, COUNTIF(fl.is_success) AS logins_30d, COUNTIF(NOT fl.is_success) AS failed_logins_30d
+        FROM ref(fct_digital_logins) fl
+        WHERE fl.event_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+        GROUP BY fl.cif_number
+      cl: |
+        SELECT fc.customer_key, COUNT(*) AS contacts_90d, COUNTIF(fc.is_account_closure_call) AS closure_calls_90d
+        FROM ref(fct_calls) fc
+        WHERE fc.conversation_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        GROUP BY fc.customer_key
+      fe: |
+        SELECT f.customer_key, COUNT(*) AS fee_count_90d, COUNTIF(f.is_waived) AS waived_fee_count_90d
+        FROM ref(fct_fees) f
+        WHERE f.assessed_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
+        GROUP BY f.customer_key
+    from: |
+      ref(dim_customer) c
+      LEFT JOIN bal ON bal.customer_key = c.customer_key
+      LEFT JOIN lg ON lg.cif_number = c.cif_number
+      LEFT JOIN cl ON cl.customer_key = c.customer_key
+      LEFT JOIN fe ON fe.customer_key = c.customer_key
+    columns:
+      - "as_of_date | DATE | CURRENT_DATE() | date.day"
+      - "customer_key | INT64 | c.customer_key | customer.key"
+      - "tenure_months | INT64 | c.tenure_months"
+      - "segment | STRING | c.segment | customer.segment"
+      - "avg_balance_30d | NUMERIC | COALESCE(bal.avg_balance_30d, 0) | money.balance | unit=usd"
+      - "logins_30d | INT64 | COALESCE(lg.logins_30d, 0) | metric.count"
+      - "failed_logins_30d | INT64 | COALESCE(lg.failed_logins_30d, 0) | metric.count"
+      - "contacts_90d | INT64 | COALESCE(cl.contacts_90d, 0) | metric.count"
+      - "closure_calls_90d | INT64 | COALESCE(cl.closure_calls_90d, 0) | metric.count"
+      - "fee_count_90d | INT64 | COALESCE(fe.fee_count_90d, 0) | metric.count"
+      - "waived_fee_count_90d | INT64 | COALESCE(fe.waived_fee_count_90d, 0) | metric.count"
+
+  - name: feat_card_velocity
+    subject: ml_features
+    status: write_only
+    desc: >-
+      Card velocity features for a batch fraud model that was retired when
+      fraud moved to the vendor's real-time scoring. Still built nightly;
+      nothing reads it (planted finding F07).
+    grain: card_account_id
+    from: ref(fct_card_transactions) t
+    where: t.post_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+    group_by: all
+    columns:
+      - "card_account_id | INT64 | t.card_account_id | card_account.id"
+      - "txn_count_1d | INT64 | COUNTIF(t.post_date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)) | metric.count"
+      - "txn_count_7d | INT64 | COUNT(*) | metric.count"
+      - "amount_7d | NUMERIC | SUM(t.amount) | money.txn_amount | unit=usd"
+      - "distinct_mcc_7d | INT64 | COUNT(DISTINCT t.mcc) | metric.count"
+      - "foreign_txn_7d | INT64 | COUNTIF(t.is_foreign) | metric.count"
+---
+# Written by Vertex AI batch prediction, not SQL - `upstream` records the
+# non-SQL lineage (what the scoring job reads).
+dataset: ml_scores
+defaults: {writer: vertex-scoring, refresh: "vertex nightly 04:00", upstream: [ml_features.feat_customer_daily]}
+tables:
+  - name: churn_score_v2
+    subject: churn_models
+    status: deprecated
+    superseded_by: ml_scores.churn_score_v3
+    desc: >-
+      Churn model v2. Last written 2026-05-14. Still read by one Looker PDT
+      and one analyst after the cutover (planted finding F11).
+    grain: score_date, customer_key
+    partition: score_date
+    rows: 190000000
+    columns:
+      - "score_date | DATE || date.day | required"
+      - "customer_key | INT64 || customer.key | required"
+      - "cif_number | STRING || customer.cif"
+      - "churn_score | FLOAT64 || score.churn_probability"
+      - "model_version | STRING"
+
+  - name: churn_score_v3
+    subject: churn_models
+    supersedes: ml_scores.churn_score_v2
+    desc: Churn model v3 from 2026-05-15. Column renamed churn_score -> churn_probability.
+    grain: score_date, customer_key
+    partition: score_date
+    cluster: [customer_key]
+    rows: 100000000
+    columns:
+      - "score_date | DATE || date.day | required"
+      - "customer_key | INT64 || customer.key | required"
+      - "churn_probability | FLOAT64 || score.churn_probability"
+      - "risk_band | STRING"
+      - "top_reason_codes | ARRAY<STRING>"
+      - "model_version | STRING"
+
+  - name: next_best_offer
+    subject: propensity_models
+    desc: Top product offers per customer.
+    grain: score_date, customer_key, rank
+    partition: score_date
+    rows: 300000000
+    columns:
+      - "score_date | DATE || date.day | required"
+      - "customer_key | INT64 || customer.key | required"
+      - "offer_product_code | STRING || product.code"
+      - "propensity | FLOAT64 || score.product_propensity"
+      - "rank | INT64"

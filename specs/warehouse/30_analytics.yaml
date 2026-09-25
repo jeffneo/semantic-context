@@ -1,0 +1,925 @@
+# =============================================================================
+# fennmoor-analytics: legacy EDW, BI scratch, reverse-ETL, DQ, sandboxes
+# =============================================================================
+# This is where the mess lives, and where most planted findings sit (ids refer
+# to specs/findings.yaml). Sandbox `cadence` (daily/weekly/monthly) is how often
+# its owner rebuilds it; active sandboxes default to monthly, stale and dead
+# ones are not rebuilt, and a `created` date inside the log window is a
+# one-off CTAS on that day. Human-written tables that deliberately join across
+# id spaces declare `trap: <finding id>` - the builder rejects any such join
+# that is not declared, and rejects them outright in production models.
+# =============================================================================
+
+# ---- legacy_edw -------------------------------------------------------------
+# Teradata EDW lifted into BigQuery in 2021. Replaced by the dbt marts on
+# 2025-02-28 and frozen - except ACCT_DLY_BAL and EOM_BAL_SNAP, whose Airflow
+# DAG nobody turned off. Those two read RAW core banking directly (the account
+# number is masked in dbt staging, and legacy is keyed on it).
+dataset: legacy_edw
+defaults: {status: frozen, refresh: "frozen 2025-02-28"}
+tables:
+  - name: CUST_MSTR
+    subject: customer_master
+    superseded_by: dw_core.dim_customer
+    desc: >-
+      Legacy customer master. CUST_ID is the CIF. Contains the RAW SSN in a
+      non-restricted dataset (planted finding F08).
+    grain: CUST_ID
+    rows: 2290000
+    columns:
+      - "CUST_ID | STRING || customer.cif | pk"
+      - "CUST_NM | STRING || pii.name | pii=name"
+      - "CUST_TYP | STRING"
+      - "SSN_NBR | STRING || pii.ssn | pii=ssn"
+      - "BRTH_DT | DATE || pii.dob | pii=dob"
+      - "CUST_SINCE_DT | DATE"
+      - "SEG_CD | STRING || customer.segment"
+      - "PRIM_BRNCH_NBR | INT64 || branch.id"
+      - "HH_ID | STRING || customer.legacy_household_id"
+      - "EMAIL_ADDR | STRING || pii.email | pii=email"
+      - "ZIP_CD | STRING || geo.zip"
+      - "LOAD_DT | DATE"
+
+  - name: ACCT_MSTR
+    subject: deposit_accounts
+    superseded_by: dw_core.dim_account
+    desc: Legacy deposit accounts, keyed on the customer-facing account number.
+    grain: ACCT_NBR
+    rows: 3200000
+    columns:
+      - "ACCT_NBR | STRING || deposit_account.number | pk pii=account_number"
+      - "CUST_ID | STRING || customer.cif"
+      - "PROD_CD | STRING || product.code"
+      - "BRNCH_NBR | INT64 || branch.id"
+      - "OPEN_DT | DATE"
+      - "CLS_DT | DATE"
+      - "STAT_CD | STRING"
+      - "CUR_BAL_AMT | NUMERIC || money.balance | unit=usd"
+      - "LOAD_DT | DATE"
+
+  - name: ACCT_DLY_BAL
+    subject: balances
+    status: deprecated
+    writer: composer-legacy
+    refresh: "composer-legacy nightly 05:30"
+    materialized: incremental
+    superseded_by: dw_core.fct_daily_account_balances
+    planted: F05
+    desc: >-
+      Deprecated 2025-02-28 in favour of fct_daily_account_balances, but its
+      DAG still runs nightly and feeds EOM_BAL_SNAP, which finance's Tableau
+      extract reads. Deprecated and load-bearing.
+    grain: ACCT_NBR, BAL_DT
+    partition: BAL_DT
+    rows: 3600000000
+    from: |
+      ref(core_banking_cdc.ACCOUNT_BALANCE_DLY) b
+      JOIN ref(core_banking_cdc.ACCOUNT) a ON a.ACCT_ID = b.ACCT_ID
+    columns:
+      - "ACCT_NBR | STRING | a.ACCT_NO | deposit_account.number | pii=account_number"
+      - "BAL_DT | DATE | b.BAL_DT | date.day"
+      - "LDGR_BAL_AMT | NUMERIC | b.LEDGER_BAL_AMT | money.balance | unit=usd"
+      - "AVL_BAL_AMT | NUMERIC | b.AVAIL_BAL_AMT | money.balance | unit=usd"
+      - "PROD_CD | STRING | a.PROD_CD | product.code"
+      - "BRNCH_NBR | INT64 | a.BRNCH_ID | branch.id"
+      - "LOAD_TS | TIMESTAMP | CURRENT_TIMESTAMP()"
+
+  - name: EOM_BAL_SNAP
+    subject: balances
+    status: deprecated
+    writer: composer-legacy
+    refresh: "composer-legacy monthly day 2"
+    planted: F05
+    desc: Month-end balance snapshot built from ACCT_DLY_BAL. Read by Tableau.
+    grain: ACCT_NBR, SNAP_MTH
+    partition: SNAP_MTH
+    from: ref(legacy_edw.ACCT_DLY_BAL) b
+    where: b.BAL_DT = LAST_DAY(b.BAL_DT)
+    columns:
+      - "SNAP_MTH | DATE | DATE_TRUNC(b.BAL_DT, MONTH) | date.month"
+      - "ACCT_NBR | STRING | b.ACCT_NBR | deposit_account.number | pii=account_number"
+      - "PROD_CD | STRING | b.PROD_CD | product.code"
+      - "BRNCH_NBR | INT64 | b.BRNCH_NBR | branch.id"
+      - "EOM_BAL_AMT | NUMERIC | b.LDGR_BAL_AMT | money.balance | unit=usd"
+
+  - name: TXN_HIST
+    subject: deposit_transactions
+    superseded_by: dw_core.fct_deposit_transactions
+    desc: Legacy deposit transaction history.
+    grain: ACCT_NBR, TXN_DT, TXN_SEQ
+    partition: TXN_DT
+    rows: 2400000000
+    columns:
+      - "ACCT_NBR | STRING || deposit_account.number | pii=account_number"
+      - "TXN_DT | DATE || date.day"
+      - "TXN_SEQ | INT64"
+      - "TXN_AMT | NUMERIC || money.txn_amount | unit=usd"
+      - "TXN_TYP | STRING"
+      - "TXN_DESC | STRING"
+      - "CHNL | STRING"
+
+  - name: CC_ACCT_MSTR
+    subject: card_accounts
+    superseded_by: dw_core.dim_account
+    desc: Legacy CREDIT CARD accounts. CC = credit card here.
+    grain: CC_ACCT_NBR
+    rows: 1100000
+    columns:
+      - "CC_ACCT_NBR | STRING || card_account.id | pk"
+      - "CUST_ID | STRING || customer.cif"
+      - "CR_LMT_AMT | NUMERIC || money.credit_limit | unit=usd"
+      - "CUR_BAL_AMT | NUMERIC || money.balance | unit=usd"
+      - "OPEN_DT | DATE"
+      - "CLS_DT | DATE"
+      - "STAT_CD | STRING"
+
+  - name: CC_TXN_HIST
+    subject: card_transactions
+    superseded_by: dw_core.fct_card_transactions
+    desc: Legacy CREDIT CARD transactions, in dollars (unlike the processor feed).
+    grain: CC_ACCT_NBR, TXN_DT, TXN_SEQ
+    partition: TXN_DT
+    rows: 1600000000
+    columns:
+      - "CC_ACCT_NBR | STRING || card_account.id"
+      - "CUST_ID | STRING || customer.cif"
+      - "TXN_DT | DATE || date.day"
+      - "TXN_SEQ | INT64"
+      - "TXN_AMT | NUMERIC || money.txn_amount | unit=usd"
+      - "MCC_CD | STRING || merchant.mcc"
+      - "MRCH_NM | STRING"
+      - "TXN_TYP | STRING"
+
+  - name: CC_CALL_VOL_DLY
+    subject: cc_performance
+    refresh: "frozen 2025-09-30 (Avaya cutover)"
+    superseded_by: dw_contact_center.agg_site_monthly
+    desc: >-
+      CONTACT CENTER daily volume by site and skill, Avaya era. CC = contact
+      center here. Frozen at the Genesys cutover but still read for YoY.
+    grain: CALL_DT, SITE_CD, SPLIT_SKILL
+    partition: CALL_DT
+    rows: 310000
+    columns:
+      - "CALL_DT | DATE || date.day"
+      - "SITE_CD | STRING || cc_site.id"
+      - "SPLIT_SKILL | STRING"
+      - "CALLS_OFFRD | INT64 || metric.count"
+      - "CALLS_HNDLD | INT64 || metric.count"
+      - "CALLS_ABND | INT64 || metric.count"
+      - "AVG_TALK_SEC | NUMERIC || metric.duration | unit=sec"
+      - "AVG_ACW_SEC | NUMERIC || metric.duration | unit=sec"
+      - "SVC_LVL_PCT | NUMERIC ||| unit=pct"
+
+  - name: CC_AGENT_DLY
+    subject: cc_performance
+    refresh: "frozen 2025-09-30 (Avaya cutover)"
+    superseded_by: dw_contact_center.fct_agent_daily
+    desc: CONTACT CENTER agent daily stats, Avaya era.
+    grain: CALL_DT, AGENT_LOGIN_ID
+    partition: CALL_DT
+    rows: 1400000
+    columns:
+      - "CALL_DT | DATE || date.day"
+      - "AGENT_LOGIN_ID | STRING || agent.avaya_login_id"
+      - "SITE_CD | STRING || cc_site.id"
+      - "CALLS_HNDLD | INT64 || metric.count"
+      - "TALK_SEC | INT64 || metric.duration | unit=sec"
+      - "ACW_SEC | INT64 || metric.duration | unit=sec"
+      - "AUX_SEC | INT64 || metric.duration | unit=sec"
+
+  - name: CC_EXPNS_MTHLY
+    subject: expenses
+    superseded_by: dw_finance.fct_gl_monthly
+    desc: >-
+      COST CENTER monthly expense vs budget. CC = cost center here. FISC_PRD
+      is a 'YYYY-MM' string.
+    grain: FISC_PRD, CC_ID, GL_ACCT_NBR
+    rows: 880000
+    columns:
+      - "FISC_PRD | STRING"
+      - "CC_ID | STRING || finance.cost_center_id"
+      - "GL_ACCT_NBR | STRING || gl.account_code"
+      - "ACTL_AMT | NUMERIC || money.cost | unit=usd"
+      - "BDGT_AMT | NUMERIC || money.cost | unit=usd"
+
+  - name: BRNCH_DIM
+    subject: branches
+    superseded_by: dw_core.dim_branch
+    desc: Legacy branch dimension.
+    grain: BRNCH_NBR
+    rows: 188
+    columns:
+      - "BRNCH_NBR | INT64 || branch.id | pk"
+      - "BRNCH_NM | STRING"
+      - "RGN_NM | STRING"
+      - "MKT_NM | STRING"
+      - "ST_CD | STRING || geo.state"
+      - "OPEN_DT | DATE"
+      - "CLS_DT | DATE"
+
+  - name: PROD_DIM
+    subject: products
+    superseded_by: dw_core.dim_product
+    desc: Legacy product dimension.
+    grain: PROD_CD
+    rows: 240
+    columns:
+      - "PROD_CD | STRING || product.code | pk"
+      - "PROD_NM | STRING"
+      - "PROD_FMLY | STRING"
+      - "PROD_LN | STRING"
+
+  - name: CUST_ACCT_XREF
+    subject: account_holders
+    superseded_by: dw_intermediate.int_account_holders
+    desc: Legacy customer-to-account cross reference.
+    grain: CUST_ID, ACCT_NBR
+    rows: 4500000
+    columns:
+      - "CUST_ID | STRING || customer.cif"
+      - "ACCT_NBR | STRING || deposit_account.number | pii=account_number"
+      - "REL_TYP | STRING"
+      - "PRIM_IND | STRING"
+
+  - name: CHURN_MDL_SCR
+    subject: churn_models
+    status: dead
+    superseded_by: ml_scores.churn_score_v2
+    desc: The original 2022 churn model scores. Nothing reads it.
+    grain: SCORE_DT, CUST_ID
+    rows: 51000000
+    columns:
+      - "SCORE_DT | DATE || date.day"
+      - "CUST_ID | STRING || customer.cif"
+      - "CHURN_SCR | NUMERIC || score.churn_probability"
+      - "DECILE | INT64"
+
+  - name: MKTG_CMPGN_RESP
+    subject: conversions
+    desc: Legacy campaign responses keyed on the pre-Braze campaign code.
+    grain: CMPGN_CD, CUST_ID, RESP_DT
+    rows: 44000000
+    columns:
+      - "CMPGN_CD | STRING || marketing.legacy_campaign_code"
+      - "CUST_ID | STRING || customer.cif"
+      - "RESP_DT | DATE || date.day"
+      - "RESP_TYP | STRING"
+      - "CHNL | STRING"
+
+  - name: LN_PMT_HIST
+    subject: loan_payments
+    superseded_by: dw_risk.fct_loan_payments
+    desc: Legacy loan payment history.
+    grain: LN_NBR, PMT_DT
+    partition: PMT_DT
+    rows: 26000000
+    columns:
+      - "LN_NBR | STRING || loan.id"
+      - "PMT_DT | DATE || date.day"
+      - "PMT_AMT | NUMERIC || money.txn_amount | unit=usd"
+      - "PRIN_AMT | NUMERIC || money.loan_principal | unit=usd"
+      - "INT_AMT | NUMERIC || money.interest | unit=usd"
+      - "LATE_IND | STRING"
+
+  - name: CD_RENEWAL_RPT
+    subject: deposit_accounts
+    desc: CERTIFICATE OF DEPOSIT renewal report. CD = certificate of deposit.
+    grain: ACCT_NBR
+    rows: 290000
+    columns:
+      - "ACCT_NBR | STRING || deposit_account.number | pii=account_number"
+      - "MAT_DT | DATE"
+      - "RNWL_TYP | STRING"
+      - "PRIN_AMT | NUMERIC || money.balance | unit=usd"
+      - "RT_PCT | NUMERIC ||| unit=pct"
+
+  - name: DLY_BRNCH_TXN_SUMM
+    subject: deposit_transactions
+    desc: Daily branch transaction summary.
+    grain: BRNCH_NBR, TXN_DT
+    partition: TXN_DT
+    rows: 380000
+    columns:
+      - "BRNCH_NBR | INT64 || branch.id"
+      - "TXN_DT | DATE || date.day"
+      - "TXN_CNT | INT64 || metric.count"
+      - "DEP_AMT | NUMERIC || money.txn_amount | unit=usd"
+      - "WDL_AMT | NUMERIC || money.txn_amount | unit=usd"
+
+  - name: CUST_MSTR_BKP_20250211
+    subject: customer_master
+    status: dead
+    copy_of: legacy_edw.CUST_MSTR
+    created: 2025-02-11
+    writer: marcus.lindqvist
+    planted: F08
+    desc: Pre-migration backup of CUST_MSTR. Never dropped. Also has the raw SSN.
+
+  - name: ACCT_DLY_BAL_OLD
+    subject: balances
+    status: dead
+    copy_of: legacy_edw.ACCT_DLY_BAL
+    created: 2024-06-11
+    writer: marcus.lindqvist
+    desc: Backup taken before a 2024 reload. Never dropped.
+---
+# ---- looker_scratch ---------------------------------------------------------
+# Looker persistent derived tables. Looker names them LR_<hash>_<view>; a
+# rebuilt PDT gets a new hash and the old one lingers until the reaper runs.
+dataset: looker_scratch
+defaults: {materialized: pdt, writer: looker-prod, refresh: "looker PDT trigger"}
+tables:
+  - name: LR_6H0IZB3PQ4C6N_customer_facts
+    subject: bi_scratch
+    copy_of: dw_customer.customer_360
+    drop: [full_name, primary_email]
+    desc: PDT behind the Customer Facts explore.
+
+  - name: LR_2K9WQXM1T7B8E_customer_facts
+    subject: bi_scratch
+    status: dead
+    copy_of: dw_customer.customer_360
+    drop: [full_name, primary_email]
+    created: 2026-01-08
+    desc: Previous generation of the same PDT. Orphaned; exact duplicate schema.
+
+  - name: LR_Q1Z7T4V9N2M5A_site_monthly_kpis
+    subject: bi_scratch
+    copy_of: dw_contact_center.rpt_site_cost_per_contact
+    desc: PDT behind the Contact Center Site KPIs dashboard.
+
+  - name: LR_8B3N0C5D2X7Z1_churn_explore
+    subject: bi_scratch
+    planted: F11
+    desc: >-
+      PDT behind the Churn Risk explore. Still reads churn_score_v2 after the
+      2026-05-15 cutover, so it shows scores frozen at 2026-05-14.
+    from: |
+      ref(churn_score_v2) s
+      JOIN ref(dim_customer) c ON c.customer_key = s.customer_key
+    columns:
+      - "score_date | DATE | s.score_date | date.day"
+      - "customer_key | INT64 | s.customer_key | customer.key"
+      - "segment | STRING | c.segment | customer.segment"
+      - "state_code | STRING | c.state_code | geo.state"
+      - "churn_score | FLOAT64 | s.churn_score | score.churn_probability"
+
+  - name: LR_5T7Y9U1I3O5P7_card_spend_by_mcc
+    subject: bi_scratch
+    desc: PDT behind the Card Spend dashboard.
+    from: ref(fct_card_transactions) t
+    where: t.is_purchase
+    group_by: all
+    columns:
+      - "month_start | DATE | DATE_TRUNC(t.post_date, MONTH) | date.month"
+      - "mcc_category_group | STRING | t.mcc_category_group"
+      - "spend | NUMERIC | SUM(t.amount) | money.txn_amount | unit=usd"
+      - "txn_count | INT64 | COUNT(*) | metric.count"
+      - "active_accounts | INT64 | COUNT(DISTINCT t.card_account_id) | metric.count"
+
+  - name: LR_3M6N9B2V5C8X1_digital_funnel_daily
+    subject: bi_scratch
+    copy_of: dw_digital.fct_account_opening_funnel
+    desc: PDT behind the Digital Account Opening dashboard.
+
+  - name: LR_7F2G5H8J1K4L6_delinquency_trend
+    subject: bi_scratch
+    desc: PDT behind the Delinquency Trend dashboard.
+    from: ref(fct_delinquency_daily) d
+    group_by: all
+    columns:
+      - "snapshot_date | DATE | d.snapshot_date | date.day"
+      - "bucket | STRING | d.bucket"
+      - "loans | INT64 | COUNT(*) | metric.count"
+      - "past_due_amount | NUMERIC | SUM(d.past_due_amount) | money.balance | unit=usd"
+
+  - name: LR_9P2O5I8U1Y4T7_branch_scorecard
+    subject: bi_scratch
+    desc: PDT behind the Branch Scorecard.
+    from: |
+      ref(fct_deposit_transactions) t
+      JOIN ref(dim_branch) b ON b.branch_id = t.branch_id
+    group_by: all
+    columns:
+      - "month_start | DATE | DATE_TRUNC(t.posted_date, MONTH) | date.month"
+      - "branch_id | INT64 | t.branch_id | branch.id"
+      - "branch_name | STRING | b.branch_name"
+      - "region | STRING | b.region"
+      - "txn_count | INT64 | COUNT(*) | metric.count"
+      - "deposit_amount | NUMERIC | SUM(IF(t.signed_amount > 0, t.signed_amount, 0)) | money.txn_amount | unit=usd"
+---
+# ---- reverse_etl ------------------------------------------------------------
+dataset: reverse_etl
+defaults: {materialized: table, writer: dbt-prod, refresh: "dbt nightly 02:00"}
+tables:
+  - name: aud_high_value_churn_risk
+    subject: audiences
+    desc: High-balance, high-churn-risk customers. Hightouch syncs it to Braze hourly.
+    grain: cif_number
+    from: ref(customer_360) c
+    where: c.churn_probability >= 0.6 AND c.total_deposit_balance >= 50000
+    columns:
+      - "external_id | STRING | c.cif_number | customer.cif | pk"
+      - "churn_probability | FLOAT64 | c.churn_probability | score.churn_probability"
+      - "segment | STRING | c.segment | customer.segment"
+      - "total_deposit_balance | NUMERIC | c.total_deposit_balance | money.balance | unit=usd"
+      - "email | STRING | c.primary_email | pii.email | pii=email"
+
+  - name: sf_sync_customer_scores
+    subject: reverse_etl
+    desc: Scores and holdings pushed onto Salesforce Contacts.
+    grain: sf_contact_id
+    from: |
+      ref(customer_360) c
+      JOIN ref(dim_customer) d ON d.customer_key = c.customer_key
+    where: d.sf_contact_id IS NOT NULL
+    columns:
+      - "sf_contact_id | STRING | d.sf_contact_id | customer.sf_contact_id | pk"
+      - "churn_probability__c | FLOAT64 | c.churn_probability | score.churn_probability"
+      - "product_count__c | INT64 | c.product_count"
+      - "total_deposit_balance__c | NUMERIC | c.total_deposit_balance | money.balance | unit=usd"
+      - "card_spend_90d__c | NUMERIC | c.card_spend_90d | money.txn_amount | unit=usd"
+
+  - name: braze_attr_sync
+    subject: reverse_etl
+    desc: Customer attributes pushed to Braze profiles.
+    grain: external_id
+    from: |
+      ref(customer_360) c
+      LEFT JOIN ref(next_best_offer) n ON n.customer_key = c.customer_key AND n.rank = 1 AND n.score_date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+    columns:
+      - "external_id | STRING | c.cif_number | customer.cif | pk"
+      - "segment | STRING | c.segment | customer.segment"
+      - "is_digitally_enrolled | BOOL | c.is_digitally_enrolled"
+      - "open_card_accounts | INT64 | c.open_card_accounts"
+      - "next_best_offer | STRING | n.offer_product_code | product.code"
+
+  - name: aud_card_upsell_q2_2026
+    subject: audiences
+    status: stale
+    created: 2026-04-02
+    desc: >-
+      One-off audience for a Q2 card campaign that ended 2026-05-31. Still
+      rebuilt nightly and synced hourly.
+    grain: customer_key
+    from: ref(next_best_offer) n
+    where: n.rank = 1 AND STARTS_WITH(n.offer_product_code, 'CC-')
+    columns:
+      - "customer_key | INT64 | n.customer_key | customer.key"
+      - "offer_product_code | STRING | n.offer_product_code | product.code"
+      - "propensity | FLOAT64 | n.propensity | score.product_propensity"
+---
+# ---- data_quality -----------------------------------------------------------
+# Written by the elementary-dq monitor. model_fqn / table_fqn hold table names
+# as STRINGS - references to nearly every table, but not joins.
+dataset: data_quality
+defaults: {writer: elementary-dq, refresh: "every 4h"}
+tables:
+  - name: elementary_test_results
+    subject: data_quality
+    desc: dbt/elementary test outcomes.
+    grain: test_result_id
+    partition: DATE(detected_at)
+    rows: 9400000
+    columns:
+      - "test_result_id | STRING ||| pk"
+      - "test_name | STRING"
+      - "model_fqn | STRING"
+      - "column_name | STRING"
+      - "status | STRING"
+      - "failures | INT64 || metric.count"
+      - "severity | STRING"
+      - "detected_at | TIMESTAMP"
+
+  - name: dbt_run_results
+    subject: data_quality
+    desc: dbt model run results.
+    grain: invocation_id, model_unique_id
+    partition: DATE(generated_at)
+    rows: 2100000
+    columns:
+      - "invocation_id | STRING"
+      - "model_unique_id | STRING"
+      - "status | STRING"
+      - "execution_time_sec | FLOAT64 || metric.duration | unit=sec"
+      - "rows_affected | INT64 || metric.count"
+      - "generated_at | TIMESTAMP"
+
+  - name: freshness_checks
+    subject: data_quality
+    desc: Source and model freshness checks.
+    grain: table_fqn, checked_at
+    partition: DATE(checked_at)
+    rows: 3300000
+    columns:
+      - "table_fqn | STRING"
+      - "max_loaded_at | TIMESTAMP"
+      - "checked_at | TIMESTAMP"
+      - "status | STRING"
+      - "lag_minutes | INT64 || metric.duration"
+---
+# ---- team sandboxes ---------------------------------------------------------
+dataset: sbx_customer_analytics
+defaults: {materialized: ctas, writer: priya.raman, refresh: manual}
+tables:
+  - name: customer_360_v2
+    status: stale
+    copy_of: dw_customer.customer_360
+    created: 2025-12-09
+    planted: F14
+    add: ["ltv_estimate | NUMERIC | s.total_deposit_balance * 0.02 + s.card_spend_90d * 0.015 | money.revenue | unit=usd"]
+    desc: First of the customer_360 copy chain. Snapshot, never refreshed.
+
+  - name: customer_360_final
+    copy_of: sbx_customer_analytics.customer_360_v2
+    created: 2026-01-20
+    planted: F14
+    rename: {churn_probability: churn_risk}
+    desc: >-
+      Second in the chain. Refreshed monthly by hand and heavily used - the
+      team's de facto customer table. churn_risk is churn_probability renamed.
+
+  - name: customer_360_final_FIXED
+    copy_of: sbx_customer_analytics.customer_360_final
+    created: 2026-03-02
+    planted: F14
+    where: s.segment != 'employee'
+    desc: >-
+      Third in the chain, "fixed" to exclude employees. The newest copy and
+      the least used.
+
+  - name: churn_cohort_analysis_2026q1
+    writer: tom.okafor
+    subject: churn_models
+    desc: Churn v2 scores against actual closures for Q1 2026.
+    from: |
+      ref(churn_score_v2) s
+      JOIN ref(fct_account_closures) c ON c.customer_key = s.customer_key
+    where: s.score_date BETWEEN '2026-01-01' AND '2026-03-31'
+    columns:
+      - "score_date | DATE | s.score_date | date.day"
+      - "customer_key | INT64 | s.customer_key | customer.key"
+      - "churn_score | FLOAT64 | s.churn_score | score.churn_probability"
+      - "close_date | DATE | c.close_date"
+      - "days_to_close | INT64 | DATE_DIFF(c.close_date, s.score_date, DAY)"
+
+  - name: tmp_cust_bal_check
+    status: dead
+    copy_of: dw_core.fct_daily_account_balances
+    where: s.balance_date >= '2026-03-01'
+    created: 2026-03-04
+    writer: tom.okafor
+    desc: Temp table from a one-off balance check. Never dropped.
+
+  - name: hh_rollup_test
+    status: dead
+    writer: grace.nakamura
+    subject: household
+    desc: Household rollup experiment.
+    from: ref(dim_customer) c
+    where: c.sf_household_id IS NOT NULL
+    group_by: all
+    columns:
+      - "sf_household_id | STRING | c.sf_household_id | customer.sf_household_id"
+      - "members | INT64 | COUNT(*) | metric.count"
+      - "segment | STRING | ANY_VALUE(c.segment) | customer.segment"
+---
+dataset: sbx_marketing
+defaults: {materialized: ctas, writer: dana.whitfield, refresh: manual}
+tables:
+  - name: attrition_propensity_2025
+    subject: churn_models
+    upstream: [dw_customer.customer_360, sbx_dana_whitfield.dana_attrition_training_set]
+    planted: F10
+    desc: >-
+      Marketing's own churn model, trained in BigQuery ML and scored with
+      ML.PREDICT. Same concept as ml_scores.churn_score_v3 under another name.
+    grain: cif_number, model_run_date
+    rows: 8200000
+    columns:
+      - "cif_number | STRING || customer.cif"
+      - "model_run_date | DATE || date.day"
+      - "attrition_propensity | FLOAT64 || score.churn_probability"
+      - "decile | INT64"
+
+  - name: campain_results_2025
+    writer: luis.carvajal
+    cadence: weekly
+    subject: engagement
+    desc: Campaign results roll-up. The name has the typo it was created with.
+    from: |
+      ref(fct_campaign_engagement) e
+      LEFT JOIN ref(dim_campaign) c ON c.campaign_id = e.campaign_id
+    group_by: all
+    columns:
+      - "campaign_id | STRING | e.campaign_id | campaign.id"
+      - "campaign_name | STRING | c.campaign_name"
+      - "delivered | INT64 | COUNTIF(e.delivered) | metric.count"
+      - "opens | INT64 | COUNTIF(e.opened) | metric.count"
+      - "clicks | INT64 | COUNTIF(e.clicked) | metric.count"
+      - "unsubscribes | INT64 | COUNTIF(e.unsubscribed) | metric.count"
+      - "open_rate | FLOAT64 | SAFE_DIVIDE(COUNTIF(e.opened), COUNTIF(e.delivered))"
+
+  - name: email_list_affluent_apr26
+    subject: audiences
+    copy_of: dw_customer.customer_360
+    where: s.segment IN ('affluent', 'private')
+    drop: [card_txn_count_90d, contacts_90d, closure_calls_90d, web_sessions_30d, churn_risk_band]
+    created: 2026-04-06
+    desc: Email list extract for an April campaign. Contains names and emails.
+
+  - name: card_spend_by_segment
+    writer: luis.carvajal
+    subject: card_transactions
+    planted: F12
+    desc: >-
+      Card spend by segment, built from the RAW processor feed. The spend
+      column is named _usd but holds CENTS - off by 100x against any dollar
+      table it is compared with.
+    from: |
+      ref(card_processor.settlement) s
+      JOIN ref(card_processor.card_account) ca ON ca.account_id = s.account_id
+      JOIN ref(dim_customer) c ON c.cif_number = ca.bank_customer_ref
+    where: s.txn_type = 'PURCH'
+    group_by: all
+    columns:
+      - "segment | STRING | c.segment | customer.segment"
+      - "month_start | DATE | DATE_TRUNC(s.post_date, MONTH) | date.month"
+      - "card_spend_usd | INT64 | SUM(s.amount_cents) | money.txn_amount | unit=cents mislabeled_unit"
+      - "cardholders | INT64 | COUNT(DISTINCT ca.bank_customer_ref) | metric.count"
+
+  - name: web_to_branch_journeys
+    writer: luis.carvajal
+    cadence: weekly
+    subject: web_analytics
+    trap: F13
+    desc: >-
+      Attempt to link web sessions to customers by joining GA4 user_id straight
+      to cif_number. user_id is SHA-256(olb_user_id), so this matches nothing.
+      Runs weekly; returns zero rows; nobody has noticed.
+    from: |
+      ref(stg_ga4__events) e
+      JOIN ref(dim_customer) c ON c.cif_number = e.user_id
+    group_by: all
+    columns:
+      - "event_date | DATE | e.event_date | date.day"
+      - "segment | STRING | c.segment | customer.segment"
+      - "sessions | INT64 | COUNT(DISTINCT e.ga_session_id) | metric.count"
+---
+dataset: sbx_risk
+defaults: {materialized: ctas, writer: samuel.achterberg, refresh: manual}
+tables:
+  - name: kyc_review_extract
+    subject: aml_parties
+    status: stale
+    copy_of: aml_kyc.party
+    drop: [dob]
+    created: 2025-08-14
+    writer: mei-lin.zhou
+    planted: F08
+    desc: >-
+      A copy of the RESTRICTED AML party table - raw tax_id included - made
+      into the risk sandbox, which marketing and data science can also read.
+
+  - name: dlq_roll_rates_2026
+    subject: delinquency
+    desc: Monthly delinquency by bucket.
+    from: ref(fct_delinquency_daily) d
+    where: d.snapshot_date >= '2026-01-01'
+    group_by: all
+    columns:
+      - "month_start | DATE | DATE_TRUNC(d.snapshot_date, MONTH) | date.month"
+      - "bucket | STRING | d.bucket"
+      - "loans | INT64 | COUNT(DISTINCT d.account_key) | metric.count"
+      - "past_due_amount | NUMERIC | SUM(d.past_due_amount) | money.balance | unit=usd"
+
+  - name: bureau_fico_migration
+    subject: credit_bureau
+    writer: mei-lin.zhou
+    desc: FICO band migration month over month.
+    from: ref(fct_bureau_monthly) b
+    group_by: all
+    columns:
+      - "archive_month | DATE | b.archive_month | date.month"
+      - "fico_band | STRING | CASE WHEN b.fico_08 >= 740 THEN '740+' WHEN b.fico_08 >= 670 THEN '670-739' WHEN b.fico_08 >= 580 THEN '580-669' ELSE '<580' END"
+      - "customers | INT64 | COUNT(*) | metric.count"
+
+  - name: acct_bal_legacy_recon
+    subject: balances
+    writer: deepak.venkataraman
+    desc: Reconciles legacy ACCT_DLY_BAL to fct_daily_account_balances via raw ACCT_NO.
+    from: |
+      ref(legacy_edw.ACCT_DLY_BAL) l
+      JOIN ref(core_banking_cdc.ACCOUNT) a ON a.ACCT_NO = l.ACCT_NBR
+      JOIN ref(fct_daily_account_balances) f ON f.core_account_id = a.ACCT_ID AND f.balance_date = l.BAL_DT
+    columns:
+      - "balance_date | DATE | l.BAL_DT | date.day"
+      - "core_account_id | INT64 | a.ACCT_ID | deposit_account.id"
+      - "legacy_balance | NUMERIC | l.LDGR_BAL_AMT | money.balance | unit=usd"
+      - "dw_balance | NUMERIC | f.ledger_balance | money.balance | unit=usd"
+      - "diff | NUMERIC | l.LDGR_BAL_AMT - f.ledger_balance | money.balance | unit=usd"
+---
+dataset: sbx_fraud
+defaults: {materialized: ctas, writer: olumide.bankole, refresh: manual}
+tables:
+  - name: ato_signals_login
+    subject: olb_logins
+    writer: rachel.kim
+    desc: Account-takeover signals per user per day.
+    from: ref(fct_digital_logins) l
+    group_by: all
+    columns:
+      - "olb_user_id | STRING | l.olb_user_id | customer.olb_user_id"
+      - "event_date | DATE | l.event_date | date.day"
+      - "failed_logins | INT64 | COUNTIF(NOT l.is_success) | metric.count"
+      - "distinct_devices | INT64 | COUNT(DISTINCT l.device_id) | metric.count"
+      - "distinct_countries | INT64 | COUNT(DISTINCT l.geo_country) | metric.count"
+
+  - name: p2p_scam_cases_2026
+    subject: fraud_cases
+    copy_of: dw_risk.fct_fraud_alerts
+    where: s.fraud_type = 'P2P_SCAM' AND s.alert_date >= '2026-01-01'
+    desc: Confirmed P2P scam alerts this year.
+
+  - name: bust_out_candidates
+    subject: card_accounts
+    trap: F03
+    desc: >-
+      Customers whose card and deposit accounts both look risky - joined on
+      account_id, which is a DIFFERENT id space in the card processor. The
+      integer ranges overlap, so it returns plausible-looking garbage.
+    from: |
+      ref(stg_cards__card_account) ca
+      JOIN ref(stg_core__account) a ON a.account_id = ca.account_id
+    where: ca.delinquency_bucket IS NOT NULL
+    columns:
+      - "account_id | INT64 | ca.account_id | card_account.id"
+      - "card_status | STRING | ca.status"
+      - "card_balance | NUMERIC | ca.current_balance | money.balance | unit=usd"
+      - "deposit_status | STRING | a.account_status_code"
+      - "deposit_open_date | DATE | a.open_date"
+---
+dataset: sbx_cx_ops
+defaults: {materialized: ctas, writer: jerome.baptiste, refresh: manual}
+tables:
+  - name: cc_site_scorecard_2026
+    subject: cc_performance
+    desc: >-
+      CC = contact center. Hand-built site scorecard - a duplicate of
+      agg_site_monthly's logic, maintained separately.
+    from: |
+      ref(fct_calls) c
+      JOIN ref(dim_cc_site) s ON s.site_id = c.site_id
+    where: c.conversation_date >= '2026-01-01'
+    group_by: all
+    columns:
+      - "month_start | DATE | DATE_TRUNC(c.conversation_date, MONTH) | date.month"
+      - "site_name | STRING | s.site_name"
+      - "contacts | INT64 | COUNT(*) | metric.count"
+      - "closure_calls | INT64 | COUNTIF(c.is_account_closure_call) | metric.count"
+      - "avg_handle_sec | FLOAT64 | AVG(c.handle_sec) | metric.duration | unit=sec"
+
+  - name: cc_closure_calls_apr_may
+    subject: calls
+    copy_of: dw_contact_center.fct_calls
+    where: s.wrapup_code_name IN ('ACCT_MAINT', 'ACCT_CLOSE') AND s.conversation_date BETWEEN '2026-04-01' AND '2026-06-30'
+    writer: hannah.sorensen
+    created: 2026-06-09
+    desc: Pulled to investigate the closure-code change on 2026-06-02.
+
+  - name: cdr_history_rollup
+    subject: cc_performance
+    cadence: weekly
+    writer: carla.mendoza
+    planted: F09
+    desc: >-
+      Monthly rollup over ALL Avaya shards with no _TABLE_SUFFIX filter - a
+      full scan of 33 shards every time it is refreshed.
+    from: ref(contact_center_legacy.cdr_) c
+    group_by: all
+    columns:
+      - "month_start | DATE | DATE_TRUNC(DATE(c.CALL_START_DTTM), MONTH) | date.month"
+      - "site_id | STRING | c.SITE_CD | cc_site.id"
+      - "calls | INT64 | COUNT(*) | metric.count"
+      - "handled | INT64 | COUNTIF(c.ABANDON_FLG = 'N') | metric.count"
+      - "avg_talk_sec | FLOAT64 | AVG(c.TALK_SEC) | metric.duration | unit=sec"
+---
+dataset: sbx_finance
+defaults: {materialized: ctas, writer: ruth.esposito, refresh: manual}
+tables:
+  - name: cc_cost_per_call_fy25
+    subject: cc_performance
+    cadence: monthly
+    trap: F04
+    desc: >-
+      "CC cost per call": joins COST CENTER expenses to CONTACT CENTER volumes
+      on CC_ID = SITE_CD - two different meanings of CC. Returns nothing.
+    from: |
+      ref(legacy_edw.CC_EXPNS_MTHLY) e
+      JOIN ref(legacy_edw.CC_CALL_VOL_DLY) v ON v.SITE_CD = e.CC_ID
+    group_by: all
+    columns:
+      - "fiscal_period | STRING | e.FISC_PRD"
+      - "cc_id | STRING | e.CC_ID | finance.cost_center_id"
+      - "expense | NUMERIC | SUM(e.ACTL_AMT) | money.cost | unit=usd"
+      - "calls | INT64 | SUM(v.CALLS_HNDLD) | metric.count"
+
+  - name: eom_bal_by_product_tableau
+    subject: balances
+    cadence: daily
+    writer: victor.almeida
+    planted: F05
+    desc: Tableau's month-end balance source. Reads the deprecated legacy chain.
+    from: |
+      ref(legacy_edw.EOM_BAL_SNAP) e
+      LEFT JOIN ref(stg_ref__product_hierarchy) p ON p.prod_cd = e.PROD_CD
+    group_by: all
+    columns:
+      - "snap_month | DATE | e.SNAP_MTH | date.month"
+      - "reporting_category | STRING | p.reporting_category"
+      - "eom_balance | NUMERIC | SUM(e.EOM_BAL_AMT) | money.balance | unit=usd"
+---
+dataset: sbx_digital
+defaults: {materialized: ctas, writer: kenji.morita, refresh: manual}
+tables:
+  - name: ga4_sessions_flat_test
+    status: dead
+    copy_of: dw_digital.fct_web_sessions
+    where: s.session_date >= '2026-02-01'
+    created: 2026-02-10
+    desc: Test copy. Never dropped.
+
+  - name: app_screen_paths
+    subject: app_analytics
+    writer: ava.delacroix
+    desc: Most common screens by platform.
+    from: ref(stg_amp__events) e
+    where: e.screen_name IS NOT NULL
+    group_by: all
+    columns:
+      - "screen_name | STRING | e.screen_name"
+      - "platform | STRING | e.platform"
+      - "events | INT64 | COUNT(*) | metric.count"
+      - "users | INT64 | COUNT(DISTINCT e.user_id) | metric.count"
+---
+# ---- personal sandboxes -----------------------------------------------------
+dataset: sbx_priya_raman
+defaults: {materialized: ctas, writer: priya.raman, refresh: manual}
+tables:
+  - name: q2_board_deck_numbers
+    subject: customer_analytics
+    desc: Numbers for the Q2 board deck.
+    from: ref(customer_360) c
+    group_by: all
+    columns:
+      - "segment | STRING | c.segment | customer.segment"
+      - "customers | INT64 | COUNT(*) | metric.count"
+      - "avg_balance | NUMERIC | AVG(c.total_deposit_balance) | money.balance | unit=usd"
+      - "avg_churn | FLOAT64 | AVG(c.churn_probability) | score.churn_probability"
+
+  - name: tmp_priya_churn_feats
+    status: dead
+    copy_of: ml_features.feat_customer_daily
+    created: 2026-02-19
+    desc: Feature pull for a notebook. Never dropped.
+---
+dataset: sbx_tom_okafor
+defaults: {materialized: ctas, writer: tom.okafor, refresh: manual}
+tables:
+  - name: tom_test
+    status: dead
+    copy_of: dw_core.dim_customer
+    created: 2025-11-17
+    desc: A test.
+
+  - name: tom_test2
+    status: dead
+    copy_of: sbx_tom_okafor.tom_test
+    drop: [birth_date, tax_id_hash]
+    created: 2025-11-17
+    desc: Another test.
+---
+dataset: sbx_dana_whitfield
+defaults: {materialized: ctas, writer: dana.whitfield, refresh: manual}
+tables:
+  - name: dana_attrition_training_set
+    subject: churn_models
+    desc: Training set for marketing's BQML attrition model.
+    from: |
+      ref(customer_360) c
+      LEFT JOIN ref(fct_account_closures) x ON x.customer_key = c.customer_key AND x.is_voluntary
+    columns:
+      - "cif_number | STRING | c.cif_number | customer.cif"
+      - "segment | STRING | c.segment | customer.segment"
+      - "tenure_months | INT64 | c.tenure_months"
+      - "total_deposit_balance | NUMERIC | c.total_deposit_balance | money.balance | unit=usd"
+      - "contacts_90d | INT64 | c.contacts_90d | metric.count"
+      - "label_attrited | BOOL | x.account_key IS NOT NULL"
+
+  - name: zzz_old_campaign_pull
+    status: dead
+    copy_of: dw_marketing.fct_campaign_sends
+    where: s.sent_date < '2025-07-01'
+    created: 2025-07-02
+    desc: Old pull. Name sorts it to the bottom so nobody sees it.

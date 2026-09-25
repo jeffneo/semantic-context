@@ -1,0 +1,699 @@
+# =============================================================================
+# Raw sources I: core banking, card processor, loan origination, credit bureau
+# =============================================================================
+# Each source keeps its own real-world conventions - that heterogeneity is
+# what the semantic layer has to see through:
+#   core_banking_cdc  Oracle core via Datastream CDC. UPPER_ABBREV names,
+#                     money in NUMERIC dollars.
+#   card_processor    Vendor SFTP file drops. lower snake, money in INT64 CENTS,
+#                     its own `account_id` id space.
+#   loan_origination  Vendor REST API via Fivetran. camelCase.
+#   credit_bureau     Monthly batch file. UPPER fixed-width field names.
+# =============================================================================
+
+dataset: core_banking_cdc
+defaults: {mixins: [datastream], stage: core, refresh: datastream-cdc}
+tables:
+  - name: CUSTOMER
+    subject: customer_master
+    desc: One row per customer (CIF). Individuals and businesses.
+    grain: CIF_NO
+    rows: 2430000
+    cluster: [CIF_NO]
+    columns:
+      - "CIF_NO | STRING || customer.cif | pk required"
+      - "CUST_TYP_CD | STRING"                    # I=individual B=business
+      - "FRST_NM | STRING || pii.name | pii=name"
+      - "MIDL_NM | STRING || pii.name | pii=name"
+      - "LST_NM | STRING || pii.name | pii=name"
+      - "BUS_NM | STRING"
+      - "TAX_ID | STRING || pii.ssn | pii=ssn policy=restricted"
+      - "BIRTH_DT | DATE || pii.dob | pii=dob"
+      - "CUST_SINCE_DT | DATE"
+      - "CUST_STAT_CD | STRING"                   # A active, I inactive, C closed, D deceased
+      - "PREF_BRNCH_ID | INT64 || branch.id | null_after=2026-04-20"
+      - "PREF_LANG_CD | STRING"
+      - "EMP_FLG | STRING"                        # 'Y'/'N' - bank employee
+      - "SEG_CD | STRING || customer.segment"
+      - "RISK_RTNG_CD | STRING || score.aml_risk"
+      - "DECEASED_DT | DATE"
+      - "CRT_TS | TIMESTAMP"
+      - "LST_UPD_TS | TIMESTAMP"
+
+  - name: CUSTOMER_ADDRESS
+    subject: customer_contact_points
+    desc: Customer addresses, effective-dated. Many per CIF.
+    grain: CIF_NO, ADDR_SEQ_NO
+    rows: 3900000
+    columns:
+      - "CIF_NO | STRING || customer.cif | required"
+      - "ADDR_SEQ_NO | INT64"
+      - "ADDR_TYP_CD | STRING"                    # HOME, MAIL, BUS, SEAS
+      - "ADDR_LN_1 | STRING || pii.address | pii=address"
+      - "ADDR_LN_2 | STRING || pii.address | pii=address"
+      - "CITY_NM | STRING"
+      - "ST_CD | STRING || geo.state"
+      - "ZIP_CD | STRING || geo.zip"
+      - "CNTRY_CD | STRING"
+      - "PRIM_FLG | STRING"
+      - "EFF_DT | DATE"
+      - "END_DT | DATE"
+      - "LST_UPD_TS | TIMESTAMP"
+
+  - name: CUSTOMER_CONTACT
+    subject: customer_contact_points
+    desc: >-
+      Phone numbers and emails in one EAV-style table; CNTCT_TYP_CD says which
+      a row holds. Realistic, and awkward to model.
+    grain: CIF_NO, CNTCT_SEQ_NO
+    rows: 5100000
+    columns:
+      - "CIF_NO | STRING || customer.cif | required"
+      - "CNTCT_SEQ_NO | INT64"
+      - "CNTCT_TYP_CD | STRING"                   # HPH, MPH, WPH, EML
+      - "CNTCT_VAL | STRING || pii.contact_point | pii=email_or_phone"
+      - "VRFD_FLG | STRING"
+      - "PRIM_FLG | STRING"
+      - "OPT_IN_FLG | STRING"
+      - "LST_UPD_TS | TIMESTAMP"
+
+  - name: ACCOUNT
+    subject: deposit_accounts
+    desc: >-
+      Deposit accounts (checking, savings, money market, CD). CLS_RSN_CD is
+      the closure reason - the "cancellation" signal.
+    grain: ACCT_ID
+    rows: 3450000
+    cluster: [ACCT_ID]
+    columns:
+      - "ACCT_ID | INT64 || deposit_account.id | pk required"
+      - "ACCT_NO | STRING || deposit_account.number | pii=account_number"
+      - "PROD_CD | STRING || product.code"
+      - "BRNCH_ID | INT64 || branch.id"
+      - "ACCT_STAT_CD | STRING"                   # A, D dormant, C closed, F frozen, CO charged-off
+      - "OPEN_DT | DATE"
+      - "CLS_DT | DATE"
+      - "CLS_RSN_CD | STRING"                     # CUST_REQ, COMPETITOR, FEES, MOVED, DORMANT, FRAUD, DECEASED
+      - "OPEN_CHNL_CD | STRING"                   # BR, WEB, MOB, CC (= contact center!)
+      - "CCY_CD | STRING"
+      - "INT_RT | NUMERIC ||| unit=pct"
+      - "OD_LMT_AMT | NUMERIC || money.credit_limit | unit=usd"
+      - "STMT_CYC_CD | STRING"
+      - "ESCHEAT_FLG | STRING"
+      - "CRT_TS | TIMESTAMP"
+      - "LST_UPD_TS | TIMESTAMP"
+
+  - name: ACCOUNT_CUSTOMER_REL
+    subject: account_holders
+    desc: Which customers hold which accounts, and in what role (joint etc).
+    grain: ACCT_ID, CIF_NO, REL_TYP_CD
+    rows: 4800000
+    columns:
+      - "ACCT_ID | INT64 || deposit_account.id | required"
+      - "CIF_NO | STRING || customer.cif | required"
+      - "REL_TYP_CD | STRING"                     # PRI, JNT, AUTH, BEN, POA, TRST
+      - "REL_EFF_DT | DATE"
+      - "REL_END_DT | DATE"
+      - "LST_UPD_TS | TIMESTAMP"
+
+  - name: ACCOUNT_BALANCE_DLY
+    subject: balances
+    desc: End-of-day balances, one row per account per day. 3 years retained.
+    grain: ACCT_ID, BAL_DT
+    rows: 3700000000
+    partition: BAL_DT
+    cluster: [ACCT_ID]
+    columns:
+      - "ACCT_ID | INT64 || deposit_account.id | required"
+      - "BAL_DT | DATE || date.day | required"
+      - "LEDGER_BAL_AMT | NUMERIC || money.balance | unit=usd"
+      - "AVAIL_BAL_AMT | NUMERIC || money.balance | unit=usd"
+      - "COLL_BAL_AMT | NUMERIC || money.balance | unit=usd"
+      - "AVG_MTD_BAL_AMT | NUMERIC || money.balance | unit=usd"
+      - "ACCRD_INT_AMT | NUMERIC || money.interest | unit=usd"
+      - "HOLD_AMT | NUMERIC || money.balance | unit=usd"
+
+  - name: DEPOSIT_TXN
+    subject: deposit_transactions
+    desc: Posted deposit-account transactions.
+    grain: TXN_ID
+    rows: 2900000000
+    partition: POST_DT
+    cluster: [ACCT_ID, TXN_TYP_CD]
+    columns:
+      - "TXN_ID | INT64 || deposit_txn.id | pk required"
+      - "ACCT_ID | INT64 || deposit_account.id | required"
+      - "POST_DT | DATE || date.day | required"
+      - "EFF_DT | DATE"
+      - "TXN_TYP_CD | STRING"                     # DEP WDL XFR FEE INT ACH_CR ACH_DR CHK ATM WIRE P2P
+      - "TXN_AMT | NUMERIC || money.txn_amount | unit=usd"
+      - "DR_CR_IND | STRING"
+      - "TXN_DESC | STRING"
+      - "CHNL_CD | STRING"
+      - "BRNCH_ID | INT64 || branch.id"
+      - "TELLER_ID | STRING"
+      - "ATM_ID | STRING || atm.id"
+      - "ACH_TRACE_NO | STRING"
+      - "CHK_NO | STRING"
+      - "RUN_BAL_AMT | NUMERIC || money.balance | unit=usd"
+      - "REVERSAL_FLG | STRING"
+      - "CRT_TS | TIMESTAMP"
+
+  - name: PRODUCT
+    subject: products
+    desc: Product catalog for deposit, card and loan products.
+    grain: PROD_CD
+    rows: 214
+    columns:
+      - "PROD_CD | STRING || product.code | pk required"
+      - "PROD_NM | STRING"
+      - "PROD_FMLY_CD | STRING"                   # CHK SAV MMA CD CC HELOC MTG AUTO PL
+      - "PROD_TYP_CD | STRING"
+      - "MIN_BAL_AMT | NUMERIC || money.balance | unit=usd"
+      - "MTHLY_FEE_AMT | NUMERIC || money.fee | unit=usd"
+      - "INT_RT | NUMERIC ||| unit=pct"
+      - "TERM_MTHS | INT64"
+      - "ACTV_FLG | STRING"
+      - "EFF_DT | DATE"
+      - "END_DT | DATE"
+
+  - name: BRANCH
+    subject: branches
+    desc: >-
+      Branch network. CC_ID here means COST CENTER - one of three meanings of
+      CC in this estate.
+    grain: BRNCH_ID
+    rows: 171
+    columns:
+      - "BRNCH_ID | INT64 || branch.id | pk required"
+      - "BRNCH_NM | STRING"
+      - "BRNCH_TYP_CD | STRING"                   # FULL, LTD, ISTORE
+      - "ADDR_LN_1 | STRING"
+      - "CITY_NM | STRING"
+      - "ST_CD | STRING || geo.state"
+      - "ZIP_CD | STRING || geo.zip"
+      - "RGN_CD | STRING"
+      - "MKT_CD | STRING"
+      - "MGR_EMP_ID | STRING || employee.id"
+      - "CC_ID | STRING || finance.cost_center_id"
+      - "OPEN_DT | DATE"
+      - "CLS_DT | DATE"
+      - "LAT | FLOAT64"
+      - "LNG | FLOAT64"
+
+  - name: ACCOUNT_STATUS_HIST
+    subject: account_lifecycle
+    desc: Every account status change, with reason and channel.
+    grain: ACCT_ID, CHG_TS
+    rows: 19000000
+    partition: DATE(CHG_TS)
+    cluster: [ACCT_ID]
+    columns:
+      - "ACCT_ID | INT64 || deposit_account.id | required"
+      - "STAT_CD | STRING"
+      - "PREV_STAT_CD | STRING"
+      - "CHG_TS | TIMESTAMP"
+      - "CHG_RSN_CD | STRING"
+      - "CHG_USER_ID | STRING"
+      - "CHG_CHNL_CD | STRING"                    # BR, WEB, MOB, CC (contact center), BATCH
+
+  - name: FEE_ASSESSED
+    subject: fees
+    desc: Fees charged to deposit accounts, including waivers and reversals.
+    grain: FEE_ID
+    rows: 61000000
+    partition: ASSESS_DT
+    cluster: [ACCT_ID]
+    columns:
+      - "FEE_ID | INT64 ||| pk required"
+      - "ACCT_ID | INT64 || deposit_account.id | required"
+      - "FEE_TYP_CD | STRING"                     # OD NSF MAINT ATM_OON WIRE STOP_PMT PAPER_STMT
+      - "FEE_AMT | NUMERIC || money.fee | unit=usd"
+      - "ASSESS_DT | DATE || date.day"
+      - "WAIVED_FLG | STRING"
+      - "WAIVE_RSN_CD | STRING"
+      - "WAIVED_BY_USER_ID | STRING"
+      - "REVERSED_FLG | STRING"
+
+  - name: INTEREST_ACCRUAL
+    subject: interest
+    desc: Daily interest accrual per interest-bearing account.
+    grain: ACCT_ID, ACCR_DT
+    rows: 1400000000
+    partition: ACCR_DT
+    cluster: [ACCT_ID]
+    columns:
+      - "ACCT_ID | INT64 || deposit_account.id | required"
+      - "ACCR_DT | DATE || date.day"
+      - "ACCR_AMT | NUMERIC || money.interest | unit=usd"
+      - "RT | NUMERIC ||| unit=pct"
+      - "BAL_AMT | NUMERIC || money.balance | unit=usd"
+
+  - name: CD_MATURITY_SCHED
+    stage_name: stg_core__cd_maturity_schedule   # rule would read CD as "code"
+    subject: deposit_accounts
+    desc: >-
+      Certificate-of-deposit maturity schedule. CD = certificate of deposit
+      here; elsewhere CD means "code".
+    grain: ACCT_ID
+    rows: 310000
+    columns:
+      - "ACCT_ID | INT64 || deposit_account.id | pk required"
+      - "MAT_DT | DATE"
+      - "TERM_MTHS | INT64"
+      - "RENEW_OPT_CD | STRING"
+      - "PRIN_AMT | NUMERIC || money.balance | unit=usd"
+      - "RT | NUMERIC ||| unit=pct"
+
+  - name: STANDING_ORDER
+    subject: deposit_transactions
+    desc: Recurring internal/external transfers. Never staged, never queried.
+    grain: SO_ID
+    rows: 880000
+    stage: false
+    status: dead
+    columns:
+      - "SO_ID | INT64 ||| pk"
+      - "ACCT_ID | INT64 || deposit_account.id"
+      - "BENE_ACCT_NO | STRING || deposit_account.number | pii=account_number"
+      - "BENE_RTG_NO | STRING"
+      - "SO_AMT | NUMERIC || money.txn_amount | unit=usd"
+      - "FREQ_CD | STRING"
+      - "NEXT_EXEC_DT | DATE"
+      - "END_DT | DATE"
+      - "STAT_CD | STRING"
+
+  - name: ATM_TERMINAL
+    subject: branches
+    desc: ATM fleet. Never staged, never queried.
+    grain: ATM_ID
+    rows: 402
+    stage: false
+    status: dead
+    columns:
+      - "ATM_ID | STRING || atm.id | pk"
+      - "BRNCH_ID | INT64 || branch.id"
+      - "LOC_DESC | STRING"
+      - "ST_CD | STRING || geo.state"
+      - "ZIP_CD | STRING || geo.zip"
+      - "STAT_CD | STRING"
+---
+dataset: card_processor
+defaults: {mixins: [sftp_file], stage: cards, refresh: daily-file-0500}
+tables:
+  - name: card_account
+    subject: card_accounts
+    desc: >-
+      Credit card accounts. `account_id` is the PROCESSOR's id space - same
+      name and type as the core deposit account id, but not joinable to it.
+      Money is integer cents throughout this source.
+    grain: account_id
+    rows: 1180000
+    cluster: [account_id]
+    columns:
+      - "account_id | INT64 || card_account.id | pk required"
+      - "bank_customer_ref | STRING || customer.cif | required"
+      - "product_code | STRING || product.code"
+      - "credit_limit_cents | INT64 || money.credit_limit | unit=cents"
+      - "cash_limit_cents | INT64 || money.credit_limit | unit=cents"
+      - "current_balance_cents | INT64 || money.balance | unit=cents"
+      - "statement_balance_cents | INT64 || money.balance | unit=cents"
+      - "min_payment_due_cents | INT64 || money.balance | unit=cents"
+      - "apr_purchase_bps | INT64 ||| unit=bps"
+      - "apr_cash_bps | INT64 ||| unit=bps"
+      - "open_date | DATE"
+      - "close_date | DATE"
+      - "status | STRING"                         # A, C, F, CO
+      - "close_reason | STRING"                   # CH cardholder request, FR, CO, IN inactive, PC product change
+      - "cycle_day | INT64"
+      - "autopay_flag | BOOL"
+      - "delinquency_bucket | STRING"
+      - "last_payment_date | DATE"
+
+  - name: card
+    subject: cards
+    desc: Physical and virtual cards (plastics) on card accounts.
+    grain: card_token
+    rows: 1650000
+    columns:
+      - "card_token | STRING || card.token | pk required"
+      - "account_id | INT64 || card_account.id | required"
+      - "card_role | STRING"                      # PRIMARY, AUTH_USER
+      - "pan_last4 | STRING"
+      - "expiry_yyyymm | STRING"
+      - "issue_date | DATE"
+      - "activation_date | DATE"
+      - "status | STRING"
+      - "replacement_reason | STRING"             # LOST, STOLEN, DAMAGED, REISSUE, FRAUD
+      - "embossed_name | STRING || pii.name | pii=name"
+      - "is_virtual | BOOL"
+      - "digital_wallet | STRING"
+
+  - name: authorization
+    subject: card_authorizations
+    desc: Every authorization request, approved or declined.
+    grain: auth_id
+    rows: 2100000000
+    partition: DATE(auth_ts)
+    cluster: [account_id, mcc]
+    columns:
+      - "auth_id | STRING || card_auth.id | pk required"
+      - "card_token | STRING || card.token"
+      - "account_id | INT64 || card_account.id"
+      - "auth_ts | TIMESTAMP"
+      - "amount_cents | INT64 || money.txn_amount | unit=cents"
+      - "currency_code | STRING"
+      - "merchant_id | STRING || merchant.id"
+      - "mcc | STRING || merchant.mcc"
+      - "pos_entry_mode | STRING"
+      - "channel | STRING"                        # CP card present, CNP card not present
+      - "response_code | STRING"
+      - "decline_reason | STRING"
+      - "vendor_fraud_score | INT64 || score.fraud"
+      - "avs_result | STRING"
+      - "cvv_result | STRING"
+      - "is_recurring | BOOL"
+
+  - name: settlement
+    subject: card_transactions
+    desc: Posted (settled) card transactions.
+    grain: settlement_id
+    rows: 1850000000
+    partition: post_date
+    cluster: [account_id, mcc]
+    columns:
+      - "settlement_id | STRING || card_txn.id | pk required"
+      - "auth_id | STRING || card_auth.id"
+      - "card_token | STRING || card.token"
+      - "account_id | INT64 || card_account.id | required"
+      - "post_date | DATE || date.day | required"
+      - "txn_date | DATE"
+      - "amount_cents | INT64 || money.txn_amount | unit=cents"
+      - "txn_type | STRING"                       # PURCH REFUND CASH_ADV PMT FEE INT BAL_XFR
+      - "merchant_id | STRING || merchant.id"
+      - "mcc | STRING || merchant.mcc"
+      - "merchant_name_raw | STRING"
+      - "merchant_city | STRING"
+      - "merchant_state | STRING || geo.state"
+      - "merchant_country | STRING"
+      - "network | STRING"
+      - "interchange_cents | INT64 || money.revenue | unit=cents"
+      - "reward_points | INT64"
+
+  - name: merchant
+    subject: merchants
+    desc: Merchant master from the processor.
+    grain: merchant_id
+    rows: 4300000
+    columns:
+      - "merchant_id | STRING || merchant.id | pk required"
+      - "merchant_name | STRING"
+      - "dba_name | STRING"
+      - "mcc | STRING || merchant.mcc"
+      - "city | STRING"
+      - "state | STRING || geo.state"
+      - "country | STRING"
+      - "postal_code | STRING || geo.zip"
+
+  - name: mcc_code
+    subject: merchants
+    desc: ISO 18245 merchant category codes.
+    grain: mcc
+    rows: 981
+    columns:
+      - "mcc | STRING || merchant.mcc | pk required"
+      - "description | STRING"
+      - "category_group | STRING"                 # TRAVEL, DINING, GROCERY, FUEL, ...
+      - "irs_reportable | BOOL"
+
+  - name: dispute
+    subject: disputes
+    desc: Cardholder disputes and chargebacks.
+    grain: dispute_id
+    rows: 740000
+    partition: opened_date
+    columns:
+      - "dispute_id | STRING || dispute.id | pk required"
+      - "settlement_id | STRING || card_txn.id"
+      - "account_id | INT64 || card_account.id"
+      - "opened_date | DATE || date.day"
+      - "reason_code | STRING"
+      - "dispute_amount_cents | INT64 || money.txn_amount | unit=cents"
+      - "status | STRING"
+      - "resolution | STRING"
+      - "resolved_date | DATE"
+      - "chargeback_flag | BOOL"
+      - "provisional_credit_cents | INT64 || money.txn_amount | unit=cents"
+
+  - name: card_status_change
+    subject: cards
+    desc: Card and card-account status changes (activations, blocks, closures).
+    grain: card_token, change_ts
+    rows: 9800000
+    partition: DATE(change_ts)
+    columns:
+      - "card_token | STRING || card.token"
+      - "account_id | INT64 || card_account.id"
+      - "change_ts | TIMESTAMP"
+      - "old_status | STRING"
+      - "new_status | STRING"
+      - "reason | STRING"
+      - "channel | STRING"
+
+  - name: statement
+    subject: card_statements
+    desc: Monthly card statements.
+    grain: account_id, statement_date
+    rows: 41000000
+    partition: statement_date
+    cluster: [account_id]
+    columns:
+      - "account_id | INT64 || card_account.id | required"
+      - "statement_date | DATE || date.day"
+      - "closing_balance_cents | INT64 || money.balance | unit=cents"
+      - "min_due_cents | INT64 || money.balance | unit=cents"
+      - "due_date | DATE"
+      - "interest_charged_cents | INT64 || money.interest | unit=cents"
+      - "fees_charged_cents | INT64 || money.fee | unit=cents"
+      - "purchases_cents | INT64 || money.txn_amount | unit=cents"
+      - "payments_cents | INT64 || money.txn_amount | unit=cents"
+
+  - name: rewards_ledger
+    subject: rewards
+    desc: Rewards points earned and redeemed.
+    grain: account_id, activity_date, activity_type
+    rows: 520000000
+    partition: activity_date
+    columns:
+      - "account_id | INT64 || card_account.id"
+      - "activity_date | DATE || date.day"
+      - "points | INT64"
+      - "activity_type | STRING"
+      - "settlement_id | STRING || card_txn.id"
+
+  - name: card_account_hist_2019
+    subject: card_accounts
+    desc: One-off archive from the 2019 processor conversion. Dead.
+    grain: account_id, snapshot_month
+    rows: 13000000
+    stage: false
+    status: dead
+    columns:
+      - "account_id | INT64 || card_account.id"
+      - "snapshot_month | DATE"
+      - "credit_limit_cents | INT64 || money.credit_limit | unit=cents"
+      - "current_balance_cents | INT64 || money.balance | unit=cents"
+      - "status | STRING"
+---
+dataset: loan_origination
+defaults: {mixins: [fivetran], stage: los, refresh: fivetran-1h}
+tables:
+  - name: application
+    subject: loan_applications
+    desc: Consumer loan and card applications. camelCase from the vendor API.
+    grain: applicationId
+    rows: 2600000
+    partition: DATE(submittedAt)
+    columns:
+      - "applicationId | STRING || loan.application_id | pk required"
+      - "applicantCifNumber | STRING || customer.cif"
+      - "coApplicantCifNumber | STRING || customer.cif"
+      - "productCode | STRING || product.code"
+      - "channel | STRING"                        # BRANCH, WEB, MOBILE, PHONE, DEALER
+      - "requestedAmount | NUMERIC || money.loan_principal | unit=usd"
+      - "submittedAt | TIMESTAMP"
+      - "decisionStatus | STRING"
+      - "decisionAt | TIMESTAMP"
+      - "decisionReasonCodes | ARRAY<STRING>"
+      - "statedIncome | NUMERIC || money.income | unit=usd"
+      - "employmentStatus | STRING"
+      - "housingStatus | STRING"
+      - "branchNumber | INT64 || branch.id"
+      - "loanOfficerId | STRING || employee.id"
+      - "offerCode | STRING"
+      - "creditScoreAtApp | INT64 || score.credit"
+
+  - name: applicant
+    subject: loan_applications
+    desc: Applicant details per application (primary and co-applicant).
+    grain: applicationId, applicantRole
+    rows: 3300000
+    columns:
+      - "applicationId | STRING || loan.application_id | required"
+      - "applicantRole | STRING"
+      - "cifNumber | STRING || customer.cif"
+      - "firstName | STRING || pii.name | pii=name"
+      - "lastName | STRING || pii.name | pii=name"
+      - "dateOfBirth | DATE || pii.dob | pii=dob"
+      - "ssnLast4 | STRING ||| pii=ssn_last4"
+      - "email | STRING || pii.email | pii=email"
+      - "phone | STRING || pii.phone | pii=phone"
+      - "addressLine1 | STRING || pii.address | pii=address"
+      - "city | STRING"
+      - "state | STRING || geo.state"
+      - "zip | STRING || geo.zip"
+      - "yearsAtAddress | INT64"
+
+  - name: credit_pull
+    subject: credit_decisioning
+    desc: Bureau pulls made during underwriting.
+    grain: pullId
+    rows: 3100000
+    columns:
+      - "pullId | STRING ||| pk"
+      - "applicationId | STRING || loan.application_id"
+      - "bureau | STRING"
+      - "pulledAt | TIMESTAMP"
+      - "ficoScore | INT64 || score.credit"
+      - "totalDebt | NUMERIC || money.balance | unit=usd"
+      - "dtiRatio | NUMERIC ||| unit=pct"
+      - "inquiriesLast6m | INT64"
+      - "tradelinesOpen | INT64"
+      - "derogatoryCount | INT64"
+      - "rawReportUri | STRING"
+
+  - name: decision
+    subject: credit_decisioning
+    desc: Underwriting decisions (auto and manual), possibly several per app.
+    grain: applicationId, decisionSeq
+    rows: 2900000
+    columns:
+      - "applicationId | STRING || loan.application_id | required"
+      - "decisionSeq | INT64"
+      - "decidedBy | STRING"                      # AUTO, UW
+      - "outcome | STRING"                        # APPROVE, DECLINE, COUNTER, REFER
+      - "approvedAmount | NUMERIC || money.loan_principal | unit=usd"
+      - "approvedApr | NUMERIC ||| unit=pct"
+      - "conditions | ARRAY<STRING>"
+      - "decidedAt | TIMESTAMP"
+
+  - name: loan
+    subject: loans
+    desc: Booked loans (auto, personal, HELOC, mortgage) from the servicing module.
+    grain: loanNumber
+    rows: 610000
+    cluster: [loanNumber]
+    columns:
+      - "loanNumber | STRING || loan.id | pk required"
+      - "applicationId | STRING || loan.application_id"
+      - "borrowerCif | STRING || customer.cif | required"
+      - "productCode | STRING || product.code"
+      - "originationDate | DATE"
+      - "principalAmount | NUMERIC || money.loan_principal | unit=usd"
+      - "currentPrincipal | NUMERIC || money.loan_principal | unit=usd"
+      - "interestRate | NUMERIC ||| unit=pct"
+      - "termMonths | INT64"
+      - "maturityDate | DATE"
+      - "paymentAmount | NUMERIC || money.txn_amount | unit=usd"
+      - "loanStatus | STRING"                     # CURRENT, DELINQ, PAIDOFF, CHARGEDOFF
+      - "collateralType | STRING"
+      - "branchNumber | INT64 || branch.id"
+      - "dpd | INT64"
+      - "chargeOffDate | DATE"
+      - "chargeOffAmount | NUMERIC || money.loan_principal | unit=usd"
+
+  - name: loan_payment
+    subject: loan_payments
+    desc: Loan payments received.
+    grain: paymentId
+    rows: 29000000
+    partition: paymentDate
+    cluster: [loanNumber]
+    columns:
+      - "paymentId | STRING ||| pk required"
+      - "loanNumber | STRING || loan.id | required"
+      - "paymentDate | DATE || date.day"
+      - "amount | NUMERIC || money.txn_amount | unit=usd"
+      - "principalPortion | NUMERIC || money.loan_principal | unit=usd"
+      - "interestPortion | NUMERIC || money.interest | unit=usd"
+      - "feePortion | NUMERIC || money.fee | unit=usd"
+      - "paymentMethod | STRING"
+      - "isLate | BOOL"
+      - "returnedFlag | BOOL"
+
+  - name: delinquency_snapshot
+    subject: delinquency
+    desc: Daily delinquency snapshot for loans more than 0 days past due.
+    grain: snapshotDate, loanNumber
+    rows: 22000000
+    partition: snapshotDate
+    columns:
+      - "snapshotDate | DATE || date.day | required"
+      - "loanNumber | STRING || loan.id | required"
+      - "dpd | INT64"
+      - "bucket | STRING"                         # 1-29, 30-59, 60-89, 90+
+      - "pastDueAmount | NUMERIC || money.balance | unit=usd"
+      - "collectorId | STRING || employee.id"
+
+  - name: collateral
+    subject: collateral
+    desc: Collateral on secured loans.
+    grain: collateralId
+    rows: 480000
+    columns:
+      - "collateralId | STRING ||| pk"
+      - "loanNumber | STRING || loan.id"
+      - "collateralType | STRING"
+      - "vin | STRING"
+      - "appraisedValue | NUMERIC || money.balance | unit=usd"
+      - "appraisalDate | DATE"
+      - "lienPosition | INT64"
+---
+dataset: credit_bureau
+defaults: {mixins: [sftp_file], stage: bureau, refresh: monthly-file}
+tables:
+  - name: consumer_attributes_monthly
+    subject: credit_bureau
+    desc: Monthly bureau refresh for every customer with consent.
+    grain: ARCHIVE_DT, CIF
+    rows: 61000000
+    partition: ARCHIVE_DT
+    cluster: [CIF]
+    columns:
+      - "ARCHIVE_DT | DATE || date.month | required"
+      - "CIF | STRING || customer.cif | required"
+      - "SSN_HASH | STRING || pii.ssn_hash | pii=ssn_hash"
+      - "FICO_08 | INT64 || score.credit"
+      - "VANTAGE_4 | INT64 || score.credit"
+      - "TOT_REV_BAL | NUMERIC || money.balance | unit=usd"
+      - "TOT_REV_LMT | NUMERIC || money.credit_limit | unit=usd"
+      - "UTIL_PCT | NUMERIC ||| unit=pct"
+      - "NUM_TRD_OPEN | INT64"
+      - "NUM_INQ_6M | INT64"
+      - "NUM_DLQ_30_24M | INT64"
+      - "BK_FLG | STRING"
+      - "MOS_SINCE_DLQ | INT64"
+      - "EST_INCOME | NUMERIC || money.income | unit=usd"
+
+  - name: consumer_attributes_2019_archive
+    subject: credit_bureau
+    desc: Pre-2020 bureau archive. Dead.
+    grain: ARCHIVE_DT, CIF
+    rows: 88000000
+    stage: false
+    status: dead
+    columns:
+      - "ARCHIVE_DT | DATE || date.month"
+      - "CIF | STRING || customer.cif"
+      - "FICO_08 | INT64 || score.credit"
+      - "TOT_REV_BAL | NUMERIC || money.balance | unit=usd"

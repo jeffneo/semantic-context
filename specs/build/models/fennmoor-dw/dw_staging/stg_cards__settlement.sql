@@ -1,0 +1,20 @@
+SELECT
+  src.settlement_id,
+  src.auth_id,
+  src.card_token,
+  src.account_id,
+  src.post_date,
+  src.txn_date,
+  CAST(src.amount_cents AS NUMERIC) / 100 AS amount,
+  src.txn_type,
+  src.merchant_id,
+  src.mcc,
+  src.merchant_name_raw,
+  src.merchant_city,
+  src.merchant_state,
+  src.merchant_country,
+  src.network,
+  CAST(src.interchange_cents AS NUMERIC) / 100 AS interchange,
+  src.reward_points,
+  src._load_ts AS _loaded_at
+FROM `fennmoor-raw.card_processor.settlement` AS src
