@@ -1,6 +1,6 @@
 name: qlsc
 
-# Restore target for old/jeffdavis-verizonBQ.backup (Aura, Neo4j 2026.07).
+# Restore target for the previous project's backup in old/ (Aura, Neo4j 2026.07; not in the repository).
 # The backup's embedded metadata script reports:
 #   CREATE DATABASE $database ... DEFAULT LANGUAGE CYPHER 5 TOPOLOGY 3 PRIMARIES
 #   /* Metadata Security Component Version: Neo4j 2026.07 */

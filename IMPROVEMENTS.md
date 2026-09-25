@@ -1,7 +1,7 @@
 # Improving the query-log semantic-layer demo
 
 Assessment and plan, based on the restored `querylog` graph
-(10,529 nodes / 71,316 relationships, restored from `old/jeffdavis-verizonBQ.backup`).
+(10,529 nodes / 71,316 relationships, restored from the previous project's backup in `old/`, which is not in the repository).
 
 The premise is sound and the hard part is already right: deriving a semantic layer from
 *observed usage* rather than from declared metadata is the correct idea, and the two-tier
