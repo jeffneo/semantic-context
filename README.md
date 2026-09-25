@@ -52,7 +52,9 @@ flowchart TD
    - A question is embedded and vector-searched against the semantic layer.
    - The search walks `IN_SEMANTIC` down to the level-1 groups, then to the tables and columns
      they hold, ranked by how many principals use them.
-   - It finishes with the joins and existing queries in the log that connect them.
+   - It shows the joins and existing queries in the log that connect them.
+   - It finishes with one BigQuery query that Claude writes from that cohort, which BigQuery
+     dry-runs for free. The deployed tables are empty, so the query is validated, not run.
 
 Current result on Fennmoor: 53 variables; semantic levels of 110 → 16 → 5 groups. Every LLM prompt
 is a file in [`prompts/`](prompts/).
@@ -78,7 +80,7 @@ documents each milestone.
 | `prompts/` | Every LLM prompt, one file each ([prompts/README.md](prompts/README.md)) |
 | `plans/` | The pipeline plan, decisions and per-milestone write-ups |
 | `specs/` | The Fennmoor Bank spec, the log simulator and the scorer ([specs/README.md](specs/README.md)) |
-| `cypher/` | Enterprise Studio setup and saved view queries |
+| `cypher/` | Demo queries for visualizing each layer (`demo.cypher`), Enterprise Studio setup and saved view queries |
 | `docker-compose.yml` | Neo4j Enterprise with GDS and APOC, the parse service, and optionally Enterprise Studio |
 | `IMPROVEMENTS.md` | The original assessment that started this rebuild |
 

@@ -12,6 +12,8 @@ so the call is made again (the caches are keyed by the full request).
 | `semantic_batch.md`, `semantic_retry.md` | `pipeline/cluster.py` | a batch of groups; one retry |
 | `parent_system.md` | `pipeline/hierarchy.py` | system prompt: name a broader area from its child Semantic groups |
 | `parent_batch.md`, `parent_retry.md` | `pipeline/hierarchy.py` | a batch of areas; one retry |
+| `sql_system.md` | `pipeline/navigate.py` | system prompt: write one BigQuery query from the cohort the semantic layer found |
+| `sql_request.md`, `sql_fix.md` | `pipeline/navigate.py` | the question with tables, joins and example SQL; one fix after a failed dry run |
 | `describe_system.md` | `pipeline/semantics.py` (previous model) | system prompt for table / variable / subject names and descriptions |
 | `describe_batch.md`, `describe_retry.md` | `pipeline/semantics.py` | a batch of objects; one retry |
 | `abbreviation_sense.md` | `pipeline/semantics.py` | what an ambiguous abbreviation (CC) means in one table |

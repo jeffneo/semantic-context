@@ -18,7 +18,7 @@ Reads only BigQuery (the log table and INFORMATION_SCHEMA) — never `specs/`. E
 | `variables.py` | Stage 5a (new model): GDS WCC over columns joined by a JoinKey -> `(:Variable)`, `(:Column)-[:IS]->(:Variable)`, LLM-named; other columns `:Unjoined` |
 | `cluster.py` | Stage 5b (new model): Leiden (gamma 4) over Variable/Unjoined units read by the same queries or linked by lineage (ingestion plumbing excluded) -> level-1 `(:Semantic)`, `-[:IN_SEMANTIC]->`, LLM-named |
 | `hierarchy.py` | Stage 5c (new model): per level, embed each Semantic (512-d); building level L, score pairs by (1/L) usage + (1 - 1/L) text cosine; `K_SIM` to the k=5 best; Leiden with gamma 3/(L-1) -> next level; stops when a level would not shrink, has 3 or fewer nodes, or k would cover it; vector index `semantic_embedding` |
-| `navigate.py` | Demo: question -> embedding -> closest Semantic nodes -> level-1 groups beneath -> the tables and columns they hold (ranked by use) -> the joins and queries in the log that connect them |
+| `navigate.py` | Demo: question -> embedding -> closest Semantic nodes -> level-1 groups beneath -> the tables and columns they hold (ranked by use) -> the joins and queries in the log that connect them -> SQL written from that cohort, dry-run in BigQuery (`--no-sql` to skip) |
 | `llm.py` | Shared: `prompt(name, **values)` loads `prompts/<name>.md`; cached, tool-forced Claude calls; batch naming with validation and retry; Azure embeddings |
 | `legacy/` | The M3 `variables.py` (join confidence, identity, units), kept for reference while the stages are rebuilt |
 | `topology.py` | Stages 5a/5d: layers, subjects (hubs link, D7), copy families, sensitive-data exposure -> `work/TOPOLOGY.md` |
