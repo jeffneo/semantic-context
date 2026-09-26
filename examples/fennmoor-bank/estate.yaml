@@ -43,6 +43,9 @@ virtualize:                           # qlsc virtualize: the Virtual Graph spike
   maximum_bytes_billed: 1000000000    # per query Virtual Graph sends to BigQuery
   credentials_file: /nvg_home/credentials.json
   driver_properties: {OAuthType: 3}   # application-default credentials: the impersonated qlsc-bq account, no key file
+  neo4j:                              # the Virtual Graph instance (docker compose --profile vg), for ask --cypher
+    uri: bolt://localhost:7692        # password NEO4J_PASSWORD, as for the semantic layer
+    database: neo4j
   tables: [dim_customer, dim_account, dim_product, dim_branch, dim_merchant, dim_card,
            fct_card_transactions, fct_deposit_transactions, fct_account_closures,
            fct_calls, dim_agent, dim_queue, dim_cc_site]

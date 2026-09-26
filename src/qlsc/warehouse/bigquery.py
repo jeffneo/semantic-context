@@ -262,10 +262,34 @@ class BigQuery(Warehouse):
             job = self.client.query(sql, job_config=config)
             return {"ok": True, "bytes_processed": job.total_bytes_processed}
         except subprocess.CalledProcessError:
-            login = f"CLOUDSDK_ACTIVE_CONFIG_NAME={self.cfg['gcloud_config']} gcloud auth login"
-            return {"ok": None, "error": f"gcloud needs a fresh login ({login})"}
-        except Exception as e:  # the planner's message is the useful part
-            msg = getattr(e, "message", None) or str(e)
-            deployed = re.escape(self.cfg["project"]) + "[:.]" + re.escape(self.cfg["dataset_prefix"])
-            msg = re.sub(r"^POST https://\S+: ", "", re.sub(deployed, "", msg)).split("\n")[0]
-            return {"ok": False, "error": msg if len(msg) <= 400 else msg[:397] + "..."}
+            return self._login_needed()
+        except Exception as e:
+            return {"ok": False, "error": self._message(e)}
+
+    def _run(self, sql: str, maximum_bytes_billed: int, rows: int) -> dict:
+        try:
+            config = bigquery.QueryJobConfig(maximum_bytes_billed=maximum_bytes_billed)
+            job = self.client.query(sql, job_config=config)
+            result = job.result(max_results=rows)
+            return {
+                "ok": True,
+                "columns": [f.name for f in result.schema],
+                "rows": [dict(r.items()) for r in result],
+                "total": result.total_rows,
+                "bytes_billed": job.total_bytes_billed or 0,
+            }
+        except subprocess.CalledProcessError:
+            return self._login_needed()
+        except Exception as e:
+            return {"ok": False, "error": self._message(e)}
+
+    def _login_needed(self) -> dict:
+        login = f"CLOUDSDK_ACTIVE_CONFIG_NAME={self.cfg['gcloud_config']} gcloud auth login"
+        return {"ok": None, "error": f"gcloud needs a fresh login ({login})"}
+
+    def _message(self, e: Exception) -> str:
+        """The planner's message, in logical names: the useful part of a BigQuery error."""
+        msg = getattr(e, "message", None) or str(e)
+        deployed = re.escape(self.cfg["project"]) + "[:.]" + re.escape(self.cfg["dataset_prefix"])
+        msg = re.sub(r"^POST https://\S+: ", "", re.sub(deployed, "", msg)).split("\n")[0]
+        return msg if len(msg) <= 400 else msg[:397] + "..."

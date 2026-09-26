@@ -16,13 +16,24 @@
   6. The SQL: the LLM writes one query from that cohort (prompts/sql_*.md) and the warehouse dry-runs
      it - valid or not, and how many bytes it would scan - at no cost. A failed dry run goes back to
      the LLM once.
+     Or, with --cypher, a Cypher query over the virtual graph `qlsc virtualize` wrote: the cohort's
+     tables that are labels there, and one hop of relationships around them (prompts/cypher_*.md).
+     Virtual Graph's EXPLAIN is the check (it rejects what its Cypher subset lacks) and shows the SQL it
+     would send.
+  7. With --run, the answer: the query runs, billing at most `maximum_bytes_billed`.
 
-Everything is deterministic but the SQL: the same question gives the same cohort.
+Everything is deterministic but the SQL and the Cypher: the same question gives the same cohort.
 """
 
 from __future__ import annotations
 
+import datetime as dt
+import json
 import textwrap
+import time
+from decimal import Decimal
+
+from neo4j.exceptions import Neo4jError, ServiceUnavailable
 
 from qlsc.config import Settings
 from qlsc.graph import Graph
@@ -34,6 +45,12 @@ SQL_SCHEMA = {
     "type": "object",
     "required": ["sql", "explanation"],
     "properties": {"sql": {"type": "string"}, "explanation": {"type": "string"}},
+}
+
+CYPHER_SCHEMA = {
+    "type": "object",
+    "required": ["cypher", "explanation"],
+    "properties": {"cypher": {"type": "string"}, "explanation": {"type": "string"}},
 }
 
 HITS = """
@@ -98,7 +115,23 @@ RETURN s.sample_sql AS sql, hit, who, jobs ORDER BY hit DESC, jobs DESC LIMIT 2
 
 COLUMNS = """
 MATCH (t:Table)-[:HAS_COLUMN]->(c:Column) WHERE t.id IN $tables AND c.in_catalog
-RETURN t.id AS t, collect(c.name + ' ' + coalesce(c.type, '')) AS cols
+RETURN t.id AS t, collect({name: c.name, type: coalesce(c.type, '')}) AS cols
+"""
+
+# The values the log's queries filter each text column on, most-used first: the code values the
+# business actually uses ('affluent', 'DEPOSIT'), so the LLM spells them as the data does.
+FILTER_VALUES = """
+MATCH (t:Table)-[:HAS_COLUMN]->(c:Column {type: 'STRING'})<-[f:FILTERS]-(:QueryShape)
+WHERE t.id IN $tables AND f.values IS NOT NULL
+UNWIND f.values AS v
+WITH t, c, v, count(*) AS shapes ORDER BY shapes DESC, v
+RETURN t.id AS t, c.name AS c, collect(v)[..$n] AS vals
+"""
+
+# The tables `qlsc virtualize` made node labels.
+LABELS = """
+MATCH (t:Table) WHERE t.graph_label IS NOT NULL
+RETURN t.id AS table, t.graph_label AS label
 """
 
 
@@ -148,15 +181,109 @@ def cohort(G: Graph, v: list[float], p: dict, mode: str | None = None, rank: str
     return groups, tables, top
 
 
+def filter_values(G: Graph, tables: list[str], n: int) -> dict[tuple[str, str], list]:
+    return {(r["t"], r["c"]): r["vals"] for r in G.rows(FILTER_VALUES, tables=tables, n=n)}
+
+
+def column_text(name: str, typ: str, values: list | None) -> str:
+    """A column for the prompt: its name and type, and the values the log filters it on."""
+    seen = f" (filtered on {', '.join(repr(v) for v in values)})" if values else ""
+    return f"{name} {typ}".strip() + seen
+
+
+def example_sql(examples: list[dict]) -> str:
+    return "\n\n".join(" ".join(q["sql"].split())[:1500] for q in examples) or "(none)"
+
+
+def model_slice(schema: dict, labels: list[str]) -> tuple[list[dict], list[dict]]:
+    """The part of a Virtual Graph model (schema.json) around some labels: those labels, every
+    relationship that starts or ends at one of them, and the labels at its other end."""
+    ents = schema["entities"]
+    rels = [
+        r
+        for r in ents["relationships"]
+        if r["start"]["targetEntity"] in labels or r["end"]["targetEntity"] in labels
+    ]
+    near = set(labels) | {r[side]["targetEntity"] for r in rels for side in ("start", "end")}
+    nodes = [n for n in ents["nodes"] if n["label"] in near]
+    order = {label: i for i, label in enumerate(labels)}  # the cohort's labels first, in its order
+    nodes.sort(key=lambda n: (order.get(n["label"], len(order)), n["label"]))
+    return nodes, sorted(rels, key=lambda r: r["label"])
+
+
+def external_sql(plan: dict) -> list[str]:
+    """The SQL in a Virtual Graph plan: what its External operators send to the warehouse."""
+    out = [plan["args"]["Details"]] if plan["operatorType"].startswith("External") else []
+    for child in plan.get("children", []):
+        out += external_sql(child)
+    return out
+
+
+def calendar(today: dt.date) -> str:
+    """Today and the calendar periods questions name, as dates: Virtual Graph Cypher can't compute them."""
+
+    def month(d: dt.date, back: int) -> dt.date:
+        m = d.year * 12 + d.month - 1 - back
+        return dt.date(m // 12, m % 12 + 1, 1)
+
+    q = month(today, (today.month - 1) % 3)  # this quarter's first day
+    last = lambda start, end: f"{start.isoformat()} to {(end - dt.timedelta(days=1)).isoformat()}"
+    y = dt.date(today.year, 1, 1)
+    return (
+        f"{today.isoformat()}. Last month: {last(month(today, 1), month(today, 0))}; last quarter: "
+        f"{last(month(q, 3), q)}; last year: {last(dt.date(today.year - 1, 1, 1), y)}; this year so far: "
+        f"{y.isoformat()} to {today.isoformat()}."
+    )
+
+
+def cell(v) -> str:
+    if v is None:
+        return ""
+    if isinstance(v, bool):
+        return str(v).lower()
+    if isinstance(v, int):
+        return f"{v:,}"
+    if isinstance(v, float | Decimal):
+        return f"{float(v):,.2f}"
+    return str(v)
+
+
+def show(columns: list[str], rows: list[dict], total: int, where: str) -> None:
+    """The answer as a table: the first rows, and how many there are."""
+    table = [[cell(r.get(c)) for c in columns] for r in rows]
+    width = [min(40, max([len(c)] + [len(x[i]) for x in table])) for i, c in enumerate(columns)]
+    print("   " + "  ".join(c[:w].ljust(w) for c, w in zip(columns, width)))
+    print("   " + "  ".join("-" * w for w in width))
+    for x in table:
+        print(
+            "   " + "  ".join(v[:w].rjust(w) if v[:1].isdigit() else v[:w].ljust(w) for v, w in zip(x, width))
+        )
+    print(f"   {total:,} rows{f' (the first {len(rows)} shown)' if total > len(rows) else ''}, {where}")
+
+
 def write_sql(
-    G: Graph, s: Settings, question: str, top: list[str], joins: list[dict], examples: list[dict]
+    G: Graph,
+    s: Settings,
+    question: str,
+    top: list[str],
+    joins: list[dict],
+    examples: list[dict],
+    execute: bool = False,
 ) -> None:
-    """Step 6: the cohort -> one query, dry-run in the warehouse."""
+    """Step 6: the cohort -> one query, dry-run in the warehouse; step 7 with `execute`."""
+    p = s.params["navigate"]
     wh = connect(s)
     cols = G.rows(COLUMNS, tables=top)
-    tables = "\n".join(f"`{r['t']}`: {', '.join(r['cols'][:60])}" for r in cols)
+    values = filter_values(G, top, p["filter_values"])
+    tables = "\n".join(
+        f"`{r['t']}`: "
+        + ", ".join(
+            column_text(c["name"], c["type"], values.get((r["t"], c["name"]))) for c in r["cols"][:60]
+        )
+        for r in cols
+    )
     joins_txt = "\n".join(f"{j['a']}.{j['ac']} = {j['b']}.{j['bc']}" for j in joins) or "(none recorded)"
-    ex = "\n\n".join(" ".join(q["sql"].split())[:1500] for q in examples) or "(none)"
+    ex = example_sql(examples)
     llm = LLM(prompt("sql_system", sql=wh.sql, **s.business), s)
     request = prompt(
         "sql_request", question=question, tables=tables, joins=joins_txt, examples=ex, **s.business
@@ -176,9 +303,107 @@ def write_sql(
         print(f"   dry run skipped: {res['error']}")
     else:
         print(f"   dry run failed: {res['error']}")
+    if execute and res["ok"]:
+        print(f"\n6. the answer (run in {wh.name})")
+        t0 = time.time()
+        out = wh.run(out["sql"], p["maximum_bytes_billed"], p["rows_shown"])
+        if out["ok"]:
+            where = f"{time.time() - t0:.1f} s, {out['bytes_billed'] / 2**20:,.0f} MiB billed"
+            show(out["columns"], out["rows"], out["total"], where)
+        else:
+            print(f"   failed: {out['error']}")
 
 
-def run(s: Settings, question: str, sql: bool = True) -> None:
+def write_cypher(
+    G: Graph, s: Settings, question: str, top: list[str], examples: list[dict], execute: bool = False
+) -> None:
+    """Step 6 over the virtual graph: the cohort's labels -> one Cypher query, checked with Virtual
+    Graph's EXPLAIN; step 7 with `execute`."""
+    p, instance = s.params["navigate"], s.get("virtualize", {}).get("neo4j")
+    labels = {r["table"]: r["label"] for r in G.rows(LABELS)}
+    path = s.work / "virtual" / "schema.json"
+    print("\n5. the virtual graph: the cohort's tables that are labels there, and one hop around them")
+    if not (labels and instance and path.exists()):
+        print("   no virtual graph: run qlsc virtualize, and set virtualize.neo4j in the config")
+        return
+    start = [labels[t] for t in top if t in labels]
+    if not start:
+        print("   none of the cohort's tables is in the virtual graph")
+        return
+    nodes, rels = model_slice(json.loads(path.read_text()), start)
+    table = {label: t for t, label in labels.items()}
+    print("   " + ", ".join(f"{x} ({short(table[x])})" for x in start))
+    around = [n["label"] for n in nodes if n["label"] not in start]
+    if around:
+        print("   one hop: " + ", ".join(around))
+    values = filter_values(G, [table[n["label"]] for n in nodes if n["label"] in table], p["filter_values"])
+    node_txt = "\n".join(
+        f"(:{n['label']}) rows of `{table.get(n['label'], n['table'])}`, key {n['key'][0]['column']}: "
+        + ", ".join(
+            column_text(x["name"], x["type"], values.get((table.get(n["label"]), x["column"])))
+            for x in n["properties"][:60]
+        )
+        for n in nodes
+    )
+    rel_txt = "\n".join(
+        f"(:{r['start']['targetEntity']})-[:{r['label']}]->(:{r['end']['targetEntity']})  "
+        f"({r['start']['targetEntity']}.{r['end']['keys'][0]['relationshipColumn']} = "
+        f"{r['end']['targetEntity']}.{r['end']['keys'][0]['nodeColumn']})"
+        for r in rels
+    )
+    llm = LLM(prompt("cypher_system", **s.business), s)
+    request = prompt(
+        "cypher_request",
+        question=question,
+        nodes=node_txt,
+        relationships=rel_txt or "(none)",
+        examples=example_sql(examples),
+        today=calendar(dt.date.today()),  # Virtual Graph has no date(): relative periods need literals
+        **s.business,
+    )
+    wh = connect(s)
+    try:
+        with Graph(s, instance) as V:
+            out = llm.call(request, CYPHER_SCHEMA, "record_cypher", max_tokens=3000)
+            check = explain(V, out["cypher"])
+            if "error" in check:
+                fix = prompt("cypher_fix", error=check["error"])
+                out = llm.call(request + "\n\n" + fix, CYPHER_SCHEMA, "record_cypher", max_tokens=3000)
+                check = explain(V, out["cypher"])
+            print("\n6. the Cypher (written from the labels above, checked with Virtual Graph's EXPLAIN)")
+            print(textwrap.indent(out["cypher"].strip(), "   "))
+            print("\n   " + textwrap.fill(out["explanation"], 100, subsequent_indent="   "))
+            if "error" in check:
+                print(f"   EXPLAIN failed: {check['error']}")
+                return
+            print(
+                f"\n   the SQL Virtual Graph sends to {wh.name} (? are the query's literals, as parameters):"
+            )
+            for q in check["sql"]:
+                print(textwrap.indent(q.strip(), "     "))
+            if execute:
+                print(f"\n7. the answer (run through Virtual Graph, in {wh.name})")
+                t0 = time.time()
+                result = V.run(out["cypher"])
+                rows = [r.data() for r in result.records]
+                show(result.keys, rows[: p["rows_shown"]], len(rows), f"{time.time() - t0:.1f} s")
+    except ServiceUnavailable:
+        print(f"   the Virtual Graph instance is not running at {instance['uri']}")
+    except Neo4jError as e:
+        print(f"   failed: {e.message}")
+
+
+def explain(V: Graph, cypher: str) -> dict:
+    """Virtual Graph's verdict on a query without running it: {sql: [...]} | {error}."""
+    try:
+        return {"sql": external_sql(V.run("EXPLAIN " + cypher).summary.plan)}
+    except ServiceUnavailable:
+        raise
+    except Neo4jError as e:
+        return {"error": (e.message or str(e)).split("\n")[0]}
+
+
+def run(s: Settings, question: str, sql: bool = True, cypher: bool = False, execute: bool = False) -> None:
     p = s.params["navigate"]
     with Graph(s) as G:
         v = Embedder(s).embed([question])[0]
@@ -215,5 +440,7 @@ def run(s: Settings, question: str, sql: bool = True) -> None:
                 f"\n   a query that reads {q['hit']} of them, {q['jobs']} runs by {', '.join(q['who'][:4])}:"
             )
             print(textwrap.indent(textwrap.shorten(" ".join(q["sql"].split()), 600), "     "))
-        if sql:
-            write_sql(G, s, question, top, joins, examples)
+        if sql and cypher:
+            write_cypher(G, s, question, top, examples, execute)
+        elif sql:
+            write_sql(G, s, question, top, joins, examples, execute)

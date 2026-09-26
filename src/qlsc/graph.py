@@ -10,8 +10,10 @@ from qlsc.config import Settings, secret
 
 
 class Graph:
-    def __init__(self, settings: Settings):
-        n = settings["neo4j"]
+    def __init__(self, settings: Settings, instance: dict | None = None):
+        """The semantic layer (config `neo4j`), or another instance: `instance` overrides its uri and
+        database (the Virtual Graph instance, config `virtualize.neo4j`)."""
+        n = {**settings["neo4j"], **(instance or {})}
         self.driver = GraphDatabase.driver(
             n["uri"], auth=(n["user"], secret("NEO4J_PASSWORD")), notifications_min_severity="OFF"
         )

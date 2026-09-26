@@ -5,6 +5,8 @@
   qlsc parse | load | variables | cluster | hierarchy | align     one stage
   qlsc virtualize               a Neo4j Virtual Graph model of the rows, written from the semantic layer
   qlsc ask "question"           question -> semantic layer -> tables -> SQL, dry-run
+    --cypher                    ... -> Cypher over the virtual graph instead, checked with EXPLAIN
+    --run                       ... -> and the answer
 
 Every command reads the estate's config from --config, or QLSC_CONFIG (environment or .env).
 """
@@ -78,7 +80,13 @@ def parser() -> argparse.ArgumentParser:
     p = sub.add_parser("ask", help="question -> semantic layer -> tables -> SQL")
     p.add_argument("question", nargs="+")
     p.add_argument("--no-sql", action="store_true", help="stop at the cohort; no SQL, no dry run")
-    p.set_defaults(func=lambda s, a: navigate.run(s, " ".join(a.question), sql=not a.no_sql))
+    p.add_argument("--cypher", action="store_true", help="Cypher over the virtual graph instead of SQL")
+    p.add_argument("--run", action="store_true", help="run the query and print the answer")
+    p.set_defaults(
+        func=lambda s, a: navigate.run(
+            s, " ".join(a.question), sql=not a.no_sql, cypher=a.cypher, execute=a.run
+        )
+    )
     return ap
 
 

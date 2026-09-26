@@ -87,7 +87,13 @@ single, suspect, self), `identity`, `production`, `people`, `confidence_reason`.
 4. **Navigate (graph RAG).** A question is embedded, vector-searched against every level, walked down
    `IN_SEMANTIC` to level-1 groups (plus the closest level-1 groups directly), then to the tables those
    groups hold, ranked round robin. The joins and existing queries that connect them go to the LLM,
-   which writes one query; the warehouse dry-runs it.
+   which writes one query; the warehouse dry-runs it, and with `--run` runs it, billing at most
+   `navigate.maximum_bytes_billed`. With `--cypher` the query is Cypher over the virtual graph
+   instead. The LLM gets the cohort's tables that are labels there, plus one hop of relationships
+   around them. Virtual Graph's `EXPLAIN` is the check, and shows the SQL it sends. Virtual Graph
+   can't compute dates (no `date()`), so the request carries today's calendar periods as literals.
+   In both routes each text column carries the values the log's queries filter it on, so code values
+   are spelled as the business spells them, not guessed.
 5. **Align.** Catalog bindings are exact; embedding matches are `status: 'proposed'`. The diff lists
    agreement, conflicts (the catalog equating what production keeps apart, or contradicting itself),
    what is designed but unused, and what is used but undesigned.
@@ -112,6 +118,8 @@ any. `tests/test_config.py` fails if one is not read by the code. Sensitivity on
 | `hierarchy.k` | 5 | Enough neighbours to connect a level, few enough to stay specific | k 3 to 8 at gamma 3: NMI vs spec domains 0.70 to 0.71 |
 | `hierarchy.gamma` | 3, divided by L − 1 | High at level 2 (~100 nodes), plain modularity near the top | gamma 1.5 merges too far (NMI 0.68, less stable) |
 | `align.floor_term`, `floor_class` | 0.52, 0.40 (raw cosine) | Where the best matches turn wrong on inspection | |
+| `navigate.filter_values` | 8 | Enough for a code list (segments, families, statuses); more adds noise from free-text filters | Q12 and Q14 went from guessed values to the data's |
+| `navigate.maximum_bytes_billed`, `rows_shown` | 1 GB, 20 | `ask --run`: the gold questions run so far each bill under 100 MiB at the example's scale; a query over it fails rather than runs | |
 | `navigate.mode`, `rank` | combined, round_robin | The direct level-1 search guards against a group filed under the wrong parent; round robin keeps a hub table from crowding out the closest group's core table | [results/navigation.md](../examples/fennmoor-bank/results/navigation.md); over seeds, recall 59% ± 7 ([results/seeds.md](../examples/fennmoor-bank/results/seeds.md)) |
 
 Noise: random cross-estate queries at 100% of the real statement count leave ARI 0.87 against the

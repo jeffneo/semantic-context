@@ -54,3 +54,6 @@ parameters:
     tables: 8                         # tables in the cohort
     mode: combined                    # traversal (through the hierarchy) | flat (level 1 only) | combined
     rank: round_robin                 # round_robin (each group in turn) | usage (most-queried first)
+    maximum_bytes_billed: 1000000000  # ask --run: the most one answer may bill (1 GB); a bigger query fails rather than runs
+    rows_shown: 20                    # ask --run: rows of the answer printed
+    filter_values: 8                  # values the log filters a text column on, shown with it to the LLM (spelled as the data has them)

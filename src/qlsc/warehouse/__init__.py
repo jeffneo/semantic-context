@@ -11,6 +11,10 @@ A connector supplies five things, and the pipeline never asks a warehouse for an
   is_service_account()   whether a principal is a process rather than a person
   dry_run(sql)           the warehouse's verdict on a query, without running it
 
+For `qlsc ask --run`, a connector may also run a query, billing at most a cap:
+
+  run(sql, cap, rows)    the answer: its columns, the first rows, and what it billed
+
 For `qlsc virtualize` (a Neo4j Virtual Graph over the warehouse's rows), a connector may also supply:
 
   is_unique(table, cols) whether columns identify a table's rows (Virtual Graph needs unique keys)
@@ -105,6 +109,13 @@ class Warehouse(ABC):
         """(datasource.json, secret.json) for a virtual graph reading `dataset`."""
         raise NotImplementedError(f"{self.name}: no Virtual Graph support")
 
+    # ---- running queries (optional; qlsc ask --run)
+
+    def _run(self, sql: str, maximum_bytes_billed: int, rows: int) -> dict:
+        """Run SQL in physical names -> {ok: True, columns, rows: the first `rows` as dicts, total,
+        bytes_billed} | {ok: False, error}."""
+        raise NotImplementedError(f"{self.name}: cannot run queries")
+
     def dry_run(self, sql: str) -> dict:
         """Dry-run SQL written in the graph's (logical) table names."""
         try:
@@ -112,6 +123,14 @@ class Warehouse(ABC):
         except sqlglot.errors.ParseError as e:
             return {"ok": False, "error": str(e)[:300]}
         return self._dry_run(physical)
+
+    def run(self, sql: str, maximum_bytes_billed: int, rows: int) -> dict:
+        """Run SQL written in logical table names, billing at most `maximum_bytes_billed`."""
+        try:
+            physical = self.physical_sql(sql)
+        except sqlglot.errors.ParseError as e:
+            return {"ok": False, "error": str(e)[:300]}
+        return self._run(physical, maximum_bytes_billed, rows)
 
     def physical_sql(self, sql: str) -> str:
         """Logical table names (the log's, the graph's) -> the deployed tables, from the catalog snapshot."""

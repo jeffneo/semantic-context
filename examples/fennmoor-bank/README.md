@@ -95,6 +95,19 @@ Each answer shows the walk: the closest Semantic nodes, the level-1 groups under
 tables, the joins and existing queries that connect them, and one query written from that cohort and
 dry-run in BigQuery.
 
+With data in the tables (`generate/fill.py`, [the fill plan](../../plans/2026-09-26-fill-the-estate.md)),
+the walk goes on to the answer. There are two routes: SQL in BigQuery, or Cypher over the virtual
+graph (`qlsc virtualize`, then `docker compose --profile vg up -d neo4j-vg`).
+
+```bash
+uv run qlsc ask --run "Account closures by reason, deposits versus cards."
+uv run qlsc ask --cypher --run "Card spend by merchant category and customer segment, last quarter."
+```
+
+The Cypher route prints the SQL Virtual Graph sends to BigQuery. On the card-spend question it returns
+45 rows (segment by merchant category, April to June 2026) that match a hand-written SQL query to the
+cent.
+
 ## 6. Grade it
 
 ```bash
