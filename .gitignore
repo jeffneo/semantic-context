@@ -29,3 +29,8 @@ __pycache__/
 .idea/
 .vscode/
 *.swp
+
+# Virtual Graph JDBC drivers (downloaded; see docker/nvg/README.md)
+docker/nvg/*.jar
+# Local self-signed bolt certificate (see docker/tls/README.md)
+docker/tls/bolt/

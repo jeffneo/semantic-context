@@ -1,0 +1,387 @@
+# =============================================================================
+# Data fill - what generate/fill.py needs beyond the table specs
+# =============================================================================
+# The table specs give every column's type, concept and flags, and their comments
+# give most code values. This file adds what they don't: scale, how tables hang
+# together (which rows a row belongs to), identifier formats, and the value domains
+# the comments leave out. Plan: plans/2026-09-26-fill-the-estate.md.
+#
+# Only base tables are generated. Every derived table is computed in BigQuery by
+# its own model SQL, so lineage and joins in the data are correct by construction.
+# =============================================================================
+
+seed: 20260926
+scale:
+  entities: 0.01            # share of the spec's `rows` for entity tables
+  events: 0.001             # for tables of 100M+ rows (event_threshold)
+  event_threshold: 100000000
+  cap: 5000000              # rows per table, at most
+  reference_below: 50000    # tables smaller than this keep their full size (branches, products, queues)
+dates:
+  history_start: 2015-01-01 # the earliest opening, enrolment or creation date
+  window: [2026-04-01, 2026-06-29]   # the simulated log window; events fall inside it
+  as_of: 2026-06-29         # "today" for the model SQL (CURRENT_DATE) and for snapshots
+
+slices:
+  1:
+    title: Customer context
+    targets: [customer_360, dim_customer, dim_account, dim_card, dim_branch, dim_product,
+              fct_card_transactions, fct_deposit_transactions, int_customer_identity,
+              int_account_holders, fct_account_closures, fct_calls, dim_agent, dim_queue,
+              dim_cc_site, dim_merchant]
+
+# How each id space's values look (concepts.yaml gives the prose). `seq` counts up
+# from `start`; `pattern` fills {n} (the sequence number) and {h} (hex from a seeded hash).
+formats:
+  customer.cif:          {pattern: "{n:010d}", start: 1000017}          # 10-digit zero-padded
+  deposit_account.id:    {int: true, start: 40010000, step: 7}          # 7-9 digits
+  card_account.id:       {int: true, start: 40010350, step: 5}          # overlaps core account ids: the planted homonym
+  deposit_account.number: {pattern: "{n:012d}", start: 610000000000}
+  deposit_txn.id:        {int: true, start: 900000000001}
+  card.token:            {pattern: "tok_{h:24}"}
+  card_txn.id:           {pattern: "STL{n:012d}", start: 1}
+  card_auth.id:          {pattern: "AUTH{n:012d}", start: 1}
+  merchant.id:           {pattern: "MID{n:09d}", start: 100000}
+  merchant.mcc:          {pattern: "{n:04d}", start: 1711, step: 7}
+  product.code:          {from_domain: product_codes}
+  branch.id:             {int: true, start: 101, step: 3}               # 3-4 digits
+  customer.olb_user_id:  {pattern: "olb_{h:12}"}
+  customer.sf_contact_id: {pattern: "003{h:15}"}                        # 18 characters, Contact prefix
+  customer.sf_household_id: {pattern: "001{h:15}"}                      # Account prefix
+  braze.user_id:         {pattern: "{h:24}"}
+  call.conversation_id:  {uuid: true}
+  call.participant_id:   {uuid: true}
+  queue.id:              {uuid: true}
+  agent.genesys_user_id: {uuid: true}
+  call.wrapup_code:      {uuid: true}
+  employee.id:           {pattern: "W{n:06d}", start: 100001}
+  finance.cost_center_id: {pattern: "CC{n:04d}", start: 1001}
+  cc_site.id:            {from_rows: true}
+  loan.id:               {pattern: "LN{n:010d}", start: 3000000001}
+  loan.application_id:   {pattern: "APP{n:09d}", start: 500000001}
+  geo.zip:               {pattern: "{n:05d}", start: 60001, step: 1}
+  crm.user_id:           {pattern: "005{h:15}"}
+  genesys.division_id:   {choice: [div-retail-service, div-card-services, div-collections]}
+  atm.id:                {pattern: "ATM{n:05d}", start: 1}
+
+# Value domains the spec's comments do not give. A list is a uniform choice; a map is
+# value: weight.
+domains:
+  product_codes:
+    CHK-ESS: 30
+    CHK-PREM: 8
+    CHK-STU: 4
+    SAV-STD: 18
+    SAV-HY: 12
+    MMA-STD: 5
+    CD-12M: 4
+    CD-24M: 2
+    CC-CASHBK: 6
+    CC-TRAVEL: 3
+    CC-SECURED: 2
+    HELOC-STD: 2
+    MTG-30F: 2
+    AUTO-STD: 1
+    PL-STD: 1
+  core_banking_cdc.CUSTOMER.SEG_CD: {mass: 62, mass_affluent: 22, affluent: 9, private: 2, small_business: 5}
+  core_banking_cdc.CUSTOMER.RISK_RTNG_CD: {L: 85, M: 12, H: 3}
+  core_banking_cdc.CUSTOMER.PREF_LANG_CD: {EN: 90, ES: 9, VI: 1}
+  core_banking_cdc.CUSTOMER.CUST_STAT_CD: {A: 88, I: 7, C: 4, D: 1}
+  core_banking_cdc.CUSTOMER.CUST_TYP_CD: {I: 95, B: 5}
+  core_banking_cdc.ACCOUNT.ACCT_STAT_CD: {A: 86, D: 5, C: 8, F: 0.5, CO: 0.5}
+  core_banking_cdc.ACCOUNT.OPEN_CHNL_CD: {BR: 55, WEB: 20, MOB: 20, CC: 5}
+  core_banking_cdc.ACCOUNT.CCY_CD: [USD]
+  core_banking_cdc.ACCOUNT.STMT_CYC_CD: [M01, M15, M28]
+  core_banking_cdc.ACCOUNT_CUSTOMER_REL.REL_TYP_CD: {PRI: 70, JNT: 22, AUTH: 4, BEN: 2, POA: 1, TRST: 1}
+  core_banking_cdc.DEPOSIT_TXN.TXN_TYP_CD: {DEP: 14, WDL: 10, XFR: 12, FEE: 3, INT: 3, ACH_CR: 18, ACH_DR: 22, CHK: 6, ATM: 8, WIRE: 1, P2P: 3}
+  core_banking_cdc.DEPOSIT_TXN.CHNL_CD: {BR: 12, ATM: 10, WEB: 18, MOB: 30, ACH: 28, WIRE: 2}
+  core_banking_cdc.BRANCH.RGN_CD: [NORTH, SOUTH, EAST, WEST, METRO]
+  core_banking_cdc.BRANCH.MKT_CD: [TUL, OKC, SPK, BOI, WIC, KCM, OMA]
+  core_banking_cdc.PRODUCT.PROD_TYP_CD: [RETAIL, BUSINESS]
+  card_processor.card.status: {A: 88, B: 3, C: 7, L: 1, S: 1}
+  card_processor.card.digital_wallet: {"": 55, APPLE_PAY: 25, GOOGLE_PAY: 15, SAMSUNG_PAY: 5}
+  card_processor.card_account.status: {A: 90, C: 8, F: 1, CO: 1}
+  card_processor.card_account.delinquency_bucket: {CURRENT: 93, "30": 4, "60": 2, "90+": 1}
+  card_processor.settlement.network: {VISA: 70, MASTERCARD: 30}
+  card_processor.settlement.txn_type: {PURCH: 86, REFUND: 4, CASH_ADV: 1, PMT: 6, FEE: 1, INT: 1.5, BAL_XFR: 0.5}
+  card_processor.merchant.country: {USA: 97, CAN: 1, MEX: 1, GBR: 1}
+  digital_banking.online_user.enrollment_channel: {WEB: 45, MOBILE: 50, BRANCH: 5}
+  digital_banking.online_user.status: {ACTIVE: 90, LOCKED: 3, DISABLED: 7}
+  digital_banking.online_user.mfa_method: {SMS: 55, APP: 35, EMAIL: 10}
+  genesys_cloud.conversation.originating_direction: {inbound: 92, outbound: 8}
+  genesys_cloud.conversation.media_type: {voice: 78, chat: 15, email: 4, callback: 3}
+  genesys_cloud.segment.disconnect_type: {client: 55, peer: 30, transfer: 10, system: 5}
+  genesys_cloud.queue.skill_evaluation_method: [BEST, ALL, NONE]
+  genesys_cloud.user.department: [Retail Service, Card Services, Collections, Fraud Operations]
+  genesys_cloud.user.title: {Agent: 85, Senior Agent: 10, Supervisor: 5}
+  genesys_cloud.user.state: {active: 95, inactive: 5}
+  loan_origination.loan.loanStatus: {CURRENT: 88, DELINQ: 5, PAIDOFF: 6, CHARGEDOFF: 1}
+  loan_origination.loan.collateralType: {NONE: 40, VEHICLE: 30, REAL_ESTATE: 30}
+  salesforce.contact.preferred_channel__c: {Email: 50, Phone: 25, SMS: 20, Mail: 5}
+  workday.worker.job_family: [Contact Center, Branch Banking, Operations, Technology, Risk, Finance, Marketing]
+  workday.worker.management_level: {Individual Contributor: 85, Manager: 12, Director: 3}
+  workday.worker.worker_status: {Active: 93, Terminated: 7}
+  workday.worker.location: [Tulsa OK, Spokane WA, Oklahoma City OK, Boise ID, Remote]
+  gl_erp.cost_center.region: [NORTH, SOUTH, EAST, WEST, CORPORATE]
+  reference_data.zip_region_map.fennmoor_region: [NORTH, SOUTH, EAST, WEST, METRO]
+  reference_data.zip_region_map.market_cd: [TUL, OKC, SPK, BOI, WIC, KCM, OMA]
+  reference_data.product_hierarchy_FINAL_v3.fee_bearing: {Y: 50, N: 30, y: 10, "": 10}
+  states: {OK: 38, WA: 22, ID: 10, KS: 12, MO: 8, NE: 6, TX: 4}
+
+# Per-table structure. Keys:
+#   rows        a fixed count (else the scaled spec count)
+#   fixed       literal rows, for tiny reference tables
+#   parents     tables each row belongs to: {table: {per: [min, max] | share: p}}; the first is
+#               the main parent. A column whose concept matches a parent column's concept
+#               copies the parent's value, so a row's ids are consistent with each other.
+#   daily       one row per parent row per day of the window
+#   columns     rules for single columns (see fill.py: Rules)
+#   sql         generate in BigQuery after the tables it reads (keys the warehouse computes)
+tables:
+  gl_erp.cost_center:
+    columns:
+      cost_center_name: {words: [Retail Banking, Card Services, Contact Center, Operations, Technology, Finance, Risk, Marketing]}
+      department_code: {pattern: "D{n:03d}", start: 100}
+      is_active: {bool: 0.92}
+
+  workday.worker:
+    columns:
+      job_profile: {words: [Customer Service Representative, Relationship Banker, Operations Analyst, Software Engineer, Risk Analyst, Collector, Branch Manager]}
+      termination_date: {null_unless: {worker_status: [Terminated]}, after: hire_date}
+
+  reference_data.contact_center_site:
+    fixed:
+      - {site_id: TUL, site_name: Tulsa Contact Center, city: Tulsa, state: OK, country: USA, operator: Fennmoor Bank, is_outsourced: false, seat_count: 420, go_live_date: 2011-03-01, genesys_queue_prefix: TUL_}
+      - {site_id: SPK, site_name: Spokane Contact Center, city: Spokane, state: WA, country: USA, operator: Fennmoor Bank, is_outsourced: false, seat_count: 310, go_live_date: 2016-09-12, genesys_queue_prefix: SPK_}
+      - {site_id: MNL, site_name: Manila BPO, city: Manila, state: "", country: PHL, operator: Harbinger BPO Services, is_outsourced: true, seat_count: 520, go_live_date: 2023-02-01, genesys_queue_prefix: MNL_}
+    columns:
+      _uploaded_by: {const: finance-ops@example.com}
+
+  core_banking_cdc.BRANCH:
+    parents: {reference_data.zip_region_map: {}}
+    columns:
+      BRNCH_NM: {pattern: "Fennmoor {CITY_NM} Branch"}
+      BRNCH_TYP_CD: {choice: {FULL: 70, LTD: 20, ISTORE: 10}}
+      CLS_DT: {share: 0.05, after: OPEN_DT}
+      LAT: {range: [34.0, 48.5]}
+      LNG: {range: [-122.0, -94.0]}
+
+  core_banking_cdc.PRODUCT:
+    columns:
+      PROD_CD: {from_domain: product_codes, unique: true}
+      PROD_FMLY_CD: {derive: prefix_before_dash, of: PROD_CD, map: {CHK: CHK, SAV: SAV, MMA: MMA, CD: CD, CC: CC, HELOC: HELOC, MTG: MTG, AUTO: AUTO, PL: PL}}
+      PROD_NM: {derive: title, of: PROD_CD}
+      TERM_MTHS: {choice: [0, 12, 24, 36, 60, 360]}
+      END_DT: {share: 0.1, after: EFF_DT}
+
+  reference_data.product_hierarchy_FINAL_v3:
+    parents: {core_banking_cdc.PRODUCT: {per: [1, 1]}}
+    columns:
+      product_line: {derive: prefix_before_dash, of: prod_cd}
+      product_group: {choice: [Deposits, Cards, Lending]}
+      reporting_category: {choice: [Consumer, Small Business]}
+
+  reference_data.zip_region_map:
+    rows: 3000
+
+  card_processor.mcc_code:
+    rows: 981
+    columns:
+      description: {words: [Grocery Stores, Restaurants, Gas Stations, Airlines, Hotels, Pharmacies, Department Stores, Utilities, Online Retail, Money Transfer]}
+      category_group: {choice: {GROCERY: 20, DINING: 20, FUEL: 12, TRAVEL: 10, RETAIL: 25, UTILITIES: 6, CRYPTO: 2, GAMBLING: 2, MONEY_TRANSFER: 3}}
+      irs_reportable: {bool: 0.1}
+
+  card_processor.merchant:
+    columns:
+      merchant_name: {words: [Corner Market, Blue Plate Diner, QuickFuel, SkyWay Air, Harbor Inn, Main Street Pharmacy, Northgate Outfitters, City Utilities, ShopRiver]}
+      dba_name: {same_as: merchant_name}
+
+  core_banking_cdc.CUSTOMER:
+    columns:
+      BUS_NM: {null_unless: {CUST_TYP_CD: [B]}, words: [Acme Supply LLC, Prairie Farms Inc, Summit Dental PC, Redbud Consulting]}
+      MIDL_NM: {share: 0.4}
+      DECEASED_DT: {null_unless: {CUST_STAT_CD: [D]}, after: CUST_SINCE_DT}
+      BIRTH_DT: {range: [1940-01-01, 2006-12-31]}
+
+  core_banking_cdc.CUSTOMER_ADDRESS:
+    parents: {core_banking_cdc.CUSTOMER: {per: [1, 3]}, reference_data.zip_region_map: {}}
+    columns:
+      ADDR_SEQ_NO: {seq_per_parent: true}
+      ADDR_TYP_CD: {first: HOME, then: {MAIL: 60, BUS: 20, SEAS: 20}}
+      PRIM_FLG: {first: Y, then: N}
+      ADDR_LN_2: {share: 0.2}
+      CNTRY_CD: {const: US}
+      END_DT: {share: 0.15, after: EFF_DT}
+
+  core_banking_cdc.CUSTOMER_CONTACT:
+    parents: {core_banking_cdc.CUSTOMER: {per: [1, 3]}}
+    columns:
+      CNTCT_SEQ_NO: {seq_per_parent: true}
+      CNTCT_TYP_CD: {first: EML, then: {MPH: 70, HPH: 20, WPH: 10}}
+      PRIM_FLG: {first: Y, then: N}
+      VRFD_FLG: {choice: {Y: 80, N: 20}}
+      OPT_IN_FLG: {choice: {Y: 60, N: 40}}
+
+  core_banking_cdc.ACCOUNT:
+    parents: {core_banking_cdc.BRANCH: {}}
+    columns:
+      PROD_CD: {from_domain: product_codes, where_prefix: [CHK, SAV, MMA, CD]}
+      CLS_DT: {null_unless: {ACCT_STAT_CD: [C, CO]}, in_window: 0.4, after: OPEN_DT}
+      CLS_RSN_CD: {null_unless: {ACCT_STAT_CD: [C, CO]}}
+      INT_RT: {range: [0.01, 4.5]}
+      OD_LMT_AMT: {share: 0.3}
+      ESCHEAT_FLG: {choice: {N: 99.5, Y: 0.5}}
+
+  core_banking_cdc.ACCOUNT_CUSTOMER_REL:
+    parents: {core_banking_cdc.ACCOUNT: {per: [1, 2]}, core_banking_cdc.CUSTOMER: {}}
+    columns:
+      REL_TYP_CD: {first: PRI, then: {JNT: 80, AUTH: 10, BEN: 5, POA: 3, TRST: 2}}
+      REL_END_DT: {share: 0.03, after: REL_EFF_DT}
+
+  core_banking_cdc.ACCOUNT_BALANCE_DLY:
+    parents: {core_banking_cdc.ACCOUNT: {}}
+    daily: true
+    columns:
+      HOLD_AMT: {share: 0.1}
+
+  core_banking_cdc.DEPOSIT_TXN:
+    parents: {core_banking_cdc.ACCOUNT: {}}
+    columns:
+      POST_DT: {in_window: 1.0}
+      EFF_DT: {same_as: POST_DT}
+      DR_CR_IND: {choice: {D: 58, C: 42}}
+      TELLER_ID: {share: 0.1, pattern: "T{n:05d}"}
+      ATM_ID: {share: 0.08}
+      ACH_TRACE_NO: {share: 0.4, pattern: "{n:015d}"}
+      CHK_NO: {share: 0.06, pattern: "{n:06d}"}
+      REVERSAL_FLG: {choice: {N: 99, Y: 1}}
+      TXN_DESC: {words: [POS PURCHASE, ACH PAYROLL, ONLINE TRANSFER, ATM WITHDRAWAL, MOBILE DEPOSIT, MONTHLY FEE, INTEREST CREDIT]}
+
+  card_processor.card_account:
+    parents: {core_banking_cdc.CUSTOMER: {share: 0.45}}
+    columns:
+      product_code: {from_domain: product_codes, where_prefix: [CC]}
+      close_date: {null_unless: {status: [C, CO]}, after: open_date}
+      close_reason: {null_unless: {status: [C, CO]}}
+      apr_purchase_bps: {range: [1499, 2999]}
+      apr_cash_bps: {range: [2499, 2999]}
+      cycle_day: {range: [1, 28]}
+      autopay_flag: {bool: 0.4}
+
+  card_processor.card:
+    parents: {card_processor.card_account: {per: [1, 2]}}
+    columns:
+      card_role: {first: PRIMARY, then: AUTH_USER}
+      pan_last4: {pattern: "{n:04d}"}
+      expiry_yyyymm: {choice: ["202612", "202706", "202712", "202806", "202812"]}
+      activation_date: {after: issue_date}
+      replacement_reason: {share: 0.1}
+      is_virtual: {bool: 0.05}
+
+  card_processor.settlement:
+    parents: {card_processor.card: {}, card_processor.merchant: {}}
+    columns:
+      post_date: {in_window: 1.0}
+      txn_date: {before: post_date, days: [0, 3]}
+      merchant_name_raw: {from_parent: card_processor.merchant, column: merchant_name}
+      merchant_city: {from_parent: card_processor.merchant, column: city}
+      merchant_country: {from_parent: card_processor.merchant, column: country}
+      interchange_cents: {range: [5, 400]}
+      reward_points: {range: [0, 300]}
+      auth_id: {share: 0.97}
+
+  digital_banking.online_user:
+    parents: {core_banking_cdc.CUSTOMER: {share: 0.64}}
+    columns:
+      ga4_user_id: {derive: sha256_hex, of: olb_user_id, share: 0.85}
+      is_business: {bool: 0.04}
+      last_login_at: {after: enrolled_at}
+
+  salesforce.contact:
+    parents: {core_banking_cdc.CUSTOMER: {per: [1, 1]}}
+    columns:
+      cif_number__c: {share: 0.96}
+      account_id: {household: true}
+      do_not_call: {bool: 0.08}
+      has_opted_out_of_email: {bool: 0.2}
+
+  braze.user_profile:
+    parents: {core_banking_cdc.CUSTOMER: {share: 0.84}}
+    columns:
+      email_subscribe: {choice: {subscribed: 55, opted_in: 25, unsubscribed: 20}}
+      push_subscribe: {choice: {subscribed: 40, opted_in: 20, unsubscribed: 40}}
+      custom_attributes: {const_json: {}}
+
+  loan_origination.loan:
+    parents: {core_banking_cdc.CUSTOMER: {share: 0.25}, core_banking_cdc.BRANCH: {}}
+    columns:
+      productCode: {from_domain: product_codes, where_prefix: [HELOC, MTG, AUTO, PL]}
+      termMonths: {choice: [36, 60, 120, 180, 360]}
+      maturityDate: {after: originationDate, days: [1000, 11000]}
+      interestRate: {range: [3.5, 12.9]}
+      dpd: {null_unless: {loanStatus: [DELINQ]}, range: [30, 120]}
+      chargeOffDate: {null_unless: {loanStatus: [CHARGEDOFF]}, after: originationDate}
+      chargeOffAmount: {null_unless: {loanStatus: [CHARGEDOFF]}}
+
+  genesys_cloud.queue:
+    rows: 86
+    columns:
+      name: {derive: queue_name}
+      description: {words: [Inbound retail service, Card servicing, Collections outreach, Overflow, Fraud callbacks]}
+      acw_timeout_ms: {range: [30000, 180000]}
+
+  genesys_cloud.user:
+    rows: 1450
+    parents: {workday.worker: {unique: true}}
+    columns:
+      location_name: {choice: {Tulsa OK: 38, Spokane WA: 28, Manila (Harbinger): 34}}
+      employee_id: {null_unless: {location_name: [Tulsa OK, Spokane WA]}}
+      manager_id: {self: true}
+
+  genesys_cloud.wrapup_code:
+    rows: 57
+    columns:
+      name: {first_values: [ACCT_CLOSE, ACCT_MAINT, BALANCE_INQ, CARD_ACTIVATION, DISPUTE, FRAUD_CLAIM, PAYMENT, ADDRESS_CHANGE, TECH_SUPPORT, GENERAL_INQ], then_pattern: "WU_{n:03d}"}
+      description: {derive: title, of: name}
+
+  genesys_cloud.conversation:
+    columns:
+      conversation_start: {in_window: 1.0, business_hours: true}
+      conversation_end: {after_seconds: conversation_start, seconds: [90, 2400]}
+      dnis: {choice: ["8005550100", "8005550142", "8005550187"]}
+      external_tag: {share: 0.05}
+
+  genesys_cloud.participant:
+    parents: {genesys_cloud.conversation: {per: [2, 5]}}
+    columns:
+      purpose: {sequence: [customer, ivr, acd, agent, agent]}
+      user_id: {null_unless: {purpose: [agent]}}
+      queue_id: {null_unless: {purpose: [acd, agent]}}
+      start_time: {after_seconds: conversation_start, seconds: [0, 300], of_parent: true}
+      end_time: {after_seconds: start_time, seconds: [30, 1800]}
+      attributes: {derive: participant_attributes}
+
+  genesys_cloud.segment:
+    parents: {genesys_cloud.participant: {per: [1, 4]}}
+    needs: [genesys_cloud.wrapup_code]
+    columns:
+      segment_type: {sequence: [interact, hold, interact, wrapup]}
+      segment_start: {after_seconds: start_time, seconds: [0, 120], of_parent: true}
+      segment_end: {after_seconds: segment_start, seconds: [20, 900]}
+      wrap_up_code: {derive: wrapup_code, closures: 0.06, switch_date: 2026-06-02}
+      wrap_up_note: {share: 0.3, words: [customer requested closure, updated address, disputed charge, card reissued, balance inquiry]}
+
+  ml_scores.churn_score_v3:
+    # Vertex scores dim_customer nightly from the v3 cutover (2026-05-15): keys come from
+    # the warehouse, so the rows are written in BigQuery after dim_customer exists.
+    sql: |
+      SELECT d AS score_date, c.customer_key,
+             ROUND(MOD(ABS(FARM_FINGERPRINT(CONCAT(c.cif_number, CAST(d AS STRING)))), 10000) / 10000 * 0.6
+                   + IF(c.customer_status = 'A', 0, 0.35), 4) AS churn_probability,
+             CASE WHEN MOD(ABS(FARM_FINGERPRINT(c.cif_number)), 100) < 8 THEN 'HIGH'
+                  WHEN MOD(ABS(FARM_FINGERPRINT(c.cif_number)), 100) < 30 THEN 'MEDIUM' ELSE 'LOW' END AS risk_band,
+             ['TENURE', 'BALANCE_TREND', 'CONTACT_RATE'] AS top_reason_codes,
+             'churn-v3.0.2' AS model_version
+      FROM `fennmoor-dw.dw_core.dim_customer` c,
+           UNNEST(GENERATE_DATE_ARRAY(DATE '2026-05-15', DATE '2026-06-29')) AS d
+    depends_on: [fennmoor-dw.dw_core.dim_customer]

@@ -44,6 +44,10 @@ parameters:
     floor_term: 0.52                  # variable -> catalog term
     floor_class: 0.40                 # semantic group -> ontology class
 
+  virtualize:                         # a Neo4j Virtual Graph model of the rows (qlsc/virtualize.py)
+    joins: [production, corroborated, single]   # confidence of the joins that make a column a node's key
+    min_degree: 2                     # trusted joins that must converge on a column; below it, the unique side keys the node
+
   navigate:
     hits: 5                           # closest Semantic nodes, any level
     groups: 4                         # level-1 groups opened

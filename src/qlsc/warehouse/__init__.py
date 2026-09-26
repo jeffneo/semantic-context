@@ -11,6 +11,12 @@ A connector supplies five things, and the pipeline never asks a warehouse for an
   is_service_account()   whether a principal is a process rather than a person
   dry_run(sql)           the warehouse's verdict on a query, without running it
 
+For `qlsc virtualize` (a Neo4j Virtual Graph over the warehouse's rows), a connector may also supply:
+
+  is_unique(table, cols) whether columns identify a table's rows (Virtual Graph needs unique keys)
+  create_views(dataset, views)   the views the virtual graph reads, in one dataset of their own
+  virtual_graph(dataset) Virtual Graph's datasource.json and secret.json for this warehouse
+
 To add a warehouse: subclass Warehouse in a module here and list it in CONNECTORS.
 """
 
@@ -85,6 +91,19 @@ class Warehouse(ABC):
     def _dry_run(self, sql: str) -> dict:
         """Dry-run SQL in physical names -> {ok: True, bytes_processed} | {ok: False, error}, or
         {ok: None, error} when the warehouse could not be asked (credentials)."""
+
+    # ---- Virtual Graph (optional)
+
+    def is_unique(self, table: str, columns: list[str]) -> bool:
+        raise NotImplementedError(f"{self.name}: no Virtual Graph support")
+
+    def create_views(self, dataset: str, views: dict[str, str]) -> None:
+        """Create or replace one view per entry {view name: SELECT in logical table names}."""
+        raise NotImplementedError(f"{self.name}: no Virtual Graph support")
+
+    def virtual_graph(self, dataset: str) -> tuple[dict, dict]:
+        """(datasource.json, secret.json) for a virtual graph reading `dataset`."""
+        raise NotImplementedError(f"{self.name}: no Virtual Graph support")
 
     def dry_run(self, sql: str) -> dict:
         """Dry-run SQL written in the graph's (logical) table names."""

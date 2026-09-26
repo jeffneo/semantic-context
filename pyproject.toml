@@ -51,7 +51,8 @@ select = ["E", "F", "I", "B", "UP", "SIM"]
 # E501: the formatter wraps code; long strings (SQL, Cypher, report text) stay whole.
 # E731: short lambdas as local key functions read well here.
 # B905: zip() over lists of known equal length. SIM105/SIM115: explicit try and gzip.open loops read fine.
-ignore = ["E501", "E731", "SIM108", "B905", "SIM105", "SIM115"]
+# SIM905: word lists read better as one split string.
+ignore = ["E501", "E731", "SIM108", "B905", "SIM105", "SIM115", "SIM905"]
 
 [tool.ruff.lint.per-file-ignores]
 # The resolver's l / r are the left and right side of a predicate throughout; its closures run in the loop.

@@ -38,4 +38,13 @@ designed:                             # designed models, aligned to the semantic
   catalog: designed/catalog.json
   ontology: designed/ontology.ttl
 
+virtualize:                           # qlsc virtualize: the Virtual Graph spike (slice 1 of the data fill)
+  dataset: fnb_graph                  # the views the virtual graph reads, one dataset of their own
+  maximum_bytes_billed: 1000000000    # per query Virtual Graph sends to BigQuery
+  credentials_file: /nvg_home/credentials.json
+  driver_properties: {OAuthType: 3}   # application-default credentials: the impersonated qlsc-bq account, no key file
+  tables: [dim_customer, dim_account, dim_product, dim_branch, dim_merchant, dim_card,
+           fct_card_transactions, fct_deposit_transactions, fct_account_closures,
+           fct_calls, dim_agent, dim_queue, dim_cc_site]
+
 work_dir: work

@@ -3,6 +3,7 @@
   qlsc extract                  the aggregated log and the catalog snapshot, from the warehouse
   qlsc build                    parse, load, variables, cluster, hierarchy, align (from <work>)
   qlsc parse | load | variables | cluster | hierarchy | align     one stage
+  qlsc virtualize               a Neo4j Virtual Graph model of the rows, written from the semantic layer
   qlsc ask "question"           question -> semantic layer -> tables -> SQL, dry-run
 
 Every command reads the estate's config from --config, or QLSC_CONFIG (environment or .env).
@@ -13,7 +14,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from qlsc import align, cluster, extract, hierarchy, load, navigate, parse, variables
+from qlsc import align, cluster, extract, hierarchy, load, navigate, parse, variables, virtualize
 from qlsc.config import ConfigError
 from qlsc.config import load as load_settings
 
@@ -69,6 +70,10 @@ def parser() -> argparse.ArgumentParser:
     sub.add_parser("align", help="link the designed catalog and ontology; the diff").set_defaults(
         func=lambda s, a: align.run(s)
     )
+
+    p = sub.add_parser("virtualize", help="a Neo4j Virtual Graph model of the rows, from the semantic layer")
+    p.add_argument("--no-views", action="store_true", help="write the model only; create no views")
+    p.set_defaults(func=lambda s, a: virtualize.run(s, create_views=not a.no_views))
 
     p = sub.add_parser("ask", help="question -> semantic layer -> tables -> SQL")
     p.add_argument("question", nargs="+")

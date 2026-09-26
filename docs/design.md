@@ -28,7 +28,7 @@ Two refinements, still inside that principle:
 | View definitions | Yes | Executed code, and a view's joins are otherwise invisible in the log |
 | Catalog names, columns, types, partitioning | Yes, for parsing only | Resolve aliases, `*` and CTEs; asserts no relationships |
 | Declared keys, descriptions, ERDs, glossaries, ontologies | Never as input | Designed opinion: aligned and diffed afterwards (`qlsc align`) |
-| Row counts, data profiling | No | Says nothing about how the data is used |
+| Row counts, data profiling | No, with one exception | Says nothing about how the data is used. The exception is a safety check, not a source of meaning: `qlsc virtualize` confirms that a key usage proposed is unique (`COUNT(DISTINCT)`) before a Virtual Graph model relies on it |
 
 The boundary is structural: `src/qlsc` never refers to an example, and `tests/test_boundary.py` fails if
 it does. An example's spec and answer key are read only by that example's evaluations.

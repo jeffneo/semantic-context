@@ -17,6 +17,12 @@ services:
       NEO4J_server_memory_heap_max__size: ${NEO4J_HEAP:-4G}
       NEO4J_server_memory_pagecache_size: ${NEO4J_PAGECACHE:-2G}
       NEO4J_gds_enterprise_license__file: /licenses/gds.license
+      # Bolt TLS, optional: plain clients keep working, and a remote alias (which accepts only neo4j+s or
+      # neo4j+ssc) can reach this instance. Self-signed; make it once (see docker/tls/README.md).
+      NEO4J_server_bolt_tls__level: OPTIONAL
+      NEO4J_dbms_ssl_policy_bolt_enabled: "true"
+      NEO4J_dbms_ssl_policy_bolt_base__directory: /ssl/bolt
+      NEO4J_dbms_ssl_policy_bolt_client__auth: NONE
     ports:
       - "${NEO4J_HTTP_PORT:-7474}:7474"
       - "${NEO4J_BOLT_PORT:-7687}:7687"
@@ -24,6 +30,7 @@ services:
       - neo4j-data:/data
       - neo4j-logs:/logs
       - ${GDS_LICENSE_PATH:-./gds.license}:/licenses/gds.license:ro
+      - ./docker/tls/bolt:/ssl/bolt:ro
     healthcheck:
       test: ["CMD-SHELL", "cypher-shell -u neo4j -p ${NEO4J_PASSWORD:?set NEO4J_PASSWORD in .env} 'RETURN 1' || exit 1"]
       interval: 10s
@@ -114,6 +121,47 @@ services:
       retries: 5
       start_period: 15s
 
+  # ---------------------------------------------------------------------------
+  # Neo4j Virtual Graph over the warehouse (profile `vg`). A separate instance, as
+  # the Virtual Graph docs recommend: its default database is the virtual graph
+  # that `qlsc virtualize` writes to QLSC_WORK/virtual/. The model is read at boot;
+  # restart after re-running virtualize. BigQuery credentials: VG_CREDENTIALS, a
+  # gcloud application-default credentials file (see docker/nvg/README.md).
+  # ---------------------------------------------------------------------------
+  neo4j-vg:
+    image: ${NEO4J_VG_IMAGE:-neo4j:2026.09.0-enterprise}
+    container_name: qlsc-neo4j-vg
+    profiles: ["vg"]
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?set NEO4J_PASSWORD in .env}
+      NEO4J_ACCEPT_LICENSE_AGREEMENT: "eval"
+      NEO4J_internal_virtual__graph_enabled: "true"
+      NEO4J_internal_virtual__graph_home: /nvg_home
+      NEO4J_server_memory_heap_max__size: ${NEO4J_VG_HEAP:-2G}
+      GOOGLE_APPLICATION_CREDENTIALS: /nvg_home/credentials.json
+      # A local keystore, for the credentials of the remote aliases a composite database uses (see
+      # docker/nvg/README.md).
+      # Make it once: docker exec qlsc-neo4j-vg keytool -genseckey -keyalg aes -keysize 256 \
+      #   -storetype pkcs12 -keystore /nvg_home/neo4j.keystore -alias neo4j -storepass <password>
+      NEO4J_dbms_security_keystore_path: /nvg_home/neo4j.keystore
+      NEO4J_dbms_security_keystore_password: ${VG_KEYSTORE_PASSWORD:-qlsc-local-keystore}
+      NEO4J_dbms_security_key_name: neo4j
+      # Bolt TLS, as on neo4j: a composite reaches this instance's own virtual graph through a remote alias.
+      NEO4J_server_bolt_tls__level: OPTIONAL
+      NEO4J_dbms_ssl_policy_bolt_enabled: "true"
+      NEO4J_dbms_ssl_policy_bolt_base__directory: /ssl/bolt
+      NEO4J_dbms_ssl_policy_bolt_client__auth: NONE
+    ports:
+      - "${NEO4J_VG_HTTP_PORT:-7478}:7474"
+      - "${NEO4J_VG_BOLT_PORT:-7692}:7687"
+    volumes:
+      - ${QLSC_WORK:-./examples/fennmoor-bank/work}/virtual:/nvg_home
+      - ${VG_CREDENTIALS:?set VG_CREDENTIALS in .env}:/nvg_home/credentials.json:ro
+      - ./docker/nvg/google-cloud-bigquery-jdbc-1.0.0-all.jar:/var/lib/neo4j/lib/google-cloud-bigquery-jdbc-1.0.0-all.jar
+      - ./docker/tls/bolt:/ssl/bolt:ro
+      - neo4j-vg-data:/data
+
 volumes:
   neo4j-data:
   neo4j-logs:
+  neo4j-vg-data:

@@ -218,6 +218,41 @@ class BigQuery(Warehouse):
             print(f"  never referenced in the log, placed by sibling datasets: {sorted(unhomed)}")
         return aliases
 
+    # ---- Virtual Graph
+
+    def _physical_table(self, table: str) -> str:
+        return self.physical_sql(f"SELECT 1 FROM `{table}`").split("FROM ", 1)[1].strip()
+
+    def is_unique(self, table: str, columns: list[str]) -> bool:
+        key = f"TO_JSON_STRING(STRUCT({', '.join(f'`{c}`' for c in columns)}))"
+        n, distinct = next(
+            iter(self._query(f"SELECT COUNT(*), COUNT(DISTINCT {key}) FROM {self._physical_table(table)}"))
+        )
+        return n > 0 and n == distinct
+
+    def create_views(self, dataset: str, views: dict[str, str]) -> None:
+        full = f"{self.cfg['project']}.{dataset}"
+        self.client.create_dataset(bigquery.Dataset(full), exists_ok=True)
+        for name, sql in views.items():
+            self.client.query(f"CREATE OR REPLACE VIEW `{full}.{name}` AS\n{self.physical_sql(sql)}").result()
+
+    def virtual_graph(self, dataset: str) -> tuple[dict, dict]:
+        vg = self.settings.get("virtualize", {})
+        datasource = {
+            "type": "bigquery",
+            "projectId": self.cfg["project"],
+            "datasetName": dataset,
+            "enableHighThroughputAPI": False,
+            "maximumBytesBilled": vg.get("maximum_bytes_billed", 10**9),
+        }
+        # Anything in additionalProperties goes to the Google BigQuery JDBC driver as is. OAuthType 3 makes it
+        # use application-default credentials (GOOGLE_APPLICATION_CREDENTIALS), which accept an impersonated
+        # service account; the documented `configfile` secret alone accepts only a service-account key.
+        if vg.get("driver_properties"):
+            datasource["additionalProperties"] = {k: str(v) for k, v in vg["driver_properties"].items()}
+        secret = {"type": "configfile", "filename": vg.get("credentials_file", "/nvg_home/credentials.json")}
+        return datasource, secret
+
     def is_service_account(self, principal: str) -> bool:
         return principal.endswith("gserviceaccount.com")
 

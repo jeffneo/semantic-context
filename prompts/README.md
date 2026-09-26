@@ -19,3 +19,6 @@ warehouse connector.
 | `sql_system.md` | `qlsc ask` | system prompt: write one query from the cohort the semantic layer found |
 | `sql_request.md` | `qlsc ask` | the question, with the cohort's tables, joins and example SQL |
 | `sql_fix.md` | `qlsc ask` | one fix after a failed dry run |
+| `virtual_model_system.md` | `qlsc virtualize` | system prompt: name the labels and relationship types of a virtual graph over the warehouse |
+| `virtual_model_request.md` | `qlsc virtualize` | the tables (area, key) and the pointing columns to name |
+| `virtual_model_retry.md` | `qlsc virtualize` | new names for relationship types that collide (Virtual Graph needs each unique) |
