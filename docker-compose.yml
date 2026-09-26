@@ -1,11 +1,9 @@
 name: qlsc
 
-# Restore target for the previous project's backup in old/ (Aura, Neo4j 2026.07; not in the repository).
-# The backup's embedded metadata script reports:
-#   CREATE DATABASE $database ... DEFAULT LANGUAGE CYPHER 5 TOPOLOGY 3 PRIMARIES
-#   /* Metadata Security Component Version: Neo4j 2026.07 */
-# so the image is pinned to 2026.07 to restore without a store migration, and
-# the restored database (`querylog`) is created with CYPHER 5 as its default language.
+# Neo4j Enterprise with GDS and APOC, the SQL parse service, and (profile `nes`) Enterprise Studio.
+# The pipeline uses quantified path patterns, scoped CALL () subqueries and GDS Cypher projections; the image is
+# pinned to the release it was built and tested on. Create the target database (neo4j.database in the
+# estate's config) once: CREATE DATABASE bigquery.
 
 services:
   neo4j:
@@ -26,9 +24,6 @@ services:
       - neo4j-data:/data
       - neo4j-logs:/logs
       - ${GDS_LICENSE_PATH:-./gds.license}:/licenses/gds.license:ro
-      # Backup artifacts. Read-only: restore only ever reads from here, and the
-      # dir is gitignored, so nothing in it belongs in the image.
-      - ./old:/backups:ro
     healthcheck:
       test: ["CMD-SHELL", "cypher-shell -u neo4j -p ${NEO4J_PASSWORD:?set NEO4J_PASSWORD in .env} 'RETURN 1' || exit 1"]
       interval: 10s
@@ -37,12 +32,12 @@ services:
       start_period: 40s
 
   # ---------------------------------------------------------------------------
-  # SQL parse service (pipeline/parser). Stateless: reads only the catalog
-  # snapshot that pipeline/extract.py writes to pipeline/work/. The same image
-  # is what would run on Cloud Run / Lambda.
+  # SQL parse service (parser/). Stateless: reads only the catalog snapshot that
+  # `qlsc extract` writes to the estate's work directory (QLSC_WORK). The same
+  # image is what would run on Cloud Run / Lambda.
   # ---------------------------------------------------------------------------
   parser:
-    build: ./pipeline/parser
+    build: ./parser
     image: qlsc-parse:0.1.0
     container_name: qlsc-parser
     environment:
@@ -51,7 +46,7 @@ services:
     ports:
       - "${PARSER_PORT:-8090}:8080"
     volumes:
-      - ./pipeline/work:/catalog:ro
+      - ${QLSC_WORK:-./examples/fennmoor-bank/work}:/catalog:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/healthz')"]
       interval: 10s
@@ -71,8 +66,8 @@ services:
       neo4j:
         condition: service_healthy
     volumes:
-      - ./cypher/nes-setup.cypher:/nes-setup.cypher:ro
-      - ./cypher/nes-init.sh:/nes-init.sh:ro
+      - ./docker/nes/nes-setup.cypher:/nes-setup.cypher:ro
+      - ./docker/nes/nes-init.sh:/nes-init.sh:ro
     environment:
       # cypher-shell reads these natively, which keeps the admin password out
       # of the command line.
@@ -101,7 +96,7 @@ services:
       NES_server_port: "8080"
 
       # Where Studio persists dashboards, saved queries, and Perspectives.
-      # Must match cypher/nes-setup.cypher.
+      # Must match docker/nes/nes-setup.cypher.
       NES_assetStore_default_uri: "neo4j://neo4j:7687"
       NES_assetStore_default_database: "tools-storage"
       NES_assetStore_default_authentication_basic_username: "tools_service"

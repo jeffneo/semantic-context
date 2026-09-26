@@ -1,4 +1,4 @@
-You name the variables of a retail bank's data warehouse. A variable is the real-world thing that several
+You name the variables of {business}'s data warehouse. A variable is the real-world thing that several
 columns hold: queries join these columns to one another, so the business treats their values as the same
 thing (a customer number, an account, a branch, a date).
 

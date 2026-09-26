@@ -1,0 +1,654 @@
+{
+ "parse_health": {
+  "successful_shapes": 1194,
+  "status": {
+   "ok": 1194
+  },
+  "resolved_rate": 1.0
+ },
+ "joins": {
+  "found": 156,
+  "truth": 123,
+  "true_positive": 123,
+  "precision": 0.7884615384615384,
+  "recall": 1.0,
+  "f1": 0.8817204301075269,
+  "recall_by_source": {
+   "declared-model": [
+    79,
+    79
+   ],
+   "declared-bi": [
+    4,
+    4
+   ],
+   "reference": [
+    91,
+    91
+   ]
+  },
+  "reference_skipped_predicates": 524,
+  "statements": 119622,
+  "extras_invisible": [
+   {
+    "pair": [
+     "fennmoor-analytics.sbx_marketing.card_spend_by_segment.month_start",
+     "fennmoor-dw.dw_core.fct_card_transactions.post_date"
+    ],
+    "types": [
+     "INNER"
+    ],
+    "vias": [
+     "direct",
+     "transform"
+    ],
+    "scopes": [
+     "main"
+    ],
+    "wrapped": true,
+    "shapes": 1,
+    "jobs": 35
+   },
+   {
+    "pair": [
+     "fennmoor-analytics.sbx_marketing.card_spend_by_segment.segment",
+     "fennmoor-dw.dw_core.dim_customer.segment"
+    ],
+    "types": [
+     "INNER"
+    ],
+    "vias": [
+     "direct",
+     "passthrough"
+    ],
+    "scopes": [
+     "main"
+    ],
+    "wrapped": false,
+    "shapes": 1,
+    "jobs": 35
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_compliance.fct_aml_alerts.customer_key",
+     "fennmoor-dw.dw_core.dim_customer.customer_key"
+    ],
+    "types": [
+     "LEFT"
+    ],
+    "vias": [
+     "rename"
+    ],
+    "scopes": [
+     "subquery"
+    ],
+    "wrapped": false,
+    "shapes": 1,
+    "jobs": 90
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_contact_center.dim_cc_site.cost_center_id",
+     "fennmoor-raw.gl_erp.journal_line.cost_center_id"
+    ],
+    "types": [
+     "INNER",
+     "IN"
+    ],
+    "vias": [
+     "direct",
+     "passthrough"
+    ],
+    "scopes": [
+     "main"
+    ],
+    "wrapped": false,
+    "shapes": 2,
+    "jobs": 71
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_contact_center.fct_calls.customer_key",
+     "fennmoor-dw.dw_core.fct_account_closures.customer_key"
+    ],
+    "types": [
+     "INNER"
+    ],
+    "vias": [
+     "direct",
+     "passthrough"
+    ],
+    "scopes": [
+     "main"
+    ],
+    "wrapped": false,
+    "shapes": 1,
+    "jobs": 493
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_core.dim_account.account_key",
+     "fennmoor-dw.dw_core.fct_card_transactions.account_key"
+    ],
+    "types": [
+     "LEFT"
+    ],
+    "vias": [
+     "rename"
+    ],
+    "scopes": [
+     "subquery"
+    ],
+    "wrapped": false,
+    "shapes": 1,
+    "jobs": 90
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_core.dim_account.account_key",
+     "fennmoor-dw.dw_core.fct_daily_account_balances.account_key"
+    ],
+    "types": [
+     "LEFT"
+    ],
+    "vias": [
+     "rename"
+    ],
+    "scopes": [
+     "subquery"
+    ],
+    "wrapped": false,
+    "shapes": 1,
+    "jobs": 90
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_core.dim_account.account_key",
+     "fennmoor-dw.dw_core.fct_deposit_transactions.account_key"
+    ],
+    "types": [
+     "LEFT"
+    ],
+    "vias": [
+     "rename"
+    ],
+    "scopes": [
+     "subquery"
+    ],
+    "wrapped": false,
+    "shapes": 1,
+    "jobs": 90
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_core.dim_account.account_key",
+     "fennmoor-dw.dw_core.fct_fees.account_key"
+    ],
+    "types": [
+     "LEFT"
+    ],
+    "vias": [
+     "rename"
+    ],
+    "scopes": [
+     "subquery"
+    ],
+    "wrapped": false,
+    "shapes": 1,
+    "jobs": 90
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_core.dim_account.branch_id",
+     "fennmoor-dw.dw_core.dim_account.branch_id"
+    ],
+    "types": [
+     "LEFT"
+    ],
+    "vias": [
+     "passthrough"
+    ],
+    "scopes": [
+     "main"
+    ],
+    "wrapped": false,
+    "shapes": 1,
+    "jobs": 602
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_core.dim_account.branch_id",
+     "fennmoor-dw.dw_core.dim_branch.branch_id"
+    ],
+    "types": [
+     "LEFT"
+    ],
+    "vias": [
+     "passthrough",
+     "direct"
+    ],
+    "scopes": [
+     "main"
+    ],
+    "wrapped": false,
+    "shapes": 1,
+    "jobs": 602
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_core.dim_account.customer_key",
+     "fennmoor-dw.dw_core.fct_account_closures.customer_key"
+    ],
+    "types": [
+     "LEFT"
+    ],
+    "vias": [
+     "passthrough"
+    ],
+    "scopes": [
+     "main"
+    ],
+    "wrapped": false,
+    "shapes": 1,
+    "jobs": 264
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_core.dim_account.product_code",
+     "fennmoor-dw.dw_core.dim_account.product_code"
+    ],
+    "types": [
+     "LEFT"
+    ],
+    "vias": [
+     "passthrough"
+    ],
+    "scopes": [
+     "main"
+    ],
+    "wrapped": false,
+    "shapes": 1,
+    "jobs": 602
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_core.dim_customer.customer_key",
+     "fennmoor-dw.dw_core.fct_account_closures.customer_key"
+    ],
+    "types": [
+     "LEFT"
+    ],
+    "vias": [
+     "rename"
+    ],
+    "scopes": [
+     "subquery"
+    ],
+    "wrapped": false,
+    "shapes": 1,
+    "jobs": 90
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_core.dim_customer.customer_key",
+     "fennmoor-dw.dw_marketing.fct_campaign_attribution.customer_key"
+    ],
+    "types": [
+     "LEFT"
+    ],
+    "vias": [
+     "rename"
+    ],
+    "scopes": [
+     "subquery"
+    ],
+    "wrapped": false,
+    "shapes": 1,
+    "jobs": 90
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_core.dim_customer.customer_key",
+     "fennmoor-dw.dw_marketing.fct_campaign_sends.customer_key"
+    ],
+    "types": [
+     "LEFT"
+    ],
+    "vias": [
+     "rename"
+    ],
+    "scopes": [
+     "subquery"
+    ],
+    "wrapped": false,
+    "shapes": 1,
+    "jobs": 90
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_core.dim_customer.customer_key",
+     "fennmoor-dw.dw_risk.fct_bureau_monthly.customer_key"
+    ],
+    "types": [
+     "LEFT"
+    ],
+    "vias": [
+     "rename"
+    ],
+    "scopes": [
+     "subquery"
+    ],
+    "wrapped": false,
+    "shapes": 1,
+    "jobs": 90
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_core.dim_customer.customer_key",
+     "fennmoor-dw.dw_risk.fct_delinquency_daily.customer_key"
+    ],
+    "types": [
+     "LEFT"
+    ],
+    "vias": [
+     "rename"
+    ],
+    "scopes": [
+     "subquery"
+    ],
+    "wrapped": false,
+    "shapes": 1,
+    "jobs": 90
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_core.dim_customer.customer_key",
+     "fennmoor-dw.dw_risk.fct_fraud_alerts.customer_key"
+    ],
+    "types": [
+     "LEFT"
+    ],
+    "vias": [
+     "rename"
+    ],
+    "scopes": [
+     "subquery"
+    ],
+    "wrapped": false,
+    "shapes": 1,
+    "jobs": 90
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_core.dim_date.date_day",
+     "fennmoor-dw.dw_core.fct_daily_account_balances.balance_date"
+    ],
+    "types": [
+     "INNER"
+    ],
+    "vias": [
+     "direct",
+     "passthrough"
+    ],
+    "scopes": [
+     "main"
+    ],
+    "wrapped": false,
+    "shapes": 1,
+    "jobs": 203
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_core.fct_account_closures.customer_key",
+     "fennmoor-dw.dw_core.fct_fees.customer_key"
+    ],
+    "types": [
+     "LEFT"
+    ],
+    "vias": [
+     "passthrough"
+    ],
+    "scopes": [
+     "main"
+    ],
+    "wrapped": false,
+    "shapes": 1,
+    "jobs": 204
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_core.fct_account_closures.customer_key",
+     "fennmoor-dw.ml_features.feat_customer_daily.customer_key"
+    ],
+    "types": [
+     "LEFT"
+    ],
+    "vias": [
+     "passthrough"
+    ],
+    "scopes": [
+     "main"
+    ],
+    "wrapped": false,
+    "shapes": 1,
+    "jobs": 285
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_core.fct_account_closures.customer_key",
+     "fennmoor-dw.ml_scores.churn_score_v3.customer_key"
+    ],
+    "types": [
+     "LEFT"
+    ],
+    "vias": [
+     "passthrough"
+    ],
+    "scopes": [
+     "main"
+    ],
+    "wrapped": false,
+    "shapes": 1,
+    "jobs": 81
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_core.fct_card_transactions.post_date",
+     "fennmoor-dw.dw_customer.customer_monthly_summary.month_start"
+    ],
+    "types": [
+     "LEFT"
+    ],
+    "vias": [
+     "direct",
+     "transform"
+    ],
+    "scopes": [
+     "subquery"
+    ],
+    "wrapped": true,
+    "shapes": 1,
+    "jobs": 90
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_core.fct_fees.assessed_date",
+     "fennmoor-dw.dw_customer.customer_monthly_summary.month_start"
+    ],
+    "types": [
+     "LEFT"
+    ],
+    "vias": [
+     "direct",
+     "transform"
+    ],
+    "scopes": [
+     "subquery"
+    ],
+    "wrapped": true,
+    "shapes": 1,
+    "jobs": 90
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_intermediate.int_account_holders.account_id",
+     "fennmoor-dw.dw_intermediate.int_account_holders.account_id"
+    ],
+    "types": [
+     "IN"
+    ],
+    "vias": [
+     "direct",
+     "passthrough"
+    ],
+    "scopes": [
+     "main"
+    ],
+    "wrapped": false,
+    "shapes": 1,
+    "jobs": 170
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_risk.fct_bureau_monthly.archive_month",
+     "fennmoor-dw.ml_scores.churn_score_v3.score_date"
+    ],
+    "types": [
+     "INNER"
+    ],
+    "vias": [
+     "direct"
+    ],
+    "scopes": [
+     "main"
+    ],
+    "wrapped": true,
+    "shapes": 1,
+    "jobs": 12
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_risk.fct_delinquency_daily.account_key",
+     "fennmoor-dw.dw_risk.fct_delinquency_daily.account_key"
+    ],
+    "types": [
+     "LEFT"
+    ],
+    "vias": [
+     "passthrough"
+    ],
+    "scopes": [
+     "main"
+    ],
+    "wrapped": false,
+    "shapes": 1,
+    "jobs": 784
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_staging.stg_genesys__participant.queue_id",
+     "fennmoor-dw.dw_staging.stg_genesys__queue.queue_id"
+    ],
+    "types": [
+     "LEFT"
+    ],
+    "vias": [
+     "aggregate",
+     "direct"
+    ],
+    "scopes": [
+     "subquery"
+    ],
+    "wrapped": true,
+    "shapes": 1,
+    "jobs": 90
+   },
+   {
+    "pair": [
+     "fennmoor-dw.dw_staging.stg_genesys__segment.wrap_up_code",
+     "fennmoor-dw.dw_staging.stg_genesys__wrapup_code.wrapup_code_id"
+    ],
+    "types": [
+     "LEFT"
+    ],
+    "vias": [
+     "aggregate",
+     "direct"
+    ],
+    "scopes": [
+     "subquery"
+    ],
+    "wrapped": true,
+    "shapes": 1,
+    "jobs": 90
+   },
+   {
+    "pair": [
+     "fennmoor-dw.ml_scores.churn_score_v2.customer_key",
+     "fennmoor-dw.ml_scores.churn_score_v3.customer_key"
+    ],
+    "types": [
+     "INNER"
+    ],
+    "vias": [
+     "passthrough"
+    ],
+    "scopes": [
+     "main"
+    ],
+    "wrapped": false,
+    "shapes": 1,
+    "jobs": 195
+   },
+   {
+    "pair": [
+     "fennmoor-raw.gl_erp.journal_line.accounting_date",
+     "fennmoor-raw.gl_erp.vendor_invoice.invoice_date"
+    ],
+    "types": [
+     "LEFT"
+    ],
+    "vias": [
+     "transform"
+    ],
+    "scopes": [
+     "main"
+    ],
+    "wrapped": true,
+    "shapes": 1,
+    "jobs": 37
+   },
+   {
+    "pair": [
+     "fennmoor-raw.gl_erp.journal_line.cost_center_id",
+     "fennmoor-raw.gl_erp.vendor_invoice.cost_center_id"
+    ],
+    "types": [
+     "LEFT"
+    ],
+    "vias": [
+     "passthrough"
+    ],
+    "scopes": [
+     "main"
+    ],
+    "wrapped": false,
+    "shapes": 1,
+    "jobs": 37
+   }
+  ],
+  "extras_plain": [],
+  "misses": []
+ },
+ "lineage": {
+  "found": 1887,
+  "truth": 1887,
+  "true_positive": 1887,
+  "precision": 1.0,
+  "recall": 1.0,
+  "f1": 1.0,
+  "ingestion_edges_not_scored": 763,
+  "misses": [],
+  "extras": []
+ }
+}

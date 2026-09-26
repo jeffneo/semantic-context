@@ -1,0 +1,52 @@
+# The method's defaults: models, the parser service, and every parameter that shapes the result.
+# An estate's config file overrides any of these (see examples/fennmoor-bank/estate.yaml).
+# Every value is read by the code. How each was chosen, and how sensitive the result is to it:
+# docs/design.md#parameters and the example's results/robustness.md.
+
+llm:
+  model: claude-haiku-4-5-20251001    # names variables and groups, writes SQL; ANTHROPIC_API_KEY
+  concurrency: 6
+
+embeddings:                           # Azure OpenAI: AZURE_OPENAI_API_KEY, _ENDPOINT, _API_VERSION
+  deployment: text-embedding-3-large
+  dimensions: 512
+
+parser:                               # the qlsc-parse service (parser/)
+  url: http://localhost:8090
+  batch_size: 200
+  concurrency: 8
+
+parameters:
+  load:
+    max_values_per_filter: 50         # literal values kept per FILTERS edge, the most-run first
+
+  variables:
+    # Join confidence that builds variables (qlsc/joins.py). Suspect joins (two id spaces production
+    # keeps apart) and self joins stay in the graph as evidence and build nothing.
+    joins: [production, corroborated, single]
+
+  cluster:                            # level 1: Leiden over what queries read together
+    gamma: 4.0                        # resolution; above 1 gives more, smaller groups
+    lineage: true                     # column lineage (FLOWS) counts as usage, alongside co-reads
+    seed: 42
+    stability_runs: 10                # reruns behind Semantic.stability: half new seeds, half resamples
+    stability_sample: 0.8             # share of the statements a resampled run keeps
+
+  hierarchy:                          # levels 2 and up
+    k: 5                              # K_SIM neighbours per node
+    gamma: 3.0                        # building level L, Leiden runs at gamma / (L - 1)
+    min_level: 3                      # a level this small is the top
+    seed: 42
+
+  align:
+    # Floors on the raw cosine of text-embedding-3-large, where the best matches turn wrong on
+    # inspection. Neo4j's vector.similarity.cosine reports (1 + cos) / 2: 0.52 is 0.76 there, 0.40 is 0.70.
+    floor_term: 0.52                  # variable -> catalog term
+    floor_class: 0.40                 # semantic group -> ontology class
+
+  navigate:
+    hits: 5                           # closest Semantic nodes, any level
+    groups: 4                         # level-1 groups opened
+    tables: 8                         # tables in the cohort
+    mode: combined                    # traversal (through the hierarchy) | flat (level 1 only) | combined
+    rank: round_robin                 # round_robin (each group in turn) | usage (most-queried first)

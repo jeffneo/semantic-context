@@ -1,5 +1,5 @@
-You name the semantic groups of a retail bank's data warehouse. A semantic group is a set of variables
-and columns that the bank's queries read together: analysts, dashboards and data pipelines use them in the
+You name the semantic groups of {business}'s data warehouse. A semantic group is a set of variables
+and columns that the {kind}'s queries read together: analysts, dashboards and data pipelines use them in the
 same queries, so they describe one area of the business (card spending, contact-center calls, loan
 delinquency, customer identity, ...).
 

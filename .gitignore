@@ -7,25 +7,21 @@
 *.key
 service-account*.json
 
-# The previous project's backup and notebook
-old/
+# What qlsc writes for an estate: extracts, parse records, reports, and the LLM and embedding caches
+# (~90 MB for the example). Regenerable: qlsc extract, then qlsc build.
+examples/*/work/
 
-# Pipeline outputs, regenerable: extract.py -> parse_log.py -> ... (includes the query-text
-# extracts and the LLM / embedding caches, ~90 MB)
-pipeline/work/
-
-# Spec-side generated data, regenerable with specs/tools/simulate.py (byte-reproducible)
-# and score.py. jobs.ndjson.gz alone is ~70 MB, over GitHub's 50 MB warning.
-specs/build/log/
-specs/build/score/judge_cache/
-specs/build/.dryrun_cache.json
+# An example's generated spec build and log, regenerable byte for byte (generate/build.py,
+# templates.py, simulate.py). The example's log alone is ~70 MB, over GitHub's 50 MB warning.
+# Its scores (results/) are tracked.
+examples/*/build/
 
 # Python
 __pycache__/
 *.py[cod]
 .venv/
 .pytest_cache/
-.mypy_cache/
+.ruff_cache/
 *.egg-info/
 
 # OS / editors

@@ -1,0 +1,245 @@
+{
+ "base": {
+  "groups": 109,
+  "nmi_subjects": 0.8522603190683236
+ },
+ "noisy_queries": [
+  {
+   "rate": 0.05,
+   "seed": 1,
+   "groups": 108,
+   "ari_vs_clean": 0.9761614420607798,
+   "nmi_subjects": 0.8526650276893584
+  },
+  {
+   "rate": 0.05,
+   "seed": 2,
+   "groups": 109,
+   "ari_vs_clean": 0.9638679989800016,
+   "nmi_subjects": 0.8528448456037785
+  },
+  {
+   "rate": 0.1,
+   "seed": 1,
+   "groups": 105,
+   "ari_vs_clean": 0.9224534197107965,
+   "nmi_subjects": 0.8506950824258066
+  },
+  {
+   "rate": 0.1,
+   "seed": 2,
+   "groups": 109,
+   "ari_vs_clean": 0.9488520010330891,
+   "nmi_subjects": 0.8542301659843811
+  },
+  {
+   "rate": 0.25,
+   "seed": 1,
+   "groups": 101,
+   "ari_vs_clean": 0.8904598199042589,
+   "nmi_subjects": 0.8530329466747789
+  },
+  {
+   "rate": 0.25,
+   "seed": 2,
+   "groups": 105,
+   "ari_vs_clean": 0.9372492980817739,
+   "nmi_subjects": 0.851031652719385
+  },
+  {
+   "rate": 0.5,
+   "seed": 1,
+   "groups": 103,
+   "ari_vs_clean": 0.887881532222524,
+   "nmi_subjects": 0.8502619181894202
+  },
+  {
+   "rate": 0.5,
+   "seed": 2,
+   "groups": 103,
+   "ari_vs_clean": 0.88638639706028,
+   "nmi_subjects": 0.8503602028591859
+  },
+  {
+   "rate": 1.0,
+   "seed": 1,
+   "groups": 99,
+   "ari_vs_clean": 0.8877957433455882,
+   "nmi_subjects": 0.8477634537318477
+  },
+  {
+   "rate": 1.0,
+   "seed": 2,
+   "groups": 105,
+   "ari_vs_clean": 0.8572236225924232,
+   "nmi_subjects": 0.8514138579837027
+  }
+ ],
+ "wrong_joins": [
+  {
+   "merges": 5,
+   "seed": 1,
+   "groups": 108,
+   "ari_vs_clean": 0.9543374099663112,
+   "nmi_subjects": 0.8499459049476069
+  },
+  {
+   "merges": 5,
+   "seed": 2,
+   "groups": 108,
+   "ari_vs_clean": 0.9811374086193955,
+   "nmi_subjects": 0.8516011494529686
+  },
+  {
+   "merges": 10,
+   "seed": 1,
+   "groups": 107,
+   "ari_vs_clean": 0.9546762841011713,
+   "nmi_subjects": 0.849860372661215
+  },
+  {
+   "merges": 10,
+   "seed": 2,
+   "groups": 109,
+   "ari_vs_clean": 0.9556325539896775,
+   "nmi_subjects": 0.8504624601106539
+  },
+  {
+   "merges": 25,
+   "seed": 1,
+   "groups": 105,
+   "ari_vs_clean": 0.9096959858973607,
+   "nmi_subjects": 0.845272903043448
+  },
+  {
+   "merges": 25,
+   "seed": 2,
+   "groups": 106,
+   "ari_vs_clean": 0.8598758233032583,
+   "nmi_subjects": 0.8402444531152526
+  },
+  {
+   "merges": 50,
+   "seed": 1,
+   "groups": 102,
+   "ari_vs_clean": 0.9100750483146108,
+   "nmi_subjects": 0.8426983158428557
+  },
+  {
+   "merges": 50,
+   "seed": 2,
+   "groups": 105,
+   "ari_vs_clean": 0.845641191539747,
+   "nmi_subjects": 0.842564157057623
+  }
+ ],
+ "gamma1": [
+  {
+   "gamma": 1.0,
+   "groups": 83,
+   "nmi_subjects": 0.8334193444016417,
+   "nmi_domains": 0.6533992040325601,
+   "seed_ari": 0.9602628158147195
+  },
+  {
+   "gamma": 2.0,
+   "groups": 93,
+   "nmi_subjects": 0.8441180257790764,
+   "nmi_domains": 0.6530015129976212,
+   "seed_ari": 0.9957222015347967
+  },
+  {
+   "gamma": 3.0,
+   "groups": 103,
+   "nmi_subjects": 0.8489978225747469,
+   "nmi_domains": 0.6461375937154191,
+   "seed_ari": 0.9766069704991781
+  },
+  {
+   "gamma": 4.0,
+   "groups": 110,
+   "nmi_subjects": 0.8533121345147968,
+   "nmi_domains": 0.6467998360895492,
+   "seed_ari": 0.9600440390133284
+  },
+  {
+   "gamma": 6.0,
+   "groups": 121,
+   "nmi_subjects": 0.8665549091401256,
+   "nmi_domains": 0.6540494474853357,
+   "seed_ari": 0.9945484060634175
+  },
+  {
+   "gamma": 8.0,
+   "groups": 131,
+   "nmi_subjects": 0.8701804528780928,
+   "nmi_domains": 0.6532474188578189,
+   "seed_ari": 0.9935388712965724
+  }
+ ],
+ "level2": [
+  {
+   "k": 3,
+   "gamma": 1.5,
+   "groups": 12,
+   "nmi_domains": 0.6886255510771491,
+   "seed_ari": 0.9696804013178083
+  },
+  {
+   "k": 3,
+   "gamma": 3.0,
+   "groups": 16,
+   "nmi_domains": 0.7047086738347774,
+   "seed_ari": 1.0
+  },
+  {
+   "k": 3,
+   "gamma": 4.5,
+   "groups": 21,
+   "nmi_domains": 0.7068225174476723,
+   "seed_ari": 1.0
+  },
+  {
+   "k": 5,
+   "gamma": 1.5,
+   "groups": 11,
+   "nmi_domains": 0.6826973758633096,
+   "seed_ari": 0.8742030516176417
+  },
+  {
+   "k": 5,
+   "gamma": 3.0,
+   "groups": 16,
+   "nmi_domains": 0.708465205815931,
+   "seed_ari": 1.0
+  },
+  {
+   "k": 5,
+   "gamma": 4.5,
+   "groups": 18,
+   "nmi_domains": 0.7082206801328607,
+   "seed_ari": 1.0
+  },
+  {
+   "k": 8,
+   "gamma": 1.5,
+   "groups": 10,
+   "nmi_domains": 0.6628887997606979,
+   "seed_ari": 0.9791516716822709
+  },
+  {
+   "k": 8,
+   "gamma": 3.0,
+   "groups": 15,
+   "nmi_domains": 0.6980350468094066,
+   "seed_ari": 1.0
+  },
+  {
+   "k": 8,
+   "gamma": 4.5,
+   "groups": 19,
+   "nmi_domains": 0.7045606877487514,
+   "seed_ari": 1.0
+  }
+ ]
+}

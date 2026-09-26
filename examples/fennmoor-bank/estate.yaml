@@ -1,0 +1,41 @@
+# Fennmoor Bank: what qlsc needs to know about this estate besides what it reads from the warehouse.
+# Nothing here describes meaning or relationships - only where to read, how to normalize names,
+# and which designed models to align. The method's parameters are in src/qlsc/defaults.yaml;
+# override any of them here. Paths are relative to this file.
+
+business:                             # how the prompts refer to the organization
+  name: a retail bank                 # "the variables of a retail bank's data warehouse"
+  kind: bank                          # "the bank's queries"
+
+warehouse:
+  type: bigquery                      # the connector: src/qlsc/warehouse/bigquery.py
+  project: jeffdavis-bq-testproj      # hosts the log and the deployed estate
+  gcloud_config: qlsc                 # the gcloud configuration to authenticate with; never the default one
+  location: US
+  # Stands in for `region-us`.INFORMATION_SCHEMA.JOBS; same schema, so the extract SQL is identical.
+  log_table: fnb_query_log.jobs
+  # The estate is deployed as <prefix><logical dataset> in one project. Which logical project each
+  # dataset belongs to is learned from the log's references, not configured.
+  dataset_prefix: fnb_
+  exclude_datasets: [fnb_query_log]
+  timezone: America/Chicago           # the business's local time, for principals' time profiles
+
+# Volatile identifiers that name the same object across runs, applied to table names in fingerprints
+# and graph ids. Order matters. Date shards are not listed: shard families are learned from the
+# catalog (2+ tables sharing a prefix with a YYYYMMDD/YYYYMM suffix), so a one-off backup such as
+# CUST_MSTR_BKP_20250211 keeps its name.
+canonical_identifiers:
+  - {pattern: '_[0-9a-f]{12,}$',        replace: '_{hex}'}     # fivetran_staging.<table>_<hex>
+  - {pattern: '^LR_[0-9A-Z]{10,30}_',   replace: 'LR_{id}_'}   # Looker PDT generations
+  - {pattern: '^anon[0-9a-f_]{20,}$',   replace: 'anon{id}'}   # anonymous query results
+
+neo4j:
+  uri: bolt://localhost:7690          # NEO4J_BOLT_PORT in .env; password NEO4J_PASSWORD
+  database: bigquery
+  user: neo4j
+
+designed:                             # designed models, aligned to the semantic layer (never built from)
+  catalog: designed/catalog.json
+  ontology: designed/ontology.ttl
+
+work_dir: work

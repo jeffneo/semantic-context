@@ -1,8 +1,0 @@
-SELECT
-  DATE_TRUNC(b.BAL_DT, MONTH) AS SNAP_MTH,
-  b.ACCT_NBR,
-  b.PROD_CD,
-  b.BRNCH_NBR,
-  b.LDGR_BAL_AMT AS EOM_BAL_AMT
-FROM `fennmoor-analytics.legacy_edw.ACCT_DLY_BAL` b
-WHERE b.BAL_DT = LAST_DAY(b.BAL_DT)

@@ -3,8 +3,8 @@ Question: {question}
 Tables and columns:
 {tables}
 
-Joins the bank's queries use:
+Joins the {kind}'s queries use:
 {joins}
 
-SQL the bank already runs against these tables:
+SQL the {kind} already runs against these tables:
 {examples}

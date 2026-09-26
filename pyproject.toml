@@ -1,0 +1,61 @@
+[project]
+name = "qlsc"
+version = "0.1.0"
+description = "Infer a semantic layer from a data warehouse's query log, in Neo4j"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "qlsc-parse",               # the SQL parser (parser/); also the one definition of canonical table names
+    "pyyaml>=6",
+    "neo4j>=5.20",
+    "anthropic>=0.40",
+    "rdflib-neo4j>=1.1",
+]
+
+[project.optional-dependencies]
+# One extra per warehouse connector (src/qlsc/warehouse/).
+bigquery = ["google-cloud-bigquery>=3.25"]
+
+[project.scripts]
+qlsc = "qlsc.cli:main"
+
+[dependency-groups]
+# A checkout gets the BigQuery connector (the example runs on it), the example's generators and the tools.
+# `uv run` installs these by default.
+dev = [
+    "google-cloud-bigquery>=3.25",
+    "pytest>=8",
+    "ruff>=0.6",
+]
+
+[tool.uv.sources]
+qlsc-parse = { path = "parser", editable = true }
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/qlsc"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+extend-exclude = ["examples/fennmoor-bank/build", "examples/fennmoor-bank/work"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+# E501: the formatter wraps code; long strings (SQL, Cypher, report text) stay whole.
+# E731: short lambdas as local key functions read well here.
+# B905: zip() over lists of known equal length. SIM105/SIM115: explicit try and gzip.open loops read fine.
+ignore = ["E501", "E731", "SIM108", "B905", "SIM105", "SIM115"]
+
+[tool.ruff.lint.per-file-ignores]
+# The resolver's l / r are the left and right side of a predicate throughout; its closures run in the loop.
+"parser/qlsc_parse/resolve.py" = ["E741", "B023", "B007"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["qlsc", "qlsc_parse"]
