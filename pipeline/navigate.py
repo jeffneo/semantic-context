@@ -7,11 +7,18 @@
 
   1. Embed the question with the model the Semantic nodes were embedded with.
   2. Vector search the semantic layer (any level) for the closest Semantic nodes.
-  3. Walk down IN_SEMANTIC from those hits to the level-1 groups beneath them, and keep the
-     groups closest to the question: the hits say where to look, the groups narrow it.
-  4. Down again to the physical layer: the tables whose own columns are in those groups,
-     ranked by how many principals query those columns. Variables are the links between
-     tables, so a table reached only through a shared variable is not part of the cohort.
+  3. Walk down IN_SEMANTIC from those hits to the level-1 groups beneath them, add the level-1
+     groups closest to the question directly, and keep the closest of all: the hits say where
+     to look, the groups narrow it. The direct search guards against a group filed under the
+     wrong parent (specs/tools/eval_navigate.py: the hierarchy alone reaches 71% of the gold
+     questions' tables, with the direct search 78%).
+  4. Down again to the physical layer: the tables whose own columns are in those groups.
+     Ranked round robin: each group, closest to the question first, contributes its most-used
+     table (by principals querying those columns) in turn, so every relevant group is
+     represented and a hub table from a nearby group cannot crowd out the core table of the
+     closest one. Frozen tables (nothing wrote them in the window and no production process
+     reads them) go last. Variables are the links between tables, so a table reached only
+     through a shared variable is not part of the cohort.
   5. The log's evidence for that cohort: the joins between those tables, and the queries
      that already read them together, with who ran them.
   6. The SQL: the LLM writes one BigQuery query from that cohort (prompts/sql_*.md), and
@@ -25,8 +32,10 @@ Usage: uv run pipeline/navigate.py [--no-sql] "How many customers use the mobile
 """
 from __future__ import annotations
 
+import math
 import sys
 import textwrap
+from collections import Counter, defaultdict
 
 from graphdb import Graph, config
 from llm import LLM, Embedder, prompt
@@ -36,10 +45,21 @@ SQL_SCHEMA = {"type": "object", "required": ["sql", "explanation"], "properties"
 
 HITS, GROUPS, TABLES = 5, 4, 8
 
+# which level-1 groups to open: under the closest Semantic nodes of any level (the hierarchy),
+# the closest level-1 groups directly (flat), or both
+PICK = {
+    "traversal": """CALL db.index.vector.queryNodes('semantic_embedding', $hits, $v) YIELD node AS hit
+                    MATCH (g:Semantic {level: 1})-[:IN_SEMANTIC]->*(hit)
+                    RETURN g, collect(DISTINCT hit.name) AS via""",
+    "flat": """MATCH (g:Semantic {level: 1}) WITH g ORDER BY vector.similarity.cosine(g.embedding, $v) DESC
+               LIMIT $groups RETURN g, ['(direct)'] AS via""",
+}
+PICK["combined"] = f"CALL () {{ {PICK['traversal']} UNION {PICK['flat']} }} RETURN g, via"
+
 DESCEND = """
-CALL db.index.vector.queryNodes('semantic_embedding', $hits, $v) YIELD node AS hit, score
-MATCH (g:Semantic {level: 1})-[:IN_SEMANTIC]->*(hit)
-WITH g, collect(DISTINCT hit.name) AS via, vector.similarity.cosine(g.embedding, $v) AS sim
+CALL () { PICK }
+WITH g, reduce(a = [], x IN collect(via) | a + x) AS via
+WITH g, via, vector.similarity.cosine(g.embedding, $v) AS sim
 ORDER BY sim DESC LIMIT $groups
 MATCH (m)-[:IN_SEMANTIC]->(g)
 MATCH (m)<-[:IS]-{0,1}(c:Column)<-[:HAS_COLUMN]-(t:Table)
@@ -103,6 +123,65 @@ def write_sql(G: Graph, cfg: dict, question: str, top: list[str], joins: list[di
         print(f"   dry run failed: {res.get('error')}")
 
 
+FROZEN = """
+MATCH (t:Table) WHERE t.id IN $tables AND t.kind IN ['table', 'wildcard'] AND t.write_days IS NULL
+  AND NOT EXISTS { MATCH (:Principal {kind: 'service_account'})-[:RAN]->(:QueryShape {succeeded: true})-[:REFERENCES]->(x:Table)
+                   WHERE x = t OR (x.kind = 'view' AND (x)-[:DERIVED_FROM*1..3]->(t)) }
+RETURN t.id AS t
+"""
+
+
+def cohort(G: Graph, v: list[float], mode: str = "combined", rank: str = "round_robin", k: int = TABLES):
+    """Steps 2-3: the level-1 groups to open, and the tables whose own columns they hold.
+    rank 'usage': by how many principals query those columns; 'group': tables of the closest
+    group first, then by usage. -> (groups, tables, ranked table ids)"""
+    rows = G.rows(DESCEND.replace("PICK", PICK[mode], 1), hits=HITS, groups=GROUPS, v=v)
+    groups, tables = {}, {}
+    per_group = defaultdict(Counter)                             # group -> table -> its unjoined columns there
+    for r in rows:
+        g = groups.setdefault(r["grp"], {"sim": r["sim"], "via": r["via"], "members": set()})
+        g["members"].add(("var " if r["kind"] == "Variable" else "") + r["member"])
+        # a table enters the cohort through its own (unjoined) columns; a variable only links tables
+        if r["kind"] == "Unjoined":
+            t = tables.setdefault(r["table"], {"cols": set(), "groups": set()})
+            t["cols"].add(r["column"])
+            t["groups"].add(r["grp"])
+            per_group[r["grp"]][r["table"]] += 1
+    used = {r["t"]: r["n"] for r in G.rows("""MATCH (t:Table)-[:HAS_COLUMN]->(c:Column)<-[:READS]-(:QueryShape)<-[:RAN]-(p:Principal)
+        WHERE t.id IN $tables AND c.name IN $cols RETURN t.id AS t, count(DISTINCT p) AS n""",
+        tables=list(tables), cols=sorted({c for t in tables.values() for c in t["cols"]}))}
+    # frozen: nothing wrote it in the log window and no production process reads it (directly or
+    # through a view) - people may still query it, but it is not being kept current
+    frozen = {r["t"] for r in G.rows(FROZEN, tables=list(tables))}
+    order = {name: i for i, name in enumerate(groups)}          # groups arrive closest first
+    for t in tables:
+        tables[t]["used"] = used.get(t, 0)
+        tables[t]["frozen"] = t in frozen
+        tables[t]["group_rank"] = min(order[g] for g in tables[t]["groups"])
+        # relevance: for each opened group, its closeness to the question times this table's share of it
+        tables[t]["relevance"] = sum(groups[g]["sim"] * per_group[g][t] / sum(per_group[g].values())
+                                     for g in tables[t]["groups"])
+    key = {"usage": lambda t: (tables[t]["frozen"], -tables[t]["used"], -len(tables[t]["cols"])),
+           "group": lambda t: (tables[t]["group_rank"], -tables[t]["used"], -len(tables[t]["cols"])),
+           "relevance": lambda t: -tables[t]["relevance"],
+           "relevance_usage": lambda t: -tables[t]["relevance"] * math.log(2 + tables[t]["used"]),
+           "round_robin": None}[rank]
+    if rank == "round_robin":
+        # each group, closest first, contributes its most-used table not yet taken, until k tables
+        queues = [sorted((t for t in tables if g in tables[t]["groups"]),
+                         key=lambda t: (tables[t]["frozen"], -tables[t]["used"], -len(tables[t]["cols"]))) for g in groups]
+        queues = [[t for t in q if not tables[t]["frozen"]] for q in queues] + [[t for q in queues for t in q]]
+        top = []
+        while len(top) < min(k, len(tables)):
+            for q in queues:
+                nxt = next((t for t in q if t not in top), None)
+                if nxt and len(top) < k:
+                    top.append(nxt)
+        return groups, tables, top
+    top = sorted(tables, key=key)[:k]
+    return groups, tables, top
+
+
 def main() -> int:
     no_sql = "--no-sql" in sys.argv
     sys.argv = [a for a in sys.argv if a != "--no-sql"]
@@ -118,29 +197,15 @@ def main() -> int:
     for h in hits:
         print(f"   {h['score']:.3f}  L{h['level']}  {h['name']}")
 
-    rows = G.rows(DESCEND, hits=HITS, groups=GROUPS, v=q)
-    groups, tables = {}, {}
-    for r in rows:
-        g = groups.setdefault(r["grp"], {"sim": r["sim"], "via": r["via"], "members": set()})
-        g["members"].add(("var " if r["kind"] == "Variable" else "") + r["member"])
-        # a table enters the cohort through its own (unjoined) columns; a variable only links tables
-        if r["kind"] == "Unjoined":
-            t = tables.setdefault(r["table"], {"cols": set(), "groups": set()})
-            t["cols"].add(r["column"])
-            t["groups"].add(r["grp"])
+    groups, tables, top = cohort(G, q)
     print("\n2. down to the level-1 groups under those hits, closest first")
     for name, g in groups.items():
         print(f"   {g['sim']:.3f}  {name}  (under: {', '.join(g['via'])})")
         print("          " + textwrap.shorten(", ".join(sorted(g["members"])), 150))
-
-    # rank the tables by use: how many principals query the columns in play
-    used = {r["t"]: r["n"] for r in G.rows("""MATCH (t:Table)-[:HAS_COLUMN]->(c:Column)<-[:READS]-(:QueryShape)<-[:RAN]-(p:Principal)
-        WHERE t.id IN $tables AND c.name IN $cols RETURN t.id AS t, count(DISTINCT p) AS n""",
-        tables=list(tables), cols=sorted({c for t in tables.values() for c in t["cols"]}))}
-    top = sorted(tables, key=lambda t: (-used.get(t, 0), -len(tables[t]["cols"])))[:TABLES]
-    print(f"\n3. down to the physical layer: the cohort ({len(top)} of {len(tables)} tables, by principals querying them)")
+    print(f"\n3. down to the physical layer: the cohort ({len(top)} of {len(tables)} tables; each group, closest first, "
+          "contributes its most-used table in turn; frozen tables last)")
     for t in top:
-        print(f"   {short(t):46} {used.get(t, 0):2} principals  {textwrap.shorten(', '.join(sorted(tables[t]['cols'])), 80)}")
+        print(f"   {short(t):46} {tables[t]['used']:2} principals{' FROZEN' if tables[t]['frozen'] else ''}  {textwrap.shorten(', '.join(sorted(tables[t]['cols'])), 80)}")
 
     print("\n4. how the log connects them")
     joins, examples = G.rows(JOINS, tables=top), G.rows(QUERIES, tables=top)

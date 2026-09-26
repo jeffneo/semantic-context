@@ -1,0 +1,139 @@
+# Fennmoor retail-banking ontology (illustrative, FIBO-inspired; written by hand).
+# A designed model: what someone decided the bank's concepts are. pipeline/align.py links
+# it to the semantic layer the query log produced. Not derived from the log or the spec.
+
+@prefix fnb:  <https://example.org/fennmoor/ontology#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+
+fnb:Thing a owl:Class ; rdfs:label "Banking Concept" ;
+    skos:definition "Anything the bank records or reasons about." .
+
+# ---- parties and organization
+fnb:Party a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Party" ;
+    skos:definition "A person or organization the bank has a relationship with." .
+fnb:Customer a owl:Class ; rdfs:subClassOf fnb:Party ; rdfs:label "Customer" ;
+    skos:definition "A party that holds or has applied for a product with the bank, identified by a customer number." .
+fnb:Household a owl:Class ; rdfs:subClassOf fnb:Party ; rdfs:label "Household" ;
+    skos:definition "A group of customers who share an address and finances, managed together." .
+fnb:ContactPoint a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Contact Point" ;
+    skos:definition "An address, phone number or email address at which a customer can be reached, with consent preferences." .
+fnb:Employee a owl:Class ; rdfs:subClassOf fnb:Party ; rdfs:label "Employee" ;
+    skos:definition "A person employed by the bank, with a position, compensation and hire date." .
+fnb:Agent a owl:Class ; rdfs:subClassOf fnb:Employee ; rdfs:label "Contact Center Agent" ;
+    skos:definition "A person who handles customer calls and messages, employed by the bank or an outsourcing partner." .
+fnb:OrganizationalUnit a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Organizational Unit" ;
+    skos:definition "A part of the bank's organization that owns costs and people." .
+fnb:Branch a owl:Class ; rdfs:subClassOf fnb:OrganizationalUnit ; rdfs:label "Branch" ;
+    skos:definition "A physical bank location serving customers, with an address and a region." .
+fnb:ContactCenterSite a owl:Class ; rdfs:subClassOf fnb:OrganizationalUnit ; rdfs:label "Contact Center Site" ;
+    skos:definition "A location where agents handle customer contacts, owned or outsourced." .
+fnb:CostCenter a owl:Class ; rdfs:subClassOf fnb:OrganizationalUnit ; rdfs:label "Cost Center" ;
+    skos:definition "An accounting unit to which expenses are charged in the general ledger." .
+
+# ---- products and agreements
+fnb:Product a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Product" ;
+    skos:definition "A banking product offered to customers: a type of deposit account, card or loan, with its terms." .
+fnb:Account a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Account" ;
+    skos:definition "An agreement between the bank and one or more customers for a product, with a balance and a status." .
+fnb:DepositAccount a owl:Class ; rdfs:subClassOf fnb:Account ; rdfs:label "Deposit Account" ;
+    skos:definition "A checking, savings, money market or certificate of deposit account holding customer funds." .
+fnb:CertificateOfDeposit a owl:Class ; rdfs:subClassOf fnb:DepositAccount ; rdfs:label "Certificate of Deposit" ;
+    skos:definition "A time deposit with a fixed term, rate and maturity date." .
+fnb:CardAccount a owl:Class ; rdfs:subClassOf fnb:Account ; rdfs:label "Card Account" ;
+    skos:definition "A credit or debit card account with a credit limit, statements and one or more cards." .
+fnb:Card a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Payment Card" ;
+    skos:definition "A physical or virtual card issued on a card account." .
+fnb:LoanAccount a owl:Class ; rdfs:subClassOf fnb:Account ; rdfs:label "Loan" ;
+    skos:definition "Credit extended to a customer and repaid over time: personal, auto, mortgage or line of credit." .
+fnb:Balance a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Account Balance" ;
+    skos:definition "The amount held in or owed on an account at a point in time." .
+fnb:AccountClosure a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Account Closure" ;
+    skos:definition "The end of an account relationship, with a date and a reason." .
+
+# ---- transactions and payments
+fnb:Transaction a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Transaction" ;
+    skos:definition "A movement of money on an account." .
+fnb:DepositTransaction a owl:Class ; rdfs:subClassOf fnb:Transaction ; rdfs:label "Deposit Transaction" ;
+    skos:definition "A debit or credit on a deposit account: deposit, withdrawal, transfer or check." .
+fnb:CardTransaction a owl:Class ; rdfs:subClassOf fnb:Transaction ; rdfs:label "Card Transaction" ;
+    skos:definition "A purchase, refund or payment on a card account, with a merchant and merchant category." .
+fnb:CardAuthorization a owl:Class ; rdfs:subClassOf fnb:CardTransaction ; rdfs:label "Card Authorization" ;
+    skos:definition "An approval or decline of a card purchase at the point of sale." .
+fnb:Merchant a owl:Class ; rdfs:subClassOf fnb:Party ; rdfs:label "Merchant" ;
+    skos:definition "A business that accepts card payments, classified by merchant category code." .
+fnb:Payment a owl:Class ; rdfs:subClassOf fnb:Transaction ; rdfs:label "Payment" ;
+    skos:definition "Money sent by a customer: a bill payment, a person-to-person transfer or a loan payment." .
+fnb:LoanPayment a owl:Class ; rdfs:subClassOf fnb:Payment ; rdfs:label "Loan Payment" ;
+    skos:definition "A scheduled or extra payment of principal and interest on a loan." .
+fnb:Fee a owl:Class ; rdfs:subClassOf fnb:Transaction ; rdfs:label "Fee" ;
+    skos:definition "A charge assessed on an account: maintenance, overdraft, late or foreign transaction fee." .
+fnb:InterestAccrual a owl:Class ; rdfs:subClassOf fnb:Transaction ; rdfs:label "Interest Accrual" ;
+    skos:definition "Interest earned or owed on an account, accrued daily." .
+fnb:Dispute a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Card Dispute" ;
+    skos:definition "A customer's challenge to a card transaction, leading to a chargeback or not." .
+
+# ---- credit and risk
+fnb:CreditApplication a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Credit Application" ;
+    skos:definition "A request for a loan or card, with applicants, a credit decision and possibly collateral." .
+fnb:CreditReport a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Credit Bureau Report" ;
+    skos:definition "Credit scores and attributes about a consumer from a credit bureau." .
+fnb:Collateral a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Collateral" ;
+    skos:definition "An asset pledged to secure a loan." .
+fnb:Delinquency a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Delinquency" ;
+    skos:definition "A loan or card that is past due, measured in days past due and amount." .
+fnb:RiskScore a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Customer Risk Score" ;
+    skos:definition "A model's estimate about a customer, such as churn risk or propensity to buy." .
+
+# ---- financial crime and compliance
+fnb:FraudAlert a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Fraud Alert" ;
+    skos:definition "A warning that a transaction or login may be fraudulent, raised by a rule or a model." .
+fnb:FraudCase a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Fraud Case" ;
+    skos:definition "An investigation of one or more fraud alerts, concluding whether fraud occurred and the loss." .
+fnb:AMLAlert a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Anti-Money Laundering Alert" ;
+    skos:definition "A transaction-monitoring alert for possible money laundering." .
+fnb:SuspiciousActivityReport a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Suspicious Activity Report" ;
+    skos:definition "A regulatory filing reporting suspected financial crime." .
+fnb:KYCReview a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Know Your Customer Review" ;
+    skos:definition "A due-diligence review of a customer's identity and risk." .
+fnb:SanctionsScreening a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Sanctions Screening" ;
+    skos:definition "A check of a party against sanctions and watch lists." .
+
+# ---- channels and engagement
+fnb:Interaction a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Customer Interaction" ;
+    skos:definition "A contact between the bank and a customer on any channel." .
+fnb:ContactCenterCall a owl:Class ; rdfs:subClassOf fnb:Interaction ; rdfs:label "Contact Center Call" ;
+    skos:definition "A phone conversation between a customer and the contact center, with queue, agent, handle time and outcome." .
+fnb:ServiceCase a owl:Class ; rdfs:subClassOf fnb:Interaction ; rdfs:label "Customer Service Case" ;
+    skos:definition "A request or complaint tracked to resolution in the CRM." .
+fnb:SatisfactionSurvey a owl:Class ; rdfs:subClassOf fnb:Interaction ; rdfs:label "Customer Satisfaction Survey" ;
+    skos:definition "A customer's rating of an interaction." .
+fnb:DigitalSession a owl:Class ; rdfs:subClassOf fnb:Interaction ; rdfs:label "Digital Session" ;
+    skos:definition "A visit to the website or mobile app, with pages or screens viewed and events." .
+fnb:Login a owl:Class ; rdfs:subClassOf fnb:Interaction ; rdfs:label "Online Banking Login" ;
+    skos:definition "A sign-in to online or mobile banking, successful or failed, from a device." .
+fnb:Campaign a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Marketing Campaign" ;
+    skos:definition "A coordinated marketing effort sending messages to customers to drive a conversion." .
+fnb:MarketingMessage a owl:Class ; rdfs:subClassOf fnb:Interaction ; rdfs:label "Marketing Message" ;
+    skos:definition "An email, push notification or SMS sent to a customer for a campaign, with opens and clicks." .
+fnb:Opportunity a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Sales Opportunity" ;
+    skos:definition "A potential sale to a customer or prospect tracked by relationship managers." .
+
+# ---- finance and reference
+fnb:GLAccount a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "General Ledger Account" ;
+    skos:definition "An account in the chart of accounts: asset, liability, revenue or expense." .
+fnb:JournalEntry a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Journal Entry" ;
+    skos:definition "A posting to the general ledger: debit and credit amounts on a GL account and cost center." .
+fnb:VendorInvoice a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Vendor Invoice" ;
+    skos:definition "A bill from a supplier, paid through accounts payable." .
+fnb:Profitability a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Customer Profitability" ;
+    skos:definition "Revenue minus cost attributed to a customer or product over a period." .
+fnb:Calendar a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Business Calendar" ;
+    skos:definition "Dates, business days and holidays." .
+fnb:ExchangeRate a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Exchange Rate" ;
+    skos:definition "The daily rate between two currencies." .
+fnb:Geography a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Geography" ;
+    skos:definition "Postal codes, cities and regions." .
+fnb:DataQualityCheck a owl:Class ; rdfs:subClassOf fnb:Thing ; rdfs:label "Data Quality Check" ;
+    skos:definition "A test of the warehouse's data: freshness, completeness and pipeline run results." .

@@ -116,3 +116,57 @@ MATCH p = (:Table)-[:HAS_COLUMN]->(c:Column)-[:IS]->{0,1}(u)-[:IN_SEMANTIC]->(g)
 WHERE u:Variable OR u:Unjoined
 OPTIONAL MATCH q = (:Principal)-[:RAN]->(:QueryShape)-[:READS]->(c)
 RETURN p, q;
+
+
+// -------------------------------------------------------------------------------------
+// 4. ALIGNMENT: designed models (catalog, ontology) against the semantic layer
+//    pipeline/align.py. Every link is (x)-[:MEANS {how, status}]->(:Concept):
+//    how 'catalog' = the catalog's own binding, how 'embedding' = proposed by similarity.
+// -------------------------------------------------------------------------------------
+
+// 4.1 The ontology as imported by rdflib-neo4j: classes and their subClassOf tree (~60 nodes)
+MATCH p = (:Class)-[:subClassOf]->(:Class)
+RETURN p;
+
+// 4.2 The top of the semantic layer, read through the ontology                  (~35 nodes)
+//     Each level-2 and level-3 area with its proposed class, and where that class sits.
+MATCH p = (s:Semantic)-[:MEANS]->(:Class)-[:subClassOf*0..2]->(:Class)
+WHERE s.level >= 2
+RETURN p;
+
+// 4.3 A glossary term, down to its columns, their variables and the usage groups (~35 nodes)
+//     The catalog's binding places the term inside the structure the log produced.
+MATCH (k:Concept {source: 'catalog', name: 'Branch number'})
+MATCH p = (k)<-[:MEANS {how: 'catalog'}]-(c:Column)<-[:HAS_COLUMN]-(:Table)
+OPTIONAL MATCH q = (c)-[:IS]->{0,1}(u)-[:IN_SEMANTIC]->(:Semantic)
+WHERE u:Variable OR u:Unjoined
+RETURN p, q;
+
+// 4.4 Conflict: the catalog equates what production keeps apart                 (~4 nodes)
+//     One term bound to both sides of a join that production contradicts (GA4 user id as CIF).
+//     work/ALIGNMENT.md also compares whole variables, which finds a second case (card vs core account).
+MATCH p = (k:Concept)<-[:MEANS {how: 'catalog'}]-(a:Column)<-[:ON]-(j:JoinKey {confidence: 'suspect'})
+          -[:ON]->(b:Column)-[:MEANS {how: 'catalog'}]->(k)
+WHERE a.id < b.id
+RETURN p;
+
+// 4.5 Conflict: the catalog contradicts itself - one column, two terms          (~10 nodes)
+MATCH (c:Column)-[:MEANS {how: 'catalog'}]->(k:Concept)
+WITH c, count(k) AS terms WHERE terms > 1
+MATCH p = (c)-[:MEANS {how: 'catalog'}]->(:Concept)
+OPTIONAL MATCH j = (c)<-[:ON]-(:JoinKey {confidence: 'suspect'})-[:ON]->(:Column)
+RETURN p, j;
+
+// 4.6 Designed, not used: certified tables nothing queries, and terms bound to nothing (~20 nodes)
+MATCH (t:Table {catalog_certified: true})
+WHERE NOT EXISTS { MATCH (:Principal)-[:RAN]->(:QueryShape {succeeded: true})-[:REFERENCES]->(t) }
+OPTIONAL MATCH d = (t)-[:IN_DATASET]->(:Dataset)
+WITH collect(d) AS unused_tables
+MATCH (k:Concept {source: 'catalog'}) WHERE NOT (k)<-[:MEANS]-()
+RETURN unused_tables, collect(k) AS orphan_terms;
+
+// 4.7 Agreement: a variable's catalog term (binding) next to its proposed term (embedding) (~50 nodes)
+MATCH p = (v:Variable)-[:MEANS {how: 'embedding'}]->(k:Concept)
+MATCH q = (v)<-[:IS]-(:Column)-[:MEANS {how: 'catalog'}]->(:Concept)
+WHERE v.tables >= 4
+RETURN p, q;

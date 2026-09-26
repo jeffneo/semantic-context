@@ -50,6 +50,9 @@ contact center, digital, marketing, fraud, compliance and finance.
 | `templates/bi.yaml` | Looker explores and dashboards, Tableau workbooks |
 | `templates/human/*.yaml` | Hand-written ad-hoc SQL, one file per team |
 | `simulation.yaml` | Every simulator assumption: volumes, schedules, sessions, errors, caching, cost |
+| `tools/eval_navigate.py` | Grades `pipeline/navigate.py` on the 14 gold questions: traversal vs flat vs combined group choice, two table rankings (writes `build/score/NAV_SCORE.md`) |
+| `tools/make_catalog.py` | Generates the synthetic data-catalog export (`designed/catalog.json`): partial coverage, stale entries, orphan terms, three wrong bindings |
+| `tools/robustness.py` | Noise injection (random cross-estate queries, wrong joins) and parameter sweeps (level-1 gamma; level-2 k and gamma), against the spec and across seeds (writes `build/score/ROBUSTNESS.md`) |
 | `tools/simulate.py` | Generates the JOBS log and its ground truth; `--load` puts it in BigQuery |
 | `GCP_SETUP.md` | Connecting a GCP project for BigQuery dry-run validation |
 

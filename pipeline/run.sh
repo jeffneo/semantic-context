@@ -9,5 +9,6 @@ uv run --quiet specs/tools/score.py --only-m1   # validates the bottom layer: pa
 uv run --quiet pipeline/variables.py            # WCC over joined columns -> named Variables; the rest :Unjoined
 uv run --quiet pipeline/cluster.py              # Leiden over co-read Variable|Unjoined -> named :Semantic groups (level 1)
 uv run --quiet pipeline/hierarchy.py            # embed, K_SIM kNN, Leiden per level -> Semantic levels 2..top
+uv run --quiet pipeline/align.py                # catalog + ontology -> Concept, MEANS; designed-vs-used diff
 # The remaining upper stages (actors, detect, topology, semantics, guide, views) read the old model and
 # are being rebuilt on the 7-label bottom layer; their M1-M6 output is in the `semanticlayer` database.

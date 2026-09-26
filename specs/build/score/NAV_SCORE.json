@@ -1,0 +1,1638 @@
+{
+ "traversal/usage": {
+  "recall": 0.5857142857142856,
+  "reached": 0.7071428571428572,
+  "hit": 13,
+  "traps": 1,
+  "questions": {
+   "Q01": {
+    "recall": 0.6666666666666666,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_contact_center.fct_contacts_all"
+    ],
+    "top": [
+     "fennmoor-dw.dw_contact_center.fct_calls",
+     "fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly",
+     "fennmoor-dw.dw_contact_center.dim_cc_site",
+     "fennmoor-dw.dw_contact_center.rpt_site_cost_per_contact",
+     "fennmoor-dw.dw_contact_center.agg_site_monthly",
+     "fennmoor-dw.dw_contact_center.dim_queue",
+     "fennmoor-dw.dw_contact_center.dim_agent",
+     "fennmoor-dw.dw_intermediate.int_calls_legacy_cdr"
+    ]
+   },
+   "Q02": {
+    "recall": 0.0,
+    "reached": 0.0,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_customer.customer_360"
+    ],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.fct_card_transactions",
+     "fennmoor-dw.ml_scores.churn_score_v3",
+     "fennmoor-dw.dw_core.dim_merchant",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.ml_scores.next_best_offer",
+     "fennmoor-dw.dw_core.fct_account_closures"
+    ]
+   },
+   "Q03": {
+    "recall": 0.5,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [
+     "fennmoor-raw.analytics_312874659.events_*"
+    ],
+    "missed": [
+     "fennmoor-dw.dw_digital.fct_web_sessions"
+    ],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_contact_center.fct_calls",
+     "fennmoor-raw.analytics_312874659.events_*",
+     "fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly",
+     "fennmoor-dw.dw_contact_center.dim_cc_site",
+     "fennmoor-dw.dw_intermediate.int_customer_identity",
+     "fennmoor-dw.dw_contact_center.agg_site_monthly",
+     "fennmoor-dw.dw_contact_center.dim_queue"
+    ]
+   },
+   "Q04": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.fct_card_transactions",
+     "fennmoor-dw.dw_core.dim_merchant",
+     "fennmoor-dw.ml_scores.churn_score_v3",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.ml_scores.next_best_offer",
+     "fennmoor-dw.dw_customer.customer_product_holdings"
+    ]
+   },
+   "Q05": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_core.fct_deposit_transactions",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.dim_product",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.dw_core.fct_daily_account_balances",
+     "fennmoor-dw.dw_risk.fct_credit_applications",
+     "fennmoor-raw.core_banking_cdc.ACCOUNT",
+     "fennmoor-dw.dw_core.fct_account_closures"
+    ]
+   },
+   "Q06": {
+    "recall": 0.2,
+    "reached": 0.4,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-analytics.legacy_edw.CUST_MSTR",
+     "fennmoor-analytics.legacy_edw.CUST_MSTR_BKP_20250211",
+     "fennmoor-analytics.sbx_risk.kyc_review_extract",
+     "fennmoor-raw.core_banking_cdc.CUSTOMER"
+    ],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_intermediate.int_customer_identity",
+     "fennmoor-dw.dw_intermediate.int_customer_contact_points",
+     "fennmoor-dw.dw_staging.stg_core__customer",
+     "fennmoor-raw.aml_kyc.screening_hit",
+     "fennmoor-dw.dw_compliance.dim_aml_party",
+     "fennmoor-raw.loan_origination.applicant",
+     "fennmoor-raw.aml_kyc.party"
+    ]
+   },
+   "Q07": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-raw.fraud_platform.alert",
+     "fennmoor-dw.dw_core.dim_card",
+     "fennmoor-dw.dw_risk.fct_fraud_alerts",
+     "fennmoor-raw.fraud_platform.rule",
+     "fennmoor-analytics.sbx_fraud.p2p_scam_cases_2026",
+     "fennmoor-raw.fraud_platform.case_alert_link",
+     "fennmoor-dw.dw_staging.stg_fraud__alert",
+     "fennmoor-raw.fraud_platform.fraud_case"
+    ]
+   },
+   "Q08": {
+    "recall": 0.0,
+    "reached": 0.0,
+    "hit": false,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_marketing.dim_campaign",
+     "fennmoor-dw.dw_marketing.fct_campaign_attribution"
+    ],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.fct_card_transactions",
+     "fennmoor-dw.ml_scores.churn_score_v3",
+     "fennmoor-dw.dw_core.dim_merchant",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.ml_scores.next_best_offer",
+     "fennmoor-dw.dw_customer.customer_product_holdings"
+    ]
+   },
+   "Q09": {
+    "recall": 0.6666666666666666,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_risk.fct_delinquency_daily"
+    ],
+    "top": [
+     "fennmoor-dw.dw_core.fct_deposit_transactions",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.dim_product",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.dw_risk.fct_credit_applications",
+     "fennmoor-dw.dw_core.dim_branch",
+     "fennmoor-dw.dw_core.fct_daily_account_balances",
+     "fennmoor-dw.dw_core.fct_account_closures"
+    ]
+   },
+   "Q10": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_contact_center.fct_csat",
+     "fennmoor-dw.dw_contact_center.dim_agent",
+     "fennmoor-dw.dw_contact_center.fct_agent_daily",
+     "fennmoor-raw.genesys_cloud.user",
+     "fennmoor-analytics.looker_scratch.LR_{id}_customer_facts",
+     "fennmoor-raw.genesys_cloud.survey_response",
+     "fennmoor-dw.dw_staging.stg_genesys__user",
+     "fennmoor-dw.dw_staging.stg_genesys__survey_response"
+    ]
+   },
+   "Q11": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.fct_card_transactions",
+     "fennmoor-dw.ml_scores.churn_score_v3",
+     "fennmoor-dw.dw_core.dim_merchant",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.ml_scores.next_best_offer",
+     "fennmoor-dw.dw_digital.fct_app_sessions"
+    ]
+   },
+   "Q12": {
+    "recall": 0.0,
+    "reached": 0.0,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_customer.customer_360"
+    ],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.fct_card_transactions",
+     "fennmoor-dw.ml_scores.churn_score_v3",
+     "fennmoor-dw.dw_core.dim_merchant",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.ml_scores.next_best_offer",
+     "fennmoor-dw.dw_customer.customer_product_holdings"
+    ]
+   },
+   "Q13": {
+    "recall": 0.16666666666666666,
+    "reached": 0.5,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-analytics.legacy_edw.CC_ACCT_MSTR",
+     "fennmoor-analytics.legacy_edw.CC_AGENT_DLY",
+     "fennmoor-analytics.legacy_edw.CC_CALL_VOL_DLY",
+     "fennmoor-analytics.legacy_edw.CC_EXPNS_MTHLY",
+     "fennmoor-analytics.legacy_edw.CC_TXN_HIST"
+    ],
+    "top": [
+     "fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly",
+     "fennmoor-dw.dw_contact_center.dim_cc_site",
+     "fennmoor-dw.dw_contact_center.dim_queue",
+     "fennmoor-dw.dw_staging.stg_genesys__segment",
+     "fennmoor-raw.gl_erp.CC_EXPENSE_SUMMARY",
+     "fennmoor-dw.dw_finance.fct_gl_monthly",
+     "fennmoor-analytics.sbx_cx_ops.cc_site_scorecard_2026",
+     "fennmoor-dw.dw_finance.dim_cost_center"
+    ]
+   },
+   "Q14": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.fct_card_transactions",
+     "fennmoor-dw.dw_core.dim_merchant",
+     "fennmoor-dw.ml_scores.churn_score_v3",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.ml_scores.next_best_offer",
+     "fennmoor-dw.dw_core.fct_account_closures"
+    ]
+   }
+  }
+ },
+ "traversal/round_robin": {
+  "recall": 0.6095238095238095,
+  "reached": 0.7071428571428572,
+  "hit": 12,
+  "traps": 3,
+  "questions": {
+   "Q01": {
+    "recall": 0.6666666666666666,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [
+     "fennmoor-analytics.sbx_finance.cc_cost_per_call_fy25"
+    ],
+    "missed": [
+     "fennmoor-dw.dw_contact_center.fct_contacts_all"
+    ],
+    "top": [
+     "fennmoor-dw.dw_contact_center.fct_calls",
+     "fennmoor-analytics.sbx_finance.cc_cost_per_call_fy25",
+     "fennmoor-dw.dw_contact_center.rpt_site_cost_per_contact",
+     "fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly",
+     "fennmoor-dw.dw_contact_center.dim_cc_site",
+     "fennmoor-dw.dw_contact_center.agg_site_monthly",
+     "fennmoor-analytics.looker_scratch.LR_{id}_site_monthly_kpis",
+     "fennmoor-dw.dw_contact_center.dim_queue"
+    ]
+   },
+   "Q02": {
+    "recall": 0.0,
+    "reached": 0.0,
+    "hit": false,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_customer.customer_360"
+    ],
+    "top": [
+     "fennmoor-analytics.looker_scratch.LR_{id}_customer_facts",
+     "fennmoor-analytics.looker_scratch.LR_{id}_churn_explore",
+     "fennmoor-dw.dw_core.fct_account_closures",
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.ml_features.feat_customer_daily",
+     "fennmoor-analytics.sbx_customer_analytics.churn_cohort_analysis_2026q1",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.fct_card_transactions"
+    ]
+   },
+   "Q03": {
+    "recall": 0.5,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [
+     "fennmoor-raw.analytics_312874659.events_*"
+    ],
+    "missed": [
+     "fennmoor-dw.dw_digital.fct_web_sessions"
+    ],
+    "top": [
+     "fennmoor-dw.dw_contact_center.fct_calls",
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly",
+     "fennmoor-raw.analytics_312874659.events_*",
+     "fennmoor-dw.dw_contact_center.dim_cc_site",
+     "fennmoor-dw.dw_contact_center.agg_site_monthly",
+     "fennmoor-dw.dw_intermediate.int_customer_identity",
+     "fennmoor-dw.dw_contact_center.dim_queue"
+    ]
+   },
+   "Q04": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-analytics.looker_scratch.LR_{id}_card_spend_by_mcc",
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_core.fct_card_transactions",
+     "fennmoor-raw.card_processor.merchant",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.dim_merchant",
+     "fennmoor-dw.dw_intermediate.int_card_transactions_enriched",
+     "fennmoor-dw.dw_staging.stg_cards__merchant"
+    ]
+   },
+   "Q05": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [
+     "fennmoor-analytics.legacy_edw.EOM_BAL_SNAP"
+    ],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_core.dim_product",
+     "fennmoor-dw.dw_core.fct_daily_account_balances",
+     "fennmoor-dw.dw_core.fct_deposit_transactions",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-analytics.legacy_edw.EOM_BAL_SNAP",
+     "fennmoor-dw.dw_staging.stg_ref__product_hierarchy",
+     "fennmoor-raw.core_banking_cdc.ACCOUNT",
+     "fennmoor-dw.dw_staging.stg_core__deposit_transaction"
+    ]
+   },
+   "Q06": {
+    "recall": 0.2,
+    "reached": 0.4,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-analytics.legacy_edw.CUST_MSTR",
+     "fennmoor-analytics.legacy_edw.CUST_MSTR_BKP_20250211",
+     "fennmoor-analytics.sbx_risk.kyc_review_extract",
+     "fennmoor-raw.core_banking_cdc.CUSTOMER"
+    ],
+    "top": [
+     "fennmoor-dw.dw_compliance.dim_aml_party",
+     "fennmoor-raw.loan_origination.applicant",
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-raw.aml_kyc.screening_hit",
+     "fennmoor-raw.aml_kyc.party",
+     "fennmoor-dw.dw_staging_restricted.stg_aml__party",
+     "fennmoor-dw.dw_staging.stg_los__applicant",
+     "fennmoor-dw.dw_intermediate.int_customer_identity"
+    ]
+   },
+   "Q07": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-raw.fraud_platform.alert",
+     "fennmoor-dw.dw_core.dim_card",
+     "fennmoor-raw.fraud_platform.fraud_case",
+     "fennmoor-raw.digital_banking.alert_subscription",
+     "fennmoor-raw.fraud_platform.rule",
+     "fennmoor-dw.dw_staging.stg_fraud__alert",
+     "fennmoor-dw.dw_risk.fct_fraud_alerts",
+     "fennmoor-dw.dw_staging.stg_fraud__fraud_case"
+    ]
+   },
+   "Q08": {
+    "recall": 0.0,
+    "reached": 0.0,
+    "hit": false,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_marketing.dim_campaign",
+     "fennmoor-dw.dw_marketing.fct_campaign_attribution"
+    ],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-analytics.reverse_etl.braze_attr_sync",
+     "fennmoor-dw.dw_digital.fct_account_opening_funnel",
+     "fennmoor-raw.card_processor.rewards_ledger",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.fct_card_transactions",
+     "fennmoor-dw.dw_digital.fct_web_sessions",
+     "fennmoor-dw.dw_staging.stg_cards__rewards_ledger"
+    ]
+   },
+   "Q09": {
+    "recall": 0.6666666666666666,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_core.dim_branch"
+    ],
+    "top": [
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-raw.loan_origination.loan",
+     "fennmoor-dw.dw_risk.fct_loan_payments",
+     "fennmoor-dw.dw_core.fct_deposit_transactions",
+     "fennmoor-dw.dw_core.dim_product",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.dw_staging.stg_los__loan",
+     "fennmoor-dw.dw_risk.fct_delinquency_daily"
+    ]
+   },
+   "Q10": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_contact_center.dim_agent",
+     "fennmoor-dw.dw_contact_center.fct_csat",
+     "fennmoor-analytics.looker_scratch.LR_{id}_customer_facts",
+     "fennmoor-dw.dw_contact_center.fct_agent_daily",
+     "fennmoor-raw.genesys_cloud.user",
+     "fennmoor-dw.dw_staging.stg_genesys__user",
+     "fennmoor-raw.genesys_cloud.survey_response",
+     "fennmoor-dw.dw_staging_restricted.stg_wd__worker"
+    ]
+   },
+   "Q11": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_digital.fct_app_sessions",
+     "fennmoor-raw.digital_banking.online_user",
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-analytics.sbx_customer_analytics.customer_360_final",
+     "fennmoor-raw.amplitude_mobile.EVENTS_318842",
+     "fennmoor-dw.dw_staging.stg_amp__events",
+     "fennmoor-dw.dw_staging.stg_olb__online_user",
+     "fennmoor-dw.dw_core.dim_account"
+    ]
+   },
+   "Q12": {
+    "recall": 0.0,
+    "reached": 0.0,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_customer.customer_360"
+    ],
+    "top": [
+     "fennmoor-dw.dw_intermediate.int_customer_contact_points",
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-analytics.reverse_etl.braze_attr_sync",
+     "fennmoor-raw.salesforce.contact",
+     "fennmoor-raw.core_banking_cdc.CUSTOMER_CONTACT",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_staging.stg_sf__contact",
+     "fennmoor-dw.dw_staging.stg_core__customer_contact"
+    ]
+   },
+   "Q13": {
+    "recall": 0.5,
+    "reached": 0.5,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-analytics.legacy_edw.CC_ACCT_MSTR",
+     "fennmoor-analytics.legacy_edw.CC_AGENT_DLY",
+     "fennmoor-analytics.legacy_edw.CC_TXN_HIST"
+    ],
+    "top": [
+     "fennmoor-analytics.sbx_finance.cc_cost_per_call_fy25",
+     "fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly",
+     "fennmoor-raw.gl_erp.CC_EXPENSE_SUMMARY",
+     "fennmoor-analytics.sbx_cx_ops.cc_site_scorecard_2026",
+     "fennmoor-analytics.legacy_edw.CC_CALL_VOL_DLY",
+     "fennmoor-dw.dw_contact_center.dim_cc_site",
+     "fennmoor-dw.dw_finance.fct_gl_monthly",
+     "fennmoor-analytics.legacy_edw.CC_EXPNS_MTHLY"
+    ]
+   },
+   "Q14": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_core.fct_account_closures",
+     "fennmoor-dw.dw_core.dim_merchant",
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-analytics.looker_scratch.LR_{id}_card_spend_by_mcc",
+     "fennmoor-dw.ml_features.feat_customer_daily",
+     "fennmoor-analytics.sbx_customer_analytics.churn_cohort_analysis_2026q1",
+     "fennmoor-dw.dw_core.dim_card",
+     "fennmoor-dw.dw_core.dim_account"
+    ]
+   }
+  }
+ },
+ "flat/usage": {
+  "recall": 0.5857142857142856,
+  "reached": 0.7785714285714286,
+  "hit": 13,
+  "traps": 1,
+  "questions": {
+   "Q01": {
+    "recall": 0.6666666666666666,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_contact_center.fct_contacts_all"
+    ],
+    "top": [
+     "fennmoor-dw.dw_contact_center.fct_calls",
+     "fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly",
+     "fennmoor-dw.dw_contact_center.dim_cc_site",
+     "fennmoor-dw.dw_contact_center.rpt_site_cost_per_contact",
+     "fennmoor-dw.dw_contact_center.agg_site_monthly",
+     "fennmoor-dw.dw_contact_center.dim_queue",
+     "fennmoor-dw.dw_contact_center.dim_agent",
+     "fennmoor-dw.dw_intermediate.int_calls_legacy_cdr"
+    ]
+   },
+   "Q02": {
+    "recall": 0.0,
+    "reached": 0.0,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_customer.customer_360"
+    ],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.fct_card_transactions",
+     "fennmoor-dw.ml_scores.churn_score_v3",
+     "fennmoor-dw.dw_core.dim_merchant",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.ml_scores.next_best_offer",
+     "fennmoor-dw.dw_core.fct_account_closures"
+    ]
+   },
+   "Q03": {
+    "recall": 0.5,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [
+     "fennmoor-raw.analytics_312874659.events_*"
+    ],
+    "missed": [
+     "fennmoor-dw.dw_digital.fct_web_sessions"
+    ],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_contact_center.fct_calls",
+     "fennmoor-raw.analytics_312874659.events_*",
+     "fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly",
+     "fennmoor-dw.dw_contact_center.dim_cc_site",
+     "fennmoor-dw.dw_intermediate.int_customer_identity",
+     "fennmoor-dw.dw_contact_center.agg_site_monthly",
+     "fennmoor-dw.dw_contact_center.dim_queue"
+    ]
+   },
+   "Q04": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.fct_card_transactions",
+     "fennmoor-dw.dw_core.dim_merchant",
+     "fennmoor-dw.ml_scores.churn_score_v3",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.ml_scores.next_best_offer",
+     "fennmoor-dw.dw_customer.customer_product_holdings"
+    ]
+   },
+   "Q05": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_core.fct_deposit_transactions",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.dim_product",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.dw_core.fct_daily_account_balances",
+     "fennmoor-dw.dw_risk.fct_credit_applications",
+     "fennmoor-raw.core_banking_cdc.ACCOUNT",
+     "fennmoor-dw.dw_core.fct_account_closures"
+    ]
+   },
+   "Q06": {
+    "recall": 0.2,
+    "reached": 0.4,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-analytics.legacy_edw.CUST_MSTR",
+     "fennmoor-analytics.legacy_edw.CUST_MSTR_BKP_20250211",
+     "fennmoor-analytics.sbx_risk.kyc_review_extract",
+     "fennmoor-raw.core_banking_cdc.CUSTOMER"
+    ],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_intermediate.int_customer_identity",
+     "fennmoor-dw.dw_intermediate.int_customer_contact_points",
+     "fennmoor-dw.dw_staging.stg_core__customer",
+     "fennmoor-raw.aml_kyc.screening_hit",
+     "fennmoor-dw.dw_compliance.dim_aml_party",
+     "fennmoor-raw.loan_origination.applicant",
+     "fennmoor-raw.aml_kyc.party"
+    ]
+   },
+   "Q07": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-raw.fraud_platform.alert",
+     "fennmoor-dw.dw_core.dim_card",
+     "fennmoor-dw.dw_risk.fct_fraud_alerts",
+     "fennmoor-raw.fraud_platform.rule",
+     "fennmoor-analytics.sbx_fraud.p2p_scam_cases_2026",
+     "fennmoor-raw.fraud_platform.case_alert_link",
+     "fennmoor-dw.dw_staging.stg_fraud__alert",
+     "fennmoor-raw.fraud_platform.fraud_case"
+    ]
+   },
+   "Q08": {
+    "recall": 0.0,
+    "reached": 1.0,
+    "hit": false,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_marketing.dim_campaign",
+     "fennmoor-dw.dw_marketing.fct_campaign_attribution"
+    ],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.fct_card_transactions",
+     "fennmoor-dw.ml_scores.churn_score_v3",
+     "fennmoor-dw.dw_core.dim_merchant",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.ml_scores.next_best_offer",
+     "fennmoor-dw.dw_customer.customer_product_holdings"
+    ]
+   },
+   "Q09": {
+    "recall": 0.6666666666666666,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_risk.fct_delinquency_daily"
+    ],
+    "top": [
+     "fennmoor-dw.dw_core.fct_deposit_transactions",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.dim_product",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.dw_risk.fct_credit_applications",
+     "fennmoor-dw.dw_core.dim_branch",
+     "fennmoor-dw.dw_core.fct_daily_account_balances",
+     "fennmoor-dw.dw_core.fct_account_closures"
+    ]
+   },
+   "Q10": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_contact_center.fct_csat",
+     "fennmoor-dw.dw_contact_center.dim_agent",
+     "fennmoor-dw.dw_contact_center.fct_agent_daily",
+     "fennmoor-raw.genesys_cloud.user",
+     "fennmoor-analytics.looker_scratch.LR_{id}_customer_facts",
+     "fennmoor-raw.genesys_cloud.survey_response",
+     "fennmoor-dw.dw_staging.stg_genesys__user",
+     "fennmoor-dw.dw_staging.stg_genesys__survey_response"
+    ]
+   },
+   "Q11": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.fct_card_transactions",
+     "fennmoor-dw.ml_scores.churn_score_v3",
+     "fennmoor-dw.dw_core.dim_merchant",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.ml_scores.next_best_offer",
+     "fennmoor-dw.dw_digital.fct_app_sessions"
+    ]
+   },
+   "Q12": {
+    "recall": 0.0,
+    "reached": 0.0,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_customer.customer_360"
+    ],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.fct_card_transactions",
+     "fennmoor-dw.ml_scores.churn_score_v3",
+     "fennmoor-dw.dw_core.dim_merchant",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.ml_scores.next_best_offer",
+     "fennmoor-dw.dw_customer.customer_product_holdings"
+    ]
+   },
+   "Q13": {
+    "recall": 0.16666666666666666,
+    "reached": 0.5,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-analytics.legacy_edw.CC_ACCT_MSTR",
+     "fennmoor-analytics.legacy_edw.CC_AGENT_DLY",
+     "fennmoor-analytics.legacy_edw.CC_CALL_VOL_DLY",
+     "fennmoor-analytics.legacy_edw.CC_EXPNS_MTHLY",
+     "fennmoor-analytics.legacy_edw.CC_TXN_HIST"
+    ],
+    "top": [
+     "fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly",
+     "fennmoor-dw.dw_contact_center.dim_cc_site",
+     "fennmoor-dw.dw_contact_center.dim_queue",
+     "fennmoor-dw.dw_staging.stg_genesys__segment",
+     "fennmoor-raw.gl_erp.CC_EXPENSE_SUMMARY",
+     "fennmoor-dw.dw_finance.fct_gl_monthly",
+     "fennmoor-analytics.sbx_cx_ops.cc_site_scorecard_2026",
+     "fennmoor-dw.dw_finance.dim_cost_center"
+    ]
+   },
+   "Q14": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.fct_card_transactions",
+     "fennmoor-dw.dw_core.dim_merchant",
+     "fennmoor-dw.ml_scores.churn_score_v3",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.ml_scores.next_best_offer",
+     "fennmoor-dw.dw_core.fct_account_closures"
+    ]
+   }
+  }
+ },
+ "flat/round_robin": {
+  "recall": 0.6452380952380953,
+  "reached": 0.7785714285714286,
+  "hit": 13,
+  "traps": 3,
+  "questions": {
+   "Q01": {
+    "recall": 0.6666666666666666,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [
+     "fennmoor-analytics.sbx_finance.cc_cost_per_call_fy25"
+    ],
+    "missed": [
+     "fennmoor-dw.dw_contact_center.fct_contacts_all"
+    ],
+    "top": [
+     "fennmoor-dw.dw_contact_center.fct_calls",
+     "fennmoor-analytics.sbx_finance.cc_cost_per_call_fy25",
+     "fennmoor-dw.dw_contact_center.rpt_site_cost_per_contact",
+     "fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly",
+     "fennmoor-dw.dw_contact_center.dim_cc_site",
+     "fennmoor-dw.dw_contact_center.agg_site_monthly",
+     "fennmoor-analytics.looker_scratch.LR_{id}_site_monthly_kpis",
+     "fennmoor-dw.dw_contact_center.dim_queue"
+    ]
+   },
+   "Q02": {
+    "recall": 0.0,
+    "reached": 0.0,
+    "hit": false,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_customer.customer_360"
+    ],
+    "top": [
+     "fennmoor-analytics.looker_scratch.LR_{id}_customer_facts",
+     "fennmoor-analytics.looker_scratch.LR_{id}_churn_explore",
+     "fennmoor-dw.dw_core.fct_account_closures",
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.ml_features.feat_customer_daily",
+     "fennmoor-analytics.sbx_customer_analytics.churn_cohort_analysis_2026q1",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.fct_card_transactions"
+    ]
+   },
+   "Q03": {
+    "recall": 0.5,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [
+     "fennmoor-raw.analytics_312874659.events_*"
+    ],
+    "missed": [
+     "fennmoor-dw.dw_digital.fct_web_sessions"
+    ],
+    "top": [
+     "fennmoor-dw.dw_contact_center.fct_calls",
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly",
+     "fennmoor-raw.analytics_312874659.events_*",
+     "fennmoor-dw.dw_contact_center.dim_cc_site",
+     "fennmoor-dw.dw_contact_center.agg_site_monthly",
+     "fennmoor-dw.dw_intermediate.int_customer_identity",
+     "fennmoor-dw.dw_contact_center.dim_queue"
+    ]
+   },
+   "Q04": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-analytics.looker_scratch.LR_{id}_card_spend_by_mcc",
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_core.fct_card_transactions",
+     "fennmoor-raw.card_processor.merchant",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.dim_merchant",
+     "fennmoor-dw.dw_intermediate.int_card_transactions_enriched",
+     "fennmoor-dw.dw_staging.stg_cards__merchant"
+    ]
+   },
+   "Q05": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [
+     "fennmoor-analytics.legacy_edw.EOM_BAL_SNAP"
+    ],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_core.dim_product",
+     "fennmoor-dw.dw_core.fct_daily_account_balances",
+     "fennmoor-dw.dw_core.fct_deposit_transactions",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-analytics.legacy_edw.EOM_BAL_SNAP",
+     "fennmoor-dw.dw_staging.stg_ref__product_hierarchy",
+     "fennmoor-raw.core_banking_cdc.ACCOUNT",
+     "fennmoor-dw.dw_staging.stg_core__deposit_transaction"
+    ]
+   },
+   "Q06": {
+    "recall": 0.2,
+    "reached": 0.4,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-analytics.legacy_edw.CUST_MSTR",
+     "fennmoor-analytics.legacy_edw.CUST_MSTR_BKP_20250211",
+     "fennmoor-analytics.sbx_risk.kyc_review_extract",
+     "fennmoor-raw.core_banking_cdc.CUSTOMER"
+    ],
+    "top": [
+     "fennmoor-dw.dw_compliance.dim_aml_party",
+     "fennmoor-raw.loan_origination.applicant",
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-raw.aml_kyc.screening_hit",
+     "fennmoor-raw.aml_kyc.party",
+     "fennmoor-dw.dw_staging_restricted.stg_aml__party",
+     "fennmoor-dw.dw_staging.stg_los__applicant",
+     "fennmoor-dw.dw_intermediate.int_customer_identity"
+    ]
+   },
+   "Q07": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-raw.fraud_platform.alert",
+     "fennmoor-dw.dw_core.dim_card",
+     "fennmoor-raw.fraud_platform.fraud_case",
+     "fennmoor-raw.digital_banking.alert_subscription",
+     "fennmoor-raw.fraud_platform.rule",
+     "fennmoor-dw.dw_staging.stg_fraud__alert",
+     "fennmoor-dw.dw_risk.fct_fraud_alerts",
+     "fennmoor-dw.dw_staging.stg_fraud__fraud_case"
+    ]
+   },
+   "Q08": {
+    "recall": 0.5,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_marketing.fct_campaign_attribution"
+    ],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-analytics.reverse_etl.braze_attr_sync",
+     "fennmoor-dw.dw_digital.fct_account_opening_funnel",
+     "fennmoor-dw.dw_marketing.fct_campaign_sends",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.fct_card_transactions",
+     "fennmoor-dw.dw_digital.fct_web_sessions",
+     "fennmoor-dw.dw_marketing.dim_campaign"
+    ]
+   },
+   "Q09": {
+    "recall": 0.6666666666666666,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_core.dim_branch"
+    ],
+    "top": [
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-raw.loan_origination.loan",
+     "fennmoor-dw.dw_risk.fct_loan_payments",
+     "fennmoor-dw.dw_core.fct_deposit_transactions",
+     "fennmoor-dw.dw_core.dim_product",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.dw_staging.stg_los__loan",
+     "fennmoor-dw.dw_risk.fct_delinquency_daily"
+    ]
+   },
+   "Q10": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_contact_center.dim_agent",
+     "fennmoor-dw.dw_contact_center.fct_csat",
+     "fennmoor-analytics.looker_scratch.LR_{id}_customer_facts",
+     "fennmoor-dw.dw_contact_center.fct_agent_daily",
+     "fennmoor-raw.genesys_cloud.user",
+     "fennmoor-dw.dw_staging.stg_genesys__user",
+     "fennmoor-raw.genesys_cloud.survey_response",
+     "fennmoor-dw.dw_staging_restricted.stg_wd__worker"
+    ]
+   },
+   "Q11": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_digital.fct_app_sessions",
+     "fennmoor-raw.digital_banking.online_user",
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-analytics.sbx_customer_analytics.customer_360_final",
+     "fennmoor-raw.amplitude_mobile.EVENTS_318842",
+     "fennmoor-dw.dw_staging.stg_amp__events",
+     "fennmoor-dw.dw_staging.stg_olb__online_user",
+     "fennmoor-dw.dw_core.dim_account"
+    ]
+   },
+   "Q12": {
+    "recall": 0.0,
+    "reached": 0.0,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_customer.customer_360"
+    ],
+    "top": [
+     "fennmoor-dw.dw_intermediate.int_customer_contact_points",
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-analytics.reverse_etl.braze_attr_sync",
+     "fennmoor-raw.salesforce.contact",
+     "fennmoor-raw.core_banking_cdc.CUSTOMER_CONTACT",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_staging.stg_sf__contact",
+     "fennmoor-dw.dw_staging.stg_core__customer_contact"
+    ]
+   },
+   "Q13": {
+    "recall": 0.5,
+    "reached": 0.5,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-analytics.legacy_edw.CC_ACCT_MSTR",
+     "fennmoor-analytics.legacy_edw.CC_AGENT_DLY",
+     "fennmoor-analytics.legacy_edw.CC_TXN_HIST"
+    ],
+    "top": [
+     "fennmoor-analytics.sbx_finance.cc_cost_per_call_fy25",
+     "fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly",
+     "fennmoor-raw.gl_erp.CC_EXPENSE_SUMMARY",
+     "fennmoor-analytics.sbx_cx_ops.cc_site_scorecard_2026",
+     "fennmoor-analytics.legacy_edw.CC_CALL_VOL_DLY",
+     "fennmoor-dw.dw_contact_center.dim_cc_site",
+     "fennmoor-dw.dw_finance.fct_gl_monthly",
+     "fennmoor-analytics.legacy_edw.CC_EXPNS_MTHLY"
+    ]
+   },
+   "Q14": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_core.fct_account_closures",
+     "fennmoor-dw.dw_core.dim_merchant",
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-analytics.looker_scratch.LR_{id}_card_spend_by_mcc",
+     "fennmoor-dw.ml_features.feat_customer_daily",
+     "fennmoor-analytics.sbx_customer_analytics.churn_cohort_analysis_2026q1",
+     "fennmoor-dw.dw_core.dim_card",
+     "fennmoor-dw.dw_core.dim_account"
+    ]
+   }
+  }
+ },
+ "combined/usage": {
+  "recall": 0.5857142857142856,
+  "reached": 0.7785714285714286,
+  "hit": 13,
+  "traps": 1,
+  "questions": {
+   "Q01": {
+    "recall": 0.6666666666666666,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_contact_center.fct_contacts_all"
+    ],
+    "top": [
+     "fennmoor-dw.dw_contact_center.fct_calls",
+     "fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly",
+     "fennmoor-dw.dw_contact_center.dim_cc_site",
+     "fennmoor-dw.dw_contact_center.rpt_site_cost_per_contact",
+     "fennmoor-dw.dw_contact_center.agg_site_monthly",
+     "fennmoor-dw.dw_contact_center.dim_queue",
+     "fennmoor-dw.dw_contact_center.dim_agent",
+     "fennmoor-dw.dw_intermediate.int_calls_legacy_cdr"
+    ]
+   },
+   "Q02": {
+    "recall": 0.0,
+    "reached": 0.0,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_customer.customer_360"
+    ],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.fct_card_transactions",
+     "fennmoor-dw.ml_scores.churn_score_v3",
+     "fennmoor-dw.dw_core.dim_merchant",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.ml_scores.next_best_offer",
+     "fennmoor-dw.dw_core.fct_account_closures"
+    ]
+   },
+   "Q03": {
+    "recall": 0.5,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [
+     "fennmoor-raw.analytics_312874659.events_*"
+    ],
+    "missed": [
+     "fennmoor-dw.dw_digital.fct_web_sessions"
+    ],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_contact_center.fct_calls",
+     "fennmoor-raw.analytics_312874659.events_*",
+     "fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly",
+     "fennmoor-dw.dw_contact_center.dim_cc_site",
+     "fennmoor-dw.dw_intermediate.int_customer_identity",
+     "fennmoor-dw.dw_contact_center.agg_site_monthly",
+     "fennmoor-dw.dw_contact_center.dim_queue"
+    ]
+   },
+   "Q04": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.fct_card_transactions",
+     "fennmoor-dw.dw_core.dim_merchant",
+     "fennmoor-dw.ml_scores.churn_score_v3",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.ml_scores.next_best_offer",
+     "fennmoor-dw.dw_customer.customer_product_holdings"
+    ]
+   },
+   "Q05": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_core.fct_deposit_transactions",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.dim_product",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.dw_core.fct_daily_account_balances",
+     "fennmoor-dw.dw_risk.fct_credit_applications",
+     "fennmoor-raw.core_banking_cdc.ACCOUNT",
+     "fennmoor-dw.dw_core.fct_account_closures"
+    ]
+   },
+   "Q06": {
+    "recall": 0.2,
+    "reached": 0.4,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-analytics.legacy_edw.CUST_MSTR",
+     "fennmoor-analytics.legacy_edw.CUST_MSTR_BKP_20250211",
+     "fennmoor-analytics.sbx_risk.kyc_review_extract",
+     "fennmoor-raw.core_banking_cdc.CUSTOMER"
+    ],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_intermediate.int_customer_identity",
+     "fennmoor-dw.dw_intermediate.int_customer_contact_points",
+     "fennmoor-dw.dw_staging.stg_core__customer",
+     "fennmoor-raw.aml_kyc.screening_hit",
+     "fennmoor-dw.dw_compliance.dim_aml_party",
+     "fennmoor-raw.loan_origination.applicant",
+     "fennmoor-raw.aml_kyc.party"
+    ]
+   },
+   "Q07": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-raw.fraud_platform.alert",
+     "fennmoor-dw.dw_core.dim_card",
+     "fennmoor-dw.dw_risk.fct_fraud_alerts",
+     "fennmoor-raw.fraud_platform.rule",
+     "fennmoor-analytics.sbx_fraud.p2p_scam_cases_2026",
+     "fennmoor-raw.fraud_platform.case_alert_link",
+     "fennmoor-dw.dw_staging.stg_fraud__alert",
+     "fennmoor-raw.fraud_platform.fraud_case"
+    ]
+   },
+   "Q08": {
+    "recall": 0.0,
+    "reached": 1.0,
+    "hit": false,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_marketing.dim_campaign",
+     "fennmoor-dw.dw_marketing.fct_campaign_attribution"
+    ],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.fct_card_transactions",
+     "fennmoor-dw.ml_scores.churn_score_v3",
+     "fennmoor-dw.dw_core.dim_merchant",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.ml_scores.next_best_offer",
+     "fennmoor-dw.dw_customer.customer_product_holdings"
+    ]
+   },
+   "Q09": {
+    "recall": 0.6666666666666666,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_risk.fct_delinquency_daily"
+    ],
+    "top": [
+     "fennmoor-dw.dw_core.fct_deposit_transactions",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.dim_product",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.dw_risk.fct_credit_applications",
+     "fennmoor-dw.dw_core.dim_branch",
+     "fennmoor-dw.dw_core.fct_daily_account_balances",
+     "fennmoor-dw.dw_core.fct_account_closures"
+    ]
+   },
+   "Q10": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_contact_center.fct_csat",
+     "fennmoor-dw.dw_contact_center.dim_agent",
+     "fennmoor-dw.dw_contact_center.fct_agent_daily",
+     "fennmoor-raw.genesys_cloud.user",
+     "fennmoor-analytics.looker_scratch.LR_{id}_customer_facts",
+     "fennmoor-raw.genesys_cloud.survey_response",
+     "fennmoor-dw.dw_staging.stg_genesys__user",
+     "fennmoor-dw.dw_staging.stg_genesys__survey_response"
+    ]
+   },
+   "Q11": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.fct_card_transactions",
+     "fennmoor-dw.ml_scores.churn_score_v3",
+     "fennmoor-dw.dw_core.dim_merchant",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.ml_scores.next_best_offer",
+     "fennmoor-dw.dw_digital.fct_app_sessions"
+    ]
+   },
+   "Q12": {
+    "recall": 0.0,
+    "reached": 0.0,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_customer.customer_360"
+    ],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.fct_card_transactions",
+     "fennmoor-dw.ml_scores.churn_score_v3",
+     "fennmoor-dw.dw_core.dim_merchant",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.ml_scores.next_best_offer",
+     "fennmoor-dw.dw_customer.customer_product_holdings"
+    ]
+   },
+   "Q13": {
+    "recall": 0.16666666666666666,
+    "reached": 0.5,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-analytics.legacy_edw.CC_ACCT_MSTR",
+     "fennmoor-analytics.legacy_edw.CC_AGENT_DLY",
+     "fennmoor-analytics.legacy_edw.CC_CALL_VOL_DLY",
+     "fennmoor-analytics.legacy_edw.CC_EXPNS_MTHLY",
+     "fennmoor-analytics.legacy_edw.CC_TXN_HIST"
+    ],
+    "top": [
+     "fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly",
+     "fennmoor-dw.dw_contact_center.dim_cc_site",
+     "fennmoor-dw.dw_contact_center.dim_queue",
+     "fennmoor-dw.dw_staging.stg_genesys__segment",
+     "fennmoor-raw.gl_erp.CC_EXPENSE_SUMMARY",
+     "fennmoor-dw.dw_finance.fct_gl_monthly",
+     "fennmoor-analytics.sbx_cx_ops.cc_site_scorecard_2026",
+     "fennmoor-dw.dw_finance.dim_cost_center"
+    ]
+   },
+   "Q14": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.fct_card_transactions",
+     "fennmoor-dw.dw_core.dim_merchant",
+     "fennmoor-dw.ml_scores.churn_score_v3",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.ml_scores.next_best_offer",
+     "fennmoor-dw.dw_core.fct_account_closures"
+    ]
+   }
+  }
+ },
+ "combined/round_robin": {
+  "recall": 0.6452380952380953,
+  "reached": 0.7785714285714286,
+  "hit": 13,
+  "traps": 3,
+  "questions": {
+   "Q01": {
+    "recall": 0.6666666666666666,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [
+     "fennmoor-analytics.sbx_finance.cc_cost_per_call_fy25"
+    ],
+    "missed": [
+     "fennmoor-dw.dw_contact_center.fct_contacts_all"
+    ],
+    "top": [
+     "fennmoor-dw.dw_contact_center.fct_calls",
+     "fennmoor-analytics.sbx_finance.cc_cost_per_call_fy25",
+     "fennmoor-dw.dw_contact_center.rpt_site_cost_per_contact",
+     "fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly",
+     "fennmoor-dw.dw_contact_center.dim_cc_site",
+     "fennmoor-dw.dw_contact_center.agg_site_monthly",
+     "fennmoor-analytics.looker_scratch.LR_{id}_site_monthly_kpis",
+     "fennmoor-dw.dw_contact_center.dim_queue"
+    ]
+   },
+   "Q02": {
+    "recall": 0.0,
+    "reached": 0.0,
+    "hit": false,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_customer.customer_360"
+    ],
+    "top": [
+     "fennmoor-analytics.looker_scratch.LR_{id}_customer_facts",
+     "fennmoor-analytics.looker_scratch.LR_{id}_churn_explore",
+     "fennmoor-dw.dw_core.fct_account_closures",
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.ml_features.feat_customer_daily",
+     "fennmoor-analytics.sbx_customer_analytics.churn_cohort_analysis_2026q1",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.fct_card_transactions"
+    ]
+   },
+   "Q03": {
+    "recall": 0.5,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [
+     "fennmoor-raw.analytics_312874659.events_*"
+    ],
+    "missed": [
+     "fennmoor-dw.dw_digital.fct_web_sessions"
+    ],
+    "top": [
+     "fennmoor-dw.dw_contact_center.fct_calls",
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly",
+     "fennmoor-raw.analytics_312874659.events_*",
+     "fennmoor-dw.dw_contact_center.dim_cc_site",
+     "fennmoor-dw.dw_contact_center.agg_site_monthly",
+     "fennmoor-dw.dw_intermediate.int_customer_identity",
+     "fennmoor-dw.dw_contact_center.dim_queue"
+    ]
+   },
+   "Q04": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-analytics.looker_scratch.LR_{id}_card_spend_by_mcc",
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_core.fct_card_transactions",
+     "fennmoor-raw.card_processor.merchant",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.dim_merchant",
+     "fennmoor-dw.dw_intermediate.int_card_transactions_enriched",
+     "fennmoor-dw.dw_staging.stg_cards__merchant"
+    ]
+   },
+   "Q05": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [
+     "fennmoor-analytics.legacy_edw.EOM_BAL_SNAP"
+    ],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_core.dim_product",
+     "fennmoor-dw.dw_core.fct_daily_account_balances",
+     "fennmoor-dw.dw_core.fct_deposit_transactions",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-analytics.legacy_edw.EOM_BAL_SNAP",
+     "fennmoor-dw.dw_staging.stg_ref__product_hierarchy",
+     "fennmoor-raw.core_banking_cdc.ACCOUNT",
+     "fennmoor-dw.dw_staging.stg_core__deposit_transaction"
+    ]
+   },
+   "Q06": {
+    "recall": 0.2,
+    "reached": 0.4,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-analytics.legacy_edw.CUST_MSTR",
+     "fennmoor-analytics.legacy_edw.CUST_MSTR_BKP_20250211",
+     "fennmoor-analytics.sbx_risk.kyc_review_extract",
+     "fennmoor-raw.core_banking_cdc.CUSTOMER"
+    ],
+    "top": [
+     "fennmoor-dw.dw_compliance.dim_aml_party",
+     "fennmoor-raw.loan_origination.applicant",
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-raw.aml_kyc.screening_hit",
+     "fennmoor-raw.aml_kyc.party",
+     "fennmoor-dw.dw_staging_restricted.stg_aml__party",
+     "fennmoor-dw.dw_staging.stg_los__applicant",
+     "fennmoor-dw.dw_intermediate.int_customer_identity"
+    ]
+   },
+   "Q07": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-raw.fraud_platform.alert",
+     "fennmoor-dw.dw_core.dim_card",
+     "fennmoor-raw.fraud_platform.fraud_case",
+     "fennmoor-raw.digital_banking.alert_subscription",
+     "fennmoor-raw.fraud_platform.rule",
+     "fennmoor-dw.dw_staging.stg_fraud__alert",
+     "fennmoor-dw.dw_risk.fct_fraud_alerts",
+     "fennmoor-dw.dw_staging.stg_fraud__fraud_case"
+    ]
+   },
+   "Q08": {
+    "recall": 0.5,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_marketing.fct_campaign_attribution"
+    ],
+    "top": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-analytics.reverse_etl.braze_attr_sync",
+     "fennmoor-dw.dw_digital.fct_account_opening_funnel",
+     "fennmoor-dw.dw_marketing.fct_campaign_sends",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_core.fct_card_transactions",
+     "fennmoor-dw.dw_digital.fct_web_sessions",
+     "fennmoor-dw.dw_marketing.dim_campaign"
+    ]
+   },
+   "Q09": {
+    "recall": 0.6666666666666666,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_core.dim_branch"
+    ],
+    "top": [
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-raw.loan_origination.loan",
+     "fennmoor-dw.dw_risk.fct_loan_payments",
+     "fennmoor-dw.dw_core.fct_deposit_transactions",
+     "fennmoor-dw.dw_core.dim_product",
+     "fennmoor-dw.dw_customer.customer_monthly_summary",
+     "fennmoor-dw.dw_staging.stg_los__loan",
+     "fennmoor-dw.dw_risk.fct_delinquency_daily"
+    ]
+   },
+   "Q10": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_contact_center.dim_agent",
+     "fennmoor-dw.dw_contact_center.fct_csat",
+     "fennmoor-analytics.looker_scratch.LR_{id}_customer_facts",
+     "fennmoor-dw.dw_contact_center.fct_agent_daily",
+     "fennmoor-raw.genesys_cloud.user",
+     "fennmoor-dw.dw_staging.stg_genesys__user",
+     "fennmoor-raw.genesys_cloud.survey_response",
+     "fennmoor-dw.dw_staging_restricted.stg_wd__worker"
+    ]
+   },
+   "Q11": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_digital.fct_app_sessions",
+     "fennmoor-raw.digital_banking.online_user",
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-analytics.sbx_customer_analytics.customer_360_final",
+     "fennmoor-raw.amplitude_mobile.EVENTS_318842",
+     "fennmoor-dw.dw_staging.stg_amp__events",
+     "fennmoor-dw.dw_staging.stg_olb__online_user",
+     "fennmoor-dw.dw_core.dim_account"
+    ]
+   },
+   "Q12": {
+    "recall": 0.0,
+    "reached": 0.0,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-dw.dw_customer.customer_360"
+    ],
+    "top": [
+     "fennmoor-dw.dw_intermediate.int_customer_contact_points",
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-analytics.reverse_etl.braze_attr_sync",
+     "fennmoor-raw.salesforce.contact",
+     "fennmoor-raw.core_banking_cdc.CUSTOMER_CONTACT",
+     "fennmoor-dw.dw_core.dim_account",
+     "fennmoor-dw.dw_staging.stg_sf__contact",
+     "fennmoor-dw.dw_staging.stg_core__customer_contact"
+    ]
+   },
+   "Q13": {
+    "recall": 0.5,
+    "reached": 0.5,
+    "hit": true,
+    "traps": [],
+    "missed": [
+     "fennmoor-analytics.legacy_edw.CC_ACCT_MSTR",
+     "fennmoor-analytics.legacy_edw.CC_AGENT_DLY",
+     "fennmoor-analytics.legacy_edw.CC_TXN_HIST"
+    ],
+    "top": [
+     "fennmoor-analytics.sbx_finance.cc_cost_per_call_fy25",
+     "fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly",
+     "fennmoor-raw.gl_erp.CC_EXPENSE_SUMMARY",
+     "fennmoor-analytics.sbx_cx_ops.cc_site_scorecard_2026",
+     "fennmoor-analytics.legacy_edw.CC_CALL_VOL_DLY",
+     "fennmoor-dw.dw_contact_center.dim_cc_site",
+     "fennmoor-dw.dw_finance.fct_gl_monthly",
+     "fennmoor-analytics.legacy_edw.CC_EXPNS_MTHLY"
+    ]
+   },
+   "Q14": {
+    "recall": 1.0,
+    "reached": 1.0,
+    "hit": true,
+    "traps": [],
+    "missed": [],
+    "top": [
+     "fennmoor-dw.dw_core.fct_account_closures",
+     "fennmoor-dw.dw_core.dim_merchant",
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-analytics.looker_scratch.LR_{id}_card_spend_by_mcc",
+     "fennmoor-dw.ml_features.feat_customer_daily",
+     "fennmoor-analytics.sbx_customer_analytics.churn_cohort_analysis_2026q1",
+     "fennmoor-dw.dw_core.dim_card",
+     "fennmoor-dw.dw_core.dim_account"
+    ]
+   }
+  }
+ }
+}

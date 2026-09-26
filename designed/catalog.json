@@ -1,0 +1,2729 @@
+{
+ "source": "Fennmoor Data Catalog - synthetic export (generated from the spec with deliberate gaps, stale entries and three wrong bindings)",
+ "glossary": [
+  {
+   "id": "account.natural_key",
+   "name": "'DEP-<id>', 'CRD-<id>', 'LN-<number>'",
+   "definition": "'DEP-<id>', 'CRD-<id>', 'LN-<number>' - the input to account_key.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-dw.dw_intermediate.int_accounts_unioned.account_natural_key",
+    "fennmoor-dw.dw_core.dim_account.account_natural_key"
+   ]
+  },
+  {
+   "id": "agent.avaya_login_id",
+   "name": "Avaya agent login",
+   "definition": "Avaya agent login. Pre-Genesys only.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-dw.dw_intermediate.int_calls_legacy_cdr.agent_login_id"
+   ]
+  },
+  {
+   "id": "aml.alert_id",
+   "name": "AML transaction-monitoring alert id",
+   "definition": "AML transaction-monitoring alert id.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-dw.dw_compliance.fct_aml_alerts.alert_id"
+   ]
+  },
+  {
+   "id": "aml.sar_id",
+   "name": "Suspicious Activity Report id",
+   "definition": "Suspicious Activity Report id. Legally restricted.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-dw.dw_staging_restricted.stg_aml__sar_filing.sar_id"
+   ]
+  },
+  {
+   "id": "amplitude.id",
+   "name": "Amplitude's internal user id",
+   "definition": "Amplitude's internal user id; merges are in MERGE_IDS_318842.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.amplitude_mobile.MERGE_IDS_318842.amplitude_id",
+    "fennmoor-raw.amplitude_mobile.MERGE_IDS_318842.merged_amplitude_id",
+    "fennmoor-dw.dw_staging.stg_amp__events.amplitude_id"
+   ]
+  },
+  {
+   "id": "branch.id",
+   "name": "Branch number",
+   "definition": "Branch number (INT64, 3-4 digits).",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.aml_kyc.ctr_filing.branch_id",
+    "fennmoor-raw.core_banking_cdc.ATM_TERMINAL.BRNCH_ID",
+    "fennmoor-raw.core_banking_cdc.DEPOSIT_TXN.BRNCH_ID",
+    "fennmoor-raw.loan_origination.application.branchNumber",
+    "fennmoor-raw.loan_origination.loan.branchNumber",
+    "fennmoor-raw.salesforce.account.primary_branch__c",
+    "fennmoor-dw.dw_staging.stg_core__customer.preferred_branch_id",
+    "fennmoor-dw.dw_staging.stg_sf__account.primary_branch",
+    "fennmoor-dw.dw_staging_restricted.stg_aml__ctr_filing.branch_id",
+    "fennmoor-dw.dw_core.dim_account.branch_id",
+    "fennmoor-dw.dw_core.fct_deposit_transactions.branch_id",
+    "fennmoor-dw.dw_risk.fct_credit_applications.branch_id",
+    "fennmoor-analytics.legacy_edw.ACCT_DLY_BAL_OLD.BRNCH_NBR",
+    "fennmoor-analytics.legacy_edw.CUST_MSTR.PRIM_BRNCH_NBR"
+   ]
+  },
+  {
+   "id": "braze.user_id",
+   "name": "Braze's internal user id",
+   "definition": "Braze's internal user id. Called braze_id in the profile export, user_id in sends.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.braze.user_profile.braze_id",
+    "fennmoor-dw.dw_staging.stg_braze__message_send.user_id",
+    "fennmoor-dw.dw_intermediate.int_customer_identity.braze_id"
+   ]
+  },
+  {
+   "id": "call.conversation_id",
+   "name": "Genesys Cloud conversation UUID",
+   "definition": "Genesys Cloud conversation UUID (voice, chat or email).",
+   "status": "approved",
+   "columns": [
+    "fennmoor-dw.dw_staging.stg_genesys__segment.conversation_id",
+    "fennmoor-dw.dw_staging.stg_genesys__survey_response.conversation_id",
+    "fennmoor-dw.dw_intermediate.int_calls_enriched.conversation_id",
+    "fennmoor-dw.dw_contact_center.fct_csat.conversation_id"
+   ]
+  },
+  {
+   "id": "call.legacy_call_id",
+   "name": "Avaya CDR call id",
+   "definition": "Avaya CDR call id. Pre-Genesys only; history back to 2024.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-dw.dw_intermediate.int_calls_legacy_cdr.legacy_call_id"
+   ]
+  },
+  {
+   "id": "call.participant_id",
+   "name": "One participant",
+   "definition": "One participant (caller, IVR, agent) within a Genesys conversation.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.genesys_cloud.segment.participant_id"
+   ]
+  },
+  {
+   "id": "call.wrapup_code",
+   "name": "Agent disposition code for why the contact happened",
+   "definition": "Agent disposition code for why the contact happened.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.contact_center_legacy.cdr_*.DISPOSITION_CD",
+    "fennmoor-raw.genesys_cloud.wrapup_code.id",
+    "fennmoor-dw.dw_staging.stg_genesys__segment.wrap_up_code",
+    "fennmoor-dw.dw_intermediate.int_calls_enriched.wrapup_code_name",
+    "fennmoor-dw.dw_intermediate.int_calls_legacy_cdr.disposition_code"
+   ]
+  },
+  {
+   "id": "campaign.id",
+   "name": "Braze campaign id",
+   "definition": "Braze campaign id.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.braze.message_send.campaign_id",
+    "fennmoor-raw.salesforce.campaign.braze_campaign_id__c",
+    "fennmoor-dw.dw_staging.stg_braze__campaign.campaign_id",
+    "fennmoor-dw.dw_staging.stg_braze__email_event.campaign_id",
+    "fennmoor-dw.dw_staging.stg_braze__push_event.campaign_id",
+    "fennmoor-dw.dw_marketing.fct_campaign_attribution.campaign_id",
+    "fennmoor-dw.dw_marketing.fct_campaign_engagement.campaign_id",
+    "fennmoor-dw.dw_marketing.fct_campaign_sends.campaign_id"
+   ]
+  },
+  {
+   "id": "canvas.id",
+   "name": "Braze canvas",
+   "definition": "Braze canvas (multi-step journey) id.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.braze.conversion.canvas_id",
+    "fennmoor-raw.braze.message_send.canvas_id",
+    "fennmoor-dw.dw_staging.stg_braze__conversion.canvas_id",
+    "fennmoor-dw.dw_staging.stg_braze__email_event.canvas_id",
+    "fennmoor-dw.dw_staging.stg_braze__message_send.canvas_id",
+    "fennmoor-dw.dw_marketing.fct_campaign_sends.canvas_id"
+   ]
+  },
+  {
+   "id": "card.token",
+   "name": "Tokenized PAN",
+   "definition": "Tokenized PAN. The PAN itself is never stored.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.card_processor.authorization.card_token",
+    "fennmoor-raw.card_processor.card.card_token",
+    "fennmoor-raw.card_processor.card_status_change.card_token",
+    "fennmoor-raw.card_processor.settlement.card_token",
+    "fennmoor-dw.dw_staging.stg_cards__card.card_token",
+    "fennmoor-dw.dw_staging.stg_cards__card_status_change.card_token",
+    "fennmoor-dw.dw_staging.stg_cards__settlement.card_token",
+    "fennmoor-dw.dw_core.fct_card_transactions.card_token"
+   ]
+  },
+  {
+   "id": "card_account.id",
+   "name": "Card processor's account id",
+   "definition": "Card processor's account id (INT64). Named `account_id` in the source. Same name and type as the deposit account id, different id space.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.card_processor.authorization.account_id",
+    "fennmoor-raw.card_processor.card.account_id",
+    "fennmoor-raw.card_processor.card_account_hist_2019.account_id",
+    "fennmoor-raw.card_processor.card_status_change.account_id",
+    "fennmoor-raw.card_processor.dispute.account_id",
+    "fennmoor-raw.card_processor.rewards_ledger.account_id",
+    "fennmoor-raw.card_processor.statement.account_id",
+    "fennmoor-dw.dw_staging.stg_cards__card.account_id",
+    "fennmoor-dw.dw_staging.stg_cards__card_account.account_id",
+    "fennmoor-dw.dw_staging.stg_cards__card_status_change.account_id",
+    "fennmoor-dw.dw_staging.stg_cards__dispute.account_id",
+    "fennmoor-dw.dw_staging.stg_cards__settlement.account_id",
+    "fennmoor-dw.dw_staging.stg_cards__statement.account_id",
+    "fennmoor-dw.dw_intermediate.int_accounts_unioned.card_account_id",
+    "fennmoor-dw.dw_core.dim_account.card_account_id",
+    "fennmoor-dw.dw_core.dim_card.card_account_id",
+    "fennmoor-dw.dw_core.fct_card_transactions.card_account_id",
+    "fennmoor-dw.ml_features.feat_card_velocity.card_account_id"
+   ]
+  },
+  {
+   "id": "card_auth.id",
+   "name": "Card authorization id",
+   "definition": "Card authorization id. Settlements carry the auth_id they cleared.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.card_processor.authorization.auth_id",
+    "fennmoor-raw.card_processor.settlement.auth_id"
+   ]
+  },
+  {
+   "id": "card_txn.id",
+   "name": "Settled card transaction id",
+   "definition": "Settled card transaction id.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.card_processor.settlement.settlement_id",
+    "fennmoor-dw.dw_staging.stg_cards__dispute.settlement_id",
+    "fennmoor-dw.dw_core.fct_card_transactions.settlement_id"
+   ]
+  },
+  {
+   "id": "case.id",
+   "name": "Salesforce service case id",
+   "definition": "Salesforce service case id.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.salesforce.case_history.case_id",
+    "fennmoor-dw.dw_staging.stg_sf__case.case_id"
+   ]
+  },
+  {
+   "id": "cc_site.id",
+   "name": "Contact-center site",
+   "definition": "Contact-center site (TUL, SPK, MNL-BPO). Each maps to a finance cost center, which is how site costs are found.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.contact_center_legacy.cdr_*.SITE_CD",
+    "fennmoor-dw.dw_intermediate.int_calls_enriched.queue_site_id",
+    "fennmoor-dw.dw_intermediate.int_calls_legacy_cdr.site_id",
+    "fennmoor-dw.dw_contact_center.agg_site_monthly.site_id",
+    "fennmoor-dw.dw_contact_center.dim_cc_site.site_id",
+    "fennmoor-dw.dw_contact_center.fct_contacts_all.site_id",
+    "fennmoor-dw.dw_contact_center.rpt_site_cost_per_contact.site_id",
+    "fennmoor-analytics.legacy_edw.CC_EXPNS_MTHLY.CC_ID"
+   ]
+  },
+  {
+   "id": "crm.campaign_id",
+   "name": "Salesforce campaign id",
+   "definition": "Salesforce campaign id (not the Braze campaign id).",
+   "status": "approved",
+   "columns": [
+    "fennmoor-dw.dw_staging.stg_sf__opportunity.campaign_id"
+   ]
+  },
+  {
+   "id": "crm.lead_id",
+   "name": "Salesforce lead id",
+   "definition": "Salesforce lead id.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.salesforce.lead.id",
+    "fennmoor-dw.dw_staging.stg_sf__lead.lead_id"
+   ]
+  },
+  {
+   "id": "crm.user_id",
+   "name": "Salesforce user id",
+   "definition": "Salesforce user id - owner_id, created_by_id, last_modified_by_id all point here.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.salesforce.account.owner_id",
+    "fennmoor-raw.salesforce.campaign.created_by_id",
+    "fennmoor-raw.salesforce.lead.last_modified_by_id",
+    "fennmoor-raw.salesforce.opportunity.owner_id",
+    "fennmoor-raw.salesforce.opportunity.created_by_id",
+    "fennmoor-raw.salesforce.opportunity.last_modified_by_id",
+    "fennmoor-raw.salesforce.record_type.created_by_id",
+    "fennmoor-raw.salesforce.task.owner_id",
+    "fennmoor-raw.salesforce.task.last_modified_by_id",
+    "fennmoor-raw.salesforce.user.id",
+    "fennmoor-raw.salesforce.user.created_by_id",
+    "fennmoor-raw.salesforce.user.last_modified_by_id",
+    "fennmoor-dw.dw_staging.stg_sf__account.owner_id",
+    "fennmoor-dw.dw_staging.stg_sf__case.owner_id",
+    "fennmoor-dw.dw_staging.stg_sf__contact.owner_id",
+    "fennmoor-dw.dw_staging.stg_sf__opportunity.owner_id",
+    "fennmoor-dw.dw_staging.stg_sf__task.owner_id"
+   ]
+  },
+  {
+   "id": "customer.aml_party_id",
+   "name": "AML vendor's party id",
+   "definition": "AML vendor's party id. Crosswalk to CIF lives in aml_kyc.party.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.aml_kyc.ctr_filing.party_id",
+    "fennmoor-raw.aml_kyc.kyc_review.party_id",
+    "fennmoor-raw.aml_kyc.screening_hit.party_id",
+    "fennmoor-raw.aml_kyc.transaction_alert.party_id",
+    "fennmoor-dw.dw_staging_restricted.stg_aml__ctr_filing.party_id",
+    "fennmoor-dw.dw_staging_restricted.stg_aml__kyc_review.party_id",
+    "fennmoor-dw.dw_staging_restricted.stg_aml__sar_filing.party_id",
+    "fennmoor-dw.dw_compliance.fct_aml_alerts.party_id"
+   ]
+  },
+  {
+   "id": "customer.cif",
+   "name": "Customer Information File number",
+   "definition": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.aml_kyc.party.cif_number",
+    "fennmoor-raw.braze.conversion.external_user_id",
+    "fennmoor-raw.braze.email_event.external_user_id",
+    "fennmoor-raw.braze.message_send.external_user_id",
+    "fennmoor-raw.card_processor.card_account.bank_customer_ref",
+    "fennmoor-raw.contact_center_legacy.cdr_*.CIF_NO",
+    "fennmoor-raw.core_banking_cdc.ACCOUNT_CUSTOMER_REL.CIF_NO",
+    "fennmoor-raw.credit_bureau.consumer_attributes_2019_archive.CIF",
+    "fennmoor-raw.loan_origination.applicant.cifNumber",
+    "fennmoor-raw.loan_origination.application.applicantCifNumber",
+    "fennmoor-raw.loan_origination.application.coApplicantCifNumber",
+    "fennmoor-dw.dw_staging.stg_braze__conversion.external_user_id",
+    "fennmoor-dw.dw_staging.stg_braze__email_event.external_user_id",
+    "fennmoor-dw.dw_staging.stg_braze__message_send.external_user_id",
+    "fennmoor-dw.dw_staging.stg_braze__push_event.external_user_id",
+    "fennmoor-dw.dw_staging.stg_cards__card_account.bank_customer_ref",
+    "fennmoor-dw.dw_staging.stg_core__account_customer_relationship.cif_number",
+    "fennmoor-dw.dw_staging.stg_core__customer.cif_number",
+    "fennmoor-dw.dw_staging.stg_genesys__participant.cif_number",
+    "fennmoor-dw.dw_staging.stg_sf__contact.cif_number",
+    "fennmoor-dw.dw_staging_restricted.stg_aml__party.cif_number",
+    "fennmoor-dw.dw_intermediate.int_account_closures.cif_number",
+    "fennmoor-dw.dw_intermediate.int_account_holders.cif_number",
+    "fennmoor-dw.dw_intermediate.int_calls_enriched.cif_number",
+    "fennmoor-dw.dw_intermediate.int_customer_identity.cif_number",
+    "fennmoor-dw.dw_contact_center.fct_contacts_all.cif_number",
+    "fennmoor-dw.dw_core.dim_account.primary_cif_number",
+    "fennmoor-dw.dw_core.fct_card_transactions.cif_number",
+    "fennmoor-dw.dw_digital.fct_app_sessions.cif_number",
+    "fennmoor-dw.dw_digital.fct_digital_logins.cif_number",
+    "fennmoor-dw.dw_digital.fct_p2p_transfers.cif_number",
+    "fennmoor-dw.dw_marketing.fct_campaign_attribution.cif_number",
+    "fennmoor-dw.dw_marketing.fct_campaign_engagement.cif_number",
+    "fennmoor-dw.dw_marketing.fct_campaign_sends.cif_number",
+    "fennmoor-dw.dw_risk.fct_credit_applications.applicant_cif_number",
+    "fennmoor-dw.dw_risk.fct_fraud_alerts.cif_number",
+    "fennmoor-dw.ml_scores.churn_score_v2.cif_number",
+    "fennmoor-analytics.legacy_edw.CUST_ACCT_XREF.CUST_ID",
+    "fennmoor-analytics.legacy_edw.CUST_MSTR.CUST_ID",
+    "fennmoor-dw.dw_staging.stg_ga4__events.user_id"
+   ]
+  },
+  {
+   "id": "customer.ga4_pseudo_id",
+   "name": "GA4 cookie/device id",
+   "definition": "GA4 cookie/device id. Pre-login traffic only has this.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.analytics_312874659.events_*.user_pseudo_id",
+    "fennmoor-raw.analytics_312874659.pseudonymous_users_*.pseudo_user_id",
+    "fennmoor-dw.dw_intermediate.int_digital_sessions.user_pseudo_id",
+    "fennmoor-dw.dw_digital.fct_web_sessions.user_pseudo_id"
+   ]
+  },
+  {
+   "id": "customer.ga4_user_id",
+   "name": "Ga4 user id",
+   "definition": "GA4 user_id = SHA-256 hex of olb_user_id, set by the web tag on login. NOT a CIF - joining it directly to cif_number is a planted trap.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.analytics_312874659.events_*.user_id",
+    "fennmoor-raw.analytics_312874659.users_*.user_id",
+    "fennmoor-dw.dw_intermediate.int_customer_identity.ga4_user_ids",
+    "fennmoor-dw.dw_digital.fct_web_sessions.ga4_user_id"
+   ]
+  },
+  {
+   "id": "customer.key",
+   "name": "Warehouse surrogate key for a customer",
+   "definition": "Warehouse surrogate key for a customer (INT64, dbt-generated).",
+   "status": "approved",
+   "columns": [
+    "fennmoor-dw.dw_intermediate.int_customer_identity.customer_key",
+    "fennmoor-dw.dw_compliance.fct_aml_alerts.customer_key",
+    "fennmoor-dw.dw_contact_center.fct_csat.customer_key",
+    "fennmoor-dw.dw_core.dim_account.customer_key",
+    "fennmoor-dw.dw_core.fct_account_closures.customer_key",
+    "fennmoor-dw.dw_core.fct_card_transactions.customer_key",
+    "fennmoor-dw.dw_core.fct_fees.customer_key",
+    "fennmoor-dw.dw_digital.fct_web_sessions.customer_key",
+    "fennmoor-dw.dw_finance.fct_customer_profitability_monthly.customer_key",
+    "fennmoor-dw.dw_marketing.fct_campaign_attribution.customer_key",
+    "fennmoor-dw.dw_marketing.fct_campaign_sends.customer_key",
+    "fennmoor-dw.dw_risk.fct_credit_applications.customer_key",
+    "fennmoor-dw.dw_risk.fct_delinquency_daily.customer_key",
+    "fennmoor-dw.ml_features.feat_customer_daily.customer_key",
+    "fennmoor-dw.ml_scores.churn_score_v2.customer_key",
+    "fennmoor-dw.ml_scores.churn_score_v3.customer_key",
+    "fennmoor-dw.ml_scores.next_best_offer.customer_key"
+   ]
+  },
+  {
+   "id": "customer.legacy_household_id",
+   "name": "Teradata-era household id",
+   "definition": "Teradata-era household id. Not the Salesforce household.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-analytics.legacy_edw.CUST_MSTR.HH_ID"
+   ]
+  },
+  {
+   "id": "customer.sf_contact_id",
+   "name": "Salesforce Contact id",
+   "definition": "Salesforce Contact id (18-char). One per person in CRM.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.salesforce.lead.converted_contact_id",
+    "fennmoor-raw.salesforce.task.who_id",
+    "fennmoor-dw.dw_staging.stg_sf__case.contact_id",
+    "fennmoor-dw.dw_staging.stg_sf__contact.contact_id",
+    "fennmoor-dw.dw_staging.stg_sf__financial_account.primary_owner",
+    "fennmoor-dw.dw_staging.stg_sf__lead.converted_contact_id",
+    "fennmoor-dw.dw_staging.stg_sf__opportunity.primary_contact",
+    "fennmoor-dw.dw_staging.stg_sf__task.who_id",
+    "fennmoor-dw.dw_intermediate.int_customer_identity.sf_contact_id"
+   ]
+  },
+  {
+   "id": "customer.sf_household_id",
+   "name": "Sf household id",
+   "definition": "Salesforce Account id, used by the bank as a household.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.salesforce.opportunity.account_id",
+    "fennmoor-dw.dw_staging.stg_sf__account.account_id",
+    "fennmoor-dw.dw_staging.stg_sf__case.account_id",
+    "fennmoor-dw.dw_staging.stg_sf__contact.account_id",
+    "fennmoor-dw.dw_intermediate.int_customer_identity.sf_household_id"
+   ]
+  },
+  {
+   "id": "deposit_account.id",
+   "name": "Core banking internal account id",
+   "definition": "Core banking internal account id (INT64, 7-9 digits). Staged as `account_id`. HOMONYM TRAP: card_processor also has `account_id`, in a different id space with overlapping integer ranges.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.core_banking_cdc.ACCOUNT_BALANCE_DLY.ACCT_ID",
+    "fennmoor-raw.core_banking_cdc.CD_MATURITY_SCHED.ACCT_ID",
+    "fennmoor-raw.core_banking_cdc.DEPOSIT_TXN.ACCT_ID",
+    "fennmoor-raw.core_banking_cdc.INTEREST_ACCRUAL.ACCT_ID",
+    "fennmoor-raw.digital_banking.bill_pay.from_account_id",
+    "fennmoor-raw.digital_banking.p2p_transfer.from_account_id",
+    "fennmoor-dw.dw_staging.stg_core__account_customer_relationship.account_id",
+    "fennmoor-dw.dw_staging.stg_core__interest_accrual.account_id",
+    "fennmoor-dw.dw_staging.stg_sf__financial_account.core_account_id",
+    "fennmoor-dw.dw_intermediate.int_account_holders.account_id",
+    "fennmoor-dw.dw_intermediate.int_accounts_unioned.core_account_id",
+    "fennmoor-dw.dw_core.dim_account.core_account_id",
+    "fennmoor-dw.dw_core.fct_daily_account_balances.core_account_id",
+    "fennmoor-dw.dw_core.fct_deposit_transactions.core_account_id",
+    "fennmoor-dw.dw_digital.fct_p2p_transfers.core_account_id",
+    "fennmoor-dw.dw_core.fct_card_transactions.card_account_id"
+   ]
+  },
+  {
+   "id": "deposit_account.number",
+   "name": "Customer-facing account number",
+   "definition": "Customer-facing account number. Sensitive; masked outside restricted datasets.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.core_banking_cdc.STANDING_ORDER.BENE_ACCT_NO"
+   ]
+  },
+  {
+   "id": "deposit_txn.id",
+   "name": "Core deposit transaction id",
+   "definition": "Core deposit transaction id.",
+   "status": "approved",
+   "columns": []
+  },
+  {
+   "id": "device.id",
+   "name": "Registered mobile device id",
+   "definition": "Registered mobile device id.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.digital_banking.device.device_id",
+    "fennmoor-dw.dw_staging.stg_olb__device.device_id"
+   ]
+  },
+  {
+   "id": "dispute.id",
+   "name": "Card dispute / chargeback case id",
+   "definition": "Card dispute / chargeback case id.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.card_processor.dispute.dispute_id",
+    "fennmoor-dw.dw_staging.stg_cards__dispute.dispute_id"
+   ]
+  },
+  {
+   "id": "employee.id",
+   "name": "Workday worker id",
+   "definition": "Workday worker id - agents, bankers, analysts, collectors. BPO agents are not employees and do not have one.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.aml_kyc.kyc_review.reviewer_id",
+    "fennmoor-raw.aml_kyc.screening_hit.reviewer_id",
+    "fennmoor-raw.aml_kyc.transaction_alert.assigned_to",
+    "fennmoor-raw.core_banking_cdc.BRANCH.MGR_EMP_ID",
+    "fennmoor-raw.genesys_cloud.user.employee_id",
+    "fennmoor-raw.gl_erp.cost_center.owner_worker_id",
+    "fennmoor-raw.loan_origination.application.loanOfficerId",
+    "fennmoor-raw.loan_origination.delinquency_snapshot.collectorId",
+    "fennmoor-raw.salesforce.user.employee_number",
+    "fennmoor-raw.workday.position.worker_id",
+    "fennmoor-dw.dw_staging.stg_gl__cost_center.owner_worker_id",
+    "fennmoor-dw.dw_staging.stg_los__delinquency_snapshot.collector_id",
+    "fennmoor-dw.dw_staging_restricted.stg_aml__kyc_review.reviewer_id",
+    "fennmoor-dw.dw_staging_restricted.stg_aml__screening_hit.reviewer_id",
+    "fennmoor-dw.dw_staging_restricted.stg_wd__position.worker_id",
+    "fennmoor-dw.dw_core.dim_branch.manager_employee_id",
+    "fennmoor-dw.dw_finance.dim_cost_center.owner_worker_id"
+   ]
+  },
+  {
+   "id": "finance.cost_center_id",
+   "name": "Cost center",
+   "definition": "Cost center. Abbreviated CC in finance and legacy tables, colliding with CC = credit card and CC = contact center.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.gl_erp.cost_center.cost_center_id",
+    "fennmoor-raw.gl_erp.journal_line.cost_center_id",
+    "fennmoor-dw.dw_staging.stg_gl__cc_expense_summary.cost_center_id",
+    "fennmoor-dw.dw_staging.stg_gl__journal_line.cost_center_id",
+    "fennmoor-dw.dw_staging.stg_gl__vendor_invoice.cost_center_id",
+    "fennmoor-dw.dw_core.dim_branch.cost_center_id",
+    "fennmoor-dw.dw_finance.dim_cost_center.cost_center_id",
+    "fennmoor-analytics.legacy_edw.CC_EXPNS_MTHLY.CC_ID"
+   ]
+  },
+  {
+   "id": "fraud.alert_id",
+   "name": "Fraud platform alert id",
+   "definition": "Fraud platform alert id.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.fraud_platform.case_alert_link.alert_id",
+    "fennmoor-dw.dw_staging.stg_fraud__case_alert_link.alert_id",
+    "fennmoor-dw.dw_risk.fct_fraud_alerts.alert_id"
+   ]
+  },
+  {
+   "id": "fraud.case_id",
+   "name": "Fraud investigation case id",
+   "definition": "Fraud investigation case id.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.fraud_platform.case_alert_link.case_id",
+    "fennmoor-dw.dw_staging.stg_fraud__case_alert_link.case_id"
+   ]
+  },
+  {
+   "id": "fraud.rule_id",
+   "name": "Fraud rule id",
+   "definition": "Fraud rule id.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.fraud_platform.rule.rule_id"
+   ]
+  },
+  {
+   "id": "genesys.division_id",
+   "name": "Genesys division",
+   "definition": "Genesys division (retail service, card services, collections).",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.genesys_cloud.queue.division_id",
+    "fennmoor-dw.dw_staging.stg_genesys__queue.division_id"
+   ]
+  },
+  {
+   "id": "gl.account_code",
+   "name": "General-ledger natural account code",
+   "definition": "General-ledger natural account code.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.gl_erp.gl_account.gl_account_code",
+    "fennmoor-raw.gl_erp.gl_account.parent_code",
+    "fennmoor-raw.gl_erp.journal_line.gl_account_code",
+    "fennmoor-dw.dw_staging.stg_gl__cc_expense_summary.gl_account_code",
+    "fennmoor-dw.dw_staging.stg_gl__journal_line.gl_account_code",
+    "fennmoor-dw.dw_staging.stg_gl__vendor_invoice.gl_account_code",
+    "fennmoor-analytics.legacy_edw.CC_EXPNS_MTHLY.GL_ACCT_NBR"
+   ]
+  },
+  {
+   "id": "gl.journal_id",
+   "name": "GL journal entry id",
+   "definition": "GL journal entry id.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-dw.dw_staging.stg_gl__journal_line.journal_id"
+   ]
+  },
+  {
+   "id": "loan.application_id",
+   "name": "Loan origination application id",
+   "definition": "Loan origination application id.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.loan_origination.applicant.applicationId",
+    "fennmoor-raw.loan_origination.credit_pull.applicationId",
+    "fennmoor-raw.loan_origination.decision.applicationId",
+    "fennmoor-dw.dw_staging.stg_los__decision.application_id",
+    "fennmoor-dw.dw_risk.fct_credit_applications.application_id"
+   ]
+  },
+  {
+   "id": "loan.id",
+   "name": "Booked loan number from the servicing module",
+   "definition": "Booked loan number from the servicing module.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.loan_origination.collateral.loanNumber",
+    "fennmoor-dw.dw_staging.stg_los__collateral.loan_number",
+    "fennmoor-dw.dw_intermediate.int_accounts_unioned.loan_number",
+    "fennmoor-dw.dw_risk.fct_delinquency_daily.loan_number"
+   ]
+  },
+  {
+   "id": "marketing.legacy_campaign_code",
+   "name": "Pre-Braze campaign code",
+   "definition": "Pre-Braze campaign code (legacy_edw only).",
+   "status": "approved",
+   "columns": []
+  },
+  {
+   "id": "merchant.id",
+   "name": "Card network merchant id",
+   "definition": "Card network merchant id.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-dw.dw_staging.stg_cards__settlement.merchant_id"
+   ]
+  },
+  {
+   "id": "message.send_id",
+   "name": "One message delivery to one user",
+   "definition": "One message delivery to one user.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.braze.message_send.id",
+    "fennmoor-dw.dw_staging.stg_braze__message_send.message_send_id"
+   ]
+  },
+  {
+   "id": "metric.count",
+   "name": "Generic count",
+   "definition": "Generic count.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-dw.dw_contact_center.agg_site_monthly.contacts",
+    "fennmoor-dw.dw_contact_center.agg_site_monthly.closure_calls",
+    "fennmoor-dw.dw_contact_center.agg_site_monthly.unique_callers",
+    "fennmoor-dw.dw_contact_center.rpt_site_cost_per_contact.contacts",
+    "fennmoor-dw.dw_contact_center.rpt_site_cost_per_contact.closure_calls",
+    "fennmoor-dw.dw_customer.customer_monthly_summary.accounts_with_balance",
+    "fennmoor-dw.dw_digital.fct_app_sessions.events",
+    "fennmoor-dw.dw_digital.fct_app_sessions.screens",
+    "fennmoor-dw.ml_features.feat_card_velocity.txn_count_1d",
+    "fennmoor-dw.ml_features.feat_card_velocity.txn_count_7d",
+    "fennmoor-dw.ml_features.feat_card_velocity.foreign_txn_7d",
+    "fennmoor-dw.ml_features.feat_customer_daily.logins_30d",
+    "fennmoor-dw.ml_features.feat_customer_daily.failed_logins_30d",
+    "fennmoor-dw.ml_features.feat_customer_daily.closure_calls_90d",
+    "fennmoor-dw.ml_features.feat_customer_daily.fee_count_90d",
+    "fennmoor-dw.ml_features.feat_customer_daily.waived_fee_count_90d"
+   ]
+  },
+  {
+   "id": "metric.duration",
+   "name": "Elapsed time",
+   "definition": "Elapsed time.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.contact_center_legacy.cdr_*.HOLD_SEC",
+    "fennmoor-raw.salesforce.task.call_duration_in_seconds",
+    "fennmoor-dw.dw_staging.stg_genesys__queue.acw_timeout_ms",
+    "fennmoor-dw.dw_staging.stg_sf__task.call_duration_in_seconds",
+    "fennmoor-dw.dw_intermediate.int_calls_enriched.hold_sec",
+    "fennmoor-dw.dw_intermediate.int_calls_enriched.acw_sec",
+    "fennmoor-dw.dw_intermediate.int_calls_legacy_cdr.talk_sec",
+    "fennmoor-dw.dw_intermediate.int_calls_legacy_cdr.hold_sec",
+    "fennmoor-dw.dw_intermediate.int_digital_sessions.engaged_sec",
+    "fennmoor-dw.dw_compliance.fct_kyc_reviews.days_to_complete",
+    "fennmoor-dw.dw_contact_center.agg_site_monthly.avg_handle_sec",
+    "fennmoor-dw.dw_contact_center.fct_contacts_all.handle_sec",
+    "fennmoor-dw.dw_digital.fct_web_sessions.engaged_sec",
+    "fennmoor-dw.dw_marketing.fct_campaign_attribution.hours_since_send"
+   ]
+  },
+  {
+   "id": "metric.nps",
+   "name": "Net promoter response",
+   "definition": "Net promoter response",
+   "status": "approved",
+   "columns": [
+    "fennmoor-dw.dw_staging.stg_genesys__survey_response.nps_score"
+   ]
+  },
+  {
+   "id": "money.balance",
+   "name": "Account balance",
+   "definition": "Account balance.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.card_processor.card_account.statement_balance_cents",
+    "fennmoor-raw.card_processor.card_account.min_payment_due_cents",
+    "fennmoor-raw.core_banking_cdc.ACCOUNT_BALANCE_DLY.LEDGER_BAL_AMT",
+    "fennmoor-raw.core_banking_cdc.ACCOUNT_BALANCE_DLY.AVAIL_BAL_AMT",
+    "fennmoor-raw.core_banking_cdc.ACCOUNT_BALANCE_DLY.COLL_BAL_AMT",
+    "fennmoor-raw.core_banking_cdc.ACCOUNT_BALANCE_DLY.AVG_MTD_BAL_AMT",
+    "fennmoor-raw.core_banking_cdc.ACCOUNT_BALANCE_DLY.HOLD_AMT",
+    "fennmoor-raw.core_banking_cdc.CD_MATURITY_SCHED.PRIN_AMT",
+    "fennmoor-raw.core_banking_cdc.INTEREST_ACCRUAL.BAL_AMT",
+    "fennmoor-raw.core_banking_cdc.PRODUCT.MIN_BAL_AMT",
+    "fennmoor-raw.credit_bureau.consumer_attributes_2019_archive.TOT_REV_BAL",
+    "fennmoor-raw.loan_origination.credit_pull.totalDebt",
+    "fennmoor-raw.loan_origination.delinquency_snapshot.pastDueAmount",
+    "fennmoor-dw.dw_staging.stg_cards__card_account.current_balance",
+    "fennmoor-dw.dw_staging.stg_cards__card_account.statement_balance",
+    "fennmoor-dw.dw_staging.stg_cards__card_account.min_payment_due",
+    "fennmoor-dw.dw_staging.stg_cards__statement.closing_balance",
+    "fennmoor-dw.dw_staging.stg_core__account_balance_daily.ledger_balance_amount",
+    "fennmoor-dw.dw_staging.stg_core__account_balance_daily.available_balance_amount",
+    "fennmoor-dw.dw_staging.stg_core__account_balance_daily.collected_balance_amount",
+    "fennmoor-dw.dw_staging.stg_core__account_balance_daily.avg_mtd_balance_amount",
+    "fennmoor-dw.dw_staging.stg_core__account_balance_daily.hold_amount",
+    "fennmoor-dw.dw_staging.stg_core__interest_accrual.balance_amount",
+    "fennmoor-dw.dw_staging.stg_core__product.min_balance_amount",
+    "fennmoor-dw.dw_staging.stg_los__collateral.appraised_value",
+    "fennmoor-dw.dw_staging.stg_los__credit_pull.total_debt",
+    "fennmoor-dw.dw_staging.stg_los__delinquency_snapshot.past_due_amount",
+    "fennmoor-dw.dw_staging.stg_sf__opportunity.amount",
+    "fennmoor-dw.dw_core.fct_daily_account_balances.ledger_balance",
+    "fennmoor-dw.dw_customer.customer_monthly_summary.avg_daily_total_balance",
+    "fennmoor-dw.dw_customer.customer_monthly_summary.max_daily_total_balance",
+    "fennmoor-dw.dw_finance.fct_customer_profitability_monthly.avg_balance",
+    "fennmoor-dw.dw_risk.fct_delinquency_daily.past_due_amount",
+    "fennmoor-dw.ml_features.feat_customer_daily.avg_balance_30d",
+    "fennmoor-analytics.legacy_edw.ACCT_DLY_BAL_OLD.LDGR_BAL_AMT",
+    "fennmoor-analytics.legacy_edw.ACCT_DLY_BAL_OLD.AVL_BAL_AMT"
+   ]
+  },
+  {
+   "id": "money.cost",
+   "name": "Operating cost / expense",
+   "definition": "Operating cost / expense.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.fraud_platform.fraud_case.total_loss_amount",
+    "fennmoor-raw.fraud_platform.fraud_case.recovered_amount",
+    "fennmoor-raw.gl_erp.vendor_invoice.amount",
+    "fennmoor-raw.salesforce.campaign.budgeted_cost",
+    "fennmoor-dw.dw_staging.stg_gl__cc_expense_summary.actual_amount",
+    "fennmoor-dw.dw_staging.stg_gl__cc_expense_summary.budget_amount",
+    "fennmoor-dw.dw_staging.stg_gl__cc_expense_summary.variance_amount",
+    "fennmoor-dw.dw_staging.stg_gl__vendor_invoice.amount",
+    "fennmoor-dw.dw_staging_restricted.stg_wd__compensation.base_pay_annual",
+    "fennmoor-dw.dw_contact_center.rpt_site_cost_per_contact.total_expense",
+    "fennmoor-dw.dw_contact_center.rpt_site_cost_per_contact.cost_per_contact",
+    "fennmoor-analytics.legacy_edw.CC_EXPNS_MTHLY.ACTL_AMT",
+    "fennmoor-analytics.legacy_edw.CC_EXPNS_MTHLY.BDGT_AMT"
+   ]
+  },
+  {
+   "id": "money.credit_limit",
+   "name": "Credit limit on a card or line",
+   "definition": "Credit limit on a card or line.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.card_processor.card_account.cash_limit_cents",
+    "fennmoor-raw.card_processor.card_account_hist_2019.credit_limit_cents",
+    "fennmoor-dw.dw_staging.stg_cards__card_account.credit_limit"
+   ]
+  },
+  {
+   "id": "money.fee",
+   "name": "Fee charged to a customer",
+   "definition": "Fee charged to a customer.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.card_processor.statement.fees_charged_cents",
+    "fennmoor-raw.core_banking_cdc.PRODUCT.MTHLY_FEE_AMT",
+    "fennmoor-dw.dw_staging.stg_cards__statement.fees_charged",
+    "fennmoor-dw.dw_staging.stg_core__product.monthly_fee_amount",
+    "fennmoor-dw.dw_core.dim_product.monthly_fee_amount",
+    "fennmoor-dw.dw_core.fct_fees.fee_amount",
+    "fennmoor-dw.dw_core.fct_fees.net_fee",
+    "fennmoor-dw.dw_finance.fct_fee_income_monthly.gross_fees",
+    "fennmoor-dw.dw_finance.fct_fee_income_monthly.waived_fees"
+   ]
+  },
+  {
+   "id": "money.gl_amount",
+   "name": "Signed GL debit/credit amount",
+   "definition": "Signed GL debit/credit amount - revenue or expense depending on the account.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.gl_erp.journal_line.entered_dr",
+    "fennmoor-raw.gl_erp.journal_line.entered_cr",
+    "fennmoor-dw.dw_staging.stg_gl__journal_line.entered_dr",
+    "fennmoor-dw.dw_staging.stg_gl__journal_line.entered_cr"
+   ]
+  },
+  {
+   "id": "money.income",
+   "name": "Customer stated or verified income",
+   "definition": "Customer stated or verified income.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.loan_origination.application.statedIncome"
+   ]
+  },
+  {
+   "id": "money.interest",
+   "name": "Interest accrued or paid",
+   "definition": "Interest accrued or paid.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.card_processor.statement.interest_charged_cents",
+    "fennmoor-raw.core_banking_cdc.ACCOUNT_BALANCE_DLY.ACCRD_INT_AMT",
+    "fennmoor-raw.core_banking_cdc.INTEREST_ACCRUAL.ACCR_AMT",
+    "fennmoor-dw.dw_staging.stg_cards__statement.interest_charged",
+    "fennmoor-dw.dw_staging.stg_core__account_balance_daily.accrued_interest_amount",
+    "fennmoor-dw.dw_core.fct_daily_account_balances.accrued_interest"
+   ]
+  },
+  {
+   "id": "money.loan_principal",
+   "name": "Loan principal amount or balance",
+   "definition": "Loan principal amount or balance.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.loan_origination.application.requestedAmount",
+    "fennmoor-raw.loan_origination.decision.approvedAmount",
+    "fennmoor-raw.loan_origination.loan.principalAmount",
+    "fennmoor-raw.loan_origination.loan.currentPrincipal",
+    "fennmoor-raw.loan_origination.loan.chargeOffAmount",
+    "fennmoor-dw.dw_staging.stg_los__decision.approved_amount"
+   ]
+  },
+  {
+   "id": "money.revenue",
+   "name": "Income / revenue",
+   "definition": "Income / revenue.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.card_processor.settlement.interchange_cents",
+    "fennmoor-dw.dw_finance.fct_customer_profitability_monthly.fee_revenue",
+    "fennmoor-dw.dw_finance.fct_customer_profitability_monthly.interchange_revenue",
+    "fennmoor-dw.dw_finance.fct_customer_profitability_monthly.deposit_margin",
+    "fennmoor-dw.dw_finance.fct_customer_profitability_monthly.total_revenue"
+   ]
+  },
+  {
+   "id": "olb.session_id",
+   "name": "Online banking platform session id",
+   "definition": "Online banking platform session id.",
+   "status": "approved",
+   "columns": []
+  },
+  {
+   "id": "orphan.insurance_product",
+   "name": "Credit Insurance Product",
+   "definition": "Credit life or disability insurance sold with a loan or card.",
+   "status": "approved",
+   "columns": []
+  },
+  {
+   "id": "orphan.mortgage_escrow",
+   "name": "Mortgage Escrow Balance",
+   "definition": "Funds held with a mortgage to pay property tax and insurance.",
+   "status": "approved",
+   "columns": []
+  },
+  {
+   "id": "orphan.overdraft_protection",
+   "name": "Overdraft Protection Enrollment",
+   "definition": "Whether a checking account is enrolled to cover overdrafts from a linked account.",
+   "status": "approved",
+   "columns": []
+  },
+  {
+   "id": "orphan.safe_deposit_box",
+   "name": "Safe Deposit Box",
+   "definition": "A box rented to a customer in a branch vault, identified by box number and branch.",
+   "status": "approved",
+   "columns": []
+  },
+  {
+   "id": "orphan.trust_account",
+   "name": "Trust Account",
+   "definition": "An account held by a trustee for the benefit of another party.",
+   "status": "approved",
+   "columns": []
+  },
+  {
+   "id": "orphan.wire_transfer",
+   "name": "Wire Transfer",
+   "definition": "A same-day funds transfer to or from another bank over Fedwire or SWIFT.",
+   "status": "approved",
+   "columns": []
+  },
+  {
+   "id": "pii.address",
+   "name": "Street address",
+   "definition": "Street address.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.loan_origination.applicant.addressLine1",
+    "fennmoor-dw.dw_staging.stg_sf__contact.mailing_street"
+   ]
+  },
+  {
+   "id": "pii.contact_point",
+   "name": "Phone OR email in one column",
+   "definition": "Phone OR email in one column (core CUSTOMER_CONTACT.CNTCT_VAL).",
+   "status": "approved",
+   "columns": [
+    "fennmoor-dw.dw_staging.stg_core__customer_contact.contact_value"
+   ]
+  },
+  {
+   "id": "pii.dob",
+   "name": "Date of birth",
+   "definition": "Date of birth.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-dw.dw_staging_restricted.stg_aml__party.dob",
+    "fennmoor-analytics.legacy_edw.CUST_MSTR.BRTH_DT"
+   ]
+  },
+  {
+   "id": "pii.email",
+   "name": "Email address",
+   "definition": "Email address.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.braze.user_profile.email",
+    "fennmoor-raw.genesys_cloud.user.email",
+    "fennmoor-raw.loan_origination.applicant.email",
+    "fennmoor-raw.salesforce.lead.email",
+    "fennmoor-dw.dw_staging.stg_braze__email_event.email_address",
+    "fennmoor-dw.dw_staging.stg_sf__contact.email",
+    "fennmoor-dw.dw_staging.stg_sf__lead.email",
+    "fennmoor-analytics.legacy_edw.CUST_MSTR.EMAIL_ADDR"
+   ]
+  },
+  {
+   "id": "pii.phone",
+   "name": "Phone number",
+   "definition": "Phone number.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.braze.user_profile.phone",
+    "fennmoor-raw.contact_center_legacy.cdr_*.ANI",
+    "fennmoor-raw.loan_origination.applicant.phone",
+    "fennmoor-raw.salesforce.lead.phone",
+    "fennmoor-dw.dw_staging.stg_sf__contact.mobile_phone",
+    "fennmoor-dw.dw_staging.stg_sf__lead.phone"
+   ]
+  },
+  {
+   "id": "pii.ssn",
+   "name": "Social Security / tax id",
+   "definition": "Social Security / tax id. Raw only in core_banking_cdc and aml_kyc (restricted); hashed from staging onward. One sandbox copy leaks it unhashed - planted finding F08.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.aml_kyc.party.tax_id",
+    "fennmoor-analytics.legacy_edw.CUST_MSTR.SSN_NBR"
+   ]
+  },
+  {
+   "id": "pii.ssn_hash",
+   "name": "SHA-256 of the tax id",
+   "definition": "SHA-256 of the tax id; still personal data but not reversible.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-dw.dw_staging.stg_core__customer.tax_id_hash",
+    "fennmoor-dw.dw_staging_restricted.stg_aml__party.tax_id_hash"
+   ]
+  },
+  {
+   "id": "product.code",
+   "name": "Deposit/loan/card product code",
+   "definition": "Deposit/loan/card product code (e.g. CHK-ESS, SAV-HY, CC-CASHBK).",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.card_processor.card_account.product_code",
+    "fennmoor-raw.core_banking_cdc.PRODUCT.PROD_CD",
+    "fennmoor-raw.salesforce.opportunity.product_code__c",
+    "fennmoor-dw.dw_staging.stg_amp__events.product_code",
+    "fennmoor-dw.dw_intermediate.int_account_closures.product_code",
+    "fennmoor-dw.dw_intermediate.int_accounts_unioned.product_code",
+    "fennmoor-dw.dw_core.dim_account.product_code",
+    "fennmoor-dw.dw_core.dim_product.product_code",
+    "fennmoor-dw.dw_core.fct_account_closures.product_code",
+    "fennmoor-dw.dw_core.fct_daily_account_balances.product_code",
+    "fennmoor-dw.dw_core.fct_fees.product_code",
+    "fennmoor-dw.dw_customer.customer_product_holdings.product_code",
+    "fennmoor-dw.dw_finance.fct_fee_income_monthly.product_code",
+    "fennmoor-dw.dw_risk.fct_credit_applications.product_code",
+    "fennmoor-dw.dw_risk.fct_delinquency_daily.product_code",
+    "fennmoor-dw.ml_scores.next_best_offer.offer_product_code"
+   ]
+  },
+  {
+   "id": "score.aml_risk",
+   "name": "Customer AML risk rating",
+   "definition": "Customer AML risk rating (L/M/H or 1-5).",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.aml_kyc.party.risk_rating",
+    "fennmoor-dw.dw_staging.stg_core__customer.risk_rating_code"
+   ]
+  },
+  {
+   "id": "score.churn_probability",
+   "name": "Churn probability",
+   "definition": "Probability a customer closes all deposit accounts in the next 90 days. Called churn_score, attrition_propensity, CHURN_MDL_SCR, p_attrit...",
+   "status": "approved",
+   "columns": [
+    "fennmoor-dw.ml_scores.churn_score_v2.churn_score"
+   ]
+  },
+  {
+   "id": "score.credit",
+   "name": "Bureau credit score",
+   "definition": "Bureau credit score (FICO 8)",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.loan_origination.application.creditScoreAtApp",
+    "fennmoor-raw.loan_origination.credit_pull.ficoScore"
+   ]
+  },
+  {
+   "id": "score.fraud",
+   "name": "Transaction or session fraud score 0-999",
+   "definition": "Transaction or session fraud score 0-999.",
+   "status": "approved",
+   "columns": [
+    "fennmoor-raw.fraud_platform.model_score_realtime.score",
+    "fennmoor-dw.dw_staging.stg_fraud__model_score_realtime.score",
+    "fennmoor-dw.dw_digital.fct_digital_logins.risk_score",
+    "fennmoor-dw.dw_risk.fct_fraud_alerts.model_score"
+   ]
+  }
+ ],
+ "assets": [
+  {
+   "table": "fennmoor-raw.aml_kyc.ctr_filing",
+   "description": "Currency Transaction Reports (cash over $10k).",
+   "certified": true,
+   "columns": {
+    "party_id": "AML vendor's party id. Crosswalk to CIF lives in aml_kyc.party.",
+    "branch_id": "Branch number (INT64, 3-4 digits)."
+   }
+  },
+  {
+   "table": "fennmoor-raw.aml_kyc.kyc_review",
+   "description": "KYC reviews (onboarding, periodic, event-triggered).",
+   "certified": false,
+   "columns": {
+    "party_id": "AML vendor's party id. Crosswalk to CIF lives in aml_kyc.party.",
+    "reviewer_id": "Workday worker id - agents, bankers, analysts, collectors. BPO agents are not employees and do not have one."
+   }
+  },
+  {
+   "table": "fennmoor-raw.aml_kyc.party",
+   "description": "AML vendor's party master; crosswalk party_id <-> CIF. Restricted.",
+   "certified": true,
+   "columns": {
+    "cif_number": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "tax_id": "Social Security / tax id. Raw only in core_banking_cdc and aml_kyc (restricted); hashed from staging onward. One sandbox copy leaks it unhashed - planted finding F08.",
+    "risk_rating": "Customer AML risk rating (L/M/H or 1-5)."
+   }
+  },
+  {
+   "table": "fennmoor-raw.aml_kyc.screening_hit",
+   "description": "Watchlist screening hits (OFAC SDN, PEP, adverse media).",
+   "certified": true,
+   "columns": {
+    "party_id": "AML vendor's party id. Crosswalk to CIF lives in aml_kyc.party.",
+    "reviewer_id": "Workday worker id - agents, bankers, analysts, collectors. BPO agents are not employees and do not have one."
+   }
+  },
+  {
+   "table": "fennmoor-raw.aml_kyc.transaction_alert",
+   "description": "Transaction-monitoring alerts.",
+   "certified": false,
+   "columns": {
+    "party_id": "AML vendor's party id. Crosswalk to CIF lives in aml_kyc.party.",
+    "assigned_to": "Workday worker id - agents, bankers, analysts, collectors. BPO agents are not employees and do not have one."
+   }
+  },
+  {
+   "table": "fennmoor-raw.amplitude_mobile.MERGE_IDS_318842",
+   "description": "Amplitude id merges (anonymous device id merged into a known user).",
+   "certified": false,
+   "columns": {
+    "amplitude_id": "Amplitude's internal user id; merges are in MERGE_IDS_318842.",
+    "merged_amplitude_id": "Amplitude's internal user id; merges are in MERGE_IDS_318842."
+   }
+  },
+  {
+   "table": "fennmoor-raw.analytics_312874659.events_*",
+   "description": "Standard GA4 BigQuery export, one shard per day. event_date is a 'YYYYMMDD' STRING; event_timestamp is INT64 microseconds.",
+   "certified": false,
+   "columns": {
+    "user_id": "GA4 user_id = SHA-256 hex of olb_user_id, set by the web tag on login. NOT a CIF - joining it directly to cif_number is a planted trap.",
+    "user_pseudo_id": "GA4 cookie/device id. Pre-login traffic only has this."
+   }
+  },
+  {
+   "table": "fennmoor-raw.analytics_312874659.pseudonymous_users_*",
+   "description": "GA4 user-level export keyed by cookie id, one shard per day.",
+   "certified": true,
+   "columns": {
+    "pseudo_user_id": "GA4 cookie/device id. Pre-login traffic only has this."
+   }
+  },
+  {
+   "table": "fennmoor-raw.analytics_312874659.users_*",
+   "description": "GA4 user-level export keyed by user_id (logged-in users only).",
+   "certified": false,
+   "columns": {
+    "user_id": "GA4 user_id = SHA-256 hex of olb_user_id, set by the web tag on login. NOT a CIF - joining it directly to cif_number is a planted trap."
+   }
+  },
+  {
+   "table": "fennmoor-raw.braze.conversion",
+   "description": "Campaign conversion events.",
+   "certified": false,
+   "columns": {
+    "external_user_id": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "canvas_id": "Braze canvas (multi-step journey) id."
+   }
+  },
+  {
+   "table": "fennmoor-raw.braze.email_event",
+   "description": "Email engagement events (delivery, open, click, bounce, unsubscribe).",
+   "certified": true,
+   "columns": {
+    "external_user_id": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string."
+   }
+  },
+  {
+   "table": "fennmoor-raw.braze.message_send",
+   "description": "One row per message delivered to one user.",
+   "certified": false,
+   "columns": {
+    "id": "One message delivery to one user.",
+    "external_user_id": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "campaign_id": "Braze campaign id.",
+    "canvas_id": "Braze canvas (multi-step journey) id."
+   }
+  },
+  {
+   "table": "fennmoor-raw.braze.user_profile",
+   "description": "Braze user export. external_id is the CIF.",
+   "certified": false,
+   "columns": {
+    "braze_id": "Braze's internal user id. Called braze_id in the profile export, user_id in sends.",
+    "email": "Email address.",
+    "phone": "Phone number."
+   }
+  },
+  {
+   "table": "fennmoor-raw.card_processor.authorization",
+   "description": "Every authorization request, approved or declined.",
+   "certified": true,
+   "columns": {
+    "auth_id": "Card authorization id. Settlements carry the auth_id they cleared.",
+    "card_token": "Tokenized PAN. The PAN itself is never stored.",
+    "account_id": "Card processor's account id (INT64). Named `account_id` in the source. Same name and type as the deposit account id, different id space."
+   }
+  },
+  {
+   "table": "fennmoor-raw.card_processor.card",
+   "description": "Physical and virtual cards (plastics) on card accounts.",
+   "certified": false,
+   "columns": {
+    "card_token": "Tokenized PAN. The PAN itself is never stored.",
+    "account_id": "Card processor's account id (INT64). Named `account_id` in the source. Same name and type as the deposit account id, different id space."
+   }
+  },
+  {
+   "table": "fennmoor-raw.card_processor.card_account",
+   "description": "Credit card accounts. `account_id` is the PROCESSOR's id space - same name and type as the core deposit account id, but not joinable to it. Money is integer cents throughout this source.",
+   "certified": true,
+   "columns": {
+    "bank_customer_ref": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "product_code": "Deposit/loan/card product code (e.g. CHK-ESS, SAV-HY, CC-CASHBK).",
+    "cash_limit_cents": "Credit limit on a card or line.",
+    "statement_balance_cents": "Account balance.",
+    "min_payment_due_cents": "Account balance."
+   }
+  },
+  {
+   "table": "fennmoor-raw.card_processor.card_account_hist_2019",
+   "description": "One-off archive from the 2019 processor conversion. Dead.",
+   "certified": true,
+   "columns": {
+    "account_id": "Card processor's account id (INT64). Named `account_id` in the source. Same name and type as the deposit account id, different id space.",
+    "credit_limit_cents": "Credit limit on a card or line."
+   }
+  },
+  {
+   "table": "fennmoor-raw.card_processor.card_status_change",
+   "description": "Card and card-account status changes (activations, blocks, closures).",
+   "certified": true,
+   "columns": {
+    "card_token": "Tokenized PAN. The PAN itself is never stored.",
+    "account_id": "Card processor's account id (INT64). Named `account_id` in the source. Same name and type as the deposit account id, different id space."
+   }
+  },
+  {
+   "table": "fennmoor-raw.card_processor.dispute",
+   "description": "Cardholder disputes and chargebacks.",
+   "certified": true,
+   "columns": {
+    "dispute_id": "Card dispute / chargeback case id.",
+    "account_id": "Card processor's account id (INT64). Named `account_id` in the source. Same name and type as the deposit account id, different id space."
+   }
+  },
+  {
+   "table": "fennmoor-raw.card_processor.mcc_code",
+   "description": "ISO 18245 merchant category codes.",
+   "certified": true,
+   "columns": {}
+  },
+  {
+   "table": "fennmoor-raw.card_processor.rewards_ledger",
+   "description": "Rewards points earned and redeemed.",
+   "certified": true,
+   "columns": {
+    "account_id": "Card processor's account id (INT64). Named `account_id` in the source. Same name and type as the deposit account id, different id space."
+   }
+  },
+  {
+   "table": "fennmoor-raw.card_processor.settlement",
+   "description": "Posted (settled) card transactions.",
+   "certified": false,
+   "columns": {
+    "settlement_id": "Settled card transaction id.",
+    "auth_id": "Card authorization id. Settlements carry the auth_id they cleared.",
+    "card_token": "Tokenized PAN. The PAN itself is never stored.",
+    "interchange_cents": "Income / revenue."
+   }
+  },
+  {
+   "table": "fennmoor-raw.card_processor.statement",
+   "description": "Monthly card statements.",
+   "certified": false,
+   "columns": {
+    "account_id": "Card processor's account id (INT64). Named `account_id` in the source. Same name and type as the deposit account id, different id space.",
+    "interest_charged_cents": "Interest accrued or paid.",
+    "fees_charged_cents": "Fee charged to a customer."
+   }
+  },
+  {
+   "table": "fennmoor-raw.contact_center_legacy.AGENT_ROSTER",
+   "description": "Avaya-era agent roster.",
+   "certified": true,
+   "columns": {}
+  },
+  {
+   "table": "fennmoor-raw.contact_center_legacy.cdr_*",
+   "description": "Avaya call detail records, one shard per month, 202301-202509. Frozen at the Genesys cutover. Local DATETIME, raw ANI (unhashed phone), legacy disposition codes. Queried with the wildcard cdr_* - often with no _TABLE_SUFFIX filter (planted cost finding F09).",
+   "certified": true,
+   "columns": {
+    "ANI": "Phone number.",
+    "SITE_CD": "Contact-center site (TUL, SPK, MNL-BPO). Each maps to a finance cost center, which is how site costs are found.",
+    "HOLD_SEC": "Elapsed time.",
+    "DISPOSITION_CD": "Agent disposition code for why the contact happened.",
+    "CIF_NO": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string."
+   }
+  },
+  {
+   "table": "fennmoor-raw.contact_center_legacy.SITE_LKP",
+   "description": "Avaya-era site lookup. Duplicates reference_data.contact_center_site with different column names and no cost center.",
+   "certified": false,
+   "columns": {}
+  },
+  {
+   "table": "fennmoor-raw.core_banking_cdc.ACCOUNT_BALANCE_DLY",
+   "description": "End-of-day balances, one row per account per day. 3 years retained.",
+   "certified": true,
+   "columns": {
+    "ACCT_ID": "Core banking internal account id (INT64, 7-9 digits). Staged as `account_id`. HOMONYM TRAP: card_processor also has `account_id`, in a different id space with overlapping integer ranges.",
+    "LEDGER_BAL_AMT": "Account balance.",
+    "AVAIL_BAL_AMT": "Account balance.",
+    "COLL_BAL_AMT": "Account balance.",
+    "AVG_MTD_BAL_AMT": "Account balance.",
+    "ACCRD_INT_AMT": "Interest accrued or paid.",
+    "HOLD_AMT": "Account balance."
+   }
+  },
+  {
+   "table": "fennmoor-raw.core_banking_cdc.ACCOUNT_CUSTOMER_REL",
+   "description": "Which customers hold which accounts, and in what role (joint etc).",
+   "certified": true,
+   "columns": {
+    "CIF_NO": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string."
+   }
+  },
+  {
+   "table": "fennmoor-raw.core_banking_cdc.ACCOUNT_STATUS_HIST",
+   "description": "Every account status change, with reason and channel.",
+   "certified": false,
+   "columns": {}
+  },
+  {
+   "table": "fennmoor-raw.core_banking_cdc.ATM_TERMINAL",
+   "description": "ATM fleet. Never staged, never queried.",
+   "certified": true,
+   "columns": {
+    "BRNCH_ID": "Branch number (INT64, 3-4 digits)."
+   }
+  },
+  {
+   "table": "fennmoor-raw.core_banking_cdc.BRANCH",
+   "description": "Branch network. CC_ID here means COST CENTER - one of three meanings of CC in this estate.",
+   "certified": false,
+   "columns": {
+    "MGR_EMP_ID": "Workday worker id - agents, bankers, analysts, collectors. BPO agents are not employees and do not have one."
+   }
+  },
+  {
+   "table": "fennmoor-raw.core_banking_cdc.CD_MATURITY_SCHED",
+   "description": "Certificate-of-deposit maturity schedule. CD = certificate of deposit here; elsewhere CD means \"code\".",
+   "certified": true,
+   "columns": {
+    "ACCT_ID": "Core banking internal account id (INT64, 7-9 digits). Staged as `account_id`. HOMONYM TRAP: card_processor also has `account_id`, in a different id space with overlapping integer ranges.",
+    "PRIN_AMT": "Account balance."
+   }
+  },
+  {
+   "table": "fennmoor-raw.core_banking_cdc.DEPOSIT_TXN",
+   "description": "Posted deposit-account transactions.",
+   "certified": true,
+   "columns": {
+    "ACCT_ID": "Core banking internal account id (INT64, 7-9 digits). Staged as `account_id`. HOMONYM TRAP: card_processor also has `account_id`, in a different id space with overlapping integer ranges.",
+    "BRNCH_ID": "Branch number (INT64, 3-4 digits)."
+   }
+  },
+  {
+   "table": "fennmoor-raw.core_banking_cdc.INTEREST_ACCRUAL",
+   "description": "Daily interest accrual per interest-bearing account.",
+   "certified": false,
+   "columns": {
+    "ACCT_ID": "Core banking internal account id (INT64, 7-9 digits). Staged as `account_id`. HOMONYM TRAP: card_processor also has `account_id`, in a different id space with overlapping integer ranges.",
+    "ACCR_AMT": "Interest accrued or paid.",
+    "BAL_AMT": "Account balance."
+   }
+  },
+  {
+   "table": "fennmoor-raw.core_banking_cdc.PRODUCT",
+   "description": "Product catalog for deposit, card and loan products.",
+   "certified": true,
+   "columns": {
+    "PROD_CD": "Deposit/loan/card product code (e.g. CHK-ESS, SAV-HY, CC-CASHBK).",
+    "MIN_BAL_AMT": "Account balance.",
+    "MTHLY_FEE_AMT": "Fee charged to a customer."
+   }
+  },
+  {
+   "table": "fennmoor-raw.core_banking_cdc.STANDING_ORDER",
+   "description": "Recurring internal/external transfers. Never staged, never queried.",
+   "certified": true,
+   "columns": {
+    "BENE_ACCT_NO": "Customer-facing account number. Sensitive; masked outside restricted datasets."
+   }
+  },
+  {
+   "table": "fennmoor-raw.credit_bureau.consumer_attributes_2019_archive",
+   "description": "Pre-2020 bureau archive. Dead.",
+   "certified": false,
+   "columns": {
+    "CIF": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "TOT_REV_BAL": "Account balance."
+   }
+  },
+  {
+   "table": "fennmoor-raw.digital_banking.alert_subscription",
+   "description": "Customer alert preferences.",
+   "certified": true,
+   "columns": {}
+  },
+  {
+   "table": "fennmoor-raw.digital_banking.bill_pay",
+   "description": "Bill payments.",
+   "certified": true,
+   "columns": {
+    "from_account_id": "Core banking internal account id (INT64, 7-9 digits). Staged as `account_id`. HOMONYM TRAP: card_processor also has `account_id`, in a different id space with overlapping integer ranges."
+   }
+  },
+  {
+   "table": "fennmoor-raw.digital_banking.device",
+   "description": "Registered devices.",
+   "certified": true,
+   "columns": {
+    "device_id": "Registered mobile device id."
+   }
+  },
+  {
+   "table": "fennmoor-raw.digital_banking.p2p_transfer",
+   "description": "Zelle transfers sent and received.",
+   "certified": true,
+   "columns": {
+    "from_account_id": "Core banking internal account id (INT64, 7-9 digits). Staged as `account_id`. HOMONYM TRAP: card_processor also has `account_id`, in a different id space with overlapping integer ranges."
+   }
+  },
+  {
+   "table": "fennmoor-raw.digital_banking.secure_message",
+   "description": "Secure messages to/from the bank. Synced, never staged, never read.",
+   "certified": true,
+   "columns": {}
+  },
+  {
+   "table": "fennmoor-raw.fraud_platform.case_alert_link",
+   "description": "Alerts rolled up into cases.",
+   "certified": false,
+   "columns": {
+    "case_id": "Fraud investigation case id.",
+    "alert_id": "Fraud platform alert id."
+   }
+  },
+  {
+   "table": "fennmoor-raw.fraud_platform.fraud_case",
+   "description": "Fraud investigation cases.",
+   "certified": true,
+   "columns": {
+    "total_loss_amount": "Operating cost / expense.",
+    "recovered_amount": "Operating cost / expense."
+   }
+  },
+  {
+   "table": "fennmoor-raw.fraud_platform.model_score_realtime",
+   "description": "Every real-time model score. Very large; almost always read by partition.",
+   "certified": true,
+   "columns": {
+    "score": "Transaction or session fraud score 0-999."
+   }
+  },
+  {
+   "table": "fennmoor-raw.fraud_platform.rule",
+   "description": "Fraud rules and thresholds.",
+   "certified": false,
+   "columns": {
+    "rule_id": "Fraud rule id."
+   }
+  },
+  {
+   "table": "fennmoor-raw.genesys_cloud.ivr_flow_outcome",
+   "description": "IVR flow outcomes (self-serve, authentication, transfer to agent).",
+   "certified": false,
+   "columns": {}
+  },
+  {
+   "table": "fennmoor-raw.genesys_cloud.queue",
+   "description": "Routing queues. The site is encoded ONLY in the name prefix: TUL_Retail_Service, SPK_Card_Services, MNL_BPO_Overflow, ...",
+   "certified": true,
+   "columns": {
+    "division_id": "Genesys division (retail service, card services, collections)."
+   }
+  },
+  {
+   "table": "fennmoor-raw.genesys_cloud.segment",
+   "description": "Timed segments of a participant session (ivr, alert, interact, hold, wrapup).",
+   "certified": false,
+   "columns": {
+    "participant_id": "One participant (caller, IVR, agent) within a Genesys conversation."
+   }
+  },
+  {
+   "table": "fennmoor-raw.genesys_cloud.user",
+   "description": "Genesys users (agents, supervisors). employee_id is blank for BPO agents, who are not Fennmoor employees.",
+   "certified": true,
+   "columns": {
+    "email": "Email address.",
+    "employee_id": "Workday worker id - agents, bankers, analysts, collectors. BPO agents are not employees and do not have one."
+   }
+  },
+  {
+   "table": "fennmoor-raw.genesys_cloud.wrapup_code",
+   "description": "Wrap-up (disposition) codes. ACCT_CLOSE added 2026-06-02; before that, closures were coded ACCT_MAINT.",
+   "certified": true,
+   "columns": {
+    "id": "Agent disposition code for why the contact happened."
+   }
+  },
+  {
+   "table": "fennmoor-raw.gl_erp.cost_center",
+   "description": "Cost centers. Contact-center sites are 'Contact Center - Tulsa', 'Contact Center - Spokane', and 'Vendor Mgmt - BPO Manila'.",
+   "certified": false,
+   "columns": {
+    "cost_center_id": "Cost center. Abbreviated CC in finance and legacy tables, colliding with CC = credit card and CC = contact center.",
+    "owner_worker_id": "Workday worker id - agents, bankers, analysts, collectors. BPO agents are not employees and do not have one."
+   }
+  },
+  {
+   "table": "fennmoor-raw.gl_erp.gl_account",
+   "description": "Chart of accounts.",
+   "certified": false,
+   "columns": {
+    "gl_account_code": "General-ledger natural account code.",
+    "parent_code": "General-ledger natural account code."
+   }
+  },
+  {
+   "table": "fennmoor-raw.gl_erp.journal_line",
+   "description": "GL journal lines. period_name is Oracle-style 'APR-26'.",
+   "certified": false,
+   "columns": {
+    "gl_account_code": "General-ledger natural account code.",
+    "cost_center_id": "Cost center. Abbreviated CC in finance and legacy tables, colliding with CC = credit card and CC = contact center.",
+    "entered_dr": "Signed GL debit/credit amount - revenue or expense depending on the account.",
+    "entered_cr": "Signed GL debit/credit amount - revenue or expense depending on the account."
+   }
+  },
+  {
+   "table": "fennmoor-raw.gl_erp.vendor_invoice",
+   "description": "AP invoices. The only place BPO contact-center cost appears (vendor 'Harbinger BPO Services', cost center of the MNL site).",
+   "certified": false,
+   "columns": {
+    "amount": "Operating cost / expense."
+   }
+  },
+  {
+   "table": "fennmoor-raw.loan_origination.applicant",
+   "description": "Applicant details per application (primary and co-applicant).",
+   "certified": true,
+   "columns": {
+    "applicationId": "Loan origination application id.",
+    "cifNumber": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "email": "Email address.",
+    "phone": "Phone number.",
+    "addressLine1": "Street address."
+   }
+  },
+  {
+   "table": "fennmoor-raw.loan_origination.application",
+   "description": "Consumer loan and card applications. camelCase from the vendor API.",
+   "certified": true,
+   "columns": {
+    "applicantCifNumber": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "coApplicantCifNumber": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "requestedAmount": "Loan principal amount or balance.",
+    "statedIncome": "Customer stated or verified income.",
+    "branchNumber": "Branch number (INT64, 3-4 digits).",
+    "loanOfficerId": "Workday worker id - agents, bankers, analysts, collectors. BPO agents are not employees and do not have one.",
+    "creditScoreAtApp": "Bureau credit score (FICO 8)"
+   }
+  },
+  {
+   "table": "fennmoor-raw.loan_origination.collateral",
+   "description": "Collateral on secured loans.",
+   "certified": false,
+   "columns": {
+    "loanNumber": "Booked loan number from the servicing module."
+   }
+  },
+  {
+   "table": "fennmoor-raw.loan_origination.credit_pull",
+   "description": "Bureau pulls made during underwriting.",
+   "certified": true,
+   "columns": {
+    "applicationId": "Loan origination application id.",
+    "ficoScore": "Bureau credit score (FICO 8)",
+    "totalDebt": "Account balance."
+   }
+  },
+  {
+   "table": "fennmoor-raw.loan_origination.decision",
+   "description": "Underwriting decisions (auto and manual), possibly several per app.",
+   "certified": false,
+   "columns": {
+    "applicationId": "Loan origination application id.",
+    "approvedAmount": "Loan principal amount or balance."
+   }
+  },
+  {
+   "table": "fennmoor-raw.loan_origination.delinquency_snapshot",
+   "description": "Daily delinquency snapshot for loans more than 0 days past due.",
+   "certified": false,
+   "columns": {
+    "pastDueAmount": "Account balance.",
+    "collectorId": "Workday worker id - agents, bankers, analysts, collectors. BPO agents are not employees and do not have one."
+   }
+  },
+  {
+   "table": "fennmoor-raw.loan_origination.loan",
+   "description": "Booked loans (auto, personal, HELOC, mortgage) from the servicing module.",
+   "certified": false,
+   "columns": {
+    "principalAmount": "Loan principal amount or balance.",
+    "currentPrincipal": "Loan principal amount or balance.",
+    "branchNumber": "Branch number (INT64, 3-4 digits).",
+    "chargeOffAmount": "Loan principal amount or balance."
+   }
+  },
+  {
+   "table": "fennmoor-raw.reference_data.fx_rate_daily",
+   "description": "Daily FX rates for the small amount of foreign card spend.",
+   "certified": true,
+   "columns": {}
+  },
+  {
+   "table": "fennmoor-raw.reference_data.holiday_calendar",
+   "description": "Bank and Federal Reserve holidays.",
+   "certified": true,
+   "columns": {}
+  },
+  {
+   "table": "fennmoor-raw.reference_data.product_hierarchy_FINAL_v3",
+   "description": "Finance's product reporting hierarchy, uploaded from a spreadsheet. The name is exactly what landed. Still the source of truth for finance.",
+   "certified": false,
+   "columns": {}
+  },
+  {
+   "table": "fennmoor-raw.reference_data.zip_region_map",
+   "description": "ZIP to MSA and Fennmoor sales region.",
+   "certified": false,
+   "columns": {}
+  },
+  {
+   "table": "fennmoor-raw.salesforce.account",
+   "description": "Salesforce Account, used as the HOUSEHOLD. A third `account_id` meaning in this estate (after deposit and card accounts).",
+   "certified": false,
+   "columns": {
+    "owner_id": "Salesforce user id - owner_id, created_by_id, last_modified_by_id all point here.",
+    "primary_branch__c": "Branch number (INT64, 3-4 digits)."
+   }
+  },
+  {
+   "table": "fennmoor-raw.salesforce.campaign",
+   "description": "CRM campaigns. braze_campaign_id__c links to the marketing platform.",
+   "certified": false,
+   "columns": {
+    "braze_campaign_id__c": "Braze campaign id.",
+    "budgeted_cost": "Operating cost / expense.",
+    "created_by_id": "Salesforce user id - owner_id, created_by_id, last_modified_by_id all point here."
+   }
+  },
+  {
+   "table": "fennmoor-raw.salesforce.case_history",
+   "description": "Field-level case audit trail. Synced, never staged, never read.",
+   "certified": true,
+   "columns": {
+    "case_id": "Salesforce service case id."
+   }
+  },
+  {
+   "table": "fennmoor-raw.salesforce.lead",
+   "description": "Prospects not yet customers.",
+   "certified": false,
+   "columns": {
+    "id": "Salesforce lead id.",
+    "email": "Email address.",
+    "phone": "Phone number.",
+    "converted_contact_id": "Salesforce Contact id (18-char). One per person in CRM.",
+    "last_modified_by_id": "Salesforce user id - owner_id, created_by_id, last_modified_by_id all point here."
+   }
+  },
+  {
+   "table": "fennmoor-raw.salesforce.opportunity",
+   "description": "Sales opportunities (new products for existing customers).",
+   "certified": false,
+   "columns": {
+    "account_id": "Salesforce Account id, used by the bank as a household.",
+    "product_code__c": "Deposit/loan/card product code (e.g. CHK-ESS, SAV-HY, CC-CASHBK).",
+    "owner_id": "Salesforce user id - owner_id, created_by_id, last_modified_by_id all point here.",
+    "created_by_id": "Salesforce user id - owner_id, created_by_id, last_modified_by_id all point here.",
+    "last_modified_by_id": "Salesforce user id - owner_id, created_by_id, last_modified_by_id all point here."
+   }
+  },
+  {
+   "table": "fennmoor-raw.salesforce.record_type",
+   "description": "Salesforce record types.",
+   "certified": false,
+   "columns": {
+    "created_by_id": "Salesforce user id - owner_id, created_by_id, last_modified_by_id all point here."
+   }
+  },
+  {
+   "table": "fennmoor-raw.salesforce.task",
+   "description": "Activities, including logged calls. what_id is polymorphic (case, opportunity or financial account) - a join that needs the id prefix.",
+   "certified": false,
+   "columns": {
+    "who_id": "Salesforce Contact id (18-char). One per person in CRM.",
+    "call_duration_in_seconds": "Elapsed time.",
+    "owner_id": "Salesforce user id - owner_id, created_by_id, last_modified_by_id all point here.",
+    "last_modified_by_id": "Salesforce user id - owner_id, created_by_id, last_modified_by_id all point here."
+   }
+  },
+  {
+   "table": "fennmoor-raw.salesforce.user",
+   "description": "Salesforce users (bankers, service reps, managers).",
+   "certified": false,
+   "columns": {
+    "id": "Salesforce user id - owner_id, created_by_id, last_modified_by_id all point here.",
+    "employee_number": "Workday worker id - agents, bankers, analysts, collectors. BPO agents are not employees and do not have one.",
+    "created_by_id": "Salesforce user id - owner_id, created_by_id, last_modified_by_id all point here.",
+    "last_modified_by_id": "Salesforce user id - owner_id, created_by_id, last_modified_by_id all point here."
+   }
+  },
+  {
+   "table": "fennmoor-raw.workday.position",
+   "description": "Position assignments and FTE.",
+   "certified": false,
+   "columns": {
+    "worker_id": "Workday worker id - agents, bankers, analysts, collectors. BPO agents are not employees and do not have one."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_amp__events",
+   "description": "dbt staging model over amplitude_mobile.EVENTS_318842.",
+   "certified": false,
+   "columns": {
+    "amplitude_id": "Amplitude's internal user id; merges are in MERGE_IDS_318842.",
+    "product_code": "Deposit/loan/card product code (e.g. CHK-ESS, SAV-HY, CC-CASHBK)."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_braze__campaign",
+   "description": "dbt staging model over braze.campaign.",
+   "certified": false,
+   "columns": {
+    "campaign_id": "Braze campaign id."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_braze__conversion",
+   "description": "dbt staging model over braze.conversion.",
+   "certified": true,
+   "columns": {
+    "external_user_id": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "canvas_id": "Braze canvas (multi-step journey) id."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_braze__email_event",
+   "description": "dbt staging model over braze.email_event.",
+   "certified": false,
+   "columns": {
+    "external_user_id": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "campaign_id": "Braze campaign id.",
+    "canvas_id": "Braze canvas (multi-step journey) id.",
+    "email_address": "Email address."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_braze__message_send",
+   "description": "dbt staging model over braze.message_send.",
+   "certified": false,
+   "columns": {
+    "message_send_id": "One message delivery to one user.",
+    "user_id": "Braze's internal user id. Called braze_id in the profile export, user_id in sends.",
+    "external_user_id": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "canvas_id": "Braze canvas (multi-step journey) id."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_braze__push_event",
+   "description": "dbt staging model over braze.push_event.",
+   "certified": false,
+   "columns": {
+    "external_user_id": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "campaign_id": "Braze campaign id."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_cards__card",
+   "description": "dbt staging model over card_processor.card.",
+   "certified": false,
+   "columns": {
+    "card_token": "Tokenized PAN. The PAN itself is never stored.",
+    "account_id": "Card processor's account id (INT64). Named `account_id` in the source. Same name and type as the deposit account id, different id space."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_cards__card_account",
+   "description": "dbt staging model over card_processor.card_account.",
+   "certified": false,
+   "columns": {
+    "account_id": "Card processor's account id (INT64). Named `account_id` in the source. Same name and type as the deposit account id, different id space.",
+    "bank_customer_ref": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "credit_limit": "Credit limit on a card or line.",
+    "current_balance": "Account balance.",
+    "statement_balance": "Account balance.",
+    "min_payment_due": "Account balance."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_cards__card_status_change",
+   "description": "dbt staging model over card_processor.card_status_change.",
+   "certified": false,
+   "columns": {
+    "card_token": "Tokenized PAN. The PAN itself is never stored.",
+    "account_id": "Card processor's account id (INT64). Named `account_id` in the source. Same name and type as the deposit account id, different id space."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_cards__dispute",
+   "description": "dbt staging model over card_processor.dispute.",
+   "certified": true,
+   "columns": {
+    "dispute_id": "Card dispute / chargeback case id.",
+    "settlement_id": "Settled card transaction id.",
+    "account_id": "Card processor's account id (INT64). Named `account_id` in the source. Same name and type as the deposit account id, different id space."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_cards__rewards_ledger",
+   "description": "dbt staging model over card_processor.rewards_ledger.",
+   "certified": false,
+   "columns": {}
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_cards__settlement",
+   "description": "dbt staging model over card_processor.settlement.",
+   "certified": true,
+   "columns": {
+    "card_token": "Tokenized PAN. The PAN itself is never stored.",
+    "account_id": "Card processor's account id (INT64). Named `account_id` in the source. Same name and type as the deposit account id, different id space.",
+    "merchant_id": "Card network merchant id."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_cards__statement",
+   "description": "dbt staging model over card_processor.statement.",
+   "certified": true,
+   "columns": {
+    "account_id": "Card processor's account id (INT64). Named `account_id` in the source. Same name and type as the deposit account id, different id space.",
+    "closing_balance": "Account balance.",
+    "interest_charged": "Interest accrued or paid.",
+    "fees_charged": "Fee charged to a customer."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_core__account_balance_daily",
+   "description": "dbt staging model over core_banking_cdc.ACCOUNT_BALANCE_DLY.",
+   "certified": false,
+   "columns": {
+    "ledger_balance_amount": "Account balance.",
+    "available_balance_amount": "Account balance.",
+    "collected_balance_amount": "Account balance.",
+    "avg_mtd_balance_amount": "Account balance.",
+    "accrued_interest_amount": "Interest accrued or paid.",
+    "hold_amount": "Account balance."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_core__account_customer_relationship",
+   "description": "dbt staging model over core_banking_cdc.ACCOUNT_CUSTOMER_REL.",
+   "certified": true,
+   "columns": {
+    "account_id": "Core banking internal account id (INT64, 7-9 digits). Staged as `account_id`. HOMONYM TRAP: card_processor also has `account_id`, in a different id space with overlapping integer ranges.",
+    "cif_number": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_core__customer",
+   "description": "dbt staging model over core_banking_cdc.CUSTOMER.",
+   "certified": true,
+   "columns": {
+    "cif_number": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "tax_id_hash": "SHA-256 of the tax id; still personal data but not reversible.",
+    "preferred_branch_id": "Branch number (INT64, 3-4 digits).",
+    "risk_rating_code": "Customer AML risk rating (L/M/H or 1-5)."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_core__customer_contact",
+   "description": "dbt staging model over core_banking_cdc.CUSTOMER_CONTACT.",
+   "certified": false,
+   "columns": {
+    "contact_value": "Phone OR email in one column (core CUSTOMER_CONTACT.CNTCT_VAL)."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_core__interest_accrual",
+   "description": "dbt staging model over core_banking_cdc.INTEREST_ACCRUAL.",
+   "certified": true,
+   "columns": {
+    "account_id": "Core banking internal account id (INT64, 7-9 digits). Staged as `account_id`. HOMONYM TRAP: card_processor also has `account_id`, in a different id space with overlapping integer ranges.",
+    "balance_amount": "Account balance."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_core__product",
+   "description": "dbt staging model over core_banking_cdc.PRODUCT.",
+   "certified": true,
+   "columns": {
+    "min_balance_amount": "Account balance.",
+    "monthly_fee_amount": "Fee charged to a customer."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_fraud__case_alert_link",
+   "description": "dbt staging model over fraud_platform.case_alert_link.",
+   "certified": true,
+   "columns": {
+    "case_id": "Fraud investigation case id.",
+    "alert_id": "Fraud platform alert id."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_fraud__model_score_realtime",
+   "description": "dbt staging model over fraud_platform.model_score_realtime.",
+   "certified": true,
+   "columns": {
+    "score": "Transaction or session fraud score 0-999."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_fraud__rule",
+   "description": "dbt staging model over fraud_platform.rule.",
+   "certified": false,
+   "columns": {}
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_genesys__ivr_flow_outcome",
+   "description": "dbt staging model over genesys_cloud.ivr_flow_outcome.",
+   "certified": false,
+   "columns": {}
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_genesys__participant",
+   "description": "dbt staging model over genesys_cloud.participant.",
+   "certified": false,
+   "columns": {
+    "cif_number": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_genesys__queue",
+   "description": "dbt staging model over genesys_cloud.queue.",
+   "certified": true,
+   "columns": {
+    "division_id": "Genesys division (retail service, card services, collections).",
+    "acw_timeout_ms": "Elapsed time."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_genesys__segment",
+   "description": "dbt staging model over genesys_cloud.segment.",
+   "certified": true,
+   "columns": {
+    "conversation_id": "Genesys Cloud conversation UUID (voice, chat or email).",
+    "wrap_up_code": "Agent disposition code for why the contact happened."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_genesys__survey_response",
+   "description": "dbt staging model over genesys_cloud.survey_response.",
+   "certified": false,
+   "columns": {
+    "conversation_id": "Genesys Cloud conversation UUID (voice, chat or email).",
+    "nps_score": "Net promoter response"
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_gl__cc_expense_summary",
+   "description": "dbt staging model over gl_erp.CC_EXPENSE_SUMMARY.",
+   "certified": false,
+   "columns": {
+    "cost_center_id": "Cost center. Abbreviated CC in finance and legacy tables, colliding with CC = credit card and CC = contact center.",
+    "gl_account_code": "General-ledger natural account code.",
+    "actual_amount": "Operating cost / expense.",
+    "budget_amount": "Operating cost / expense.",
+    "variance_amount": "Operating cost / expense."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_gl__cost_center",
+   "description": "dbt staging model over gl_erp.cost_center.",
+   "certified": true,
+   "columns": {
+    "owner_worker_id": "Workday worker id - agents, bankers, analysts, collectors. BPO agents are not employees and do not have one."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_gl__journal_line",
+   "description": "dbt staging model over gl_erp.journal_line.",
+   "certified": false,
+   "columns": {
+    "journal_id": "GL journal entry id.",
+    "gl_account_code": "General-ledger natural account code.",
+    "cost_center_id": "Cost center. Abbreviated CC in finance and legacy tables, colliding with CC = credit card and CC = contact center.",
+    "entered_dr": "Signed GL debit/credit amount - revenue or expense depending on the account.",
+    "entered_cr": "Signed GL debit/credit amount - revenue or expense depending on the account."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_gl__vendor_invoice",
+   "description": "dbt staging model over gl_erp.vendor_invoice.",
+   "certified": false,
+   "columns": {
+    "cost_center_id": "Cost center. Abbreviated CC in finance and legacy tables, colliding with CC = credit card and CC = contact center.",
+    "gl_account_code": "General-ledger natural account code.",
+    "amount": "Operating cost / expense."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_los__collateral",
+   "description": "dbt staging model over loan_origination.collateral.",
+   "certified": false,
+   "columns": {
+    "loan_number": "Booked loan number from the servicing module.",
+    "appraised_value": "Account balance."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_los__credit_pull",
+   "description": "dbt staging model over loan_origination.credit_pull.",
+   "certified": false,
+   "columns": {
+    "total_debt": "Account balance."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_los__decision",
+   "description": "dbt staging model over loan_origination.decision.",
+   "certified": true,
+   "columns": {
+    "application_id": "Loan origination application id.",
+    "approved_amount": "Loan principal amount or balance."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_los__delinquency_snapshot",
+   "description": "dbt staging model over loan_origination.delinquency_snapshot.",
+   "certified": false,
+   "columns": {
+    "past_due_amount": "Account balance.",
+    "collector_id": "Workday worker id - agents, bankers, analysts, collectors. BPO agents are not employees and do not have one."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_olb__alert_subscription",
+   "description": "dbt staging model over digital_banking.alert_subscription.",
+   "certified": false,
+   "columns": {}
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_olb__device",
+   "description": "dbt staging model over digital_banking.device.",
+   "certified": false,
+   "columns": {
+    "device_id": "Registered mobile device id."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_olb__mobile_deposit",
+   "description": "dbt staging model over digital_banking.mobile_deposit.",
+   "certified": false,
+   "columns": {}
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_ref__fx_rate_daily",
+   "description": "dbt staging model over reference_data.fx_rate_daily.",
+   "certified": true,
+   "columns": {}
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_ref__holiday_calendar",
+   "description": "dbt staging model over reference_data.holiday_calendar.",
+   "certified": true,
+   "columns": {}
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_ref__zip_region_map",
+   "description": "dbt staging model over reference_data.zip_region_map.",
+   "certified": false,
+   "columns": {}
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_sf__account",
+   "description": "dbt staging model over salesforce.account.",
+   "certified": false,
+   "columns": {
+    "account_id": "Salesforce Account id, used by the bank as a household.",
+    "owner_id": "Salesforce user id - owner_id, created_by_id, last_modified_by_id all point here.",
+    "primary_branch": "Branch number (INT64, 3-4 digits)."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_sf__case",
+   "description": "dbt staging model over salesforce.case.",
+   "certified": false,
+   "columns": {
+    "case_id": "Salesforce service case id.",
+    "contact_id": "Salesforce Contact id (18-char). One per person in CRM.",
+    "account_id": "Salesforce Account id, used by the bank as a household.",
+    "owner_id": "Salesforce user id - owner_id, created_by_id, last_modified_by_id all point here."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_sf__contact",
+   "description": "dbt staging model over salesforce.contact.",
+   "certified": true,
+   "columns": {
+    "contact_id": "Salesforce Contact id (18-char). One per person in CRM.",
+    "account_id": "Salesforce Account id, used by the bank as a household.",
+    "cif_number": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "email": "Email address.",
+    "mobile_phone": "Phone number.",
+    "mailing_street": "Street address.",
+    "owner_id": "Salesforce user id - owner_id, created_by_id, last_modified_by_id all point here."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_sf__financial_account",
+   "description": "dbt staging model over salesforce.financial_account__c.",
+   "certified": false,
+   "columns": {
+    "core_account_id": "Core banking internal account id (INT64, 7-9 digits). Staged as `account_id`. HOMONYM TRAP: card_processor also has `account_id`, in a different id space with overlapping integer ranges.",
+    "primary_owner": "Salesforce Contact id (18-char). One per person in CRM."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_sf__lead",
+   "description": "dbt staging model over salesforce.lead.",
+   "certified": false,
+   "columns": {
+    "lead_id": "Salesforce lead id.",
+    "email": "Email address.",
+    "phone": "Phone number.",
+    "converted_contact_id": "Salesforce Contact id (18-char). One per person in CRM."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_sf__opportunity",
+   "description": "dbt staging model over salesforce.opportunity.",
+   "certified": true,
+   "columns": {
+    "primary_contact": "Salesforce Contact id (18-char). One per person in CRM.",
+    "amount": "Account balance.",
+    "campaign_id": "Salesforce campaign id (not the Braze campaign id).",
+    "owner_id": "Salesforce user id - owner_id, created_by_id, last_modified_by_id all point here."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_sf__record_type",
+   "description": "dbt staging model over salesforce.record_type.",
+   "certified": true,
+   "columns": {}
+  },
+  {
+   "table": "fennmoor-dw.dw_staging.stg_sf__task",
+   "description": "dbt staging model over salesforce.task.",
+   "certified": false,
+   "columns": {
+    "who_id": "Salesforce Contact id (18-char). One per person in CRM.",
+    "call_duration_in_seconds": "Elapsed time.",
+    "owner_id": "Salesforce user id - owner_id, created_by_id, last_modified_by_id all point here."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging_restricted.stg_aml__ctr_filing",
+   "description": "dbt staging model over aml_kyc.ctr_filing.",
+   "certified": false,
+   "columns": {
+    "party_id": "AML vendor's party id. Crosswalk to CIF lives in aml_kyc.party.",
+    "branch_id": "Branch number (INT64, 3-4 digits)."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging_restricted.stg_aml__kyc_review",
+   "description": "dbt staging model over aml_kyc.kyc_review.",
+   "certified": false,
+   "columns": {
+    "party_id": "AML vendor's party id. Crosswalk to CIF lives in aml_kyc.party.",
+    "reviewer_id": "Workday worker id - agents, bankers, analysts, collectors. BPO agents are not employees and do not have one."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging_restricted.stg_aml__party",
+   "description": "dbt staging model over aml_kyc.party.",
+   "certified": false,
+   "columns": {
+    "cif_number": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "dob": "Date of birth.",
+    "tax_id_hash": "SHA-256 of the tax id; still personal data but not reversible."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging_restricted.stg_aml__sar_filing",
+   "description": "dbt staging model over aml_kyc.sar_filing.",
+   "certified": false,
+   "columns": {
+    "sar_id": "Suspicious Activity Report id. Legally restricted.",
+    "party_id": "AML vendor's party id. Crosswalk to CIF lives in aml_kyc.party."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging_restricted.stg_aml__screening_hit",
+   "description": "dbt staging model over aml_kyc.screening_hit.",
+   "certified": true,
+   "columns": {
+    "reviewer_id": "Workday worker id - agents, bankers, analysts, collectors. BPO agents are not employees and do not have one."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging_restricted.stg_wd__compensation",
+   "description": "dbt staging model over workday.compensation.",
+   "certified": true,
+   "columns": {
+    "base_pay_annual": "Operating cost / expense."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_staging_restricted.stg_wd__position",
+   "description": "dbt staging model over workday.position.",
+   "certified": true,
+   "columns": {
+    "worker_id": "Workday worker id - agents, bankers, analysts, collectors. BPO agents are not employees and do not have one."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_intermediate.int_account_closures",
+   "description": "Every deposit and card account closure with its reason. This is what \"cancellations\" means at Fennmoor.",
+   "certified": true,
+   "columns": {
+    "cif_number": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "product_code": "Deposit/loan/card product code (e.g. CHK-ESS, SAV-HY, CC-CASHBK)."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_intermediate.int_account_holders",
+   "description": "Current holders of each deposit account.",
+   "certified": false,
+   "columns": {
+    "account_id": "Core banking internal account id (INT64, 7-9 digits). Staged as `account_id`. HOMONYM TRAP: card_processor also has `account_id`, in a different id space with overlapping integer ranges.",
+    "cif_number": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_intermediate.int_accounts_unioned",
+   "description": "Deposit, card and loan accounts in one shape. Each keeps its native id in its own column - they are three different id spaces.",
+   "certified": false,
+   "columns": {
+    "account_natural_key": "'DEP-<id>', 'CRD-<id>', 'LN-<number>' - the input to account_key.",
+    "core_account_id": "Core banking internal account id (INT64, 7-9 digits). Staged as `account_id`. HOMONYM TRAP: card_processor also has `account_id`, in a different id space with overlapping integer ranges.",
+    "card_account_id": "Card processor's account id (INT64). Named `account_id` in the source. Same name and type as the deposit account id, different id space.",
+    "loan_number": "Booked loan number from the servicing module.",
+    "product_code": "Deposit/loan/card product code (e.g. CHK-ESS, SAV-HY, CC-CASHBK)."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_intermediate.int_calls_enriched",
+   "description": "One row per Genesys conversation: caller CIF (from IVR attributes), first queue and its site (from the queue-name prefix), first agent, handle time from segments, and the final wrap-up. Closure calls are coded ACCT_CLOSE from 2026-06-02; before that they hide under ACCT_MAINT and are only recoverable via the IVR intent.",
+   "certified": true,
+   "columns": {
+    "conversation_id": "Genesys Cloud conversation UUID (voice, chat or email).",
+    "cif_number": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "queue_site_id": "Contact-center site (TUL, SPK, MNL-BPO). Each maps to a finance cost center, which is how site costs are found.",
+    "hold_sec": "Elapsed time.",
+    "acw_sec": "Elapsed time.",
+    "wrapup_code_name": "Agent disposition code for why the contact happened."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_intermediate.int_calls_legacy_cdr",
+   "description": "Avaya CDR history (2023-01 to 2025-09) reshaped to match int_calls_enriched.",
+   "certified": false,
+   "columns": {
+    "legacy_call_id": "Avaya CDR call id. Pre-Genesys only; history back to 2024.",
+    "site_id": "Contact-center site (TUL, SPK, MNL-BPO). Each maps to a finance cost center, which is how site costs are found.",
+    "agent_login_id": "Avaya agent login. Pre-Genesys only.",
+    "talk_sec": "Elapsed time.",
+    "hold_sec": "Elapsed time.",
+    "disposition_code": "Agent disposition code for why the contact happened."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_intermediate.int_customer_identity",
+   "description": "The customer crosswalk, one row per CIF: Salesforce contact/household, every online-banking login and its GA4 hash, and the Braze id. The most valuable single model in the estate for identity resolution.",
+   "certified": false,
+   "columns": {
+    "cif_number": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "customer_key": "Warehouse surrogate key for a customer (INT64, dbt-generated).",
+    "sf_contact_id": "Salesforce Contact id (18-char). One per person in CRM.",
+    "sf_household_id": "Salesforce Account id, used by the bank as a household.",
+    "ga4_user_ids": "GA4 user_id = SHA-256 hex of olb_user_id, set by the web tag on login. NOT a CIF - joining it directly to cif_number is a planted trap.",
+    "braze_id": "Braze's internal user id. Called braze_id in the profile export, user_id in sends."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_intermediate.int_digital_sessions",
+   "description": "GA4 events rolled up to sessions. The session key is user_pseudo_id + ga_session_id; ga_session_id alone is NOT unique.",
+   "certified": false,
+   "columns": {
+    "user_pseudo_id": "GA4 cookie/device id. Pre-login traffic only has this.",
+    "engaged_sec": "Elapsed time."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_compliance.fct_aml_alerts",
+   "description": "AML transaction-monitoring alerts.",
+   "certified": false,
+   "columns": {
+    "alert_id": "AML transaction-monitoring alert id.",
+    "party_id": "AML vendor's party id. Crosswalk to CIF lives in aml_kyc.party.",
+    "customer_key": "Warehouse surrogate key for a customer (INT64, dbt-generated)."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_compliance.fct_kyc_reviews",
+   "description": "KYC reviews with overdue flag.",
+   "certified": true,
+   "columns": {
+    "days_to_complete": "Elapsed time."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_contact_center.agg_site_monthly",
+   "description": "Site x month contact volumes, closure calls and handle time.",
+   "certified": false,
+   "columns": {
+    "site_id": "Contact-center site (TUL, SPK, MNL-BPO). Each maps to a finance cost center, which is how site costs are found.",
+    "contacts": "Generic count.",
+    "closure_calls": "Generic count.",
+    "unique_callers": "Generic count.",
+    "avg_handle_sec": "Elapsed time."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_contact_center.dim_cc_site",
+   "description": "Contact-center sites with their finance cost center.",
+   "certified": true,
+   "columns": {
+    "site_id": "Contact-center site (TUL, SPK, MNL-BPO). Each maps to a finance cost center, which is how site costs are found."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_contact_center.fct_contacts_all",
+   "description": "Genesys contacts unioned with Avaya CDR history for multi-year trends. Legacy dispositions CLSACCT/CLOSE map to closure calls.",
+   "certified": false,
+   "columns": {
+    "site_id": "Contact-center site (TUL, SPK, MNL-BPO). Each maps to a finance cost center, which is how site costs are found.",
+    "cif_number": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "handle_sec": "Elapsed time."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_contact_center.fct_csat",
+   "description": "Survey responses joined to the contact they rate.",
+   "certified": false,
+   "columns": {
+    "conversation_id": "Genesys Cloud conversation UUID (voice, chat or email).",
+    "customer_key": "Warehouse surrogate key for a customer (INT64, dbt-generated)."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_contact_center.rpt_site_cost_per_contact",
+   "description": "Site x month: contacts, closure calls, cost, cost per contact. The direct answer to \"which call centers see the most cancellations and what do they cost\".",
+   "certified": true,
+   "columns": {
+    "site_id": "Contact-center site (TUL, SPK, MNL-BPO). Each maps to a finance cost center, which is how site costs are found.",
+    "contacts": "Generic count.",
+    "closure_calls": "Generic count.",
+    "total_expense": "Operating cost / expense.",
+    "cost_per_contact": "Operating cost / expense."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_core.dim_account",
+   "description": "Every account - deposit, card, loan - with a single surrogate key. The native ids stay in separate columns (core_account_id, card_account_id, loan_number) because they are different id spaces.",
+   "certified": true,
+   "columns": {
+    "account_natural_key": "'DEP-<id>', 'CRD-<id>', 'LN-<number>' - the input to account_key.",
+    "core_account_id": "Core banking internal account id (INT64, 7-9 digits). Staged as `account_id`. HOMONYM TRAP: card_processor also has `account_id`, in a different id space with overlapping integer ranges.",
+    "card_account_id": "Card processor's account id (INT64). Named `account_id` in the source. Same name and type as the deposit account id, different id space.",
+    "customer_key": "Warehouse surrogate key for a customer (INT64, dbt-generated).",
+    "primary_cif_number": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "product_code": "Deposit/loan/card product code (e.g. CHK-ESS, SAV-HY, CC-CASHBK).",
+    "branch_id": "Branch number (INT64, 3-4 digits)."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_core.dim_branch",
+   "description": "Branches with sales region.",
+   "certified": true,
+   "columns": {
+    "cost_center_id": "Cost center. Abbreviated CC in finance and legacy tables, colliding with CC = credit card and CC = contact center.",
+    "manager_employee_id": "Workday worker id - agents, bankers, analysts, collectors. BPO agents are not employees and do not have one."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_core.dim_card",
+   "description": "Cards (plastics) with their card account and cardholder CIF.",
+   "certified": false,
+   "columns": {
+    "card_account_id": "Card processor's account id (INT64). Named `account_id` in the source. Same name and type as the deposit account id, different id space."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_core.dim_date",
+   "description": "Calendar 2015-2030. fiscal_period_name is Oracle-style 'APR-26' so it joins to the GL's period_name.",
+   "certified": false,
+   "columns": {}
+  },
+  {
+   "table": "fennmoor-dw.dw_core.dim_product",
+   "description": "Products with finance's reporting hierarchy attached.",
+   "certified": true,
+   "columns": {
+    "product_code": "Deposit/loan/card product code (e.g. CHK-ESS, SAV-HY, CC-CASHBK).",
+    "monthly_fee_amount": "Fee charged to a customer."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_core.fct_account_closures",
+   "description": "Account closures (deposit and card) with tenure and reason.",
+   "certified": true,
+   "columns": {
+    "customer_key": "Warehouse surrogate key for a customer (INT64, dbt-generated).",
+    "product_code": "Deposit/loan/card product code (e.g. CHK-ESS, SAV-HY, CC-CASHBK)."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_core.fct_card_transactions",
+   "description": "Settled card transactions. The model finance and marketing should use.",
+   "certified": false,
+   "columns": {
+    "settlement_id": "Settled card transaction id.",
+    "card_account_id": "Card processor's account id (INT64). Named `account_id` in the source. Same name and type as the deposit account id, different id space.",
+    "customer_key": "Warehouse surrogate key for a customer (INT64, dbt-generated).",
+    "cif_number": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "card_token": "Tokenized PAN. The PAN itself is never stored."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_core.fct_daily_account_balances",
+   "description": "End-of-day deposit balances. Replaced legacy_edw.ACCT_DLY_BAL on 2025-02-28 - which nonetheless is still refreshed and still read.",
+   "certified": false,
+   "columns": {
+    "core_account_id": "Core banking internal account id (INT64, 7-9 digits). Staged as `account_id`. HOMONYM TRAP: card_processor also has `account_id`, in a different id space with overlapping integer ranges.",
+    "product_code": "Deposit/loan/card product code (e.g. CHK-ESS, SAV-HY, CC-CASHBK).",
+    "ledger_balance": "Account balance.",
+    "accrued_interest": "Interest accrued or paid."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_core.fct_deposit_transactions",
+   "description": "Posted deposit transactions with account and customer keys.",
+   "certified": true,
+   "columns": {
+    "core_account_id": "Core banking internal account id (INT64, 7-9 digits). Staged as `account_id`. HOMONYM TRAP: card_processor also has `account_id`, in a different id space with overlapping integer ranges.",
+    "branch_id": "Branch number (INT64, 3-4 digits)."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_core.fct_fees",
+   "description": "Fees assessed on deposit accounts, net of waivers and reversals.",
+   "certified": true,
+   "columns": {
+    "customer_key": "Warehouse surrogate key for a customer (INT64, dbt-generated).",
+    "product_code": "Deposit/loan/card product code (e.g. CHK-ESS, SAV-HY, CC-CASHBK).",
+    "fee_amount": "Fee charged to a customer.",
+    "net_fee": "Fee charged to a customer."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_customer.customer_monthly_summary",
+   "description": "Monthly average deposit balance per customer.",
+   "certified": true,
+   "columns": {
+    "avg_daily_total_balance": "Account balance.",
+    "max_daily_total_balance": "Account balance.",
+    "accounts_with_balance": "Generic count."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_customer.customer_product_holdings",
+   "description": "Customer x product holdings, open and closed.",
+   "certified": true,
+   "columns": {
+    "product_code": "Deposit/loan/card product code (e.g. CHK-ESS, SAV-HY, CC-CASHBK)."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_digital.fct_app_sessions",
+   "description": "Amplitude app sessions resolved to CIF via online_user.",
+   "certified": true,
+   "columns": {
+    "cif_number": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "events": "Generic count.",
+    "screens": "Generic count."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_digital.fct_digital_logins",
+   "description": "Login attempts with CIF. IP address deliberately not carried.",
+   "certified": false,
+   "columns": {
+    "cif_number": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "risk_score": "Transaction or session fraud score 0-999."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_digital.fct_p2p_transfers",
+   "description": "Zelle transfers with CIF.",
+   "certified": false,
+   "columns": {
+    "cif_number": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "core_account_id": "Core banking internal account id (INT64, 7-9 digits). Staged as `account_id`. HOMONYM TRAP: card_processor also has `account_id`, in a different id space with overlapping integer ranges."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_digital.fct_web_sessions",
+   "description": "GA4 sessions resolved to customers via online_user.ga4_user_id. Only logged-in sessions resolve; the rest keep only user_pseudo_id.",
+   "certified": false,
+   "columns": {
+    "user_pseudo_id": "GA4 cookie/device id. Pre-login traffic only has this.",
+    "ga4_user_id": "GA4 user_id = SHA-256 hex of olb_user_id, set by the web tag on login. NOT a CIF - joining it directly to cif_number is a planted trap.",
+    "customer_key": "Warehouse surrogate key for a customer (INT64, dbt-generated).",
+    "engaged_sec": "Elapsed time."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_finance.dim_cost_center",
+   "description": "Cost centers.",
+   "certified": false,
+   "columns": {
+    "cost_center_id": "Cost center. Abbreviated CC in finance and legacy tables, colliding with CC = credit card and CC = contact center.",
+    "owner_worker_id": "Workday worker id - agents, bankers, analysts, collectors. BPO agents are not employees and do not have one."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_finance.fct_customer_profitability_monthly",
+   "description": "Customer x month revenue estimate: fee revenue, card interchange, and an FTP-based deposit margin (2.1% annualized - finance's assumption).",
+   "certified": false,
+   "columns": {
+    "customer_key": "Warehouse surrogate key for a customer (INT64, dbt-generated).",
+    "avg_balance": "Account balance.",
+    "fee_revenue": "Income / revenue.",
+    "interchange_revenue": "Income / revenue.",
+    "deposit_margin": "Income / revenue.",
+    "total_revenue": "Income / revenue."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_finance.fct_fee_income_monthly",
+   "description": "Fee income by month, product and fee type.",
+   "certified": false,
+   "columns": {
+    "product_code": "Deposit/loan/card product code (e.g. CHK-ESS, SAV-HY, CC-CASHBK).",
+    "gross_fees": "Fee charged to a customer.",
+    "waived_fees": "Fee charged to a customer."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_marketing.fct_campaign_attribution",
+   "description": "Conversions attributed to the last send of the same campaign.",
+   "certified": false,
+   "columns": {
+    "cif_number": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "customer_key": "Warehouse surrogate key for a customer (INT64, dbt-generated).",
+    "campaign_id": "Braze campaign id.",
+    "hours_since_send": "Elapsed time."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_marketing.fct_campaign_engagement",
+   "description": "Email engagement per campaign dispatch per customer.",
+   "certified": false,
+   "columns": {
+    "campaign_id": "Braze campaign id.",
+    "cif_number": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_marketing.fct_campaign_sends",
+   "description": "Message sends with customer key.",
+   "certified": false,
+   "columns": {
+    "cif_number": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "customer_key": "Warehouse surrogate key for a customer (INT64, dbt-generated).",
+    "campaign_id": "Braze campaign id.",
+    "canvas_id": "Braze canvas (multi-step journey) id."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_risk.fct_credit_applications",
+   "description": "Applications with their final underwriting decision.",
+   "certified": false,
+   "columns": {
+    "application_id": "Loan origination application id.",
+    "customer_key": "Warehouse surrogate key for a customer (INT64, dbt-generated).",
+    "applicant_cif_number": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "product_code": "Deposit/loan/card product code (e.g. CHK-ESS, SAV-HY, CC-CASHBK).",
+    "branch_id": "Branch number (INT64, 3-4 digits)."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_risk.fct_delinquency_daily",
+   "description": "Daily loan delinquency.",
+   "certified": false,
+   "columns": {
+    "customer_key": "Warehouse surrogate key for a customer (INT64, dbt-generated).",
+    "loan_number": "Booked loan number from the servicing module.",
+    "product_code": "Deposit/loan/card product code (e.g. CHK-ESS, SAV-HY, CC-CASHBK).",
+    "past_due_amount": "Account balance."
+   }
+  },
+  {
+   "table": "fennmoor-dw.dw_risk.fct_fraud_alerts",
+   "description": "Fraud alerts with case outcome.",
+   "certified": false,
+   "columns": {
+    "alert_id": "Fraud platform alert id.",
+    "cif_number": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "model_score": "Transaction or session fraud score 0-999."
+   }
+  },
+  {
+   "table": "fennmoor-dw.ml_features.feat_card_velocity",
+   "description": "Card velocity features for a batch fraud model that was retired when fraud moved to the vendor's real-time scoring. Still built nightly; nothing reads it (planted finding F07).",
+   "certified": false,
+   "columns": {
+    "card_account_id": "Card processor's account id (INT64). Named `account_id` in the source. Same name and type as the deposit account id, different id space.",
+    "txn_count_1d": "Generic count.",
+    "txn_count_7d": "Generic count.",
+    "foreign_txn_7d": "Generic count."
+   }
+  },
+  {
+   "table": "fennmoor-dw.ml_features.feat_customer_daily",
+   "description": "Daily customer feature snapshot for the churn model.",
+   "certified": true,
+   "columns": {
+    "customer_key": "Warehouse surrogate key for a customer (INT64, dbt-generated).",
+    "avg_balance_30d": "Account balance.",
+    "logins_30d": "Generic count.",
+    "failed_logins_30d": "Generic count.",
+    "closure_calls_90d": "Generic count.",
+    "fee_count_90d": "Generic count.",
+    "waived_fee_count_90d": "Generic count."
+   }
+  },
+  {
+   "table": "fennmoor-dw.ml_scores.churn_score_v2",
+   "description": "Churn model v2. Last written 2026-05-14. Still read by one Looker PDT and one analyst after the cutover (planted finding F11).",
+   "certified": true,
+   "columns": {
+    "customer_key": "Warehouse surrogate key for a customer (INT64, dbt-generated).",
+    "cif_number": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "churn_score": "Probability a customer closes all deposit accounts in the next 90 days. Called churn_score, attrition_propensity, CHURN_MDL_SCR, p_attrit..."
+   }
+  },
+  {
+   "table": "fennmoor-dw.ml_scores.churn_score_v3",
+   "description": "Churn model v3 from 2026-05-15. Column renamed churn_score -> churn_probability.",
+   "certified": false,
+   "columns": {
+    "customer_key": "Warehouse surrogate key for a customer (INT64, dbt-generated)."
+   }
+  },
+  {
+   "table": "fennmoor-dw.ml_scores.next_best_offer",
+   "description": "Top product offers per customer.",
+   "certified": false,
+   "columns": {
+    "customer_key": "Warehouse surrogate key for a customer (INT64, dbt-generated).",
+    "offer_product_code": "Deposit/loan/card product code (e.g. CHK-ESS, SAV-HY, CC-CASHBK)."
+   }
+  },
+  {
+   "table": "fennmoor-analytics.legacy_edw.ACCT_DLY_BAL_OLD",
+   "description": "Backup taken before a 2024 reload. Never dropped.",
+   "certified": true,
+   "columns": {
+    "LDGR_BAL_AMT": "Account balance.",
+    "AVL_BAL_AMT": "Account balance.",
+    "BRNCH_NBR": "Branch number (INT64, 3-4 digits)."
+   }
+  },
+  {
+   "table": "fennmoor-analytics.legacy_edw.CC_EXPNS_MTHLY",
+   "description": "COST CENTER monthly expense vs budget. CC = cost center here. FISC_PRD is a 'YYYY-MM' string.",
+   "certified": true,
+   "columns": {
+    "CC_ID": "Cost center. Abbreviated CC in finance and legacy tables, colliding with CC = credit card and CC = contact center.",
+    "GL_ACCT_NBR": "General-ledger natural account code.",
+    "ACTL_AMT": "Operating cost / expense.",
+    "BDGT_AMT": "Operating cost / expense."
+   }
+  },
+  {
+   "table": "fennmoor-analytics.legacy_edw.CUST_ACCT_XREF",
+   "description": "Legacy customer-to-account cross reference.",
+   "certified": true,
+   "columns": {
+    "CUST_ID": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string."
+   }
+  },
+  {
+   "table": "fennmoor-analytics.legacy_edw.CUST_MSTR",
+   "description": "Legacy customer master. CUST_ID is the CIF. Contains the RAW SSN in a non-restricted dataset (planted finding F08).",
+   "certified": true,
+   "columns": {
+    "CUST_ID": "Customer Information File number - the bank's master customer id, assigned by core banking. 10-digit zero-padded string.",
+    "SSN_NBR": "Social Security / tax id. Raw only in core_banking_cdc and aml_kyc (restricted); hashed from staging onward. One sandbox copy leaks it unhashed - planted finding F08.",
+    "BRTH_DT": "Date of birth.",
+    "PRIM_BRNCH_NBR": "Branch number (INT64, 3-4 digits).",
+    "HH_ID": "Teradata-era household id. Not the Salesforce household.",
+    "EMAIL_ADDR": "Email address."
+   }
+  }
+ ]
+}

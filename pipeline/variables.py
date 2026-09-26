@@ -8,8 +8,11 @@
 Preprocessing for the semantic layer: clustering and naming happen over variables, so
 the same real-world thing is represented once across the warehouse.
 
-  1. GDS Cypher projection: every (a:Column)<-[:ON]-(:JoinKey)-[:ON]->(b:Column) becomes an
-     undirected a -- b relationship.
+  0. Judge every JoinKey (joins.py): does the join say its two columns are the same thing,
+     and how much should it be trusted? Stored as JoinKey properties (confidence, identity, ...).
+  1. GDS Cypher projection: every (a:Column)<-[:ON]-(k:JoinKey)-[:ON]->(b:Column) becomes an
+     undirected a -- b relationship, if k preserves identity and is not suspect. A suspect join
+     (two id spaces production keeps apart) stays in the graph as evidence but builds nothing.
   2. WCC over the projection. Each component is one variable.
   3. Materialize: (:Variable {id, size, tables}) and (:Column)-[:IS]->(:Variable).
      The id is 'var:' + the component's smallest column id, so it is stable across runs.
@@ -28,6 +31,7 @@ import time
 from collections import Counter, defaultdict
 
 from graphdb import Graph, config
+from joins import USABLE, judge_joins
 from llm import LLM, check_name, name_all, prompt
 
 GRAPH = "variables"
@@ -42,10 +46,10 @@ SCHEMA = {"type": "object", "required": ["items"], "properties": {"items": {"typ
 def components(G: Graph) -> dict[str, list[str]]:
     """WCC over columns joined by a JoinKey -> component id -> column ids."""
     G.run("CALL gds.graph.drop($g, false) YIELD graphName RETURN graphName", g=GRAPH)
-    p = G.rows("""MATCH (a:Column)<-[:ON]-(:JoinKey)-[:ON]->(b:Column)
-                  WHERE elementId(a) <= elementId(b)
+    p = G.rows("""MATCH (a:Column)<-[:ON]-(k:JoinKey)-[:ON]->(b:Column)
+                  WHERE elementId(a) <= elementId(b) AND k.identity AND k.confidence IN $usable
                   WITH gds.graph.project($g, a, b, {}, {undirectedRelationshipTypes: ['*']}) AS g
-                  RETURN g.nodeCount AS nodes, g.relationshipCount AS rels""", g=GRAPH)[0]
+                  RETURN g.nodeCount AS nodes, g.relationshipCount AS rels""", g=GRAPH, usable=list(USABLE))[0]
     comp = defaultdict(list)
     for r in G.rows("""CALL gds.wcc.stream($g, {concurrency: 1}) YIELD nodeId, componentId
                        RETURN gds.util.asNode(nodeId).id AS c, componentId AS k""", g=GRAPH):
@@ -64,7 +68,8 @@ def evidence(G: Graph, variables: dict[str, list[str]]) -> dict[str, str]:
     for r in G.rows("""MATCH (s:QueryShape)-[:USES_JOIN]->(k:JoinKey)-[:ON {side: 'left'}]->(a:Column),
                              (k)-[:ON {side: 'right'}]->(b:Column)
                        RETURN a.id AS a, b.id AS b, count(s) AS n"""):
-        joins[var_of[r["a"]]][(r["a"], r["b"])] += r["n"]
+        if r["a"] in var_of and var_of[r["a"]] == var_of.get(r["b"]):     # joins that built the variable
+            joins[var_of[r["a"]]][(r["a"], r["b"])] += r["n"]
     values = defaultdict(Counter)
     for r in G.rows("""MATCH (:QueryShape)-[f:FILTERS]->(c:Column)-[:IS]->(:Variable) WHERE size(f.values) > 0
                        UNWIND range(0, size(f.values) - 1) AS i
@@ -101,6 +106,11 @@ def main() -> int:
     G.auto("MATCH (v:Variable) CALL (v) { DETACH DELETE v } IN TRANSACTIONS OF 5000 ROWS")
     G.run("MATCH (c:Unjoined) REMOVE c:Unjoined")
 
+    conf = judge_joins(G)
+    print(f"join confidence: {dict(conf)}")
+    for r in G.rows("""MATCH (k:JoinKey) WHERE k.confidence = 'suspect' OR NOT k.identity
+                       RETURN k.id AS id, k.confidence AS c, k.identity AS i, k.confidence_reason AS why"""):
+        print(f"  not used: {r['id'].replace('fennmoor-', '')} ({r['c']}{'' if r['i'] else ', not identity'})")
     variables = components(G)
     G.batch("Variable", """UNWIND $rows AS r CREATE (v:Variable {id: r.id, size: size(r.cols)})
                            WITH v, r UNWIND r.cols AS cid MATCH (c:Column {id: cid}) CREATE (c)-[:IS]->(v)""",

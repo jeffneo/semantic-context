@@ -50,13 +50,19 @@ flowchart TD
    at the top by embedding similarity.
 5. **Navigate** (`pipeline/navigate.py`):
    - A question is embedded and vector-searched against the semantic layer.
-   - The search walks `IN_SEMANTIC` down to the level-1 groups, then to the tables and columns
-     they hold, ranked by how many principals use them.
+   - The search walks `IN_SEMANTIC` down to the level-1 groups (plus the closest level-1 groups
+     directly), then to the tables and columns they hold. Each group, closest first, contributes
+     its most-used table in turn, and frozen tables go last.
    - It shows the joins and existing queries in the log that connect them.
    - It finishes with one BigQuery query that Claude writes from that cohort, which BigQuery
      dry-runs for free. The deployed tables are empty, so the query is validated, not run.
+6. **Align** (`pipeline/align.py`): a data catalog and an ontology, which are designed models,
+   become `Concept` nodes. They're linked to the columns the catalog names, and by embedding to
+   the variables and semantic groups. A diff lists where design and usage agree, conflict, or
+   cover each other's gaps.
 
-Current result on Fennmoor: 53 variables; semantic levels of 110 → 16 → 5 groups. Every LLM prompt
+Current result on Fennmoor: 50 variables (built only from trusted joins); semantic levels of
+107 → 15 → 4 groups. Every LLM prompt
 is a file in [`prompts/`](prompts/).
 
 ## Status
@@ -77,6 +83,7 @@ documents each milestone.
 |---|---|
 | `pipeline/` | The pipeline: extract, parse, load, variables, semantic levels, navigation ([pipeline/README.md](pipeline/README.md)) |
 | `pipeline/parser/` | SQL parse service (sqlglot, compiled), the same image for docker-compose or Cloud Run / Lambda, with golden tests |
+| `designed/` | Designed models the pipeline aligns to (never builds from): a synthetic catalog export and a small bank ontology ([designed/README.md](designed/README.md)) |
 | `prompts/` | Every LLM prompt, one file each ([prompts/README.md](prompts/README.md)) |
 | `plans/` | The pipeline plan, decisions and per-milestone write-ups |
 | `specs/` | The Fennmoor Bank spec, the log simulator and the scorer ([specs/README.md](specs/README.md)) |

@@ -22,7 +22,10 @@ The weight is the number of distinct statements that do either.
      (:Variable|Unjoined)-[:IN_SEMANTIC]->(:Semantic). The id is 'sem:' + the smallest member id.
      Isolated nodes (never read together with anything) get no Semantic: there is no evidence
      to group them.
-  4. Name each Semantic with the LLM (prompts/semantic_*.md).
+  4. Stability: Leiden is rerun 10 times, 5 with new seeds and 5 on a resample of 80% of the
+     statements; Semantic.stability is how much of the group comes back (best Jaccard overlap,
+     averaged; 1 = always whole). A low value means the evidence for that group is thin.
+  5. Name each Semantic with the LLM (prompts/semantic_*.md).
 
 Usage: uv run pipeline/cluster.py [--gamma 4] [--no-names] [--no-lineage]
 """
@@ -41,31 +44,46 @@ BATCH = 8
 SHOW_MEMBERS = 40
 
 
-def unit_edges(G: Graph) -> dict[tuple[str, str], dict]:
-    """Usage between units (a Variable, or an :Unjoined column): read by the same query, or
-    connected by column lineage. Weights count distinct statements. -> (a, b) with a < b -> weights."""
+def evidence_sets(G: Graph) -> tuple[dict[str, list[str]], list[tuple[str, str, list[str]]]]:
+    """The usage evidence per statement: the units each query reads, and each lineage link with the
+    statements that make it. Units are a Variable, or an :Unjoined column."""
+    shapes = {r["s"]: r["units"] for r in G.rows("""MATCH (s:QueryShape)-[:READS]->(c:Column)
+        OPTIONAL MATCH (c)-[:IS]->(v:Variable)
+        WITH s, collect(DISTINCT coalesce(v.id, c.id)) AS units WHERE size(units) > 1
+        RETURN s.id AS s, units""")}
+    # lineage out of transient ingestion tables (Fivetran's *_{hex} merge sources) is load plumbing,
+    # not use (PIPELINE_PLAN.md section 6)
+    flows = [(r["a"], r["b"], r["shapes"]) for r in G.rows("""
+        MATCH (tx:Table)-[:HAS_COLUMN]->(x:Column)-[f:FLOWS]->(y:Column)
+        WHERE NOT f.control AND tx.kind <> 'transient'
+        OPTIONAL MATCH (x)-[:IS]->(vx:Variable)
+        OPTIONAL MATCH (y)-[:IS]->(vy:Variable)
+        RETURN coalesce(vx.id, x.id) AS a, coalesce(vy.id, y.id) AS b, f.shapes AS shapes""")]
+    return shapes, flows
+
+
+def edges_from(shapes: dict, flows: list, keep: set | None = None) -> dict[tuple[str, str], dict]:
+    """(a, b) with a < b -> {coread, flows}: the number of statements (kept, if `keep` is given)
+    that read both, or that derive one from the other."""
     edges: dict[tuple[str, str], dict] = {}
 
     def add(a, b, kind, w):
-        if a == b:
-            return
-        e = edges.setdefault((min(a, b), max(a, b)), {"coread": 0, "flows": 0})
-        e[kind] += w
-    for r in G.rows("""MATCH (s:QueryShape)-[:READS]->(c:Column)
-                       OPTIONAL MATCH (c)-[:IS]->(v:Variable)
-                       WITH s, collect(DISTINCT coalesce(v.id, c.id)) AS units
-                       UNWIND units AS a UNWIND units AS b WITH a, b WHERE a < b
-                       RETURN a, b, count(*) AS w"""):
-        add(r["a"], r["b"], "coread", r["w"])
-    # lineage out of transient ingestion tables (Fivetran's *_{hex} merge sources) is load plumbing,
-    # not use (PIPELINE_PLAN.md section 6)
-    for r in G.rows("""MATCH (tx:Table)-[:HAS_COLUMN]->(x:Column)-[f:FLOWS]->(y:Column)
-                       WHERE NOT f.control AND tx.kind <> 'transient'
-                       OPTIONAL MATCH (x)-[:IS]->(vx:Variable)
-                       OPTIONAL MATCH (y)-[:IS]->(vy:Variable)
-                       RETURN coalesce(vx.id, x.id) AS a, coalesce(vy.id, y.id) AS b, size(f.shapes) AS w"""):
-        add(r["a"], r["b"], "flows", r["w"])
+        if a != b and w:
+            e = edges.setdefault((min(a, b), max(a, b)), {"coread": 0, "flows": 0})
+            e[kind] += w
+    for sid, units in shapes.items():
+        if keep is None or sid in keep:
+            for i, a in enumerate(units):
+                for b in units[i + 1:]:
+                    add(a, b, "coread", 1)
+    for a, b, sh in flows:
+        add(a, b, "flows", len(sh) if keep is None else sum(1 for x in sh if x in keep))
     return edges
+
+
+def unit_edges(G: Graph) -> dict[tuple[str, str], dict]:
+    """Usage between units: read by the same query, or connected by column lineage."""
+    return edges_from(*evidence_sets(G))
 
 
 def project(G: Graph, edges: dict, lineage: bool = True) -> dict:
@@ -89,14 +107,39 @@ def project(G: Graph, edges: dict, lineage: bool = True) -> dict:
         RETURN g.nodeCount AS nodes, g.relationshipCount AS rels""", g=GRAPH, rows=rows)[0]
 
 
-def leiden(G: Graph, gamma: float) -> dict[str, list[str]]:
+def leiden(G: Graph, gamma: float, seed: int = 42) -> dict[str, list[str]]:
     comm = defaultdict(list)
     for r in G.rows("""CALL gds.leiden.stream($g, {gamma: $gamma, relationshipWeightProperty: 'w',
-                                                   randomSeed: 42, concurrency: 1})
+                                                   randomSeed: $seed, concurrency: 1})
                        YIELD nodeId, communityId
-                       RETURN gds.util.asNode(nodeId).id AS id, communityId AS k""", g=GRAPH, gamma=gamma):
+                       RETURN gds.util.asNode(nodeId).id AS id, communityId AS k""", g=GRAPH, gamma=gamma, seed=seed):
         comm[r["k"]].append(r["id"])
     return {f"sem:{min(ms)}": sorted(ms) for ms in comm.values()}
+
+
+def stability(G: Graph, groups: dict[str, list[str]], shapes: dict, flows: list, gamma: float,
+              lineage: bool, runs: int = 10, share: float = 0.8) -> dict[str, float]:
+    """How much of each group comes back when Leiden is rerun: half the runs change only the random
+    seed, half also resample the evidence (keep `share` of the statements). For a group, the best
+    Jaccard overlap with any community of a run, averaged over the runs: 1 = always comes back whole."""
+    import random
+    ids = sorted(shapes.keys() | {x for _, _, sh in flows for x in sh})
+    score = defaultdict(float)
+    for r in range(runs):
+        keep = None if r < runs // 2 else set(random.Random(r).sample(ids, int(len(ids) * share)))
+        project(G, edges_from(shapes, flows, keep), lineage)
+        of = {}
+        for k, ms in leiden(G, gamma, seed=r + 1).items():
+            for m in ms:
+                of[m] = k
+        comm = defaultdict(set)
+        for m, k in of.items():
+            comm[k].add(m)
+        for gid, members in groups.items():
+            ms = set(members)
+            score[gid] += max(len(ms & comm[k]) / len(ms | comm[k]) for k in {of[m] for m in ms if m in of})
+    G.run("CALL gds.graph.drop($g, false) YIELD graphName RETURN graphName", g=GRAPH)
+    return {g: v / runs for g, v in score.items()}
 
 
 def evidence(G: Graph, groups: dict[str, list[str]]) -> dict[str, str]:
@@ -148,7 +191,8 @@ def main() -> int:
     G.run("CREATE CONSTRAINT semantic_id IF NOT EXISTS FOR (n:Semantic) REQUIRE n.id IS UNIQUE")
     G.auto("MATCH (s:Semantic) CALL (s) { DETACH DELETE s } IN TRANSACTIONS OF 5000 ROWS")
 
-    edges = unit_edges(G)
+    shapes, flows = evidence_sets(G)
+    edges = edges_from(shapes, flows)
     p = project(G, edges, lineage=not a.no_lineage)
     comms = leiden(G, a.gamma)
     G.run("CALL gds.graph.drop($g, false) YIELD graphName RETURN graphName", g=GRAPH)
@@ -170,6 +214,13 @@ def main() -> int:
     print(f"Semantic: {len(groups):,} groups over {sum(sizes):,} members; {alone:,} nodes alone (no Semantic)")
     print("  sizes: " + ", ".join(f"{b}: {buckets[b]}" for b in ("2", "3-5", "6-10", "11-25", "26-50", "51+"))
           + f"; largest {sizes[:8]}")
+
+    stab = stability(G, groups, shapes, flows, a.gamma, not a.no_lineage)
+    G.batch("Semantic.stability", "UNWIND $rows AS r MATCH (s:Semantic {id: r.id}) SET s.stability = r.v",
+            [{"id": k, "v": v} for k, v in stab.items()])
+    vals = sorted(stab.values())
+    print(f"stability (10 reruns: 5 new seeds, 5 with 80% of statements): median {vals[len(vals) // 2]:.2f}, "
+          f"{sum(v >= 0.8 for v in vals)} of {len(vals)} groups at 0.8+, {sum(v < 0.5 for v in vals)} below 0.5")
 
     if not a.no_names:
         llm = LLM(prompt("semantic_system"), cfg)
