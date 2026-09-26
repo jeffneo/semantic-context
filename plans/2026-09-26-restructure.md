@@ -1,6 +1,6 @@
 # Restructure: one tool, one worked example
 
-Status: done (2026-09-26). The M1-M6 build is tagged `m1-m6-model`.
+Status: done (2026-09-26). The M1-M6 build is the history up to commit 80dd3e9.
 
 ## Why
 
