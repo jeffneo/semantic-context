@@ -41,6 +41,8 @@ uv run pytest                            # needs Neo4j up for the demo-query tes
 uv run ruff check . && uv run ruff format .
 uv run --no-project --with 'sqlglot[c]==30.19.0' --with pytest pytest parser/tests -q
 uv run examples/fennmoor-bank/eval/{bottom_layer,navigation,robustness,seeds}.py   # -> results/
+uv run examples/fennmoor-bank/eval/answers.py         # the gold questions' reference answers, from the filled data
+uv run examples/fennmoor-bank/generate/fill.py --slice 2   # fill BigQuery with rows (plans/2026-09-26-fill-*.md)
 ```
 
 Services: `docker compose up -d neo4j parser` (Neo4j on bolt 7690 per the example config, parser on

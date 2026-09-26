@@ -29,6 +29,23 @@ slices:
               fct_card_transactions, fct_deposit_transactions, int_customer_identity,
               int_account_holders, fct_account_closures, fct_calls, dim_agent, dim_queue,
               dim_cc_site, dim_merchant]
+  2:
+    title: Gold questions
+    # every table spec/questions.yaml names, as expected, acceptable or to avoid: the traps get rows
+    # too, so a wrong answer returns plausible wrong rows rather than nothing (plans/2026-09-26-fill-slice-2.md)
+    targets: [ACCT_DLY_BAL, ACCT_MSTR, attrition_propensity_2025, aud_high_value_churn_risk,
+              campain_results_2025, card_spend_by_segment, CC_ACCT_MSTR, CC_AGENT_DLY, CC_CALL_VOL_DLY,
+              cc_cost_per_call_fy25, CC_EXPENSE_SUMMARY, CC_EXPNS_MTHLY, CC_TXN_HIST, CHURN_MDL_SCR,
+              churn_score_v2, churn_score_v3, consumer_attributes_monthly, CUST_MSTR, CUST_MSTR_BKP_20250211,
+              CUSTOMER, customer_360, customer_360_final, dim_account, dim_agent, dim_aml_party, dim_branch,
+              dim_campaign, dim_cc_site, dim_customer, dim_product, email_list_affluent_apr26,
+              eom_bal_by_product_tableau, EOM_BAL_SNAP, events_, fct_account_closures, fct_app_sessions,
+              fct_calls, fct_campaign_attribution, fct_card_transactions, fct_cc_site_cost_monthly,
+              fct_contacts_all, fct_credit_applications, fct_csat, fct_daily_account_balances,
+              fct_delinquency_daily, fct_fraud_alerts, fct_web_sessions, int_account_closures,
+              int_digital_sessions, kyc_review_extract, LN_PMT_HIST, LR_5T7Y9U1I3O5P7_card_spend_by_mcc,
+              MKTG_CMPGN_RESP, model_score_realtime, online_user, party, rpt_site_cost_per_contact,
+              settlement, stg_core__customer, vendor_invoice, web_to_branch_journeys]
 
 # How each id space's values look (concepts.yaml gives the prose). `seq` counts up
 # from `start`; `pattern` fills {n} (the sequence number) and {h} (hex from a seeded hash).
@@ -135,6 +152,10 @@ domains:
 #               the main parent. A column whose concept matches a parent column's concept
 #               copies the parent's value, so a row's ids are consistent with each other.
 #   daily       one row per parent row per day of the window
+#   monthly     n: one row per parent row per month, the last n months (the grain date: the 1st)
+#   window      [from, to]: the table's own event window (a frozen legacy table's last months)
+#   shard_by    for a sharded table: the column whose date names the shard a row loads into
+#   grain_unique false: a legacy table that never kept its grain unique (not checked)
 #   columns     rules for single columns (see fill.py: Rules)
 #   sql         generate in BigQuery after the tables it reads (keys the warehouse computes)
 tables:
@@ -315,6 +336,7 @@ tables:
   loan_origination.loan:
     parents: {core_banking_cdc.CUSTOMER: {share: 0.25}, core_banking_cdc.BRANCH: {}}
     columns:
+      branchNumber: {from_parent: core_banking_cdc.BRANCH, column: BRNCH_ID}   # not the customer's (retired) preferred branch
       productCode: {from_domain: product_codes, where_prefix: [HELOC, MTG, AUTO, PL]}
       termMonths: {choice: [36, 60, 120, 180, 360]}
       maturityDate: {after: originationDate, days: [1000, 11000]}
@@ -385,3 +407,348 @@ tables:
       FROM `fennmoor-dw.dw_core.dim_customer` c,
            UNNEST(GENERATE_DATE_ARRAY(DATE '2026-05-15', DATE '2026-06-29')) AS d
     depends_on: [fennmoor-dw.dw_core.dim_customer]
+
+  # ---------------------------------------------------------------- slice 2: the gold questions
+
+  # Finance: journal lines, a quarter of them on the contact-center sites' cost centers (Q01's costs)
+  gl_erp.gl_account:
+    columns:
+      account_type: {choice: {EXPENSE: 55, REVENUE: 15, ASSET: 12, LIABILITY: 12, EQUITY: 6}}
+      account_name: {words: [Salaries and Wages, Contractor Services, Telephony, Rent and Occupancy, Software Licenses, Interest Income, Fee Income, Travel, Training]}
+      is_active: {bool: 0.93}
+
+  gl_erp.journal_line:
+    needs: [reference_data.contact_center_site, gl_erp.gl_account]
+    window: [2025-01-01, 2026-06-29]  # Q01 asks for last year's costs: the GL keeps history
+    columns:
+      cost_center_id: {some_from: {table: reference_data.contact_center_site, column: cost_center_id, share: 0.25}}
+      period_name: {derive: period_name, of: accounting_date}
+      source: {choice: {PAYROLL: 45, AP: 30, ALLOC: 15, ACCRUAL: 10}}
+      entered_dr: {range: [40.0, 18000.0]}
+      entered_cr: {const: "0.00"}
+      currency_code: {const: USD}
+      line_description: {words: [Biweekly payroll, Vendor invoice, Overhead allocation, Month-end accrual, Telephony charges]}
+
+  gl_erp.vendor_invoice:
+    columns:
+      vendor_name: {words: [Harbinger BPO Services, Genesys Cloud, Verizon Business, Iron Mountain, Deloitte, Workday]}
+      amount: {range: [200.0, 60000.0]}
+      line_description: {words: [Monthly services, License renewal, Professional services]}
+
+  gl_erp.CC_EXPENSE_SUMMARY:
+    columns:
+      PERIOD_NAME: {choice: [MAR-26, APR-26, MAY-26, JUN-26]}
+      ACTUAL_AMT: {range: [1000.0, 250000.0]}
+      BUDGET_AMT: {range: [1000.0, 250000.0]}
+      VARIANCE_AMT: {range: [-40000.0, 40000.0]}
+
+  # Fraud: cases link 1-5 alerts each; share of alerts in a confirmed case is Q07's answer
+  fraud_platform.alert:
+    columns:
+      alert_status: {choice: {CLOSED: 85, OPEN: 10, ESCALATED: 5}}
+      priority: {choice: {LOW: 50, MEDIUM: 35, HIGH: 15}}
+      channel: {choice: {CNP: 30, CP: 12, ONLINE: 22, MOBILE: 20, BRANCH: 5, ATM: 6, P2P: 5}}
+      disposition: {choice: {FALSE_POSITIVE: 78, CONFIRMED: 12, INCONCLUSIVE: 6, CUSTOMER_VERIFIED: 4}}
+      rule_id: {pool: {pattern: "R{n:03d}", size: 60}}
+      model_score: {range: [0, 999]}
+      entity_ref: {pool: {pattern: "ENT{n:07d}", size: 200000}}
+      dispositioned_at: {after_seconds: alert_ts, seconds: [600, 604800]}
+
+  fraud_platform.fraud_case:
+    columns:
+      case_type: {choice: {CARD: 45, ACCOUNT: 25, P2P: 15, CHECK: 10, ELDER: 5}}
+      status: {choice: {CLOSED: 80, OPEN: 20}}
+      confirmed_fraud: {bool: 0.62}
+      total_loss_amount: {range: [0.0, 25000.0]}
+      recovered_amount: {range: [0.0, 5000.0]}
+      closed_at: {after_seconds: opened_at, seconds: [86400, 2592000]}
+
+  fraud_platform.case_alert_link:
+    parents: {fraud_platform.fraud_case: {per: [1, 5]}, fraud_platform.alert: {unique: true}}
+
+  fraud_platform.model_score_realtime:
+    rows: 1000000                     # the spec's 7.6 billion at 0.1% is 7.6 million; a million shows the trap
+    columns:
+      entity_type: {choice: {CARD: 60, ACCOUNT: 25, OLB_SESSION: 15}}
+      entity_ref: {pool: {pattern: "ENT{n:07d}", size: 200000}}
+      model_name: {choice: {fraud-gbm-rt: 70, ato-nn: 30}}
+      model_version: {choice: [4.2.0, 4.3.1]}
+      score: {range: [0, 999]}
+
+  # Contact center: CSAT on one conversation in nine (Q10)
+  genesys_cloud.survey_response:
+    parents: {genesys_cloud.conversation: {share: 0.11}}
+    columns:
+      sent_at: {after_seconds: conversation_end, seconds: [60, 3600], of_parent: true}
+      completed_at: {after_seconds: sent_at, seconds: [60, 86400]}
+      csat_score: {range: [1, 5]}
+      nps_score: {range: [0, 10]}
+
+  # Lending (Q08, Q09): applications and their decisions; a daily delinquency snapshot per loan
+  loan_origination.application:
+    columns:
+      productCode: {from_domain: product_codes, where_prefix: [HELOC, MTG, AUTO, PL, CC]}
+      requestedAmount: {range: [1000.0, 400000.0]}
+      decisionStatus: {choice: {DECIDED: 85, PENDING: 10, WITHDRAWN: 5}}
+      decisionAt: {after_seconds: submittedAt, seconds: [60, 1209600]}
+      statedIncome: {range: [18000.0, 400000.0]}
+      employmentStatus: {choice: {EMPLOYED: 75, SELF_EMPLOYED: 12, RETIRED: 8, UNEMPLOYED: 5}}
+      housingStatus: {choice: {OWN: 35, MORTGAGE: 25, RENT: 35, OTHER: 5}}
+      offerCode: {share: 0.3, pool: {pattern: "OFR{n:03d}", size: 40}}
+      creditScoreAtApp: {range: [540, 840]}
+      coApplicantCifNumber: {share: 0.15}
+
+  loan_origination.decision:
+    parents: {loan_origination.application: {per: [1, 2]}}
+    columns:
+      decisionSeq: {seq_per_parent: true}
+      approvedAmount: {null_unless: {outcome: [APPROVE, COUNTER]}, range: [1000.0, 350000.0]}
+      approvedApr: {null_unless: {outcome: [APPROVE, COUNTER]}, range: [3.9, 24.9]}
+      decidedAt: {after_seconds: submittedAt, seconds: [60, 1209600], of_parent: true}
+
+  loan_origination.delinquency_snapshot:
+    parents: {loan_origination.loan: {}}
+    daily: true
+    columns:
+      dpd: {choice: {0: 91, 12: 3, 38: 2, 67: 2, 105: 2}}
+      bucket: {derive: dpd_bucket, of: dpd}
+      pastDueAmount: {range: [0.0, 3000.0]}
+      collectorId: {share: 0.1}
+
+  credit_bureau.consumer_attributes_monthly:
+    parents: {core_banking_cdc.CUSTOMER: {}}
+    monthly: 25
+    columns:
+      FICO_08: {range: [540, 850]}
+      VANTAGE_4: {range: [520, 840]}
+      TOT_REV_BAL: {range: [0.0, 45000.0]}
+      TOT_REV_LMT: {range: [2000.0, 80000.0]}
+      UTIL_PCT: {range: [0.0, 95.0]}
+      NUM_TRD_OPEN: {range: [1, 18]}
+      NUM_INQ_6M: {range: [0, 6]}
+      NUM_DLQ_30_24M: {choice: {0: 85, 1: 10, 2: 5}}
+      MOS_SINCE_DLQ: {share: 0.15, range: [1, 84]}
+      EST_INCOME: {range: [22000.0, 350000.0]}
+
+  aml_kyc.party:
+    parents: {core_banking_cdc.CUSTOMER: {per: [1, 1]}}
+    columns:
+      party_type: {choice: {INDIVIDUAL: 95, ENTITY: 5}}
+      country_of_citizenship: {choice: {USA: 96, MEX: 1, CAN: 1, PHL: 1, IND: 1}}
+      pep_flag: {bool: 0.01}
+      risk_rating: {choice: {L: 85, M: 12, H: 3}}
+      risk_rating_date: {in_window: 0.3}
+      onboarding_date: {range: [2015-01-01, 2026-06-01]}
+
+  # Marketing (Q08): sends; conversions and email events follow a send (same customer, campaign, later)
+  braze.campaign:
+    columns:
+      name: {words: [Spring Cash Back, Travel Rewards Launch, HELOC Rate Drop, Checking Bonus 300, Digital Enrollment Nudge, Card Activation Reminder, Savings Rate Alert]}
+      channels: {choice: [[email], [push], [email, push], [sms], [email, in_app]]}
+      tags: {choice: [[acquisition], [cards], [lending], [deposits], [retention]]}
+      archived: {bool: 0.3}
+      first_sent: {in_window: 0.5}
+      last_sent: {after_seconds: first_sent, seconds: [86400, 5184000]}
+
+  braze.message_send:
+    columns:
+      canvas_id: {share: 0.3}
+      canvas_step_id: {share: 0.3}
+      message_variation_id: {pool: {pattern: "var_{n:02d}", size: 4}}
+
+  braze.conversion:
+    parents: {braze.message_send: {share: 0.24}}
+    columns:
+      event_time: {after_seconds: sent_at, seconds: [600, 1209600], of_parent: true}
+      conversion_behavior: {choice: {card_application_submitted: 30, checking_account_opened: 35, heloc_lead_submitted: 10, app_login: 25}}
+
+  braze.email_event:
+    parents: {braze.message_send: {per: [1, 2]}}
+    columns:
+      event_type: {sequence: [delivery, open]}
+      event_time: {after_seconds: sent_at, seconds: [5, 259200], of_parent: true}
+      url: {share: 0.3, words: ["https://www.fennmoor.example/credit-cards", "https://www.fennmoor.example/loans/heloc", "https://www.fennmoor.example/checking"]}
+
+  salesforce.campaign:
+    parents: {braze.campaign: {unique: true}}   # one Salesforce campaign per Braze campaign, at most
+    columns:
+      name: {words: [Spring Cash Back, Travel Rewards Launch, HELOC Rate Drop, Checking Bonus 300, Branch Open House]}
+      type: {choice: {Email: 40, Direct Mail: 15, Digital: 30, Event: 15}}
+      status: {choice: {Completed: 60, Active: 30, Planned: 10}}
+      start_date: {in_window: 0.4}
+      end_date: {after: start_date, days: [7, 90]}
+      braze_campaign_id__c: {share: 0.8}
+      budgeted_cost: {range: [5000.0, 250000.0]}
+      actual_cost: {range: [3000.0, 260000.0]}
+
+  # Digital (Q03, Q11): events grouped into sessions per online-banking user
+  amplitude_mobile.EVENTS_318842:
+    parents: {digital_banking.online_user: {per: [60, 340]}}
+    columns:
+      amplitude_id: {session: {part: key}}
+      session_id: {session: {part: id, size: 8}}
+      event_time: {session: {part: time, size: 8}}
+      client_event_time: {same_as: event_time}
+      server_upload_time: {same_as: event_time}
+      event_type: {choice: {screen_view: 70, button_tap: 22, login: 8}}
+      event_properties: {derive: amp_properties, screens: {Home: 30, Accounts: 20, Transfer: 12, Cards: 10, "Card Controls": 5, "Mobile Deposit": 8, Settings: 5, Help: 5, Offers: 5}}
+      user_properties: {const: "{}"}
+      platform: {choice: {iOS: 58, Android: 42}}
+      os_name: {choice: {ios: 58, android: 42}}
+      version_name: {choice: [5.12.0, 5.13.1, 5.14.0]}
+      country: {const: United States}
+
+  analytics_312874659.events_:
+    parents: {digital_banking.online_user: {per: [2, 30]}}
+    shard_by: event_date
+    columns:
+      event_date: {session: {part: time}}
+      event_timestamp: {session: {part: time}}
+      event_name: {derive: ga4_event_name}
+      event_params:
+        derive: ga4_params
+        host: www.fennmoor.example
+        products: [CC-CASHBK, CC-TRAVEL, CHK-ESS, HELOC-STD]
+        pages: {"/": 20, /login: 15, /accounts: 15, /checking: 6, /savings: 5, /credit-cards: 7, /credit-cards/apply: 4, /loans/heloc: 3, /rates: 3, /branch-locator: 5, /help: 5, /help/lost-card: 3, /help/dispute-a-charge: 3, /help/close-account: 2, /contact: 4}
+      user_pseudo_id: {session: {part: key}}
+      stream_id: {const: "4839201756"}
+      platform: {const: WEB}
+      is_active_user: {bool: 0.9}
+      device: {choice: [{category: mobile, operating_system: iOS, web_info: {browser: Safari}}, {category: mobile, operating_system: Android, web_info: {browser: Chrome}}, {category: desktop, operating_system: Windows, web_info: {browser: Chrome}}, {category: desktop, operating_system: Macintosh, web_info: {browser: Safari}}]}
+      geo: {choice: [{city: Tulsa, region: Oklahoma, country: United States}, {city: Spokane, region: Washington, country: United States}, {city: Boise, region: Idaho, country: United States}, {city: Wichita, region: Kansas, country: United States}]}
+      traffic_source: {choice: [{name: (direct), medium: (none), source: (direct)}, {name: (direct), medium: (none), source: (direct)}, {name: (organic), medium: organic, source: google}, {name: spring_cash_back, medium: email, source: braze}, {name: brand, medium: cpc, source: google}]}
+      collected_traffic_source: {share: 0.2, choice: [{manual_campaign_name: spring_cash_back, manual_source: braze, manual_medium: email}]}
+
+  # Legacy EDW, frozen at the 2025-02-28 migration; the Avaya tables at the 2025-09-30 cutover
+  legacy_edw.CUST_MSTR:
+    parents: {core_banking_cdc.CUSTOMER: {per: [1, 1]}}
+    window: [2024-12-01, 2025-02-28]
+    columns:
+      CUST_TYP: {choice: {IND: 95, BUS: 5}}
+      SEG_CD: {choice: {MASS: 60, MASS_AFF: 23, AFFL: 10, PRIV: 2, SMBUS: 5}}
+      CUST_SINCE_DT: {range: [2000-01-01, 2025-01-31]}
+      HH_ID: {pool: {pattern: "HH{n:07d}", size: 15000}}
+      LOAD_DT: {const: "2025-02-28"}
+
+  legacy_edw.ACCT_MSTR:
+    parents: {core_banking_cdc.ACCOUNT: {per: [1, 1]}}
+    window: [2024-12-01, 2025-02-28]
+    columns:
+      ACCT_NBR: {late: true}          # the account number core banking fills with its other columns
+      STAT_CD: {choice: {OPEN: 88, CLSD: 10, DORM: 2}}
+      OPEN_DT: {range: [2005-01-01, 2025-02-15]}
+      CLS_DT: {null_unless: {STAT_CD: [CLSD]}, after: OPEN_DT}
+      LOAD_DT: {const: "2025-02-28"}
+
+  legacy_edw.CC_ACCT_MSTR:
+    parents: {card_processor.card_account: {per: [1, 1]}}
+    window: [2024-12-01, 2025-02-28]
+    columns:
+      STAT_CD: {choice: {OPEN: 90, CLSD: 9, CHGOFF: 1}}
+      OPEN_DT: {range: [2008-01-01, 2025-02-15]}
+      CLS_DT: {null_unless: {STAT_CD: [CLSD, CHGOFF]}, after: OPEN_DT}
+      CR_LMT_AMT: {range: [500.0, 30000.0]}
+
+  legacy_edw.CC_TXN_HIST:
+    parents: {legacy_edw.CC_ACCT_MSTR: {per: [100, 190]}}
+    window: [2024-12-01, 2025-02-28]
+    columns:
+      TXN_SEQ: {seq_per_parent: true}
+      MRCH_NM: {words: [Corner Market, Blue Plate Diner, QuickFuel, SkyWay Air, Harbor Inn, Main Street Pharmacy]}
+      TXN_TYP: {choice: {SALE: 88, RETURN: 4, PMT: 6, FEE: 2}}
+
+  legacy_edw.CHURN_MDL_SCR:
+    parents: {core_banking_cdc.CUSTOMER: {}}
+    monthly: 12
+    window: [2024-03-01, 2025-02-28]
+    columns:
+      CHURN_SCR: {range: [0.0, 1.0]}
+      DECILE: {range: [1, 10]}
+
+  legacy_edw.LN_PMT_HIST:
+    parents: {loan_origination.loan: {}}
+    monthly: 12
+    window: [2024-03-01, 2025-02-28]
+    columns:
+      PMT_AMT: {range: [150.0, 3500.0]}
+      PRIN_AMT: {range: [50.0, 3000.0]}
+      INT_AMT: {range: [10.0, 900.0]}
+      LATE_IND: {choice: {N: 94, Y: 6}}
+
+  legacy_edw.MKTG_CMPGN_RESP:
+    window: [2024-12-01, 2025-02-28]
+    grain_unique: false
+    columns:
+      CMPGN_CD: {pool: {pattern: "CMP{n:04d}", size: 300}}
+      RESP_TYP: {choice: {OPEN: 50, CLICK: 25, RESPOND: 15, OPTOUT: 10}}
+      CHNL: {choice: {EMAIL: 60, DM: 25, TEL: 15}}
+
+  # The planted join: legacy cost centers were keyed by site-like codes, so CC_ID = SITE_CD matches
+  # (sbx_finance.cc_cost_per_call_fy25) and silently mixes a cost center with a call site
+  legacy_edw.CC_EXPNS_MTHLY:
+    window: [2024-12-01, 2025-02-28]
+    grain_unique: false
+    columns:
+      FISC_PRD: {choice: ["2024-12", "2025-01", "2025-02"]}
+      CC_ID: {choice: [TUL, SPK, MNL, OKC, WIC, BOI, OMA, KCM, CORP, OPS, TECH, RISK]}
+      ACTL_AMT: {range: [500.0, 90000.0]}
+      BDGT_AMT: {range: [500.0, 90000.0]}
+
+  legacy_edw.CC_CALL_VOL_DLY:
+    parents: {reference_data.contact_center_site: {}}
+    daily: true
+    window: [2025-07-01, 2025-09-30]
+    columns:
+      SPLIT_SKILL: {choice: [RETAIL, CARDS, COLLECT, FRAUD, SPANISH]}
+      CALLS_OFFRD: {range: [900, 2600]}
+      CALLS_HNDLD: {range: [800, 2400]}
+      CALLS_ABND: {range: [20, 200]}
+      AVG_TALK_SEC: {range: [180.0, 420.0]}
+      AVG_ACW_SEC: {range: [30.0, 120.0]}
+      SVC_LVL_PCT: {range: [60.0, 95.0]}
+
+  legacy_edw.CC_AGENT_DLY:
+    window: [2025-07-01, 2025-09-30]
+    grain_unique: false
+    columns:
+      AGENT_LOGIN_ID: {pool: {pattern: "AV{n:04d}", size: 400}}
+      CALLS_HNDLD: {range: [20, 90]}
+      TALK_SEC: {range: [3000, 20000]}
+      ACW_SEC: {range: [500, 4000]}
+      AUX_SEC: {range: [300, 5000]}
+
+  contact_center_legacy.cdr_:
+    shard_by: CALL_START_DTTM
+    columns:
+      CALL_START_DTTM: {in_shard: true}
+      CALL_END_DTTM: {after_seconds: CALL_START_DTTM, seconds: [60, 2400]}
+      AGENT_LOGIN_ID: {pool: {pattern: "AV{n:04d}", size: 400}}
+      AGENT_EXT: {pool: {pattern: "{n:04d}", size: 400}}
+      SPLIT_SKILL: {choice: [RETAIL, CARDS, COLLECT, FRAUD, SPANISH]}
+      DNIS: {choice: ["8005550100", "8005550142"]}
+      DISPOSITION_CD: {choice: {BALINQ: 30, PMT: 20, CARDACT: 10, TECH: 10, GEN: 9, DISPUTE: 8, ADDR: 6, CLSACCT: 5, CLOSE: 2}}
+      TALK_SEC: {range: [60, 1500]}
+      HOLD_SEC: {range: [0, 300]}
+      ACW_SEC: {range: [10, 240]}
+
+  # Scores: v2 stops at the v3 cutover (2026-05-15), the planted stale score (Q02's trap)
+  ml_scores.churn_score_v2:
+    sql: |
+      SELECT d AS score_date, c.customer_key, c.cif_number,
+             ROUND(MOD(ABS(FARM_FINGERPRINT(CONCAT('v2', c.cif_number, CAST(d AS STRING)))), 10000) / 10000 * 0.7
+                   + IF(c.customer_status = 'A', 0, 0.25), 4) AS churn_score,
+             'churn-v2.4.1' AS model_version
+      FROM `fennmoor-dw.dw_core.dim_customer` c,
+           UNNEST(GENERATE_DATE_ARRAY(DATE '2026-02-15', DATE '2026-05-14')) AS d
+    depends_on: [fennmoor-dw.dw_core.dim_customer]
+
+  sbx_marketing.attrition_propensity_2025:
+    parents: {core_banking_cdc.CUSTOMER: {}}
+    monthly: 3
+    window: [2025-01-01, 2025-12-31]
+    columns:
+      attrition_propensity: {range: [0.0, 1.0]}
+      decile: {range: [1, 10]}
+
+  sbx_marketing.web_to_branch_journeys:
+    expect_empty: true                # the planted join of GA4 user_id to CIF matches nothing (F13)

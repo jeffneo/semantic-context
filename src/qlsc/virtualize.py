@@ -18,7 +18,7 @@ rarely declare keys, so this stage writes the model from usage.
 
 Outputs, in <work>/virtual/: schema.json, datasource.json, secret.json (a path, never a secret),
 views.sql and MODEL.md (the evidence for every node and relationship, and what was left out). On the
-semantic layer: Table.graph_label, Column.graph_relationship.
+semantic layer: Table.graph_label, Column.graph_key (a node's key), Column.graph_relationship.
 """
 
 from __future__ import annotations
@@ -419,7 +419,11 @@ def run(s: Settings, create_views: bool = True) -> None:
             render(node, rels, labels, types, dropped, excluded, not_nodes, dataset)
         )
         G.run("MATCH (t:Table) REMOVE t.graph_label")
-        G.run("MATCH (c:Column) REMOVE c.graph_relationship")
+        G.run("MATCH (c:Column) REMOVE c.graph_relationship, c.graph_key")
+        G.run(
+            "UNWIND $rows AS c MATCH (x:Column {id: c}) SET x.graph_key = true",
+            rows=[f"{t}.{n['key']}" for t, n in node.items()],
+        )
         G.run(
             "UNWIND $rows AS r MATCH (t:Table {id: r.t}) SET t.graph_label = r.l",
             rows=[{"t": t, "l": labels[t]} for t in node],

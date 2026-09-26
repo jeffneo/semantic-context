@@ -42,7 +42,9 @@ virtualize:                           # qlsc virtualize: the Virtual Graph spike
   dataset: fnb_graph                  # the views the virtual graph reads, one dataset of their own
   maximum_bytes_billed: 1000000000    # per query Virtual Graph sends to BigQuery
   credentials_file: /nvg_home/credentials.json
-  driver_properties: {OAuthType: 3}   # application-default credentials: the impersonated qlsc-bq account, no key file
+  driver_properties:                  # passed to the Google BigQuery JDBC driver as they are
+    OAuthType: 3                      # application-default credentials: the impersonated qlsc-bq account, no key file
+    Labels: "app=neo4j-virtual-graph,graph=fennmoor"   # on every BigQuery job it sends: find them in INFORMATION_SCHEMA.JOBS
   neo4j:                              # the Virtual Graph instance (docker compose --profile vg), for ask --cypher
     uri: bolt://localhost:7692        # password NEO4J_PASSWORD, as for the semantic layer
     database: neo4j

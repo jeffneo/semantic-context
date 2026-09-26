@@ -1,0 +1,1582 @@
+{
+ "Q01": {
+  "question": "Which contact centers see the most account cancellations, and what did each cost to run last year?",
+  "ok": true,
+  "columns": [
+   "site_name",
+   "closure_contacts",
+   "contacts",
+   "expense_2025"
+  ],
+  "total": 3,
+  "bytes_billed": 0,
+  "rows": [
+   {
+    "site_name": "Tulsa Contact Center",
+    "closure_contacts": "3,564",
+    "contacts": "51,737",
+    "expense_2025": "71876887.16"
+   },
+   {
+    "site_name": "Spokane Contact Center",
+    "closure_contacts": "1,861",
+    "contacts": "26,214",
+    "expense_2025": "71486853.56"
+   },
+   {
+    "site_name": "Manila BPO",
+    "closure_contacts": "1,532",
+    "contacts": "21,049",
+    "expense_2025": "70736205.57"
+   }
+  ]
+ },
+ "Q02": {
+  "question": "What is the churn risk of our high-balance customers?",
+  "ok": true,
+  "columns": [
+   "segment",
+   "customers",
+   "avg_churn_probability",
+   "high_risk"
+  ],
+  "total": 5,
+  "bytes_billed": 10485760,
+  "rows": [
+   {
+    "segment": "mass",
+    "customers": "526",
+    "avg_churn_probability": "0.352",
+    "high_risk": "46"
+   },
+   {
+    "segment": "mass_affluent",
+    "customers": "183",
+    "avg_churn_probability": "0.344",
+    "high_risk": "17"
+   },
+   {
+    "segment": "affluent",
+    "customers": "71",
+    "avg_churn_probability": "0.338",
+    "high_risk": "5"
+   },
+   {
+    "segment": "small_business",
+    "customers": "41",
+    "avg_churn_probability": "0.354",
+    "high_risk": "3"
+   },
+   {
+    "segment": "private",
+    "customers": "14",
+    "avg_churn_probability": "0.38",
+    "high_risk": "1"
+   }
+  ]
+ },
+ "Q03": {
+  "question": "Which web pages do customers visit before they call us?",
+  "ok": true,
+  "columns": [
+   "landing_page",
+   "sessions_before_a_call",
+   "logged_in_share"
+  ],
+  "total": 15,
+  "bytes_billed": 0,
+  "rows": [
+   {
+    "landing_page": "https://www.fennmoor.example/",
+    "sessions_before_a_call": "866",
+    "logged_in_share": "0.852"
+   },
+   {
+    "landing_page": "https://www.fennmoor.example/login",
+    "sessions_before_a_call": "611",
+    "logged_in_share": "0.852"
+   },
+   {
+    "landing_page": "https://www.fennmoor.example/accounts",
+    "sessions_before_a_call": "574",
+    "logged_in_share": "0.852"
+   },
+   {
+    "landing_page": "https://www.fennmoor.example/credit-cards",
+    "sessions_before_a_call": "263",
+    "logged_in_share": "0.852"
+   },
+   {
+    "landing_page": "https://www.fennmoor.example/checking",
+    "sessions_before_a_call": "257",
+    "logged_in_share": "0.852"
+   },
+   {
+    "landing_page": "https://www.fennmoor.example/help",
+    "sessions_before_a_call": "229",
+    "logged_in_share": "0.852"
+   },
+   {
+    "landing_page": "https://www.fennmoor.example/savings",
+    "sessions_before_a_call": "227",
+    "logged_in_share": "0.852"
+   },
+   {
+    "landing_page": "https://www.fennmoor.example/branch-locator",
+    "sessions_before_a_call": "217",
+    "logged_in_share": "0.852"
+   },
+   {
+    "landing_page": "https://www.fennmoor.example/contact",
+    "sessions_before_a_call": "190",
+    "logged_in_share": "0.852"
+   },
+   {
+    "landing_page": "https://www.fennmoor.example/credit-cards/apply",
+    "sessions_before_a_call": "162",
+    "logged_in_share": "0.852"
+   },
+   {
+    "landing_page": "https://www.fennmoor.example/loans/heloc",
+    "sessions_before_a_call": "149",
+    "logged_in_share": "0.852"
+   },
+   {
+    "landing_page": "https://www.fennmoor.example/help/lost-card",
+    "sessions_before_a_call": "145",
+    "logged_in_share": "0.852"
+   },
+   {
+    "landing_page": "https://www.fennmoor.example/rates",
+    "sessions_before_a_call": "117",
+    "logged_in_share": "0.852"
+   },
+   {
+    "landing_page": "https://www.fennmoor.example/help/dispute-a-charge",
+    "sessions_before_a_call": "116",
+    "logged_in_share": "0.852"
+   },
+   {
+    "landing_page": "https://www.fennmoor.example/help/close-account",
+    "sessions_before_a_call": "96",
+    "logged_in_share": "0.852"
+   }
+  ]
+ },
+ "Q04": {
+  "question": "Card spend by merchant category and customer segment, last quarter.",
+  "ok": true,
+  "columns": [
+   "segment",
+   "mcc_category_group",
+   "spend",
+   "purchases"
+  ],
+  "total": 45,
+  "bytes_billed": 77594624,
+  "rows": [
+   {
+    "segment": "affluent",
+    "mcc_category_group": "DINING",
+    "spend": "2184203.3",
+    "purchases": "32,490"
+   },
+   {
+    "segment": "affluent",
+    "mcc_category_group": "RETAIL",
+    "spend": "2162290.3",
+    "purchases": "32,326"
+   },
+   {
+    "segment": "affluent",
+    "mcc_category_group": "GROCERY",
+    "spend": "1859425.34",
+    "purchases": "27,822"
+   },
+   {
+    "segment": "affluent",
+    "mcc_category_group": "FUEL",
+    "spend": "1107181.31",
+    "purchases": "16,493"
+   },
+   {
+    "segment": "affluent",
+    "mcc_category_group": "TRAVEL",
+    "spend": "884251.86",
+    "purchases": "13,291"
+   },
+   {
+    "segment": "affluent",
+    "mcc_category_group": "UTILITIES",
+    "spend": "658056.68",
+    "purchases": "9,698"
+   },
+   {
+    "segment": "affluent",
+    "mcc_category_group": "MONEY_TRANSFER",
+    "spend": "268359.69",
+    "purchases": "4,068"
+   },
+   {
+    "segment": "affluent",
+    "mcc_category_group": "CRYPTO",
+    "spend": "157533.86",
+    "purchases": "2,439"
+   },
+   {
+    "segment": "affluent",
+    "mcc_category_group": "GAMBLING",
+    "spend": "149247.51",
+    "purchases": "2,229"
+   },
+   {
+    "segment": "mass",
+    "mcc_category_group": "RETAIL",
+    "spend": "14967771.83",
+    "purchases": "223,430"
+   },
+   {
+    "segment": "mass",
+    "mcc_category_group": "DINING",
+    "spend": "14861978.49",
+    "purchases": "222,738"
+   },
+   {
+    "segment": "mass",
+    "mcc_category_group": "GROCERY",
+    "spend": "12789898.39",
+    "purchases": "191,367"
+   },
+   {
+    "segment": "mass",
+    "mcc_category_group": "FUEL",
+    "spend": "7663581.23",
+    "purchases": "114,187"
+   },
+   {
+    "segment": "mass",
+    "mcc_category_group": "TRAVEL",
+    "spend": "6099151.94",
+    "purchases": "90,742"
+   },
+   {
+    "segment": "mass",
+    "mcc_category_group": "UTILITIES",
+    "spend": "4499745.78",
+    "purchases": "66,998"
+   },
+   {
+    "segment": "mass",
+    "mcc_category_group": "MONEY_TRANSFER",
+    "spend": "1861510.3",
+    "purchases": "27,874"
+   },
+   {
+    "segment": "mass",
+    "mcc_category_group": "CRYPTO",
+    "spend": "1125493.26",
+    "purchases": "17,145"
+   },
+   {
+    "segment": "mass",
+    "mcc_category_group": "GAMBLING",
+    "spend": "1002002.78",
+    "purchases": "15,216"
+   },
+   {
+    "segment": "mass_affluent",
+    "mcc_category_group": "DINING",
+    "spend": "5746097.89",
+    "purchases": "85,066"
+   },
+   {
+    "segment": "mass_affluent",
+    "mcc_category_group": "RETAIL",
+    "spend": "5708872.86",
+    "purchases": "84,904"
+   },
+   {
+    "segment": "mass_affluent",
+    "mcc_category_group": "GROCERY",
+    "spend": "4883413.5",
+    "purchases": "72,838"
+   },
+   {
+    "segment": "mass_affluent",
+    "mcc_category_group": "FUEL",
+    "spend": "2907275.26",
+    "purchases": "43,212"
+   },
+   {
+    "segment": "mass_affluent",
+    "mcc_category_group": "TRAVEL",
+    "spend": "2293912.48",
+    "purchases": "34,668"
+   },
+   {
+    "segment": "mass_affluent",
+    "mcc_category_group": "UTILITIES",
+    "spend": "1701514.91",
+    "purchases": "25,331"
+   },
+   {
+    "segment": "mass_affluent",
+    "mcc_category_group": "MONEY_TRANSFER",
+    "spend": "708577.98",
+    "purchases": "10,606"
+   },
+   {
+    "segment": "mass_affluent",
+    "mcc_category_group": "CRYPTO",
+    "spend": "445288.18",
+    "purchases": "6,622"
+   },
+   {
+    "segment": "mass_affluent",
+    "mcc_category_group": "GAMBLING",
+    "spend": "392206.22",
+    "purchases": "5,822"
+   },
+   {
+    "segment": "private",
+    "mcc_category_group": "RETAIL",
+    "spend": "474039.56",
+    "purchases": "7,152"
+   },
+   {
+    "segment": "private",
+    "mcc_category_group": "DINING",
+    "spend": "470476.82",
+    "purchases": "7,144"
+   },
+   {
+    "segment": "private",
+    "mcc_category_group": "GROCERY",
+    "spend": "405713.73",
+    "purchases": "6,112"
+   },
+   {
+    "segment": "private",
+    "mcc_category_group": "FUEL",
+    "spend": "246999.13",
+    "purchases": "3,746"
+   },
+   {
+    "segment": "private",
+    "mcc_category_group": "TRAVEL",
+    "spend": "198459.25",
+    "purchases": "2,897"
+   },
+   {
+    "segment": "private",
+    "mcc_category_group": "UTILITIES",
+    "spend": "140752.6",
+    "purchases": "2,101"
+   },
+   {
+    "segment": "private",
+    "mcc_category_group": "MONEY_TRANSFER",
+    "spend": "62194.4",
+    "purchases": "919"
+   },
+   {
+    "segment": "private",
+    "mcc_category_group": "GAMBLING",
+    "spend": "31736.73",
+    "purchases": "503"
+   },
+   {
+    "segment": "private",
+    "mcc_category_group": "CRYPTO",
+    "spend": "31579.79",
+    "purchases": "530"
+   },
+   {
+    "segment": "small_business",
+    "mcc_category_group": "DINING",
+    "spend": "1230012.17",
+    "purchases": "18,428"
+   },
+   {
+    "segment": "small_business",
+    "mcc_category_group": "RETAIL",
+    "spend": "1193433.47",
+    "purchases": "18,095"
+   },
+   {
+    "segment": "small_business",
+    "mcc_category_group": "GROCERY",
+    "spend": "1040489.66",
+    "purchases": "15,700"
+   },
+   {
+    "segment": "small_business",
+    "mcc_category_group": "FUEL",
+    "spend": "617484.26",
+    "purchases": "9,420"
+   },
+   {
+    "segment": "small_business",
+    "mcc_category_group": "TRAVEL",
+    "spend": "525075.47",
+    "purchases": "7,485"
+   },
+   {
+    "segment": "small_business",
+    "mcc_category_group": "UTILITIES",
+    "spend": "370861.99",
+    "purchases": "5,483"
+   },
+   {
+    "segment": "small_business",
+    "mcc_category_group": "MONEY_TRANSFER",
+    "spend": "156284.11",
+    "purchases": "2,350"
+   },
+   {
+    "segment": "small_business",
+    "mcc_category_group": "CRYPTO",
+    "spend": "92901.47",
+    "purchases": "1,394"
+   },
+   {
+    "segment": "small_business",
+    "mcc_category_group": "GAMBLING",
+    "spend": "75715.45",
+    "purchases": "1,219"
+   }
+  ]
+ },
+ "Q05": {
+  "question": "Month-end deposit balances by product line.",
+  "ok": true,
+  "columns": [
+   "month",
+   "product_line",
+   "month_end_balance"
+  ],
+  "total": 12,
+  "bytes_billed": 127926272,
+  "rows": [
+   {
+    "month": "2026-04-01",
+    "product_line": "CD",
+    "month_end_balance": "15519768.25"
+   },
+   {
+    "month": "2026-04-01",
+    "product_line": "CHK",
+    "month_end_balance": "119144471.87"
+   },
+   {
+    "month": "2026-04-01",
+    "product_line": "MMA",
+    "month_end_balance": "14089313.55"
+   },
+   {
+    "month": "2026-04-01",
+    "product_line": "SAV",
+    "month_end_balance": "84386926.11"
+   },
+   {
+    "month": "2026-05-01",
+    "product_line": "CD",
+    "month_end_balance": "17632338.9"
+   },
+   {
+    "month": "2026-05-01",
+    "product_line": "CHK",
+    "month_end_balance": "124005862.73"
+   },
+   {
+    "month": "2026-05-01",
+    "product_line": "MMA",
+    "month_end_balance": "13379598.95"
+   },
+   {
+    "month": "2026-05-01",
+    "product_line": "SAV",
+    "month_end_balance": "85145442.72"
+   },
+   {
+    "month": "2026-06-01",
+    "product_line": "CD",
+    "month_end_balance": "17441556.83"
+   },
+   {
+    "month": "2026-06-01",
+    "product_line": "CHK",
+    "month_end_balance": "118053191.18"
+   },
+   {
+    "month": "2026-06-01",
+    "product_line": "MMA",
+    "month_end_balance": "12535117.54"
+   },
+   {
+    "month": "2026-06-01",
+    "product_line": "SAV",
+    "month_end_balance": "85191180.33"
+   }
+  ]
+ },
+ "Q06": {
+  "question": "Where do we store Social Security numbers, raw or hashed?",
+  "ok": true,
+  "columns": [
+   "column_",
+   "form",
+   "values_"
+  ],
+  "total": 8,
+  "bytes_billed": 0,
+  "rows": [
+   {
+    "column_": "aml_kyc.party.tax_id",
+    "form": "raw",
+    "values_": "24,300"
+   },
+   {
+    "column_": "core_banking_cdc.CUSTOMER.TAX_ID",
+    "form": "raw",
+    "values_": "24,300"
+   },
+   {
+    "column_": "legacy_edw.CUST_MSTR.SSN_NBR",
+    "form": "raw",
+    "values_": "24,300"
+   },
+   {
+    "column_": "legacy_edw.CUST_MSTR_BKP_20250211.SSN_NBR",
+    "form": "raw",
+    "values_": "24,300"
+   },
+   {
+    "column_": "sbx_risk.kyc_review_extract.tax_id",
+    "form": "raw",
+    "values_": "24,300"
+   },
+   {
+    "column_": "credit_bureau.consumer_attributes_monthly.SSN_HASH",
+    "form": "hashed",
+    "values_": "607,500"
+   },
+   {
+    "column_": "dw_compliance.dim_aml_party.tax_id_hash",
+    "form": "hashed",
+    "values_": "24,300"
+   },
+   {
+    "column_": "dw_core.dim_customer.tax_id_hash",
+    "form": "hashed",
+    "values_": "24,300"
+   }
+  ]
+ },
+ "Q07": {
+  "question": "What share of fraud alerts are confirmed fraud, by channel?",
+  "ok": true,
+  "columns": [
+   "channel",
+   "alerts",
+   "confirmed",
+   "confirmed_share"
+  ],
+  "total": 7,
+  "bytes_billed": 0,
+  "rows": [
+   {
+    "channel": "CNP",
+    "alerts": "77,442",
+    "confirmed": "7,750",
+    "confirmed_share": "0.1001"
+   },
+   {
+    "channel": "ONLINE",
+    "alerts": "57,477",
+    "confirmed": "5,702",
+    "confirmed_share": "0.0992"
+   },
+   {
+    "channel": "MOBILE",
+    "alerts": "52,098",
+    "confirmed": "5,174",
+    "confirmed_share": "0.0993"
+   },
+   {
+    "channel": "CP",
+    "alerts": "31,198",
+    "confirmed": "3,022",
+    "confirmed_share": "0.0969"
+   },
+   {
+    "channel": "ATM",
+    "alerts": "15,652",
+    "confirmed": "1,578",
+    "confirmed_share": "0.1008"
+   },
+   {
+    "channel": "BRANCH",
+    "alerts": "13,072",
+    "confirmed": "1,327",
+    "confirmed_share": "0.1015"
+   },
+   {
+    "channel": "P2P",
+    "alerts": "13,061",
+    "confirmed": "1,288",
+    "confirmed_share": "0.0986"
+   }
+  ]
+ },
+ "Q08": {
+  "question": "Which marketing campaigns drove credit card applications?",
+  "ok": true,
+  "columns": [
+   "campaign_name",
+   "card_applications"
+  ],
+  "total": 7,
+  "bytes_billed": 0,
+  "rows": [
+   {
+    "campaign_name": "HELOC Rate Drop",
+    "card_applications": "15,098"
+   },
+   {
+    "campaign_name": "Card Activation Reminder",
+    "card_applications": "13,932"
+   },
+   {
+    "campaign_name": "Checking Bonus 300",
+    "card_applications": "13,272"
+   },
+   {
+    "campaign_name": "Digital Enrollment Nudge",
+    "card_applications": "13,089"
+   },
+   {
+    "campaign_name": "Travel Rewards Launch",
+    "card_applications": "12,860"
+   },
+   {
+    "campaign_name": "Spring Cash Back",
+    "card_applications": "12,829"
+   },
+   {
+    "campaign_name": "Savings Rate Alert",
+    "card_applications": "12,471"
+   }
+  ]
+ },
+ "Q09": {
+  "question": "Loan delinquency rate by product and branch.",
+  "ok": true,
+  "columns": [
+   "product_code",
+   "branch_name",
+   "open_loans",
+   "delinquent",
+   "delinquency_rate"
+  ],
+  "total": 56,
+  "bytes_billed": 31457280,
+  "rows": [
+   {
+    "product_code": "MTG-30F",
+    "branch_name": "Fennmoor Boise Branch",
+    "open_loans": "229",
+    "delinquent": "14",
+    "delinquency_rate": "0.0611"
+   },
+   {
+    "product_code": "MTG-30F",
+    "branch_name": "Fennmoor Topeka Branch",
+    "open_loans": "213",
+    "delinquent": "10",
+    "delinquency_rate": "0.0469"
+   },
+   {
+    "product_code": "HELOC-STD",
+    "branch_name": "Fennmoor Boise Branch",
+    "open_loans": "200",
+    "delinquent": "12",
+    "delinquency_rate": "0.06"
+   },
+   {
+    "product_code": "HELOC-STD",
+    "branch_name": "Fennmoor Tulsa Branch",
+    "open_loans": "199",
+    "delinquent": "19",
+    "delinquency_rate": "0.0955"
+   },
+   {
+    "product_code": "MTG-30F",
+    "branch_name": "Fennmoor Tulsa Branch",
+    "open_loans": "194",
+    "delinquent": "11",
+    "delinquency_rate": "0.0567"
+   },
+   {
+    "product_code": "HELOC-STD",
+    "branch_name": "Fennmoor Kansas City Branch",
+    "open_loans": "190",
+    "delinquent": "7",
+    "delinquency_rate": "0.0368"
+   },
+   {
+    "product_code": "HELOC-STD",
+    "branch_name": "Fennmoor Topeka Branch",
+    "open_loans": "188",
+    "delinquent": "10",
+    "delinquency_rate": "0.0532"
+   },
+   {
+    "product_code": "MTG-30F",
+    "branch_name": "Fennmoor Kansas City Branch",
+    "open_loans": "174",
+    "delinquent": "9",
+    "delinquency_rate": "0.0517"
+   },
+   {
+    "product_code": "HELOC-STD",
+    "branch_name": "Fennmoor Wichita Branch",
+    "open_loans": "152",
+    "delinquent": "7",
+    "delinquency_rate": "0.0461"
+   },
+   {
+    "product_code": "HELOC-STD",
+    "branch_name": "Fennmoor Bartlesville Branch",
+    "open_loans": "149",
+    "delinquent": "16",
+    "delinquency_rate": "0.1074"
+   },
+   {
+    "product_code": "MTG-30F",
+    "branch_name": "Fennmoor Wichita Branch",
+    "open_loans": "149",
+    "delinquent": "8",
+    "delinquency_rate": "0.0537"
+   },
+   {
+    "product_code": "MTG-30F",
+    "branch_name": "Fennmoor Stillwater Branch",
+    "open_loans": "147",
+    "delinquent": "8",
+    "delinquency_rate": "0.0544"
+   },
+   {
+    "product_code": "HELOC-STD",
+    "branch_name": "Fennmoor Stillwater Branch",
+    "open_loans": "141",
+    "delinquent": "9",
+    "delinquency_rate": "0.0638"
+   },
+   {
+    "product_code": "MTG-30F",
+    "branch_name": "Fennmoor Oklahoma City Branch",
+    "open_loans": "137",
+    "delinquent": "5",
+    "delinquency_rate": "0.0365"
+   },
+   {
+    "product_code": "HELOC-STD",
+    "branch_name": "Fennmoor Oklahoma City Branch",
+    "open_loans": "129",
+    "delinquent": "9",
+    "delinquency_rate": "0.0698"
+   },
+   {
+    "product_code": "MTG-30F",
+    "branch_name": "Fennmoor Bartlesville Branch",
+    "open_loans": "124",
+    "delinquent": "9",
+    "delinquency_rate": "0.0726"
+   },
+   {
+    "product_code": "AUTO-STD",
+    "branch_name": "Fennmoor Topeka Branch",
+    "open_loans": "122",
+    "delinquent": "12",
+    "delinquency_rate": "0.0984"
+   },
+   {
+    "product_code": "HELOC-STD",
+    "branch_name": "Fennmoor Norman Branch",
+    "open_loans": "117",
+    "delinquent": "6",
+    "delinquency_rate": "0.0513"
+   },
+   {
+    "product_code": "MTG-30F",
+    "branch_name": "Fennmoor Norman Branch",
+    "open_loans": "115",
+    "delinquent": "4",
+    "delinquency_rate": "0.0348"
+   },
+   {
+    "product_code": "HELOC-STD",
+    "branch_name": "Fennmoor Omaha Branch",
+    "open_loans": "112",
+    "delinquent": "12",
+    "delinquency_rate": "0.1071"
+   },
+   {
+    "product_code": "PL-STD",
+    "branch_name": "Fennmoor Kansas City Branch",
+    "open_loans": "103",
+    "delinquent": "9",
+    "delinquency_rate": "0.0874"
+   },
+   {
+    "product_code": "HELOC-STD",
+    "branch_name": "Fennmoor Springfield Branch",
+    "open_loans": "103",
+    "delinquent": "14",
+    "delinquency_rate": "0.1359"
+   },
+   {
+    "product_code": "AUTO-STD",
+    "branch_name": "Fennmoor Tulsa Branch",
+    "open_loans": "102",
+    "delinquent": "2",
+    "delinquency_rate": "0.0196"
+   },
+   {
+    "product_code": "PL-STD",
+    "branch_name": "Fennmoor Topeka Branch",
+    "open_loans": "99",
+    "delinquent": "6",
+    "delinquency_rate": "0.0606"
+   },
+   {
+    "product_code": "PL-STD",
+    "branch_name": "Fennmoor Boise Branch",
+    "open_loans": "97",
+    "delinquent": "7",
+    "delinquency_rate": "0.0722"
+   },
+   {
+    "product_code": "MTG-30F",
+    "branch_name": "Fennmoor Springfield Branch",
+    "open_loans": "97",
+    "delinquent": "7",
+    "delinquency_rate": "0.0722"
+   },
+   {
+    "product_code": "MTG-30F",
+    "branch_name": "Fennmoor Omaha Branch",
+    "open_loans": "94",
+    "delinquent": "5",
+    "delinquency_rate": "0.0532"
+   },
+   {
+    "product_code": "PL-STD",
+    "branch_name": "Fennmoor Tulsa Branch",
+    "open_loans": "91",
+    "delinquent": "7",
+    "delinquency_rate": "0.0769"
+   },
+   {
+    "product_code": "AUTO-STD",
+    "branch_name": "Fennmoor Boise Branch",
+    "open_loans": "91",
+    "delinquent": "2",
+    "delinquency_rate": "0.022"
+   },
+   {
+    "product_code": "MTG-30F",
+    "branch_name": "Fennmoor Lincoln Branch",
+    "open_loans": "87",
+    "delinquent": "3",
+    "delinquency_rate": "0.0345"
+   },
+   {
+    "product_code": "HELOC-STD",
+    "branch_name": "Fennmoor Lincoln Branch",
+    "open_loans": "84",
+    "delinquent": "3",
+    "delinquency_rate": "0.0357"
+   },
+   {
+    "product_code": "MTG-30F",
+    "branch_name": "Fennmoor Spokane Branch",
+    "open_loans": "84",
+    "delinquent": "4",
+    "delinquency_rate": "0.0476"
+   },
+   {
+    "product_code": "AUTO-STD",
+    "branch_name": "Fennmoor Stillwater Branch",
+    "open_loans": "83",
+    "delinquent": "6",
+    "delinquency_rate": "0.0723"
+   },
+   {
+    "product_code": "PL-STD",
+    "branch_name": "Fennmoor Bartlesville Branch",
+    "open_loans": "79",
+    "delinquent": "8",
+    "delinquency_rate": "0.1013"
+   },
+   {
+    "product_code": "MTG-30F",
+    "branch_name": "Fennmoor Lawton Branch",
+    "open_loans": "79",
+    "delinquent": "3",
+    "delinquency_rate": "0.038"
+   },
+   {
+    "product_code": "AUTO-STD",
+    "branch_name": "Fennmoor Kansas City Branch",
+    "open_loans": "78",
+    "delinquent": "7",
+    "delinquency_rate": "0.0897"
+   },
+   {
+    "product_code": "AUTO-STD",
+    "branch_name": "Fennmoor Oklahoma City Branch",
+    "open_loans": "77",
+    "delinquent": "10",
+    "delinquency_rate": "0.1299"
+   },
+   {
+    "product_code": "HELOC-STD",
+    "branch_name": "Fennmoor Lawton Branch",
+    "open_loans": "75",
+    "delinquent": "3",
+    "delinquency_rate": "0.04"
+   },
+   {
+    "product_code": "AUTO-STD",
+    "branch_name": "Fennmoor Norman Branch",
+    "open_loans": "74",
+    "delinquent": "6",
+    "delinquency_rate": "0.0811"
+   },
+   {
+    "product_code": "HELOC-STD",
+    "branch_name": "Fennmoor Spokane Branch",
+    "open_loans": "74",
+    "delinquent": "2",
+    "delinquency_rate": "0.027"
+   },
+   {
+    "product_code": "PL-STD",
+    "branch_name": "Fennmoor Wichita Branch",
+    "open_loans": "73",
+    "delinquent": "4",
+    "delinquency_rate": "0.0548"
+   },
+   {
+    "product_code": "AUTO-STD",
+    "branch_name": "Fennmoor Bartlesville Branch",
+    "open_loans": "70",
+    "delinquent": "2",
+    "delinquency_rate": "0.0286"
+   },
+   {
+    "product_code": "PL-STD",
+    "branch_name": "Fennmoor Stillwater Branch",
+    "open_loans": "69",
+    "delinquent": "4",
+    "delinquency_rate": "0.058"
+   },
+   {
+    "product_code": "PL-STD",
+    "branch_name": "Fennmoor Oklahoma City Branch",
+    "open_loans": "65",
+    "delinquent": "5",
+    "delinquency_rate": "0.0769"
+   },
+   {
+    "product_code": "AUTO-STD",
+    "branch_name": "Fennmoor Wichita Branch",
+    "open_loans": "65",
+    "delinquent": "3",
+    "delinquency_rate": "0.0462"
+   },
+   {
+    "product_code": "PL-STD",
+    "branch_name": "Fennmoor Norman Branch",
+    "open_loans": "64",
+    "delinquent": "2",
+    "delinquency_rate": "0.0313"
+   },
+   {
+    "product_code": "PL-STD",
+    "branch_name": "Fennmoor Omaha Branch",
+    "open_loans": "57",
+    "delinquent": "5",
+    "delinquency_rate": "0.0877"
+   },
+   {
+    "product_code": "AUTO-STD",
+    "branch_name": "Fennmoor Omaha Branch",
+    "open_loans": "56",
+    "delinquent": "6",
+    "delinquency_rate": "0.1071"
+   },
+   {
+    "product_code": "AUTO-STD",
+    "branch_name": "Fennmoor Lincoln Branch",
+    "open_loans": "53",
+    "delinquent": "0",
+    "delinquency_rate": "0"
+   },
+   {
+    "product_code": "PL-STD",
+    "branch_name": "Fennmoor Springfield Branch",
+    "open_loans": "50",
+    "delinquent": "2",
+    "delinquency_rate": "0.04"
+   }
+  ]
+ },
+ "Q10": {
+  "question": "Does customer satisfaction vary with agent tenure?",
+  "ok": true,
+  "columns": [
+   "tenure",
+   "surveys",
+   "avg_csat"
+  ],
+  "total": 4,
+  "bytes_billed": 0,
+  "rows": [
+   {
+    "tenure": "1 to 3 years",
+    "surveys": "962",
+    "avg_csat": "2.99"
+   },
+   {
+    "tenure": "3 years or more",
+    "surveys": "4,374",
+    "avg_csat": "3.00"
+   },
+   {
+    "tenure": "BPO (no hire date)",
+    "surveys": "2,953",
+    "avg_csat": "2.99"
+   },
+   {
+    "tenure": "under 1 year",
+    "surveys": "437",
+    "avg_csat": "2.86"
+   }
+  ]
+ },
+ "Q11": {
+  "question": "How many customers use the mobile app each week?",
+  "ok": true,
+  "columns": [
+   "week",
+   "customers"
+  ],
+  "total": 14,
+  "bytes_billed": 0,
+  "rows": [
+   {
+    "week": "2026-03-29",
+    "customers": "10,097"
+   },
+   {
+    "week": "2026-04-05",
+    "customers": "12,858"
+   },
+   {
+    "week": "2026-04-12",
+    "customers": "12,886"
+   },
+   {
+    "week": "2026-04-19",
+    "customers": "12,825"
+   },
+   {
+    "week": "2026-04-26",
+    "customers": "12,897"
+   },
+   {
+    "week": "2026-05-03",
+    "customers": "12,866"
+   },
+   {
+    "week": "2026-05-10",
+    "customers": "12,844"
+   },
+   {
+    "week": "2026-05-17",
+    "customers": "12,873"
+   },
+   {
+    "week": "2026-05-24",
+    "customers": "12,870"
+   },
+   {
+    "week": "2026-05-31",
+    "customers": "12,863"
+   },
+   {
+    "week": "2026-06-07",
+    "customers": "12,830"
+   },
+   {
+    "week": "2026-06-14",
+    "customers": "12,908"
+   },
+   {
+    "week": "2026-06-21",
+    "customers": "12,914"
+   },
+   {
+    "week": "2026-06-28",
+    "customers": "6,540"
+   }
+  ]
+ },
+ "Q12": {
+  "question": "Contact details for an email campaign to affluent customers.",
+  "ok": true,
+  "columns": [
+   "cif_number",
+   "full_name",
+   "primary_email",
+   "segment"
+  ],
+  "total": 1566,
+  "bytes_billed": 20971520,
+  "rows": [
+   {
+    "cif_number": "0001000020",
+    "full_name": "Redbud Consulting",
+    "primary_email": "barbara.davis8@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000065",
+    "full_name": "Ethan Martinez",
+    "primary_email": "michael.tran100@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000080",
+    "full_name": "Jessica Young",
+    "primary_email": "aisha.patel128@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000088",
+    "full_name": "Susan Wright",
+    "primary_email": "david.scott143@example.com",
+    "segment": "private"
+   },
+   {
+    "cif_number": "0001000099",
+    "full_name": "Wei Tran",
+    "primary_email": "mary.brown171@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000102",
+    "full_name": "Omar Ramirez",
+    "primary_email": "wei.moore177@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000107",
+    "full_name": "Wei Adams",
+    "primary_email": "mary.johnson186@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000118",
+    "full_name": "Mateo Martinez",
+    "primary_email": "sarah.campbell210@example.com",
+    "segment": "private"
+   },
+   {
+    "cif_number": "0001000126",
+    "full_name": "Sarah Adams",
+    "primary_email": "robert.lewis227@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000134",
+    "full_name": "Sarah Lewis",
+    "primary_email": "mateo.davis245@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000163",
+    "full_name": "Jessica Ramirez",
+    "primary_email": "sarah.anderson300@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000167",
+    "full_name": "Robert Johnson",
+    "primary_email": "michael.young310@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000199",
+    "full_name": "Omar Lee",
+    "primary_email": "john.clark370@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000210",
+    "full_name": "Maria Hernandez",
+    "primary_email": "anh.martinez389@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000222",
+    "full_name": "Hannah Wright",
+    "primary_email": "ethan.thomas413@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000225",
+    "full_name": "Thomas King",
+    "primary_email": "elizabeth.baker418@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000255",
+    "full_name": "Susan Brown",
+    "primary_email": "joseph.green471@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000268",
+    "full_name": "Hannah Garcia",
+    "primary_email": "minh.tran502@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000269",
+    "full_name": "Sofia Patel",
+    "primary_email": "patricia.brown503@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000288",
+    "full_name": "Minh Garcia",
+    "primary_email": "noah.king539@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000291",
+    "full_name": "Mary Campbell",
+    "primary_email": "emma.johnson544@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000295",
+    "full_name": "Barbara Garcia",
+    "primary_email": "elizabeth.miller552@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000300",
+    "full_name": "Liam Ramirez",
+    "primary_email": "susan.tran563@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000312",
+    "full_name": "Jessica Taylor",
+    "primary_email": "chloe.kim584@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000355",
+    "full_name": "Ethan Davis",
+    "primary_email": "thomas.walker675@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000379",
+    "full_name": "Arjun Hernandez",
+    "primary_email": "sarah.thomas719@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000392",
+    "full_name": "Ethan Smith",
+    "primary_email": "minh.johnson742@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000411",
+    "full_name": "Joseph Davis",
+    "primary_email": "carlos.tran778@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000415",
+    "full_name": "Noah Garcia",
+    "primary_email": "linda.campbell788@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000439",
+    "full_name": "Thomas Thomas",
+    "primary_email": "robert.davis832@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000448",
+    "full_name": "Minh Ramirez",
+    "primary_email": "omar.patel850@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000456",
+    "full_name": "Noah Anderson",
+    "primary_email": "david.campbell870@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000457",
+    "full_name": "Mary Hernandez",
+    "primary_email": "sofia.hill873@example.com",
+    "segment": "private"
+   },
+   {
+    "cif_number": "0001000461",
+    "full_name": "Arjun Taylor",
+    "primary_email": "arjun.hernandez883@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000479",
+    "full_name": "Anh Scott",
+    "primary_email": "carlos.hall919@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000483",
+    "full_name": "Omar Davis",
+    "primary_email": "mei.nguyen925@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000489",
+    "full_name": "Emma Lee",
+    "primary_email": "robert.anderson939@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000521",
+    "full_name": "James Lee",
+    "primary_email": "john.adams1004@example.com",
+    "segment": "private"
+   },
+   {
+    "cif_number": "0001000529",
+    "full_name": "Olivia Rodriguez",
+    "primary_email": "lucas.jones1020@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000560",
+    "full_name": "Richard Moore",
+    "primary_email": "ethan.brown1080@example.com",
+    "segment": "private"
+   },
+   {
+    "cif_number": "0001000570",
+    "full_name": "Noah Wilson",
+    "primary_email": "mary.wilson1100@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000574",
+    "full_name": "Lucas Lopez",
+    "primary_email": "michael.tran1108@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000589",
+    "full_name": "Maria Kim",
+    "primary_email": "mary.campbell1134@example.com",
+    "segment": "private"
+   },
+   {
+    "cif_number": "0001000605",
+    "full_name": "Noah Thomas",
+    "primary_email": "aisha.allen1166@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000655",
+    "full_name": "Anh Williams",
+    "primary_email": "maria.martin1266@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000666",
+    "full_name": "Wei Jones",
+    "primary_email": "ethan.walker1287@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000689",
+    "full_name": "Omar Tran",
+    "primary_email": "wei.rodriguez1328@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000690",
+    "full_name": "Grace Kim",
+    "primary_email": "sarah.walker1329@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000696",
+    "full_name": "James Kim",
+    "primary_email": "sarah.martinez1342@example.com",
+    "segment": "affluent"
+   },
+   {
+    "cif_number": "0001000698",
+    "full_name": "Mei Lewis",
+    "primary_email": "maria.thomas1347@example.com",
+    "segment": "affluent"
+   }
+  ]
+ },
+ "Q13": {
+  "question": "What is in the tables whose names start with CC?",
+  "ok": true,
+  "columns": [
+   "table_",
+   "meaning",
+   "rows_",
+   "first_",
+   "last_"
+  ],
+  "total": 6,
+  "bytes_billed": 0,
+  "rows": [
+   {
+    "table_": "legacy_edw.CC_EXPNS_MTHLY",
+    "meaning": "cost center expense (legacy)",
+    "rows_": "8,800",
+    "first_": "2024-12",
+    "last_": "2025-02"
+   },
+   {
+    "table_": "legacy_edw.CC_ACCT_MSTR",
+    "meaning": "credit card accounts",
+    "rows_": "10,929",
+    "first_": "2008-01-01",
+    "last_": "2025-02-15"
+   },
+   {
+    "table_": "gl_erp.CC_EXPENSE_SUMMARY",
+    "meaning": "cost center expense (GL)",
+    "rows_": "11,000",
+    "first_": "APR-26",
+    "last_": "MAY-26"
+   },
+   {
+    "table_": "legacy_edw.CC_TXN_HIST",
+    "meaning": "credit card transactions",
+    "rows_": "1,580,988",
+    "first_": "2024-11-29",
+    "last_": "2025-02-28"
+   },
+   {
+    "table_": "legacy_edw.CC_CALL_VOL_DLY",
+    "meaning": "contact center call volume",
+    "rows_": "276",
+    "first_": "2025-07-01",
+    "last_": "2025-09-30"
+   },
+   {
+    "table_": "legacy_edw.CC_AGENT_DLY",
+    "meaning": "contact center agent activity",
+    "rows_": "14,000",
+    "first_": "2025-07-01",
+    "last_": "2025-09-30"
+   }
+  ]
+ },
+ "Q14": {
+  "question": "Account closures by reason, deposits versus cards.",
+  "ok": true,
+  "columns": [
+   "account_family",
+   "reason",
+   "closures"
+  ],
+  "total": 12,
+  "bytes_billed": 10485760,
+  "rows": [
+   {
+    "account_family": "CARD",
+    "reason": "PRODUCT_CHANGE",
+    "closures": "208"
+   },
+   {
+    "account_family": "CARD",
+    "reason": "CUST_REQ",
+    "closures": "204"
+   },
+   {
+    "account_family": "CARD",
+    "reason": "FRAUD",
+    "closures": "198"
+   },
+   {
+    "account_family": "CARD",
+    "reason": "CHARGE_OFF",
+    "closures": "197"
+   },
+   {
+    "account_family": "CARD",
+    "reason": "DORMANT",
+    "closures": "169"
+   },
+   {
+    "account_family": "DEPOSIT",
+    "reason": "FRAUD",
+    "closures": "441"
+   },
+   {
+    "account_family": "DEPOSIT",
+    "reason": "CUST_REQ",
+    "closures": "430"
+   },
+   {
+    "account_family": "DEPOSIT",
+    "reason": "COMPETITOR",
+    "closures": "429"
+   },
+   {
+    "account_family": "DEPOSIT",
+    "reason": "MOVED",
+    "closures": "407"
+   },
+   {
+    "account_family": "DEPOSIT",
+    "reason": "DECEASED",
+    "closures": "400"
+   },
+   {
+    "account_family": "DEPOSIT",
+    "reason": "DORMANT",
+    "closures": "385"
+   },
+   {
+    "account_family": "DEPOSIT",
+    "reason": "FEES",
+    "closures": "381"
+   }
+  ]
+ }
+}
