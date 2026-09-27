@@ -1,6 +1,7 @@
 # Agentic memory: a context compiler from the virtual graph into a persistent graph
 
-Status: proposed (2026-09-27). The spike below has run; nothing in `src/` has changed.
+Status: agreed (2026-09-27), after the accuracy work. The spike below has run; nothing in `src/` has
+changed.
 
 ## Why
 
@@ -60,18 +61,33 @@ written by hand per estate.
    - The properties are the columns the log's queries actually read, not every column.
    - The virtual graph has no `OPTIONAL MATCH`, so each relationship type is its own uncorrelated read,
      keyed by a parameter.
-2. **Same keys, same labels.** Memory uses the virtual graph's labels, relationship types and node keys
-   (`Column.graph_key`). So repeated fetches merge, memory and the virtual graph agree on identity, and
-   **the same Cypher runs on either**: `ask --cypher` can target memory or the virtual graph with one
-   generated query.
-3. **Provenance on every fact.** Each fact carries:
-   - its source table (the layer's `Table.id`);
-   - when it was fetched, and until when it holds;
-   - who fetched it;
-   - the query that fetched it.
+2. **Same labels, same keys, a source on each.** Memory uses the virtual graph's labels, relationship
+   types and node keys (`Column.graph_key`). So repeated fetches merge, memory and the virtual graph agree
+   on identity, and **the same Cypher runs on either**: `ask --cypher` can target memory or the virtual
+   graph with one generated query.
 
-   In the composite, a remembered node leads back, by table id, to its Table, its group and its
-   definitions in the semantic layer.
+   Each remembered node also carries its `source`, the virtual graph it came from. Its identity is
+   (`source`, key), enforced by a node key constraint per label. This is what keeps collisions apart
+   (see "Collisions" below).
+3. **Provenance, as links into the semantic layer.** Each fact carries when it was fetched, until when
+   it holds, who fetched it and the query that fetched it. It also *links* to where it came from:
+   `(:Customer)-[:FROM]->(:Table)`, and to the Computations an answer used (the accuracy plan's
+   Phase 2).
+
+   A relationship can't cross databases. So memory holds small **stubs** of the layer's Table, Column
+   and Computation nodes: the layer's stable id and a name, nothing else. The links are real
+   relationships within memory, so a traversal can ask "which remembered facts come from tables the
+   contact center writes". In the composite, a stub's id reaches the full node in the layer, with its
+   area, definitions, joins and usage.
+
+   Stubs point only at nodes whose ids survive a rebuild:
+   - tables and columns (warehouse names);
+   - Computations (ids from their normalized expression).
+
+   Semantic groups are redrawn by each build, so memory reaches them through the table, in the layer.
+
+   The alternative, memory inside the layer's own database, would give direct links. But a rebuild
+   rewrites that database, and memory must outlive rebuilds.
 4. **Freshness from usage.** How long a fact holds comes from how often production writes its table.
    The log records that (`Table.write_days`). Every table the virtual graph serves is written daily
    (90 or 91 of the log's 91 days), so a customer's context holds until the next load. A table written
@@ -82,19 +98,44 @@ written by hand per estate.
    may read its source table and columns now, checked at read time, not write time. A table with a row
    access policy is remembered per principal and shown only to the principal who fetched it, because
    whether two people's row filters agree can't be known from outside.
-6. **What the agent adds.** A note, a decision or an outcome is one node, linked to the entities it's
-   about. It carries its author, time and source (the question and answer that produced it), and an
-   embedding so it can be recalled by meaning. The facts expire; the notes persist. An entity whose
-   facts expired keeps its key, so its notes stay attached and the next fetch reattaches the facts.
+6. **What the agent adds: Neo4j's own agent-memory model.** A single `Note` is too thin. The agent side
+   follows Neo4j Labs' `agent-memory`, so what we show is Neo4j's model, fed from the warehouse:
+   - **short-term:** `(:Conversation)-[:HAS_MESSAGE]->(:Message)`, messages chained by
+     `NEXT_MESSAGE`;
+   - **reasoning:** `(:ReasoningTrace)` and `(:ToolCall)`, triggered by messages. An `ask` is a tool
+     call. It records the question, the query it ran, the tables and Computations it used (through the
+     stubs), and the facts it read or remembered;
+   - **long-term:** the entities, preferences and facts the agent learns (`Entity`, typed as its model
+     types them), with `(:Message)-[:MENTIONS]->` both to them and to the warehouse facts (a message about a
+     customer mentions that `Customer`).
 
+   The warehouse facts are long-term memory with typed labels (`Customer`, `Account`), not generic
+   entities. Facts expire and are fetched again. What the agent learns persists, with validity intervals
+   in the style of Graphiti: a superseded preference is closed, not deleted. An entity whose facts
+   expired keeps its key, so the conversations about it stay attached.
+
+### Collisions
+
+Three kinds, each handled by construction:
+- **A virtual graph label that is also an agent-memory label** (a web-analytics `Event`, an
+  `Organization`). The agent-memory labels are reserved. `qlsc virtualize` checks its label names
+  against them, as it already checks relationship types for uniqueness, and renames a colliding label
+  (`WebEvent`).
+- **The same label from two virtual graphs** (a core-banking `Customer` and a CRM `Customer`, keyed
+  differently). Identity is (`source`, key), so the two never merge by accident. They're linked by
+  `SAME_AS` only where the layers show an identity join between the two keys (a Variable spanning
+  both). A label used by one source needs no filter in queries. For one used by several, the generated
+  Cypher filters on `source`.
+- **The same key value in two sources** (customer 1009 in both). Also kept apart by (`source`, key).
 ## Where it runs
 
 - **The compiler** is Python in the tool, working from the layer and the virtual graph's model:
   - `qlsc remember <label> <key>` fetches and merges;
   - `qlsc recall <label> <key>` reads memory, fetching again if stale;
-  - `qlsc note <label> <key> "..."` adds what the agent learned.
+  - `qlsc converse` records a conversation's messages, the `ask` tool calls in it, and what the agent
+    learned, in the agent-memory model.
 
-  Later, the same three as MCP tools for an agent.
+  Later, the same as MCP tools for an agent.
 - **The statements** run on the composite: one transaction per entity, reads from the virtual graph,
   writes to memory. The composite allows writes to one constituent per transaction, which is all this
   needs.
@@ -125,15 +166,10 @@ doesn't change it.
 - **The simulated session** is a few GiB at most.
 - **Storage** in Neo4j is negligible at this scale.
 
-## Decisions needed
+## Decisions (2026-09-27)
 
-1. **Where memory lives:** a new database `memory` on the main instance, added to the `fennmoor`
-   composite (recommended). Or a database on the virtual graph instance.
-2. **Graph model:**
-   - memory reuses the virtual graph's labels, keys and relationship types (recommended);
-   - for what the agent adds, one label, `Note`, linked by `ABOUT` to its entities. Or none yet:
-     cache first, notes later.
-3. **Freshness:** a lifetime derived from how often production writes each table (recommended), or
-   a fixed one.
-4. **Sequencing:** a single-user prototype now, with sharing across people only once entitlements
-   phase 1 exists (recommended).
+1. **A `memory` database on the main instance**, in the `fennmoor` composite.
+2. **The virtual graph's labels and keys are reused, with a `source` on each.** The agent side follows
+   Neo4j Labs' agent-memory model rather than a single `Note` label. Collisions are handled as above.
+3. **Freshness** comes from how often production writes each table.
+4. **A single-user prototype first.** Sharing across people waits for entitlements phase 1.

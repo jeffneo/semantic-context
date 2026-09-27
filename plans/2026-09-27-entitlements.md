@@ -1,6 +1,7 @@
 # Entitlements: the warehouse's access rules, carried through the semantic layer and the virtual graph
 
-Status: proposed (2026-09-27). The spikes below have run; nothing in `src/` has changed.
+Status: agreed (2026-09-27), after the accuracy work. The spikes below have run; nothing in `src/`
+has changed.
 
 ## Why
 
@@ -66,7 +67,22 @@ The identity is then a role, not a person. BigQuery's audit log still records th
 
 ## The design: an entitlement gateway, with the warehouse as the rulebook
 
-This reuses the abac kit's shape:
+**The gateway is the one component every question passes through that knows who is asking.** It
+runs `ask`'s steps on the person's behalf:
+- it verifies the sign-on;
+- it builds the person's allowlist;
+- it filters what navigation shows;
+- it runs SQL as the person;
+- it checks or forwards the Cypher.
+
+At first it's `qlsc ask --as <principal>`, a layer in the tool. Later it's a service (an MCP server)
+that an agent talks to, holding no credentials of its own to hand out.
+
+The JDBC pass-through (option C below) is a different component: a driver wrapper inside the virtual
+graph's JVM. It is how the gateway's knowledge of the person reaches BigQuery on the Cypher route. The
+gateway signs a token naming the person, and the wrapper verifies it and runs the query as that person.
+
+The gateway reuses the abac kit's shape:
 - one door;
 - the agent holds no credentials;
 - the allowlist is enumerated on a privileged connection, and the query executes as the person;
@@ -197,13 +213,11 @@ Unchanged: the build, the layer's model, and every result the build produces. En
   policy tag works the same way, with fine-grained read granted to the same three. Nothing else in the
   estate sees a difference.
 
-## Decisions needed
+## Decisions (2026-09-27)
 
-1. **The GCP changes above** for the test principals (recommended: yes, as listed).
-2. **Order:** gateway phases 1 and 2 first, then the JDBC pass-through (recommended). Or the
-   pass-through first, as the demonstration for the Virtual Graph team.
-3. **Identity for the prototype:** impersonated service accounts standing in for people (recommended).
-   Or also a local identity provider (Keycloak, a download) for single sign-on end to end.
-4. **Groups a person can only partly read:** show their readable tables without the summary
-   (recommended), or rewrite the summary from the readable tables alone (an LLM call per group and
-   allowlist, cached).
+1. **The GCP changes: yes,** as listed under Cost.
+2. **Order:** the gateway first (phases 1 and 2), then the JDBC pass-through (phase 3). The pass-through
+   is built regardless of how option A does.
+3. **Identity for the prototype:** impersonated service accounts standing in for people. A local
+   identity provider comes later.
+4. **Groups a person can only partly read:** their readable tables are shown, without the summary.

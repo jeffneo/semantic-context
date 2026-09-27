@@ -1,0 +1,4163 @@
+# Questions written from the log's own queries (eval/log_questions.py write). Each query's
+# result is the question's reference answer; `compare` names the columns an answer must hold.
+L000c43e2:
+  question: For each site, how many calls with wrap-up code "ACCT_MAINT" (account maintenance) occurred on or after
+    2026-04-15, ranked from the highest count to the lowest?
+  compare:
+  - site_id
+  - closure_calls
+  unstated_filters: []
+  shape: 000c43e2c299b69af3a081754ee444c4d747130726fa5aa5dfa2163f045dce48
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: 'select site_id, count(*) as closure_calls
+
+    from `fennmoor-dw.dw_contact_center.fct_calls`
+
+    where wrapup_code_name = ''ACCT_MAINT'' and conversation_date >= ''2026-04-15''
+
+    group by 1 order by 2 desc
+
+    '
+L02b0fb2f:
+  question: On 2026-04-14, for call segments of type 'wrapup', how many segments were there for each wrap-up code
+    (call reason)? Please list each wrap-up code name with its count, ordered from highest to lowest count.
+  compare:
+  - name
+  - n
+  unstated_filters: []
+  shape: 02b0fb2f309d04a6cc7209ce0eca82bd77b620379c93e94afbf52eb318b7423c
+  who: an analyst
+  tables:
+  - fennmoor-raw.genesys_cloud.segment
+  - fennmoor-raw.genesys_cloud.wrapup_code
+  sql: 'select w.name, count(*) as n
+
+    from `fennmoor-raw.genesys_cloud.segment` s
+
+    join `fennmoor-raw.genesys_cloud.wrapup_code` w on w.id = s.wrap_up_code
+
+    where date(s.segment_start) = ''2026-04-14'' and s.segment_type = ''wrapup''
+
+    group by 1 order by 2 desc
+
+    '
+L04bfef55:
+  question: For each customer, between 2026-02-21 and 2026-05-11, how many ACH credit transactions, how many ATM
+    transactions, and what was the total outflow amount (sum of negative transaction amounts, converted to positive)?
+  compare:
+  - customer_key
+  - ach_credits
+  - atm_txns
+  - outflows
+  unstated_filters: []
+  shape: 04bfef55ff8f8080a4bd7d43cde267e29b90947255b32cf9de6a2c436f082448
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.fct_deposit_transactions
+  sql: "SELECT customer_key, COUNTIF(transaction_type = 'ACH_CR') AS ach_credits, COUNTIF(transaction_type = 'ATM')\
+    \ AS atm_txns,\n       SUM(IF(signed_amount < 0, -signed_amount, 0)) AS outflows\nFROM `fennmoor-dw.dw_core.fct_deposit_transactions`\n\
+    WHERE posted_date BETWEEN '2026-02-21' AND '2026-05-11'\nGROUP BY customer_key\n"
+L05fc9f83:
+  question: Since April 9, 2026, how many calls were handled where the agent's site was different from the call's
+    queue site, broken down by queue site and agent site?
+  compare:
+  - queue_site_id
+  - agent_site_id
+  - calls
+  unstated_filters: []
+  shape: 05fc9f830d02c1fddb2f5b4868d195967ef3235436fac7bb1285478a2e32b0e9
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: 'select queue_site_id, agent_site_id, count(*) as calls
+
+    from `fennmoor-dw.dw_contact_center.fct_calls`
+
+    where conversation_date >= ''2026-04-09'' and queue_site_id != agent_site_id
+
+    group by 1, 2
+
+    '
+L0726bed6:
+  question: For the period from 2026-05-07 to 2026-05-17, how many distinct sessions did each marketing campaign
+    (with a named campaign) generate, ranked from the highest number of sessions to the lowest?
+  compare:
+  - campaign
+  - sessions
+  unstated_filters: []
+  shape: 0726bed6fb5018f1a7465fc8995bfbf7dcc69c0ce92fff1505696fee707b6a14
+  who: an analyst
+  tables:
+  - fennmoor-raw.analytics_312874659.events_*
+  sql: "SELECT collected_traffic_source.manual_campaign_name AS campaign,\n       COUNT(DISTINCT CONCAT(user_pseudo_id,\
+    \ CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS STRING))) AS sessions\n\
+    FROM `fennmoor-raw.analytics_312874659.events_*`\nWHERE _TABLE_SUFFIX BETWEEN '20260507' AND '20260517'\n  AND\
+    \ collected_traffic_source.manual_campaign_name IS NOT NULL\nGROUP BY campaign\nORDER BY sessions DESC\n"
+L09cde242:
+  question: Since 2025-12-01, how many account closures were there each week, broken down by account family and
+    closure reason?
+  compare:
+  - period
+  - account_family
+  - close_reason
+  - closures
+  unstated_filters: []
+  shape: 09cde242c7a3101d9dab13db730413f46e1d86e2f185bfdf78a623f560c36ae7
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.fct_account_closures
+  sql: 'SELECT DATE_TRUNC(close_date, WEEK) AS period, account_family, close_reason, COUNT(*) AS closures
+
+    FROM `fennmoor-dw.dw_core.fct_account_closures`
+
+    WHERE close_date >= ''2025-12-01''
+
+
+    GROUP BY ALL
+
+    ORDER BY period, closures DESC
+
+    '
+L0a171fb1:
+  question: For each site and month, what were the total contacts, the number of closure calls, the total expense,
+    and the cost per contact, along with whether the site is outsourced?
+  compare:
+  - month_start
+  - site_id
+  - is_outsourced
+  - contacts
+  - closure_calls
+  - total_expense
+  - cost_per_contact
+  unstated_filters: []
+  shape: 0a171fb1755dc7c31be79a31b2633d5dd9fe58d0dadb6b151c2c77ee43987745
+  who: a production service
+  tables:
+  - fennmoor-dw.dw_contact_center.rpt_site_cost_per_contact
+  sql: "SELECT `rpt_site_cost_per_contact`.`month_start` AS `month_start`,\n  `rpt_site_cost_per_contact`.`site_id`\
+    \ AS `site_id`,\n  `rpt_site_cost_per_contact`.`site_name` AS `site_name`,\n  `rpt_site_cost_per_contact`.`is_outsourced`\
+    \ AS `is_outsourced`,\n  `rpt_site_cost_per_contact`.`contacts` AS `contacts`,\n  `rpt_site_cost_per_contact`.`closure_calls`\
+    \ AS `closure_calls`,\n  `rpt_site_cost_per_contact`.`total_expense` AS `total_expense`,\n  `rpt_site_cost_per_contact`.`cost_per_contact`\
+    \ AS `cost_per_contact`\nFROM `fennmoor-dw`.`dw_contact_center`.`rpt_site_cost_per_contact` `rpt_site_cost_per_contact`"
+L0a42f6cf:
+  question: For card transactions posted from 2026-05-31 to 2026-06-30, broken down by whether the transaction was
+    foreign, merchant name, and transaction type, what is the number of distinct cardholders, the total interchange,
+    and the number of distinct transactions (settlements)?
+  compare:
+  - fct_card_transactions_is_foreign
+  - fct_card_transactions_merchant_name
+  - fct_card_transactions_txn_type
+  - fct_card_transactions_cardholders
+  - fct_card_transactions_interchange
+  - fct_card_transactions_txn_count
+  unstated_filters: []
+  shape: 0a42f6cf30078f1e2bed11758130c9ad9b4991ad6b932ce5c6e07359e35e143e
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_core.fct_card_transactions
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"fe279a9d03bf3\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_card_transactions.is_foreign  AS fct_card_transactions_is_foreign,\n    fct_card_transactions.merchant_name\
+    \  AS fct_card_transactions_merchant_name,\n    fct_card_transactions.txn_type  AS fct_card_transactions_txn_type,\n\
+    \    COUNT(DISTINCT fct_card_transactions.customer_key ) AS fct_card_transactions_cardholders,\n    COALESCE(SUM(fct_card_transactions.interchange\
+    \ ), 0) AS fct_card_transactions_interchange,\n    COUNT(DISTINCT fct_card_transactions.settlement_id ) AS fct_card_transactions_txn_count\n\
+    FROM `fennmoor-dw.dw_core.fct_card_transactions`  AS fct_card_transactions\nWHERE ((( fct_card_transactions.post_date\
+    \ ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -30 DAY))) AND ( fct_card_transactions.post_date ) < ((DATE_ADD(DATE_ADD(DATE\
+    \ '2026-06-30', INTERVAL -30 DAY), INTERVAL 30 DAY)))))\nGROUP BY\n    1,\n    2,\n    3\nORDER BY\n    4 DESC\n\
+    LIMIT 5000"
+L0b88eeab:
+  question: For each card product, how many currently open accounts are there?
+  compare:
+  - product_name
+  - open_card_accounts
+  unstated_filters: []
+  shape: 0b88eeabd4988482bfebbd52945cb7d448aeafb042b9095c9fb0e3970d87f220
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_account
+  - fennmoor-dw.dw_core.dim_product
+  sql: 'SELECT p.product_name, COUNT(*) AS open_card_accounts
+
+    FROM `fennmoor-dw.dw_core.dim_account` a
+
+    JOIN `fennmoor-dw.dw_core.dim_product` p USING (product_code)
+
+    WHERE a.account_family = ''CARD'' AND a.is_open
+
+    GROUP BY p.product_name
+
+    ORDER BY open_card_accounts DESC
+
+    '
+L0c593d42:
+  question: For each day from 2026-04-22 onward, broken down by device category, how many web sessions were there,
+    what was the average engaged time in seconds, and what share of sessions were logged in?
+  compare:
+  - session_date
+  - device_category
+  - sessions
+  - avg_engaged_sec
+  - logged_in_share
+  unstated_filters: []
+  shape: 0c593d42194e1ccbf21e5f06d608d1d70e5aeccf33ea23e1a227ef99f12798ab
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_digital.fct_web_sessions
+  sql: "SELECT session_date, device_category, COUNT(*) AS sessions, AVG(engaged_sec) AS avg_engaged_sec,\n     \
+    \  COUNTIF(is_logged_in) / COUNT(*) AS logged_in_share\nFROM `fennmoor-dw.dw_digital.fct_web_sessions`\nWHERE\
+    \ session_date >= '2026-04-22'\nGROUP BY 1, 2\n"
+L0ecb0a57:
+  question: For purchase-type transactions posted between 2026-05-31 and 2026-06-29 (inclusive), how many distinct
+    cardholders and what total spend did each merchant have, broken down by merchant name and transaction type,
+    ranked from the most cardholders to the fewest (top 500)?
+  compare:
+  - fct_card_transactions_merchant_name
+  - fct_card_transactions_txn_type
+  - fct_card_transactions_cardholders
+  - fct_card_transactions_total_spend
+  unstated_filters: []
+  shape: 0ecb0a57492b4c50cd8600f628446077789e743241470417609f8e44f6f01a62
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_core.fct_card_transactions
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"c48233bb01398\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_card_transactions.merchant_name  AS fct_card_transactions_merchant_name,\n    fct_card_transactions.txn_type\
+    \  AS fct_card_transactions_txn_type,\n    COUNT(DISTINCT fct_card_transactions.customer_key ) AS fct_card_transactions_cardholders,\n\
+    \    COALESCE(SUM(CASE WHEN fct_card_transactions.is_purchase THEN fct_card_transactions.amount ELSE NULL END),\
+    \ 0) AS fct_card_transactions_total_spend\nFROM `fennmoor-dw.dw_core.fct_card_transactions`  AS fct_card_transactions\n\
+    WHERE ((( fct_card_transactions.post_date ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -30 DAY))) AND ( fct_card_transactions.post_date\
+    \ ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30', INTERVAL -30 DAY), INTERVAL 30 DAY))))) AND (fct_card_transactions.txn_type\
+    \ ) = 'PURCH'\nGROUP BY\n    1,\n    2\nORDER BY\n    3 DESC\nLIMIT 500"
+L11f336b4:
+  question: Since 2026-05-25, how many login attempts have there been, broken down by channel and result, ordered
+    from the most to the fewest attempts?
+  compare:
+  - channel
+  - cut
+  - attempts
+  unstated_filters: []
+  shape: 11f336b4beadf73ecb2f844f47dde7dffb5cba1d793c1792f22c47c6e83d23b7
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_digital.fct_digital_logins
+  sql: 'SELECT channel, result AS cut, COUNT(*) AS attempts
+
+    FROM `fennmoor-dw.dw_digital.fct_digital_logins`
+
+    WHERE event_date >= ''2026-05-25''
+
+    GROUP BY 1, 2
+
+    ORDER BY 3 DESC
+
+    '
+L12addf1d:
+  question: For each marketing campaign, and broken down by both the exact day and the Monday-starting week, how
+    many delivered engagement events occurred between 2026-04-01 and 2026-06-29? Show the 500 campaign/day/week
+    combinations with the most delivered events, ordered from highest to lowest.
+  compare:
+  - fct_campaign_engagement_campaign_name
+  - fct_campaign_engagement_event_date
+  - fct_campaign_engagement_event_week
+  - fct_campaign_engagement_delivered
+  unstated_filters: []
+  shape: 12addf1d28fb8f761cf17181bc2ea9c6afddafb10c31bc914ea4005960946f81
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_marketing.dim_campaign
+  - fennmoor-dw.dw_marketing.fct_campaign_engagement
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"69873c628e915\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    dim_campaign.campaign_name  AS fct_campaign_engagement_campaign_name,\n    fct_campaign_engagement.event_date\
+    \  AS fct_campaign_engagement_event_date,\n    DATE_TRUNC(fct_campaign_engagement.event_date, WEEK(MONDAY))\
+    \  AS fct_campaign_engagement_event_week,\n    COUNTIF(fct_campaign_engagement.delivered) AS fct_campaign_engagement_delivered\n\
+    FROM `fennmoor-dw.dw_marketing.fct_campaign_engagement`  AS fct_campaign_engagement\nLEFT JOIN `fennmoor-dw.dw_marketing.dim_campaign`\
+    \  AS dim_campaign ON fct_campaign_engagement.campaign_id = dim_campaign.campaign_id\nWHERE ((( fct_campaign_engagement.event_date\
+    \ ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -90 DAY))) AND ( fct_campaign_engagement.event_date ) < ((DATE_ADD(DATE_ADD(DATE\
+    \ '2026-06-30', INTERVAL -90 DAY), INTERVAL 90 DAY)))))\nGROUP BY\n    1,\n    2,\n    3\nORDER BY\n    4 DESC\n\
+    LIMIT 500"
+L15e6e25c:
+  question: For each day from 2026-03-27 onward, broken down by channel, what was the login success rate (share
+    of successful attempts) and the total number of login attempts?
+  compare:
+  - event_date
+  - channel
+  - success_rate
+  - attempts
+  unstated_filters: []
+  shape: 15e6e25ce1e682c6f3fdd5d476d0d928b8d08d16632b36d2072e31123d254874
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_digital.fct_digital_logins
+  sql: 'SELECT event_date, channel, COUNTIF(is_success) / COUNT(*) AS success_rate, COUNT(*) AS attempts
+
+    FROM `fennmoor-dw.dw_digital.fct_digital_logins`
+
+    WHERE event_date >= ''2026-03-27''
+
+    GROUP BY 1, 2
+
+    '
+L163ed829:
+  question: For each month starting from 2025-12-01, how many distinct online-banking bill-pay users sent a payment,
+    and what was the total amount of bill payments sent, broken down by month?
+  compare:
+  - m
+  - payers
+  - amount
+  unstated_filters: []
+  shape: 163ed82998dcd584e38395ca1b4dc38401504d07f9dffcb71ac25689ccc3a6d1
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_staging.stg_olb__bill_pay
+  sql: 'SELECT DATE_TRUNC(sent_date, MONTH) AS m, COUNT(DISTINCT olb_user_id) AS payers, SUM(amount) AS amount
+
+    FROM `fennmoor-dw.dw_staging.stg_olb__bill_pay`
+
+    WHERE sent_date >= ''2025-12-01''
+
+    GROUP BY m
+
+    ORDER BY m
+
+    '
+L18561859:
+  question: For calls handled between 2025-09-01 and 2025-09-30, how many calls were there for each site and disposition
+    code combination?
+  compare:
+  - site_id
+  - disposition_code
+  - calls
+  unstated_filters: []
+  shape: 18561859473083082280b8d27c91d244528f4ac67a0a320b347626288f194cef
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_intermediate.int_calls_legacy_cdr
+  sql: 'SELECT site_id, disposition_code, COUNT(*) AS calls
+
+    FROM `fennmoor-dw.dw_intermediate.int_calls_legacy_cdr`
+
+    WHERE conversation_date BETWEEN ''2025-09-01'' AND ''2025-09-30''
+
+    GROUP BY 1, 2
+
+    '
+L1aaabd76:
+  question: For card transactions posted from 2026-04-01 to 2026-06-30, among affluent and private customers, what
+    is the total purchase spend broken down by whether the transaction was foreign and by customer segment?
+  compare:
+  - fct_card_transactions_is_foreign
+  - fct_card_transactions_segment
+  - fct_card_transactions_total_spend
+  unstated_filters:
+  - transaction type is PURCH (purchase transactions)
+  shape: 1aaabd76a951f0b6fa83aa26c79f0654d7f4efb623d833420a860ebe630b01f3
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_core.dim_customer
+  - fennmoor-dw.dw_core.fct_card_transactions
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"9af14de433153\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_card_transactions.is_foreign  AS fct_card_transactions_is_foreign,\n    dim_customer.segment\
+    \  AS fct_card_transactions_segment,\n    COALESCE(SUM(CASE WHEN fct_card_transactions.is_purchase THEN fct_card_transactions.amount\
+    \ ELSE NULL END), 0) AS fct_card_transactions_total_spend\nFROM `fennmoor-dw.dw_core.fct_card_transactions`\
+    \  AS fct_card_transactions\nLEFT JOIN `fennmoor-dw.dw_core.dim_customer`  AS dim_customer ON fct_card_transactions.customer_key\
+    \ = dim_customer.customer_key\nWHERE ((( fct_card_transactions.post_date ) >= ((DATE_ADD(DATE '2026-06-30',\
+    \ INTERVAL -90 DAY))) AND ( fct_card_transactions.post_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30', INTERVAL\
+    \ -90 DAY), INTERVAL 90 DAY))))) AND (dim_customer.segment ) IN ('affluent', 'private') AND (fct_card_transactions.txn_type\
+    \ ) = 'PURCH'\nGROUP BY\n    1,\n    2\nORDER BY\n    3 DESC\nLIMIT 5000"
+L1ab5b4f7:
+  question: For cards that are active and were activated between 2026-04-01 and 2026-06-30, how many cards and how
+    many distinct customers are there, broken down by digital wallet type?
+  compare:
+  - digital_wallet
+  - cards
+  - customers
+  unstated_filters: []
+  shape: 1ab5b4f79e6c82fbb4a8b8007ea5ceded280b88078ba7c05577e64c8dd0978c0
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_card
+  sql: 'SELECT c.digital_wallet, COUNT(*) AS cards, COUNT(DISTINCT c.cif_number) AS customers
+
+    FROM `fennmoor-dw.dw_core.dim_card` c
+
+    WHERE c.status = ''A''  AND c.activation_date >= DATE_SUB(DATE ''2026-06-30'', INTERVAL 90 DAY)
+
+    GROUP BY c.digital_wallet
+
+    '
+L1b1d58d4:
+  question: Since 2026-03-02, how many credit applications were submitted each week, broken down by channel?
+  compare:
+  - WK
+  - CUT
+  - APPS
+  unstated_filters: []
+  shape: 1b1d58d4085b1e9ea681b3a927dd5966ed340164cffff18852049853dc75501c
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_risk.fct_credit_applications
+  sql: 'SELECT DATE_TRUNC(SUBMITTED_DATE, WEEK) AS WK, CHANNEL AS CUT, COUNT(*) AS APPS
+
+    FROM `fennmoor-dw.dw_risk.fct_credit_applications`
+
+    WHERE SUBMITTED_DATE >= ''2026-03-02''
+
+    GROUP BY 1, 2
+
+    ORDER BY 1, 2
+
+    '
+L1c660607:
+  question: For each day from 2026-03-29 to 2026-04-08, how many distinct users (by device/pseudo ID) and how many
+    distinct logged-in users (by user ID) were recorded?
+  compare:
+  - event_date
+  - users
+  - logged_in_users
+  unstated_filters: []
+  shape: 1c660607de6e8f789b619719ba8f4d9c1e93d8b5e70999f7566d1ec443d744e2
+  who: an analyst
+  tables:
+  - fennmoor-raw.analytics_312874659.events_*
+  sql: 'SELECT event_date, COUNT(DISTINCT user_pseudo_id) AS users, COUNT(DISTINCT user_id) AS logged_in_users
+
+    FROM `fennmoor-raw.analytics_312874659.events_*`
+
+    WHERE _TABLE_SUFFIX BETWEEN ''20260329'' AND ''20260408''
+
+    GROUP BY event_date
+
+    ORDER BY event_date
+
+    '
+L1da958f3:
+  question: For each card account, what is the total transaction spend since 2026-04-19 (post date), along with
+    the account's product name and open date?
+  compare:
+  - card_account_id
+  - product_name
+  - open_date
+  - spend
+  unstated_filters: []
+  shape: 1da958f33038648875ab44065f58a25189476d86d57226553c39176ed7da4069
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_account
+  - fennmoor-dw.dw_core.fct_card_transactions
+  sql: 'SELECT t.card_account_id, a.product_name, a.open_date, SUM(t.amount) AS spend
+
+    FROM `fennmoor-dw.dw_core.fct_card_transactions` t
+
+    JOIN `fennmoor-dw.dw_core.dim_account` a ON a.core_account_id = t.card_account_id
+
+    WHERE t.post_date >= ''2026-04-19''
+
+    GROUP BY 1, 2, 3
+
+    LIMIT 1000
+
+    '
+L1ee476f0:
+  question: For mass-segment customers, from 2026-05-16 through today, what are the top 50 merchants (by merchant
+    name and category group) by total purchase spend, ranked from highest to lowest?
+  compare:
+  - merchant_name
+  - category_group
+  - spend
+  unstated_filters: []
+  shape: 1ee476f0f1a399d7ecbc7abd783fa3f1e80b13bfad52fb0a11481aebc0725bd8
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_customer
+  - fennmoor-dw.dw_core.dim_merchant
+  - fennmoor-dw.dw_core.fct_card_transactions
+  sql: 'SELECT m.merchant_name, m.category_group, SUM(t.amount) AS spend
+
+    FROM `fennmoor-dw.dw_core.fct_card_transactions` t
+
+    JOIN `fennmoor-dw.dw_core.dim_merchant` m USING (merchant_id)
+
+    JOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key)
+
+    WHERE t.post_date >= ''2026-05-16'' AND t.is_purchase AND c.segment = ''mass''
+
+    GROUP BY 1, 2
+
+    ORDER BY spend DESC
+
+    LIMIT 50
+
+    '
+L21259f73:
+  question: For each week starting from 2026-04-26 onward, how many distinct customers received an ACH credit deposit
+    transaction?
+  compare:
+  - period
+  - customers_with_ach_credit
+  unstated_filters: []
+  shape: 21259f73dfde47eec6de8dfc651a4946c0ab1b01b50ad81ec178dd9d41ab7b87
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.fct_deposit_transactions
+  sql: 'SELECT DATE_TRUNC(posted_date, WEEK) AS period, COUNT(DISTINCT customer_key) AS customers_with_ach_credit
+
+    FROM `fennmoor-dw.dw_core.fct_deposit_transactions`
+
+    WHERE transaction_type = ''ACH_CR'' AND posted_date >= ''2026-04-26''
+
+    GROUP BY period
+
+    ORDER BY period
+
+    '
+L21959863:
+  question: As of 2026-04-14, what is the number of distinct accounts and the total ledger balance for each product
+    line, ordered from highest to lowest total balance?
+  compare:
+  - grp
+  - accounts
+  - balance
+  unstated_filters: []
+  shape: 219598634d73ae35dd539dc33e43a13dc31542c4f37f9fbc979d9a85c8403c88
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_product
+  - fennmoor-dw.dw_core.fct_daily_account_balances
+  sql: 'SELECT p.product_line AS grp, COUNT(DISTINCT b.account_key) AS accounts, SUM(b.ledger_balance) AS balance
+
+    FROM `fennmoor-dw.dw_core.fct_daily_account_balances` b
+
+    JOIN `fennmoor-dw.dw_core.dim_product` p USING (product_code)
+
+    WHERE b.balance_date = ''2026-04-14''
+
+    GROUP BY grp
+
+    ORDER BY balance DESC
+
+    '
+L2471cac5:
+  question: For each marketing campaign and week (week starting Monday), how many messages were delivered and how
+    many recipients unsubscribed, for event dates from 2026-04-01 to 2026-06-30?
+  compare:
+  - fct_campaign_engagement_campaign_name
+  - fct_campaign_engagement_event_week
+  - fct_campaign_engagement_delivered
+  - fct_campaign_engagement_unsubscribes
+  unstated_filters: []
+  shape: 2471cac526bfd6cfa252198b4d67782b07d3237b4f4a6242914dae5aba8fe25f
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_marketing.dim_campaign
+  - fennmoor-dw.dw_marketing.fct_campaign_engagement
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"58a1fe3d95932\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    dim_campaign.campaign_name  AS fct_campaign_engagement_campaign_name,\n    DATE_TRUNC(fct_campaign_engagement.event_date,\
+    \ WEEK(MONDAY))  AS fct_campaign_engagement_event_week,\n    COUNTIF(fct_campaign_engagement.delivered) AS fct_campaign_engagement_delivered,\n\
+    \    COUNTIF(fct_campaign_engagement.unsubscribed) AS fct_campaign_engagement_unsubscribes\nFROM `fennmoor-dw.dw_marketing.fct_campaign_engagement`\
+    \  AS fct_campaign_engagement\nLEFT JOIN `fennmoor-dw.dw_marketing.dim_campaign`  AS dim_campaign ON fct_campaign_engagement.campaign_id\
+    \ = dim_campaign.campaign_id\nWHERE ((( fct_campaign_engagement.event_date ) >= ((DATE_ADD(DATE '2026-06-30',\
+    \ INTERVAL -90 DAY))) AND ( fct_campaign_engagement.event_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30', INTERVAL\
+    \ -90 DAY), INTERVAL 90 DAY)))))\nGROUP BY\n    1,\n    2\nLIMIT 5000"
+L2d424059:
+  question: For loan decisions made on or after 2026-04-22, how many decisions are there for each combination of
+    decision-maker and outcome?
+  compare:
+  - decidedBy
+  - outcome
+  - n
+  unstated_filters: []
+  shape: 2d42405944c39036f1906e85cd9cc082a4183c0619b4fe5254fddbb03423ab27
+  who: an analyst
+  tables:
+  - fennmoor-raw.loan_origination.decision
+  sql: 'SELECT decidedBy, outcome, COUNT(*) AS n
+
+    FROM `fennmoor-raw.loan_origination.decision`
+
+    WHERE DATE(decidedAt) >= ''2026-04-22''
+
+    GROUP BY 1, 2
+
+    '
+L2d53a09b:
+  question: What is the total ledger balance amount for each product code as of April 7, 2026?
+  compare:
+  - PROD_CD
+  - balance
+  unstated_filters: []
+  shape: 2d53a09b80d37ff6877217cde3a2bdc45bbd187909356452da48d29ba38ccff0
+  who: an analyst
+  tables:
+  - fennmoor-analytics.legacy_edw.ACCT_DLY_BAL
+  sql: 'SELECT PROD_CD, SUM(LDGR_BAL_AMT) AS balance FROM legacy_edw.ACCT_DLY_BAL WHERE BAL_DT = ''2026-04-07''
+    GROUP BY PROD_CD
+
+    '
+L30b11cd6:
+  question: How many calls have there been since 2026-04-08, broken down by line of business and site, ordered from
+    the highest number of calls to the lowest?
+  compare:
+  - line_of_business
+  - site_id
+  - calls
+  unstated_filters: []
+  shape: 30b11cd6a42f341cb96c4175327cc3f6706fd1145d4f7c8b8e74867e1fa8ae5e
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_contact_center.dim_queue
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: 'select q.line_of_business, q.site_id, count(*) as calls
+
+    from `fennmoor-dw.dw_contact_center.fct_calls` f
+
+    join `fennmoor-dw.dw_contact_center.dim_queue` q using (queue_id)
+
+    where f.conversation_date >= ''2026-04-08''
+
+    group by 1, 2 order by 3 desc
+
+    '
+L30bb45da:
+  question: For fraud alerts raised between 2026-03-29 and 2026-05-03, broken down by channel, how many alerts were
+    there, how many were confirmed as fraud, and what was the confirmation rate (confirmed alerts divided by total
+    alerts)? Order the results from highest to lowest confirmation rate.
+  compare:
+  - channel
+  - alerts
+  - confirmed
+  - confirm_rate
+  unstated_filters: []
+  shape: 30bb45dae5b195752d8306cf15301e04e7c08f03b6f3651dec5aec44296b5dde
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_risk.fct_fraud_alerts
+  sql: "SELECT channel, COUNT(*) AS alerts, COUNTIF(is_confirmed_fraud) AS confirmed,\n       SAFE_DIVIDE(COUNTIF(is_confirmed_fraud),\
+    \ COUNT(*)) AS confirm_rate\nFROM `fennmoor-dw.dw_risk.fct_fraud_alerts`\nWHERE alert_date BETWEEN '2026-03-29'\
+    \ AND '2026-05-03'\nGROUP BY channel\nORDER BY confirm_rate DESC\n"
+L31b89126:
+  question: For each calendar month and customer segment (limited to affluent and private customers), how many distinct
+    cardholders made card transactions and how many total card transactions (distinct settlements) were there?
+  compare:
+  - fct_card_transactions_post_month
+  - fct_card_transactions_segment
+  - fct_card_transactions_cardholders
+  - fct_card_transactions_txn_count
+  unstated_filters: []
+  shape: 31b891262faf5d96d1a156298ffd59b65dc04bac6e23c9fb54b4ea7592e4effc
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_core.dim_customer
+  - fennmoor-dw.dw_core.fct_card_transactions
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"65b338312d4bb\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    DATE_TRUNC(fct_card_transactions.post_date, MONTH)  AS fct_card_transactions_post_month,\n \
+    \   dim_customer.segment  AS fct_card_transactions_segment,\n    COUNT(DISTINCT fct_card_transactions.customer_key\
+    \ ) AS fct_card_transactions_cardholders,\n    COUNT(DISTINCT fct_card_transactions.settlement_id ) AS fct_card_transactions_txn_count\n\
+    FROM `fennmoor-dw.dw_core.fct_card_transactions`  AS fct_card_transactions\nLEFT JOIN `fennmoor-dw.dw_core.dim_customer`\
+    \  AS dim_customer ON fct_card_transactions.customer_key = dim_customer.customer_key\nWHERE (dim_customer.segment\
+    \ ) IN ('affluent', 'private')\nGROUP BY\n    1,\n    2\nORDER BY\n    3 DESC\nLIMIT 5000"
+L3392c50f:
+  question: How many campaign unsubscribes were there each week, from 2025-07-01 to 2026-06-30?
+  compare:
+  - fct_campaign_engagement_event_week
+  - fct_campaign_engagement_unsubscribes
+  unstated_filters: []
+  shape: 3392c50fbd1321c97902117aaab10cc27d7f320c0d675d1cd35616726925a869
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_marketing.fct_campaign_engagement
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"4a98c0ad61541\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    DATE_TRUNC(fct_campaign_engagement.event_date, WEEK(MONDAY))  AS fct_campaign_engagement_event_week,\n\
+    \    COUNTIF(fct_campaign_engagement.unsubscribed) AS fct_campaign_engagement_unsubscribes\nFROM `fennmoor-dw.dw_marketing.fct_campaign_engagement`\
+    \  AS fct_campaign_engagement\nWHERE ((( fct_campaign_engagement.event_date ) >= ((DATE_ADD(DATE '2026-06-30',\
+    \ INTERVAL -365 DAY))) AND ( fct_campaign_engagement.event_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30', INTERVAL\
+    \ -365 DAY), INTERVAL 365 DAY)))))\nGROUP BY\n    1\nLIMIT 500"
+L359c74a0:
+  question: For gambling-category merchants, what are the top 100 merchants (with their merchant category description)
+    by total card transaction amount since 2026-04-10, showing for each the number of transactions and the total
+    amount?
+  compare:
+  - merchant_name
+  - mcc_description
+  - txns
+  - amount
+  unstated_filters: []
+  shape: 359c74a02c694e15ee07ea6537175931bba0d88b848c17c3bb5f5cb165f9ff14
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_merchant
+  - fennmoor-dw.dw_core.fct_card_transactions
+  sql: 'SELECT m.merchant_name, m.mcc_description, COUNT(*) AS txns, SUM(t.amount) AS amount
+
+    FROM `fennmoor-dw.dw_core.fct_card_transactions` t
+
+    JOIN `fennmoor-dw.dw_core.dim_merchant` m USING (merchant_id)
+
+    WHERE t.post_date >= ''2026-04-10'' AND m.category_group IN (''GAMBLING'')
+
+    GROUP BY 1, 2
+
+    ORDER BY amount DESC
+
+    LIMIT 100
+
+    '
+L37d38fdd:
+  question: What is the total interchange earned on purchase transactions, broken down by month and customer segment,
+    for transactions posted from 2025-07-01 to 2026-06-30?
+  compare:
+  - fct_card_transactions_post_month
+  - fct_card_transactions_segment
+  - fct_card_transactions_interchange
+  unstated_filters: []
+  shape: 37d38fddb524abb53c19657f0de9c9c56e28191af05e07da3bc3ee5330ebe1d4
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_core.dim_customer
+  - fennmoor-dw.dw_core.fct_card_transactions
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"7f146d6f54f5a\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    DATE_TRUNC(fct_card_transactions.post_date, MONTH)  AS fct_card_transactions_post_month,\n \
+    \   dim_customer.segment  AS fct_card_transactions_segment,\n    COALESCE(SUM(fct_card_transactions.interchange\
+    \ ), 0) AS fct_card_transactions_interchange\nFROM `fennmoor-dw.dw_core.fct_card_transactions`  AS fct_card_transactions\n\
+    LEFT JOIN `fennmoor-dw.dw_core.dim_customer`  AS dim_customer ON fct_card_transactions.customer_key = dim_customer.customer_key\n\
+    WHERE ((( fct_card_transactions.post_date ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -365 DAY))) AND ( fct_card_transactions.post_date\
+    \ ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30', INTERVAL -365 DAY), INTERVAL 365 DAY))))) AND (fct_card_transactions.txn_type\
+    \ ) = 'PURCH'\nGROUP BY\n    1,\n    2\nLIMIT 500"
+L3949aa11:
+  question: What was the total end-of-month balance for each product code as of 2026-04-01, ranked from highest
+    to lowest balance?
+  compare:
+  - PROD_CD
+  - balance
+  unstated_filters: []
+  shape: 3949aa11a93935748cad37652a6fe97daaa5f76101672f0719ffad58818d222d
+  who: an analyst
+  tables:
+  - fennmoor-analytics.legacy_edw.EOM_BAL_SNAP
+  sql: 'SELECT SNAP_MTH, PROD_CD, SUM(EOM_BAL_AMT) AS balance
+
+    FROM legacy_edw.EOM_BAL_SNAP
+
+    WHERE SNAP_MTH = ''2026-04-01''
+
+    GROUP BY SNAP_MTH, PROD_CD
+
+    ORDER BY balance DESC
+
+    '
+L3a388091:
+  question: For each month since December 1, 2025, how many account closures were there, broken down by account
+    family and closure reason?
+  compare:
+  - period
+  - account_family
+  - close_reason
+  - closures
+  unstated_filters: []
+  shape: 3a38809188efe1d0b317e78cced31f0edbe236124ba46d8ef60f56b0dcd21219
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.fct_account_closures
+  sql: 'SELECT DATE_TRUNC(close_date, MONTH) AS period, account_family, close_reason, COUNT(*) AS closures
+
+    FROM `fennmoor-dw.dw_core.fct_account_closures`
+
+    WHERE close_date >= ''2025-12-01''
+
+
+    GROUP BY ALL
+
+    ORDER BY period, closures DESC
+
+    '
+L3b82445b:
+  question: Since 2025-11-09, how many customers have been hit with 3 or more overdraft (OD) or non-sufficient funds
+    (NSF) fees, and of those heavy-fee customers, how many later closed an account on or after 2025-11-26?
+  compare:
+  - heavy_fee_customers
+  - later_closed
+  unstated_filters: []
+  shape: 3b82445bc297417a9a62c5e6dd21c1eb0ca9c67e613e413f4269e1703c80c9dd
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.fct_account_closures
+  - fennmoor-dw.dw_core.fct_fees
+  sql: "WITH heavy AS (\n  SELECT customer_key, COUNT(*) AS fees\n  FROM `fennmoor-dw.dw_core.fct_fees`\n  WHERE\
+    \ assessed_date >= '2025-11-09' AND fee_type IN ('OD', 'NSF')\n  GROUP BY customer_key\n  HAVING fees >= 3\n\
+    )\nSELECT COUNT(*) AS heavy_fee_customers, COUNTIF(c.customer_key IS NOT NULL) AS later_closed\nFROM heavy\n\
+    LEFT JOIN (SELECT DISTINCT customer_key FROM `fennmoor-dw.dw_core.fct_account_closures` WHERE close_date >=\
+    \ '2025-11-26') c\n  USING (customer_key)\n"
+L3ca155d7:
+  question: For each contact center site, how many distinct calls (conversations) were handled and how many of those
+    were account closure calls, for calls with a conversation date from 2026-05-31 to 2026-06-29? List sites ordered
+    from most calls to fewest.
+  compare:
+  - fct_calls_site_name
+  - fct_calls_count
+  - fct_calls_closure_calls
+  unstated_filters: []
+  shape: 3ca155d75b3515ef967f9f09592d408584c820d3f724f0fdbc3a74ff19f7dc4d
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.dim_cc_site
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"679d2f7ae0846\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    dim_cc_site.site_name  AS fct_calls_site_name,\n    COUNT(DISTINCT fct_calls.conversation_id\
+    \ ) AS fct_calls_count,\n    COUNT(DISTINCT CASE WHEN fct_calls.is_account_closure_call THEN fct_calls.conversation_id\
+    \ ELSE NULL END) AS fct_calls_closure_calls\nFROM `fennmoor-dw.dw_contact_center.fct_calls`  AS fct_calls\n\
+    LEFT JOIN `fennmoor-dw.dw_contact_center.dim_cc_site`  AS dim_cc_site ON fct_calls.site_id = dim_cc_site.site_id\n\
+    WHERE ((( fct_calls.conversation_date ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -30 DAY))) AND ( fct_calls.conversation_date\
+    \ ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30', INTERVAL -30 DAY), INTERVAL 30 DAY)))))\nGROUP BY\n    1\nORDER\
+    \ BY\n    2 DESC\nLIMIT 500"
+L3cb32f46:
+  question: For each merchant name, calendar month of posting, and transaction type, how many distinct cardholders
+    made card transactions and how many distinct settled transactions were there?
+  compare:
+  - fct_card_transactions_merchant_name
+  - fct_card_transactions_post_month
+  - fct_card_transactions_txn_type
+  - fct_card_transactions_cardholders
+  - fct_card_transactions_txn_count
+  unstated_filters: []
+  shape: 3cb32f46716baca35bdcea355a7e0acaf310d208efb24da15928afba4a518fd5
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_core.fct_card_transactions
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"2c272b1b848a9\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_card_transactions.merchant_name  AS fct_card_transactions_merchant_name,\n    DATE_TRUNC(fct_card_transactions.post_date,\
+    \ MONTH)  AS fct_card_transactions_post_month,\n    fct_card_transactions.txn_type  AS fct_card_transactions_txn_type,\n\
+    \    COUNT(DISTINCT fct_card_transactions.customer_key ) AS fct_card_transactions_cardholders,\n    COUNT(DISTINCT\
+    \ fct_card_transactions.settlement_id ) AS fct_card_transactions_txn_count\nFROM `fennmoor-dw.dw_core.fct_card_transactions`\
+    \  AS fct_card_transactions\nGROUP BY\n    1,\n    2,\n    3\nLIMIT 500"
+L3d84d777:
+  question: For each contact center site and week (weeks starting Monday), what was the call abandonment rate (share
+    of calls that were abandoned) between 2026-04-01 and 2026-06-30? Show the 500 site-week combinations with the
+    highest abandonment rate.
+  compare:
+  - fct_calls_site_name
+  - fct_calls_conversation_week
+  - fct_calls_abandon_rate
+  unstated_filters: []
+  shape: 3d84d77771e81e32af19a41cccb3cc018f2250da99a6a4b441748f340852fd1a
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.dim_cc_site
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"8637d8f8bd58b\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    dim_cc_site.site_name  AS fct_calls_site_name,\n    DATE_TRUNC(fct_calls.conversation_date,\
+    \ WEEK(MONDAY))  AS fct_calls_conversation_week,\n    SAFE_DIVIDE(COUNTIF(fct_calls.is_abandoned), COUNT(*))\
+    \ AS fct_calls_abandon_rate\nFROM `fennmoor-dw.dw_contact_center.fct_calls`  AS fct_calls\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_cc_site`\
+    \  AS dim_cc_site ON fct_calls.site_id = dim_cc_site.site_id\nWHERE ((( fct_calls.conversation_date ) >= ((DATE_ADD(DATE\
+    \ '2026-06-30', INTERVAL -90 DAY))) AND ( fct_calls.conversation_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30',\
+    \ INTERVAL -90 DAY), INTERVAL 90 DAY)))))\nGROUP BY\n    1,\n    2\nORDER BY\n    3 DESC\nLIMIT 500"
+L3e70fccd:
+  question: For active accounts, how many accounts are there and what is the average overdraft limit amount, broken
+    down by product code, ordered from the highest to lowest account count?
+  compare:
+  - PROD_CD
+  - ACCTS
+  - AVG_OD_LIMIT
+  unstated_filters: []
+  shape: 3e70fccdac69dac854b502c0d0f8f0202d68d2d7e87027f673c53446cbec1627
+  who: an analyst
+  tables:
+  - fennmoor-raw.core_banking_cdc.ACCOUNT
+  sql: 'SELECT PROD_CD, COUNT(*) AS ACCTS, AVG(OD_LMT_AMT) AS AVG_OD_LIMIT
+
+    FROM `fennmoor-raw.core_banking_cdc.ACCOUNT`
+
+    WHERE ACCT_STAT_CD = ''A''
+
+    GROUP BY 1
+
+    ORDER BY 2 DESC
+
+    '
+L41064b12:
+  question: For voice calls handled at the MNL site between 2025-07-01 and 2026-06-30, broken down by week (week
+    starting Monday) and IVR intent, what was the average handle time, the number of account closure calls, and
+    the total number of calls?
+  compare:
+  - fct_calls_conversation_week
+  - fct_calls_ivr_intent
+  - fct_calls_avg_handle_time
+  - fct_calls_closure_calls
+  - fct_calls_count
+  unstated_filters: []
+  shape: 41064b129fa081c0e3043443e277e1beeb72393e74b12f529f12dc8f4d709b26
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.dim_cc_site
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"0ef978004f143\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    DATE_TRUNC(fct_calls.conversation_date, WEEK(MONDAY))  AS fct_calls_conversation_week,\n   \
+    \ fct_calls.ivr_intent  AS fct_calls_ivr_intent,\n    AVG(fct_calls.handle_sec ) AS fct_calls_avg_handle_time,\n\
+    \    COUNT(DISTINCT CASE WHEN fct_calls.is_account_closure_call THEN fct_calls.conversation_id ELSE NULL END)\
+    \ AS fct_calls_closure_calls,\n    COUNT(DISTINCT fct_calls.conversation_id ) AS fct_calls_count\nFROM `fennmoor-dw.dw_contact_center.fct_calls`\
+    \  AS fct_calls\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_cc_site`  AS dim_cc_site ON fct_calls.site_id\
+    \ = dim_cc_site.site_id\nWHERE ((( fct_calls.conversation_date ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -365\
+    \ DAY))) AND ( fct_calls.conversation_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30', INTERVAL -365 DAY), INTERVAL\
+    \ 365 DAY))))) AND (dim_cc_site.site_id ) = 'MNL' AND (fct_calls.media_type ) = 'voice'\nGROUP BY\n    1,\n\
+    \    2\nLIMIT 500"
+L4115df4b:
+  question: For each month starting 2026-05-02 onward, how many distinct customers received an ACH credit deposit
+    transaction?
+  compare:
+  - period
+  - customers_with_ach_credit
+  unstated_filters: []
+  shape: 4115df4b4af75174ed9b1737ab3ac9737f913f9fbc14a58af2c98e44f87b8962
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.fct_deposit_transactions
+  sql: 'SELECT DATE_TRUNC(posted_date, MONTH) AS period, COUNT(DISTINCT customer_key) AS customers_with_ach_credit
+
+    FROM `fennmoor-dw.dw_core.fct_deposit_transactions`
+
+    WHERE transaction_type = ''ACH_CR'' AND posted_date >= ''2026-05-02''
+
+    GROUP BY period
+
+    ORDER BY period
+
+    '
+L41fd18a8:
+  question: For screen-view events from 2026-05-10 to 2026-05-12, what is the number of views for each screen name,
+    ordered from most to least viewed?
+  compare:
+  - screen
+  - views
+  unstated_filters: []
+  shape: 41fd18a8f59d28787259396b38e14d31794d32c113f84950ed77ad86648334c4
+  who: an analyst
+  tables:
+  - fennmoor-raw.amplitude_mobile.EVENTS_318842
+  sql: 'SELECT JSON_VALUE(event_properties, ''$.screen_name'') AS screen, COUNT(*) AS views
+
+    FROM `fennmoor-raw.amplitude_mobile.EVENTS_318842`
+
+    WHERE DATE(event_time) BETWEEN ''2026-05-10'' AND ''2026-05-12'' AND event_type = ''screen_view''
+
+    GROUP BY screen
+
+    ORDER BY views DESC
+
+    '
+L42795751:
+  question: For each preferred branch (identified by branch name and region), how many customers have that branch
+    as their preferred branch, and what is the total deposit balance across those customers? List results ordered
+    from the most customers to the fewest.
+  compare:
+  - preferred_branch_id
+  - branch_name
+  - region
+  - customers
+  - deposits
+  unstated_filters: []
+  shape: 42795751ed9e53848060e13e7294b9f33ba4984a5849517826d568ae42fba699
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_branch
+  - fennmoor-dw.dw_core.dim_customer
+  - fennmoor-dw.dw_customer.customer_360
+  sql: "SELECT c.preferred_branch_id, b.branch_name, b.region,\n       COUNT(*) AS customers, SUM(x.total_deposit_balance)\
+    \ AS deposits\nFROM `fennmoor-dw.dw_core.dim_customer` c\nLEFT JOIN `fennmoor-dw.dw_core.dim_branch` b ON b.branch_id\
+    \ = c.preferred_branch_id\nJOIN `fennmoor-dw.dw_customer.customer_360` x USING (customer_key)\nGROUP BY 1, 2,\
+    \ 3\nORDER BY customers DESC\n"
+L42c41a99:
+  question: For voice calls with a conversation date on or after 2026-02-26, what is the average handle time (in
+    seconds), broken down by week and by site?
+  compare:
+  - wk
+  - site_id
+  - aht
+  unstated_filters: []
+  shape: 42c41a997b41a7a0bd0f6c66efb491dfd858d52ef8c44c12d52a8a55a23184d0
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: 'select date_trunc(conversation_date, week) as wk, site_id, avg(handle_sec) as aht
+
+    from `fennmoor-dw.dw_contact_center.fct_calls`
+
+    where media_type = ''voice'' and conversation_date >= ''2026-02-26''
+
+    group by 1, 2 order by 1, 2
+
+    '
+L42fc491a:
+  question: For each customer, from 2026-02-25 to 2026-05-12, how many purchase transactions did they make, what
+    was their total spend, how many distinct merchant categories (MCCs) did they purchase from, and how many of
+    their transactions were foreign transactions?
+  compare:
+  - customer_key
+  - txns
+  - spend
+  - distinct_mcc
+  - foreign_txns
+  unstated_filters: []
+  shape: 42fc491a5f9bb088bdca41c6ea2cbb7e35878fd3778c0eaa222e00b5685e39ad
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.fct_card_transactions
+  sql: "SELECT customer_key, COUNT(*) AS txns, SUM(amount) AS spend, COUNT(DISTINCT mcc) AS distinct_mcc,\n    \
+    \   COUNTIF(is_foreign) AS foreign_txns\nFROM `fennmoor-dw.dw_core.fct_card_transactions`\nWHERE post_date BETWEEN\
+    \ '2026-02-25' AND '2026-05-12' AND is_purchase\nGROUP BY customer_key\n"
+L435dac23:
+  question: For voluntary account closures between 2025-12-11 and 2026-06-03, what are the tenure (in days) quartile
+    breakpoints and the average tenure at closure, broken down by account family?
+  compare:
+  - account_family
+  - tenure_quartiles
+  - avg_tenure_days
+  unstated_filters: []
+  shape: 435dac23f01dea8beb0bea0b9cd971e1e4a0fbbb5d640f0bcbe652974eec36a0
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.fct_account_closures
+  sql: "SELECT account_family,\n       APPROX_QUANTILES(tenure_days, 4) AS tenure_quartiles,\n       AVG(tenure_days)\
+    \ AS avg_tenure_days\nFROM `fennmoor-dw.dw_core.fct_account_closures`\nWHERE is_voluntary AND close_date BETWEEN\
+    \ '2025-12-11' AND '2026-06-03'\nGROUP BY account_family\n"
+L4379b829:
+  question: For each conversation date and contact center site, what was the average call handle time (in seconds)
+    and the number of transferred calls, for calls from 2026-05-31 to 2026-06-29?
+  compare:
+  - fct_calls_conversation_date
+  - fct_calls_site_name
+  - fct_calls_avg_handle_time
+  - fct_calls_transfers
+  unstated_filters: []
+  shape: 4379b8292c4023890efcc32d8537252c04b61217c3fb9dfc80e727ca3fd63fac
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.dim_cc_site
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"510e8ba2aa71e\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_calls.conversation_date  AS fct_calls_conversation_date,\n    dim_cc_site.site_name  AS\
+    \ fct_calls_site_name,\n    AVG(fct_calls.handle_sec ) AS fct_calls_avg_handle_time,\n    COUNTIF(fct_calls.was_transferred)\
+    \ AS fct_calls_transfers\nFROM `fennmoor-dw.dw_contact_center.fct_calls`  AS fct_calls\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_cc_site`\
+    \  AS dim_cc_site ON fct_calls.site_id = dim_cc_site.site_id\nWHERE ((( fct_calls.conversation_date ) >= ((DATE_ADD(DATE\
+    \ '2026-06-30', INTERVAL -30 DAY))) AND ( fct_calls.conversation_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30',\
+    \ INTERVAL -30 DAY), INTERVAL 30 DAY)))))\nGROUP BY\n    1,\n    2\nORDER BY\n    3 DESC\nLIMIT 5000"
+L4540fe70:
+  question: For each day from 2026-05-31 to 2026-06-30, how many campaign messages were delivered and how many recipients
+    unsubscribed, ranked from the highest number delivered to the lowest?
+  compare:
+  - fct_campaign_engagement_event_date
+  - fct_campaign_engagement_delivered
+  - fct_campaign_engagement_unsubscribes
+  unstated_filters: []
+  shape: 4540fe70787ed9181e36cd78d922de6e7604b431def51847ab45b3687d20069f
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_marketing.fct_campaign_engagement
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"02f9cba916909\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_campaign_engagement.event_date  AS fct_campaign_engagement_event_date,\n    COUNTIF(fct_campaign_engagement.delivered)\
+    \ AS fct_campaign_engagement_delivered,\n    COUNTIF(fct_campaign_engagement.unsubscribed) AS fct_campaign_engagement_unsubscribes\n\
+    FROM `fennmoor-dw.dw_marketing.fct_campaign_engagement`  AS fct_campaign_engagement\nWHERE ((( fct_campaign_engagement.event_date\
+    \ ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -30 DAY))) AND ( fct_campaign_engagement.event_date ) < ((DATE_ADD(DATE_ADD(DATE\
+    \ '2026-06-30', INTERVAL -30 DAY), INTERVAL 30 DAY)))))\nGROUP BY\n    1\nORDER BY\n    2 DESC\nLIMIT 500"
+L469ef255:
+  question: For each day (and the Monday-starting week it falls in) from 2025-07-01 to 2026-06-30, how many campaign
+    messages were delivered, and what was the open rate (opened divided by delivered)?
+  compare:
+  - fct_campaign_engagement_event_date
+  - fct_campaign_engagement_event_week
+  - fct_campaign_engagement_delivered
+  - fct_campaign_engagement_open_rate
+  unstated_filters: []
+  shape: 469ef255ee42b91cd7d500155c185aad4ed096021bff905e5f1a949fa1896d44
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_marketing.fct_campaign_engagement
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"ddbc05146ca5c\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_campaign_engagement.event_date  AS fct_campaign_engagement_event_date,\n    DATE_TRUNC(fct_campaign_engagement.event_date,\
+    \ WEEK(MONDAY))  AS fct_campaign_engagement_event_week,\n    COUNTIF(fct_campaign_engagement.delivered) AS fct_campaign_engagement_delivered,\n\
+    \    SAFE_DIVIDE(COUNTIF(fct_campaign_engagement.opened), COUNTIF(fct_campaign_engagement.delivered)) AS fct_campaign_engagement_open_rate\n\
+    FROM `fennmoor-dw.dw_marketing.fct_campaign_engagement`  AS fct_campaign_engagement\nWHERE ((( fct_campaign_engagement.event_date\
+    \ ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -365 DAY))) AND ( fct_campaign_engagement.event_date ) < ((DATE_ADD(DATE_ADD(DATE\
+    \ '2026-06-30', INTERVAL -365 DAY), INTERVAL 365 DAY)))))\nGROUP BY\n    1,\n    2\nORDER BY\n    3 DESC\nLIMIT\
+    \ 5000"
+L49555283:
+  question: As of 2026-06-03, what is the number of distinct accounts and the total ledger balance for each product
+    reporting category, ordered from highest to lowest total balance?
+  compare:
+  - grp
+  - accounts
+  - balance
+  unstated_filters: []
+  shape: 495552834d8343806cc037005e005ca709f1e4b528c7440e816dbc87a90edbc4
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_product
+  - fennmoor-dw.dw_core.fct_daily_account_balances
+  sql: 'SELECT p.reporting_category AS grp, COUNT(DISTINCT b.account_key) AS accounts, SUM(b.ledger_balance) AS
+    balance
+
+    FROM `fennmoor-dw.dw_core.fct_daily_account_balances` b
+
+    JOIN `fennmoor-dw.dw_core.dim_product` p USING (product_code)
+
+    WHERE b.balance_date = ''2026-06-03''
+
+    GROUP BY grp
+
+    ORDER BY balance DESC
+
+    '
+L4b4d230a:
+  question: 'For calls handled between 2026-05-31 and 2026-06-30, break down by agent name, queue, and wrap-up code:
+    how many distinct conversations were handled and how many of those calls were transferred? Show the top 500
+    combinations ranked by number of conversations, highest first.'
+  compare:
+  - fct_calls_agent_name
+  - fct_calls_queue_name
+  - fct_calls_wrapup
+  - fct_calls_count
+  - fct_calls_transfers
+  unstated_filters: []
+  shape: 4b4d230a5f79bcc81a71b23fa7815a0ee8d10157514e4bd899641a264b087434
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.dim_agent
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"2f7dc83b1ea7a\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    dim_agent.agent_name  AS fct_calls_agent_name,\n    fct_calls.queue_name  AS fct_calls_queue_name,\n\
+    \    fct_calls.wrapup_code_name  AS fct_calls_wrapup,\n    COUNT(DISTINCT fct_calls.conversation_id ) AS fct_calls_count,\n\
+    \    COUNTIF(fct_calls.was_transferred) AS fct_calls_transfers\nFROM `fennmoor-dw.dw_contact_center.fct_calls`\
+    \  AS fct_calls\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_agent`  AS dim_agent ON fct_calls.agent_user_id\
+    \ = dim_agent.agent_user_id\nWHERE ((( fct_calls.conversation_date ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL\
+    \ -30 DAY))) AND ( fct_calls.conversation_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30', INTERVAL -30 DAY),\
+    \ INTERVAL 30 DAY)))))\nGROUP BY\n    1,\n    2,\n    3\nORDER BY\n    4 DESC\nLIMIT 500"
+L4cc2c24f:
+  question: For each customer (identified by CIF number), how many app sessions did they have and how many total
+    screens were viewed, from 2026-03-24 onward?
+  compare:
+  - cif_number
+  - app_sessions
+  - screens
+  unstated_filters: []
+  shape: 4cc2c24fe142dce1191d51d3453fe980494ea4bb42d4f565c76288214d67ae7a
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_digital.fct_app_sessions
+  sql: 'SELECT cif_number, COUNT(*) AS app_sessions, SUM(screens) AS screens
+
+    FROM `fennmoor-dw.dw_digital.fct_app_sessions`
+
+    WHERE session_date >= ''2026-03-24''
+
+    GROUP BY cif_number
+
+    '
+L4dee27ab:
+  question: Since 2026-05-26, for each landing page where customers visited help/support, how many distinct customers
+    visited that page, and among those, how many also contacted us in the last 90 days? Show the top 50 landing
+    pages ranked by number of customers.
+  compare:
+  - landing_page
+  - customers
+  - also_contacted_us
+  unstated_filters: []
+  shape: 4dee27ab2d5e667e9bc0417fa233e6e8fd559e5d3c90b6b583152a3ab5c47267
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_customer.customer_360
+  - fennmoor-dw.dw_digital.fct_web_sessions
+  sql: "WITH help AS (\n  SELECT customer_key, landing_page\n  FROM `fennmoor-dw.dw_digital.fct_web_sessions`\n\
+    \  WHERE visited_help AND customer_key IS NOT NULL AND session_date >= '2026-05-26'\n)\nSELECT h.landing_page,\
+    \ COUNT(DISTINCT h.customer_key) AS customers,\n       COUNT(DISTINCT IF(c.contacts_90d > 0, h.customer_key,\
+    \ NULL)) AS also_contacted_us\nFROM help h\nJOIN `fennmoor-dw.dw_customer.customer_360` c USING (customer_key)\n\
+    GROUP BY h.landing_page\nORDER BY customers DESC\nLIMIT 50\n"
+L4e0f44e9:
+  question: For account closure calls handled at the SPK site between 2026-05-31 and 2026-06-30, what is the abandonment
+    rate for each wrap-up code, broken down by week (week starting Monday)?
+  compare:
+  - fct_calls_conversation_week
+  - fct_calls_wrapup
+  - fct_calls_abandon_rate
+  unstated_filters: []
+  shape: 4e0f44e91e94f1728a0b7a0249d4a615598ca9db1f36a6b7df72982cab5cb398
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.dim_cc_site
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"a0cdc2419e683\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    DATE_TRUNC(fct_calls.conversation_date, WEEK(MONDAY))  AS fct_calls_conversation_week,\n   \
+    \ fct_calls.wrapup_code_name  AS fct_calls_wrapup,\n    SAFE_DIVIDE(COUNTIF(fct_calls.is_abandoned), COUNT(*))\
+    \ AS fct_calls_abandon_rate\nFROM `fennmoor-dw.dw_contact_center.fct_calls`  AS fct_calls\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_cc_site`\
+    \  AS dim_cc_site ON fct_calls.site_id = dim_cc_site.site_id\nWHERE ((( fct_calls.conversation_date ) >= ((DATE_ADD(DATE\
+    \ '2026-06-30', INTERVAL -30 DAY))) AND ( fct_calls.conversation_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30',\
+    \ INTERVAL -30 DAY), INTERVAL 30 DAY))))) AND fct_calls.is_account_closure_call AND (dim_cc_site.site_id ) =\
+    \ 'SPK'\nGROUP BY\n    1,\n    2\nORDER BY\n    3 DESC\nLIMIT 500"
+L4f929b5b:
+  question: For each conversation date, the week it falls in (weeks starting Monday), and IVR intent, between 2026-04-01
+    and 2026-06-29, how many distinct calls were there and how many of those calls were transferred? Show the top
+    500 rows ranked by call count.
+  compare:
+  - fct_calls_conversation_date
+  - fct_calls_conversation_week
+  - fct_calls_ivr_intent
+  - fct_calls_count
+  - fct_calls_transfers
+  unstated_filters: []
+  shape: 4f929b5b8a477e7bb18bd420a2cff51aa2f3a3dc9fcb35cf704eb9b86eb34941
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"1386a87986ca5\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_calls.conversation_date  AS fct_calls_conversation_date,\n    DATE_TRUNC(fct_calls.conversation_date,\
+    \ WEEK(MONDAY))  AS fct_calls_conversation_week,\n    fct_calls.ivr_intent  AS fct_calls_ivr_intent,\n    COUNT(DISTINCT\
+    \ fct_calls.conversation_id ) AS fct_calls_count,\n    COUNTIF(fct_calls.was_transferred) AS fct_calls_transfers\n\
+    FROM `fennmoor-dw.dw_contact_center.fct_calls`  AS fct_calls\nWHERE ((( fct_calls.conversation_date ) >= ((DATE_ADD(DATE\
+    \ '2026-06-30', INTERVAL -90 DAY))) AND ( fct_calls.conversation_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30',\
+    \ INTERVAL -90 DAY), INTERVAL 90 DAY)))))\nGROUP BY\n    1,\n    2,\n    3\nORDER BY\n    4 DESC\nLIMIT 500"
+L5330bf47:
+  question: For account closure calls handled between 2025-06-30 and 2026-06-30, what is the call abandon rate for
+    each contact center site, listing all sites ordered from highest to lowest abandon rate?
+  compare:
+  - fct_calls_site_name
+  - fct_calls_abandon_rate
+  unstated_filters: []
+  shape: 5330bf47275423f4a8dec1f8dbd2f84567db9009abd7881f62ac9a2e634c1337
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.dim_cc_site
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"0d7879235f6bd\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    dim_cc_site.site_name  AS fct_calls_site_name,\n    SAFE_DIVIDE(COUNTIF(fct_calls.is_abandoned),\
+    \ COUNT(*)) AS fct_calls_abandon_rate\nFROM `fennmoor-dw.dw_contact_center.fct_calls`  AS fct_calls\nLEFT JOIN\
+    \ `fennmoor-dw.dw_contact_center.dim_cc_site`  AS dim_cc_site ON fct_calls.site_id = dim_cc_site.site_id\nWHERE\
+    \ ((( fct_calls.conversation_date ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -365 DAY))) AND ( fct_calls.conversation_date\
+    \ ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30', INTERVAL -365 DAY), INTERVAL 365 DAY))))) AND fct_calls.is_account_closure_call\n\
+    GROUP BY\n    1\nORDER BY\n    2 DESC\nLIMIT 5000"
+L5515d30a:
+  question: For campaigns that led to a checking account being opened on or after 2026-03-09, how many conversions
+    did each campaign generate and what was the average number of hours between the campaign send and the conversion,
+    broken down by campaign name, ordered from the most to fewest conversions?
+  compare:
+  - campaign_name
+  - conversions
+  - avg_hours_to_convert
+  unstated_filters: []
+  shape: 5515d30a03b3da1defaa6bd80b8b71fa5ef4ba2149708b6e9216de99b3f3942b
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_marketing.dim_campaign
+  - fennmoor-dw.dw_marketing.fct_campaign_attribution
+  sql: "SELECT c.campaign_name, COUNT(*) AS conversions, AVG(a.hours_since_send) AS avg_hours_to_convert\nFROM `fennmoor-dw.dw_marketing.fct_campaign_attribution`\
+    \ a\nJOIN `fennmoor-dw.dw_marketing.dim_campaign` c USING (campaign_id)\nWHERE a.conversion_behavior = 'checking_account_opened'\n\
+    \  AND DATE(a.conversion_at) >= '2026-03-09'\nGROUP BY c.campaign_name\nORDER BY conversions DESC\n"
+L55c0e195:
+  question: What is the total interchange income from card transactions for each month, based on the transaction
+    post date?
+  compare:
+  - fct_card_transactions_post_month
+  - fct_card_transactions_interchange
+  unstated_filters: []
+  shape: 55c0e1955b19e2b00205e9ec4d5b6c2bdd7d1fb51be87ff4e82f86803f3376ee
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_core.fct_card_transactions
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"44c6fe8b3201e\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    DATE_TRUNC(fct_card_transactions.post_date, MONTH)  AS fct_card_transactions_post_month,\n \
+    \   COALESCE(SUM(fct_card_transactions.interchange ), 0) AS fct_card_transactions_interchange\nFROM `fennmoor-dw.dw_core.fct_card_transactions`\
+    \  AS fct_card_transactions\nGROUP BY\n    1\nLIMIT 5000"
+L56b51129:
+  question: For calls handled between 2026-04-01 and 2026-06-30, how many were transferred, broken down by media
+    type and wrap-up code?
+  compare:
+  - fct_calls_media_type
+  - fct_calls_wrapup
+  - fct_calls_transfers
+  unstated_filters: []
+  shape: 56b511290c271947044294294b88a406b96f735d6c9e5aa52379b05f4f57860e
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"939708727f945\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_calls.media_type  AS fct_calls_media_type,\n    fct_calls.wrapup_code_name  AS fct_calls_wrapup,\n\
+    \    COUNTIF(fct_calls.was_transferred) AS fct_calls_transfers\nFROM `fennmoor-dw.dw_contact_center.fct_calls`\
+    \  AS fct_calls\nWHERE ((( fct_calls.conversation_date ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -90 DAY)))\
+    \ AND ( fct_calls.conversation_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30', INTERVAL -90 DAY), INTERVAL 90\
+    \ DAY)))))\nGROUP BY\n    1,\n    2\nLIMIT 5000"
+L57227429:
+  question: For credit applications submitted between 2026-02-21 and 2026-03-30, what were the total number of applications,
+    the number approved, and the average credit score at application, broken down by product code and channel, ranked
+    from the highest number approved to the lowest?
+  compare:
+  - PRODUCT_CODE
+  - CHANNEL
+  - APPS
+  - APPROVED
+  - AVG_FICO
+  unstated_filters: []
+  shape: 572274294f3a011046bd85f41029208a7c8a494c496dcc8edad29e22bb353620
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_risk.fct_credit_applications
+  sql: "SELECT PRODUCT_CODE, CHANNEL, COUNT(*) AS APPS,\n       COUNTIF(FINAL_OUTCOME = 'APPROVE') AS APPROVED,\n\
+    \       AVG(CREDIT_SCORE_AT_APP) AS AVG_FICO\nFROM `fennmoor-dw.dw_risk.fct_credit_applications`\nWHERE SUBMITTED_DATE\
+    \ BETWEEN '2026-02-21' AND '2026-03-30'\nGROUP BY 1, 2\nORDER BY 3 DESC\n"
+L57c08ff2:
+  question: What is the number of calls by site and disposition code for November 2024?
+  compare:
+  - SITE_CD
+  - DISPOSITION_CD
+  - calls
+  unstated_filters: []
+  shape: 57c08ff2ac7e07dca96b03a1964bce4d7e785ca0595e45c55f358d3d2e4ca794
+  who: an analyst
+  tables:
+  - fennmoor-raw.contact_center_legacy.cdr_*
+  sql: 'select SITE_CD, DISPOSITION_CD, count(*) as calls
+
+    from `fennmoor-raw.contact_center_legacy.cdr_*`
+
+    where _TABLE_SUFFIX = ''202411''
+
+    group by 1, 2
+
+    '
+L582f3941:
+  question: For calls at the MNL site between 2026-05-31 and 2026-06-30, and restricted to account closure calls,
+    what is the count of distinct account closure calls and the count of transferred calls, broken down by wrap-up
+    code?
+  compare:
+  - fct_calls_wrapup
+  - fct_calls_closure_calls
+  - fct_calls_transfers
+  unstated_filters: []
+  shape: 582f394166f690615864c28e1394ef2bbe77f62b76212fc507df98057e04cfca
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.dim_cc_site
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"e1ddaef45906c\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_calls.wrapup_code_name  AS fct_calls_wrapup,\n    COUNT(DISTINCT CASE WHEN fct_calls.is_account_closure_call\
+    \ THEN fct_calls.conversation_id ELSE NULL END) AS fct_calls_closure_calls,\n    COUNTIF(fct_calls.was_transferred)\
+    \ AS fct_calls_transfers\nFROM `fennmoor-dw.dw_contact_center.fct_calls`  AS fct_calls\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_cc_site`\
+    \  AS dim_cc_site ON fct_calls.site_id = dim_cc_site.site_id\nWHERE ((( fct_calls.conversation_date ) >= ((DATE_ADD(DATE\
+    \ '2026-06-30', INTERVAL -30 DAY))) AND ( fct_calls.conversation_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30',\
+    \ INTERVAL -30 DAY), INTERVAL 30 DAY))))) AND fct_calls.is_account_closure_call AND (dim_cc_site.site_id ) =\
+    \ 'MNL'\nGROUP BY\n    1\nLIMIT 500"
+L598f99be:
+  question: For voice calls handled at the MNL site between 2026-04-01 and 2026-06-29, how many distinct call conversations
+    were there for each agent, outsourced status, and wrap-up code?
+  compare:
+  - fct_calls_agent_name
+  - fct_calls_is_outsourced
+  - fct_calls_wrapup
+  - fct_calls_count
+  unstated_filters: []
+  shape: 598f99be0a3323b0a75b144b0c95f693e181ed9c91a6fefeee606e242a88df1c
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.dim_agent
+  - fennmoor-dw.dw_contact_center.dim_cc_site
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"a4708f2bcf542\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    dim_agent.agent_name  AS fct_calls_agent_name,\n    dim_cc_site.is_outsourced  AS fct_calls_is_outsourced,\n\
+    \    fct_calls.wrapup_code_name  AS fct_calls_wrapup,\n    COUNT(DISTINCT fct_calls.conversation_id ) AS fct_calls_count\n\
+    FROM `fennmoor-dw.dw_contact_center.fct_calls`  AS fct_calls\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_cc_site`\
+    \  AS dim_cc_site ON fct_calls.site_id = dim_cc_site.site_id\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_agent`\
+    \  AS dim_agent ON fct_calls.agent_user_id = dim_agent.agent_user_id\nWHERE ((( fct_calls.conversation_date\
+    \ ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -90 DAY))) AND ( fct_calls.conversation_date ) < ((DATE_ADD(DATE_ADD(DATE\
+    \ '2026-06-30', INTERVAL -90 DAY), INTERVAL 90 DAY))))) AND (dim_cc_site.site_id ) = 'MNL' AND (fct_calls.media_type\
+    \ ) = 'voice'\nGROUP BY\n    1,\n    2,\n    3\nORDER BY\n    4 DESC\nLIMIT 5000"
+L5bac0ee7:
+  question: As of 2026-04-05, for each loan product and branch, what is the count of open loans, the count of those
+    loans that are 30 or more days past due, and the resulting delinquency rate (delinquent count divided by open
+    count)? Order the results from highest to lowest delinquency rate.
+  compare:
+  - PRODUCT_CODE
+  - BRANCH_NAME
+  - N
+  - DLQ
+  - RATE
+  unstated_filters: []
+  shape: 5bac0ee7b30e8a143ceff4e44907168e1c6b89a77c913197b2a8eaf33004d59e
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_account
+  - fennmoor-dw.dw_core.dim_branch
+  - fennmoor-dw.dw_risk.fct_delinquency_daily
+  sql: "WITH OPEN_LOANS AS (\n  SELECT PRODUCT_CODE, BRANCH_ID, COUNT(*) AS N\n  FROM `fennmoor-dw.dw_core.dim_account`\n\
+    \  WHERE ACCOUNT_FAMILY = 'LOAN' AND IS_OPEN\n  GROUP BY 1, 2\n),\nDLQ AS (\n  SELECT A.PRODUCT_CODE, A.BRANCH_ID,\
+    \ COUNT(*) AS D\n  FROM `fennmoor-dw.dw_risk.fct_delinquency_daily` DD\n  JOIN `fennmoor-dw.dw_core.dim_account`\
+    \ A USING (ACCOUNT_KEY)\n  WHERE DD.SNAPSHOT_DATE = '2026-04-05' AND DD.DPD >= 30\n  GROUP BY 1, 2\n)\nSELECT\
+    \ O.PRODUCT_CODE, B.BRANCH_NAME, O.N, COALESCE(DLQ.D, 0) AS DLQ, SAFE_DIVIDE(DLQ.D, O.N) AS RATE\nFROM OPEN_LOANS\
+    \ O\nLEFT JOIN DLQ USING (PRODUCT_CODE, BRANCH_ID)\nLEFT JOIN `fennmoor-dw.dw_core.dim_branch` B ON B.BRANCH_ID\
+    \ = O.BRANCH_ID\nORDER BY RATE DESC\n"
+L5cbff83a:
+  question: Since 2026-04-07 (inclusive), how many credit applications have been submitted and how many were approved,
+    broken down by customer segment?
+  compare:
+  - segment
+  - apps
+  - approved
+  unstated_filters: []
+  shape: 5cbff83a9e2d76c762dcf587aa33233167620d5d0aa1db772d61702b8185b75e
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_customer
+  - fennmoor-dw.dw_risk.fct_credit_applications
+  sql: 'SELECT c.segment, COUNT(*) AS apps, COUNTIF(a.final_outcome = ''APPROVE'') AS approved
+
+    FROM `fennmoor-dw.dw_risk.fct_credit_applications` a
+
+    JOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key)
+
+    WHERE a.submitted_date >= ''2026-04-07''
+
+    GROUP BY c.segment
+
+    '
+L5d233427:
+  question: For each combination of foreign-transaction flag, merchant name, and customer segment, what is the total
+    interchange earned on card transactions? Show the 500 combinations with the highest total interchange, ordered
+    from highest to lowest.
+  compare:
+  - fct_card_transactions_is_foreign
+  - fct_card_transactions_merchant_name
+  - fct_card_transactions_segment
+  - fct_card_transactions_interchange
+  unstated_filters: []
+  shape: 5d2334275e72e4e5c7dfde25c565ccad150fb38c75403ec539592a3b367a1bff
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_core.dim_customer
+  - fennmoor-dw.dw_core.fct_card_transactions
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"5a05d105ada03\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_card_transactions.is_foreign  AS fct_card_transactions_is_foreign,\n    fct_card_transactions.merchant_name\
+    \  AS fct_card_transactions_merchant_name,\n    dim_customer.segment  AS fct_card_transactions_segment,\n  \
+    \  COALESCE(SUM(fct_card_transactions.interchange ), 0) AS fct_card_transactions_interchange\nFROM `fennmoor-dw.dw_core.fct_card_transactions`\
+    \  AS fct_card_transactions\nLEFT JOIN `fennmoor-dw.dw_core.dim_customer`  AS dim_customer ON fct_card_transactions.customer_key\
+    \ = dim_customer.customer_key\nGROUP BY\n    1,\n    2,\n    3\nORDER BY\n    4 DESC\nLIMIT 500"
+L5e47c60f:
+  question: For overdraft (OD) and non-sufficient funds (NSF) fees assessed on or after 2026-04-27, what is the
+    total number of fees and the total net fee amount for each fee type?
+  compare:
+  - FEE_TYPE
+  - FEES
+  - NET
+  unstated_filters: []
+  shape: 5e47c60fd09d266151bf7ba4a2acece43d0c68b2ef84007dca8a502724a4aed5
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.fct_fees
+  sql: 'SELECT FEE_TYPE, COUNT(*) AS FEES, SUM(NET_FEE) AS NET
+
+    FROM `fennmoor-dw.dw_core.fct_fees`
+
+    WHERE FEE_TYPE IN (''OD'', ''NSF'') AND ASSESSED_DATE >= ''2026-04-27''
+
+    GROUP BY 1
+
+    '
+L5e63b8a9:
+  question: For marketing campaign emails with an event date between 2026-04-05 and 2026-06-03, what were the open
+    rate (opened as a share of delivered) and click rate (clicked as a share of delivered), broken down by customer
+    segment?
+  compare:
+  - segment
+  - open_rate
+  - click_rate
+  unstated_filters: []
+  shape: 5e63b8a9ef3dca80fd6ab8175ba49ae9e7d22a35852476eef5bd247e480aac1c
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_customer
+  - fennmoor-dw.dw_marketing.fct_campaign_engagement
+  sql: "SELECT c.segment,\n       SAFE_DIVIDE(COUNTIF(e.opened), COUNTIF(e.delivered)) AS open_rate,\n       SAFE_DIVIDE(COUNTIF(e.clicked),\
+    \ COUNTIF(e.delivered)) AS click_rate\nFROM `fennmoor-dw.dw_marketing.fct_campaign_engagement` e\nJOIN `fennmoor-dw.dw_core.dim_customer`\
+    \ c ON c.cif_number = e.cif_number\nWHERE e.event_date BETWEEN '2026-04-05' AND '2026-06-03'\nGROUP BY c.segment\n"
+L5eadc021:
+  question: What is the total accrued interest across all accounts, by month, for balances dated 2026-03-27 onward?
+  compare:
+  - m
+  - interest
+  unstated_filters: []
+  shape: 5eadc0213b2e9fc8c32ec6a042acd3b6fc31f4871f90e18d545e911106a29763
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.fct_daily_account_balances
+  sql: 'SELECT DATE_TRUNC(balance_date, MONTH) AS m, SUM(accrued_interest) AS interest
+
+    FROM `fennmoor-dw.dw_core.fct_daily_account_balances`
+
+    WHERE balance_date >= ''2026-03-27''
+
+    GROUP BY m
+
+    ORDER BY m
+
+    '
+L5ed9db67:
+  question: List the customers (CIF number and full name) who had an account closure call on 2026-05-21, along with
+    the conversation date and wrap-up code name for each call.
+  compare:
+  - cif_number
+  - full_name
+  - conversation_date
+  - wrapup_code_name
+  unstated_filters: []
+  shape: 5ed9db67729aa463c3f59c6f6e2c0d92e7926013eabd86816359e27b75b0e6e5
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_contact_center.fct_calls
+  - fennmoor-dw.dw_core.dim_customer
+  sql: 'select c.cif_number, c.full_name, f.conversation_date, f.wrapup_code_name
+
+    from `fennmoor-dw.dw_contact_center.fct_calls` f
+
+    join `fennmoor-dw.dw_core.dim_customer` c using (customer_key)
+
+    where f.is_account_closure_call and f.conversation_date = ''2026-05-21''
+
+    '
+L5f5e344a:
+  question: For voice calls handled from 2026-06-23 to 2026-06-29, what were the abandonment rate, average handle
+    time, and number of distinct conversations by queue, ranked from highest to lowest abandonment rate?
+  compare:
+  - fct_calls_queue_name
+  - fct_calls_abandon_rate
+  - fct_calls_avg_handle_time
+  - fct_calls_count
+  unstated_filters: []
+  shape: 5f5e344a02da8a67784efec8c957c6def59799c42160e18e00701225268741f1
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"8d0469faa2ef4\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_calls.queue_name  AS fct_calls_queue_name,\n    SAFE_DIVIDE(COUNTIF(fct_calls.is_abandoned),\
+    \ COUNT(*)) AS fct_calls_abandon_rate,\n    AVG(fct_calls.handle_sec ) AS fct_calls_avg_handle_time,\n    COUNT(DISTINCT\
+    \ fct_calls.conversation_id ) AS fct_calls_count\nFROM `fennmoor-dw.dw_contact_center.fct_calls`  AS fct_calls\n\
+    WHERE ((( fct_calls.conversation_date ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -7 DAY))) AND ( fct_calls.conversation_date\
+    \ ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30', INTERVAL -7 DAY), INTERVAL 7 DAY))))) AND (fct_calls.media_type\
+    \ ) = 'voice'\nGROUP BY\n    1\nORDER BY\n    2 DESC\nLIMIT 500"
+L62fdbc12:
+  question: For each marketing campaign and each event date between 2026-04-01 and 2026-06-30, what was the number
+    of clicks, the number of messages delivered, and the open rate (opens divided by delivered)? Show the 5000 rows
+    with the highest click counts first.
+  compare:
+  - fct_campaign_engagement_campaign_name
+  - fct_campaign_engagement_event_date
+  - fct_campaign_engagement_clicks
+  - fct_campaign_engagement_delivered
+  - fct_campaign_engagement_open_rate
+  unstated_filters: []
+  shape: 62fdbc12289e122285914fd1bfcb49037460bf7e5e466c2daacaaf431d93ae95
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_marketing.dim_campaign
+  - fennmoor-dw.dw_marketing.fct_campaign_engagement
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"dc268bffbb86d\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    dim_campaign.campaign_name  AS fct_campaign_engagement_campaign_name,\n    fct_campaign_engagement.event_date\
+    \  AS fct_campaign_engagement_event_date,\n    COUNTIF(fct_campaign_engagement.clicked) AS fct_campaign_engagement_clicks,\n\
+    \    COUNTIF(fct_campaign_engagement.delivered) AS fct_campaign_engagement_delivered,\n    SAFE_DIVIDE(COUNTIF(fct_campaign_engagement.opened),\
+    \ COUNTIF(fct_campaign_engagement.delivered)) AS fct_campaign_engagement_open_rate\nFROM `fennmoor-dw.dw_marketing.fct_campaign_engagement`\
+    \  AS fct_campaign_engagement\nLEFT JOIN `fennmoor-dw.dw_marketing.dim_campaign`  AS dim_campaign ON fct_campaign_engagement.campaign_id\
+    \ = dim_campaign.campaign_id\nWHERE ((( fct_campaign_engagement.event_date ) >= ((DATE_ADD(DATE '2026-06-30',\
+    \ INTERVAL -90 DAY))) AND ( fct_campaign_engagement.event_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30', INTERVAL\
+    \ -90 DAY), INTERVAL 90 DAY)))))\nGROUP BY\n    1,\n    2\nORDER BY\n    3 DESC\nLIMIT 5000"
+L6505b2e4:
+  question: For credit applications submitted on or after 2026-03-17 that were ultimately approved, what are the
+    average approved amount, the average approved APR, and the number of applications, broken down by product line?
+  compare:
+  - PRODUCT_LINE
+  - AVG_APPROVED
+  - AVG_APR
+  - N
+  unstated_filters: []
+  shape: 6505b2e4dca549eb8d5d1e7415e88b59a6fdb731359cb5c4371d41d5f323855c
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_product
+  - fennmoor-dw.dw_risk.fct_credit_applications
+  sql: 'SELECT P.PRODUCT_LINE, AVG(A.APPROVED_AMOUNT) AS AVG_APPROVED, AVG(A.APPROVED_APR) AS AVG_APR, COUNT(*)
+    AS N
+
+    FROM `fennmoor-dw.dw_risk.fct_credit_applications` A
+
+    JOIN `fennmoor-dw.dw_core.dim_product` P USING (PRODUCT_CODE)
+
+    WHERE A.FINAL_OUTCOME = ''APPROVE'' AND A.SUBMITTED_DATE >= ''2026-03-17''
+
+    GROUP BY 1
+
+    '
+L66b70456:
+  question: For voice calls with a conversation date from 2026-04-01 to 2026-06-29, what is, for each conversation
+    date, site outsourced status, and wrap-up code, the call abandonment rate and the number of distinct calls,
+    ordered by abandonment rate from highest to lowest, limited to the top 500 rows?
+  compare:
+  - fct_calls_conversation_date
+  - fct_calls_is_outsourced
+  - fct_calls_wrapup
+  - fct_calls_abandon_rate
+  - fct_calls_count
+  unstated_filters: []
+  shape: 66b704566ef0b549ce7799c3430da04d0feba41e5444a806d3ce0da89a517482
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.dim_cc_site
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"4876875acc084\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_calls.conversation_date  AS fct_calls_conversation_date,\n    dim_cc_site.is_outsourced\
+    \  AS fct_calls_is_outsourced,\n    fct_calls.wrapup_code_name  AS fct_calls_wrapup,\n    SAFE_DIVIDE(COUNTIF(fct_calls.is_abandoned),\
+    \ COUNT(*)) AS fct_calls_abandon_rate,\n    COUNT(DISTINCT fct_calls.conversation_id ) AS fct_calls_count\n\
+    FROM `fennmoor-dw.dw_contact_center.fct_calls`  AS fct_calls\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_cc_site`\
+    \  AS dim_cc_site ON fct_calls.site_id = dim_cc_site.site_id\nWHERE ((( fct_calls.conversation_date ) >= ((DATE_ADD(DATE\
+    \ '2026-06-30', INTERVAL -90 DAY))) AND ( fct_calls.conversation_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30',\
+    \ INTERVAL -90 DAY), INTERVAL 90 DAY))))) AND (fct_calls.media_type ) = 'voice'\nGROUP BY\n    1,\n    2,\n\
+    \    3\nORDER BY\n    4 DESC\nLIMIT 500"
+L66ee1a03:
+  question: For account closure calls handled by voice between 2026-04-01 and 2026-06-29, what is the average handle
+    time (in seconds), broken down by week (week starting Monday), contact center site, and wrap-up code? Return
+    the top 500 rows ordered by average handle time, highest first.
+  compare:
+  - fct_calls_conversation_week
+  - fct_calls_site_name
+  - fct_calls_wrapup
+  - fct_calls_avg_handle_time
+  unstated_filters: []
+  shape: 66ee1a036359f7c6d16157360b27303ec372f3f9deeb0fa2091280c67f2c85bd
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.dim_cc_site
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"a56cbc68039c1\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    DATE_TRUNC(fct_calls.conversation_date, WEEK(MONDAY))  AS fct_calls_conversation_week,\n   \
+    \ dim_cc_site.site_name  AS fct_calls_site_name,\n    fct_calls.wrapup_code_name  AS fct_calls_wrapup,\n   \
+    \ AVG(fct_calls.handle_sec ) AS fct_calls_avg_handle_time\nFROM `fennmoor-dw.dw_contact_center.fct_calls`  AS\
+    \ fct_calls\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_cc_site`  AS dim_cc_site ON fct_calls.site_id = dim_cc_site.site_id\n\
+    WHERE ((( fct_calls.conversation_date ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -90 DAY))) AND ( fct_calls.conversation_date\
+    \ ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30', INTERVAL -90 DAY), INTERVAL 90 DAY))))) AND fct_calls.is_account_closure_call\
+    \ AND (fct_calls.media_type ) = 'voice'\nGROUP BY\n    1,\n    2,\n    3\nORDER BY\n    4 DESC\nLIMIT 500"
+L67c545c8:
+  question: For affluent and private-segment customers' purchase-type card transactions, broken down by whether
+    the transaction was foreign and by transaction type, what is the total interchange, the total spend (for purchase
+    transactions), and the number of distinct settlements, ordered from highest to lowest total interchange?
+  compare:
+  - fct_card_transactions_is_foreign
+  - fct_card_transactions_txn_type
+  - fct_card_transactions_interchange
+  - fct_card_transactions_total_spend
+  - fct_card_transactions_txn_count
+  unstated_filters: []
+  shape: 67c545c88dc5417746f0a9602f02f5f8063acef7e6ad14f03832c82eeeb6b04d
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_core.dim_customer
+  - fennmoor-dw.dw_core.fct_card_transactions
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"d698344873df7\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_card_transactions.is_foreign  AS fct_card_transactions_is_foreign,\n    fct_card_transactions.txn_type\
+    \  AS fct_card_transactions_txn_type,\n    COALESCE(SUM(fct_card_transactions.interchange ), 0) AS fct_card_transactions_interchange,\n\
+    \    COALESCE(SUM(CASE WHEN fct_card_transactions.is_purchase THEN fct_card_transactions.amount ELSE NULL END),\
+    \ 0) AS fct_card_transactions_total_spend,\n    COUNT(DISTINCT fct_card_transactions.settlement_id ) AS fct_card_transactions_txn_count\n\
+    FROM `fennmoor-dw.dw_core.fct_card_transactions`  AS fct_card_transactions\nLEFT JOIN `fennmoor-dw.dw_core.dim_customer`\
+    \  AS dim_customer ON fct_card_transactions.customer_key = dim_customer.customer_key\nWHERE (dim_customer.segment\
+    \ ) IN ('affluent', 'private') AND (fct_card_transactions.txn_type ) = 'PURCH'\nGROUP BY\n    1,\n    2\nORDER\
+    \ BY\n    3 DESC\nLIMIT 500"
+L684ffcba:
+  question: For loans that were charged off on or after 2026-02-20, what is, for each product code, the number of
+    loans and the total charged-off amount? List the results ordered from the highest total charged-off amount to
+    the lowest.
+  compare:
+  - productCode
+  - N
+  - CHARGED_OFF
+  unstated_filters: []
+  shape: 684ffcba0147c433274184b395bad66a7e49f2f3f109edcc2c98de6a53649433
+  who: an analyst
+  tables:
+  - fennmoor-raw.loan_origination.loan
+  sql: 'SELECT productCode, COUNT(*) AS N, SUM(chargeOffAmount) AS CHARGED_OFF
+
+    FROM `fennmoor-raw.loan_origination.loan`
+
+    WHERE chargeOffDate >= ''2026-02-20''
+
+    GROUP BY 1
+
+    ORDER BY 3 DESC
+
+    '
+L69a33e9e:
+  question: For voluntary account closures on or after 2026-01-01, how many closures were there each month, broken
+    down by account family and close reason?
+  compare:
+  - period
+  - account_family
+  - close_reason
+  - closures
+  unstated_filters: []
+  shape: 69a33e9ee446b5bcf098d1afd74c9a494b6725bfec6112b1f38effe619ea44b6
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.fct_account_closures
+  sql: "SELECT DATE_TRUNC(close_date, MONTH) AS period, account_family, close_reason, COUNT(*) AS closures\nFROM\
+    \ `fennmoor-dw.dw_core.fct_account_closures`\nWHERE close_date >= '2026-01-01'\n AND is_voluntary\nGROUP BY\
+    \ ALL\nORDER BY period, closures DESC\n"
+L6b9d5aa5:
+  question: For each account, what is the total card spend since 2026-05-18 (inclusive), restricted to accounts
+    where that total exceeds 5000, along with each account's current status code?
+  compare:
+  - account_id
+  - card_spend
+  - dda_status
+  unstated_filters: []
+  shape: 6b9d5aa57acee746cb1c6e5ebe05c310490d4e3a7badbc389fc74cdaec58edda
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_staging.stg_cards__settlement
+  - fennmoor-dw.dw_staging.stg_core__account
+  sql: 'SELECT s.account_id, SUM(s.amount) AS card_spend, ANY_VALUE(a.account_status_code) AS dda_status
+
+    FROM `fennmoor-dw.dw_staging.stg_cards__settlement` s
+
+    JOIN `fennmoor-dw.dw_staging.stg_core__account` a ON a.account_id = s.account_id
+
+    WHERE s.post_date >= ''2026-05-18''
+
+    GROUP BY s.account_id
+
+    HAVING card_spend > 5000
+
+    '
+L6ce6e9c3:
+  question: 'For card transactions of type purchase (PURCH) made by affluent or private segment customers, with
+    a post date from 2025-07-01 to 2026-06-30, show for each combination of whether the transaction was foreign
+    and the transaction type: the total interchange, the total spend on purchase transactions, and the count of
+    distinct settlements.'
+  compare:
+  - fct_card_transactions_is_foreign
+  - fct_card_transactions_txn_type
+  - fct_card_transactions_interchange
+  - fct_card_transactions_total_spend
+  - fct_card_transactions_txn_count
+  unstated_filters: []
+  shape: 6ce6e9c37ca31f7fbe5aa47039399c762a2fdffeefb8a0f3090bd420e17cf713
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_core.dim_customer
+  - fennmoor-dw.dw_core.fct_card_transactions
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"ebddeb9f6b9e3\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_card_transactions.is_foreign  AS fct_card_transactions_is_foreign,\n    fct_card_transactions.txn_type\
+    \  AS fct_card_transactions_txn_type,\n    COALESCE(SUM(fct_card_transactions.interchange ), 0) AS fct_card_transactions_interchange,\n\
+    \    COALESCE(SUM(CASE WHEN fct_card_transactions.is_purchase THEN fct_card_transactions.amount ELSE NULL END),\
+    \ 0) AS fct_card_transactions_total_spend,\n    COUNT(DISTINCT fct_card_transactions.settlement_id ) AS fct_card_transactions_txn_count\n\
+    FROM `fennmoor-dw.dw_core.fct_card_transactions`  AS fct_card_transactions\nLEFT JOIN `fennmoor-dw.dw_core.dim_customer`\
+    \  AS dim_customer ON fct_card_transactions.customer_key = dim_customer.customer_key\nWHERE ((( fct_card_transactions.post_date\
+    \ ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -365 DAY))) AND ( fct_card_transactions.post_date ) < ((DATE_ADD(DATE_ADD(DATE\
+    \ '2026-06-30', INTERVAL -365 DAY), INTERVAL 365 DAY))))) AND (dim_customer.segment ) IN ('affluent', 'private')\
+    \ AND (fct_card_transactions.txn_type ) = 'PURCH'\nGROUP BY\n    1,\n    2\nLIMIT 5000"
+L6d29ff82:
+  question: For each contact center site and month since October 2025, what is the total site cost, combining general
+    ledger expenses with vendor invoice amounts?
+  compare:
+  - site_id
+  - m
+  - total_site_cost
+  unstated_filters: []
+  shape: 6d29ff82e0f33dd100019fe4a7bb259cc2cecbe6cbff5401e30d90cbbcd6542b
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_contact_center.dim_cc_site
+  - fennmoor-raw.gl_erp.journal_line
+  - fennmoor-raw.gl_erp.vendor_invoice
+  sql: "SELECT s.site_id, gl.m, gl.gl_expense + IFNULL(ap.invoices, 0) AS total_site_cost\nFROM (\n  SELECT cost_center_id,\
+    \ DATE_TRUNC(accounting_date, MONTH) AS m, SUM(entered_dr - entered_cr) AS gl_expense\n  FROM `fennmoor-raw.gl_erp.journal_line`\n\
+    \  WHERE accounting_date >= '2025-10-01'\n  GROUP BY 1, 2\n) gl\nJOIN `fennmoor-dw.dw_contact_center.dim_cc_site`\
+    \ s ON s.cost_center_id = gl.cost_center_id\nLEFT JOIN (\n  SELECT cost_center_id, DATE_TRUNC(invoice_date,\
+    \ MONTH) AS m, SUM(amount) AS invoices\n  FROM `fennmoor-raw.gl_erp.vendor_invoice`\n  GROUP BY 1, 2\n) ap ON\
+    \ ap.cost_center_id = gl.cost_center_id AND ap.m = gl.m\nORDER BY 1, 2\n"
+L6d2aee92:
+  question: What is the total card purchase spend by merchant category group and by month, for transactions posted
+    on or after 2026-02-03?
+  compare:
+  - category_group
+  - m
+  - spend
+  unstated_filters: []
+  shape: 6d2aee927a469453945328131cbac826e9dc8fdedcd47a681de14871e534fb79
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_merchant
+  - fennmoor-dw.dw_core.fct_card_transactions
+  sql: 'SELECT m.category_group, DATE_TRUNC(t.post_date, MONTH) AS m, SUM(t.amount) AS spend
+
+    FROM `fennmoor-dw.dw_core.fct_card_transactions` t
+
+    JOIN `fennmoor-dw.dw_core.dim_merchant` m USING (merchant_id)
+
+    WHERE t.post_date >= ''2026-02-03'' AND t.is_purchase
+
+    GROUP BY 1, 2
+
+    ORDER BY 2, 3 DESC
+
+    '
+L6dac6b62:
+  question: For each customer, since 2026-02-10, how many contact center calls have they had, how many of those
+    were account closure calls, and what is their average call handle time (in seconds)?
+  compare:
+  - customer_key
+  - contacts
+  - closure_calls
+  - avg_handle_sec
+  unstated_filters:
+  - excludes calls with no customer key
+  shape: 6dac6b62430b5fdca371e8499a9f1f79be5c57bb4391adccaee9997f765379d1
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "SELECT customer_key, COUNT(*) AS contacts, COUNTIF(is_account_closure_call) AS closure_calls,\n       AVG(handle_sec)\
+    \ AS avg_handle_sec\nFROM `fennmoor-dw.dw_contact_center.fct_calls`\nWHERE conversation_date >= '2026-02-10'\
+    \ AND customer_key IS NOT NULL\nGROUP BY customer_key\n"
+L6e2cd931:
+  question: For voice calls with a conversation date from 2025-07-01 to 2026-06-30, broken down by whether the call
+    center site is outsourced and by call wrap-up code, what was the abandonment rate and the number of transferred
+    calls? Show the 500 combinations with the highest abandonment rate.
+  compare:
+  - fct_calls_is_outsourced
+  - fct_calls_wrapup
+  - fct_calls_abandon_rate
+  - fct_calls_transfers
+  unstated_filters: []
+  shape: 6e2cd931abbd6128b1c2e8414959f2713102813517a8cb5f7ac90f3bc7b2534e
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.dim_cc_site
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"b8954109cb988\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    dim_cc_site.is_outsourced  AS fct_calls_is_outsourced,\n    fct_calls.wrapup_code_name  AS fct_calls_wrapup,\n\
+    \    SAFE_DIVIDE(COUNTIF(fct_calls.is_abandoned), COUNT(*)) AS fct_calls_abandon_rate,\n    COUNTIF(fct_calls.was_transferred)\
+    \ AS fct_calls_transfers\nFROM `fennmoor-dw.dw_contact_center.fct_calls`  AS fct_calls\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_cc_site`\
+    \  AS dim_cc_site ON fct_calls.site_id = dim_cc_site.site_id\nWHERE ((( fct_calls.conversation_date ) >= ((DATE_ADD(DATE\
+    \ '2026-06-30', INTERVAL -365 DAY))) AND ( fct_calls.conversation_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30',\
+    \ INTERVAL -365 DAY), INTERVAL 365 DAY))))) AND (fct_calls.media_type ) = 'voice'\nGROUP BY\n    1,\n    2\n\
+    ORDER BY\n    3 DESC\nLIMIT 500"
+L6f55e765:
+  question: For each marketing campaign, how many messages were delivered, opened, and clicked, and what was the
+    open rate (opens divided by delivered), for engagement events dated from 2026-05-31 to 2026-06-29, showing the
+    100 campaigns with the most delivered messages ranked highest first?
+  compare:
+  - fct_campaign_engagement_campaign_name
+  - fct_campaign_engagement_delivered
+  - fct_campaign_engagement_opens
+  - fct_campaign_engagement_clicks
+  - fct_campaign_engagement_open_rate
+  unstated_filters: []
+  shape: 6f55e765fb565694f1108aae6cff639a90aebc380878bfe0617fce75433c838a
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_marketing.dim_campaign
+  - fennmoor-dw.dw_marketing.fct_campaign_engagement
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"0d88b559338ec\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    dim_campaign.campaign_name  AS fct_campaign_engagement_campaign_name,\n    COUNTIF(fct_campaign_engagement.delivered)\
+    \ AS fct_campaign_engagement_delivered,\n    COUNTIF(fct_campaign_engagement.opened) AS fct_campaign_engagement_opens,\n\
+    \    COUNTIF(fct_campaign_engagement.clicked) AS fct_campaign_engagement_clicks,\n    SAFE_DIVIDE(COUNTIF(fct_campaign_engagement.opened),\
+    \ COUNTIF(fct_campaign_engagement.delivered)) AS fct_campaign_engagement_open_rate\nFROM `fennmoor-dw.dw_marketing.fct_campaign_engagement`\
+    \  AS fct_campaign_engagement\nLEFT JOIN `fennmoor-dw.dw_marketing.dim_campaign`  AS dim_campaign ON fct_campaign_engagement.campaign_id\
+    \ = dim_campaign.campaign_id\nWHERE ((( fct_campaign_engagement.event_date ) >= ((DATE_ADD(DATE '2026-06-30',\
+    \ INTERVAL -30 DAY))) AND ( fct_campaign_engagement.event_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30', INTERVAL\
+    \ -30 DAY), INTERVAL 30 DAY)))))\nGROUP BY\n    1\nORDER BY\n    2 DESC\nLIMIT 100"
+L6fe9ce4c:
+  question: For conversations that took place on or after 2026-05-07, what is the average CSAT score and the number
+    of surveys, broken down by customer segment?
+  compare:
+  - segment
+  - csat
+  - surveys
+  unstated_filters: []
+  shape: 6fe9ce4c6a5ddce01a2371b5ea6629532016e73ae4a79b97fe031bdbe0ee6d36
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_contact_center.fct_csat
+  - fennmoor-dw.dw_core.dim_customer
+  sql: 'SELECT c.segment, AVG(s.csat_score) AS csat, COUNT(*) AS surveys
+
+    FROM `fennmoor-dw.dw_contact_center.fct_csat` s
+
+    JOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key)
+
+    WHERE s.conversation_date >= ''2026-05-07''
+
+    GROUP BY c.segment
+
+    '
+L73371e91:
+  question: For deposit transactions posted between 2026-03-08 and 2026-04-14, what are the total inflows and total
+    outflows, broken down by customer segment and transaction type?
+  compare:
+  - segment
+  - transaction_type
+  - inflows
+  - outflows
+  unstated_filters:
+  - excludes reversal transactions
+  shape: 73371e91aa50444071ad063c161a7317d2b809834a5d624f4e31387ca0e5b1d1
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_customer
+  - fennmoor-dw.dw_core.fct_deposit_transactions
+  sql: "SELECT c.segment, t.transaction_type,\n       SUM(IF(t.signed_amount > 0, t.signed_amount, 0)) AS inflows,\n\
+    \       SUM(IF(t.signed_amount < 0, -t.signed_amount, 0)) AS outflows\nFROM `fennmoor-dw.dw_core.fct_deposit_transactions`\
+    \ t\nJOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key)\nWHERE t.posted_date BETWEEN '2026-03-08'\
+    \ AND '2026-04-14'  AND NOT t.is_reversal\nGROUP BY 1, 2\n"
+L74224b5f:
+  question: How many active customers (excluding deceased customers) are there in each state, broken down by segment?
+  compare:
+  - state_code
+  - segment
+  - n
+  unstated_filters: []
+  shape: 74224b5fda1383403c3f62205339653dc14370349b18dd08d2d8b93322f8709f
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_customer
+  sql: 'SELECT state_code, segment, COUNT(*) AS n
+
+    FROM `fennmoor-dw.dw_core.dim_customer`
+
+    WHERE customer_status = ''A'' AND NOT is_deceased
+
+    GROUP BY state_code, segment
+
+    '
+L74cd39cb:
+  question: For voice calls handled at the Tulsa (TUL) contact center site between 2026-05-31 and 2026-06-30, what
+    was the call abandon rate, the number of distinct account closure calls, and the total number of distinct calls,
+    broken down by media type?
+  compare:
+  - fct_calls_media_type
+  - fct_calls_abandon_rate
+  - fct_calls_closure_calls
+  - fct_calls_count
+  unstated_filters: []
+  shape: 74cd39cbf1bb2abaf6d8affb96682b1757a520a0041559a50b992ccfa95fbe7e
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.dim_cc_site
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"f28b3aeb2fb3b\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_calls.media_type  AS fct_calls_media_type,\n    SAFE_DIVIDE(COUNTIF(fct_calls.is_abandoned),\
+    \ COUNT(*)) AS fct_calls_abandon_rate,\n    COUNT(DISTINCT CASE WHEN fct_calls.is_account_closure_call THEN\
+    \ fct_calls.conversation_id ELSE NULL END) AS fct_calls_closure_calls,\n    COUNT(DISTINCT fct_calls.conversation_id\
+    \ ) AS fct_calls_count\nFROM `fennmoor-dw.dw_contact_center.fct_calls`  AS fct_calls\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_cc_site`\
+    \  AS dim_cc_site ON fct_calls.site_id = dim_cc_site.site_id\nWHERE ((( fct_calls.conversation_date ) >= ((DATE_ADD(DATE\
+    \ '2026-06-30', INTERVAL -30 DAY))) AND ( fct_calls.conversation_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30',\
+    \ INTERVAL -30 DAY), INTERVAL 30 DAY))))) AND (dim_cc_site.site_id ) = 'TUL' AND (fct_calls.media_type ) = 'voice'\n\
+    GROUP BY\n    1\nORDER BY\n    2 DESC\nLIMIT 500"
+L754091da:
+  question: For each week starting from 2026-02-23 onward, how many distinct customers had an app session and how
+    many distinct online banking user logins were there?
+  compare:
+  - wk
+  - customers
+  - logins
+  unstated_filters: []
+  shape: 754091da8c1671b9f51bfb677426add3a33fa54f16f9ebdfafbcb5cd7a8b1a26
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_digital.fct_app_sessions
+  sql: 'SELECT DATE_TRUNC(session_date, WEEK) AS wk, COUNT(DISTINCT cif_number) AS customers, COUNT(DISTINCT olb_user_id)
+    AS logins
+
+    FROM `fennmoor-dw.dw_digital.fct_app_sessions`
+
+    WHERE session_date >= ''2026-02-23''
+
+    GROUP BY wk
+
+    ORDER BY wk
+
+    '
+L75ea7f97:
+  question: Since 2026-02-02, what is the total invoiced spend for each vendor, and what are the 25 vendors with
+    the highest spend?
+  compare:
+  - vendor_name
+  - spend
+  unstated_filters: []
+  shape: 75ea7f9770059e09d23466c82f3da8b6bcb122cf0b35422dbedad3aa5ef19933
+  who: an analyst
+  tables:
+  - fennmoor-raw.gl_erp.vendor_invoice
+  sql: 'SELECT vendor_name, SUM(amount) AS spend
+
+    FROM `fennmoor-raw.gl_erp.vendor_invoice`
+
+    WHERE invoice_date >= ''2026-02-02''
+
+    GROUP BY vendor_name
+
+    ORDER BY spend DESC
+
+    LIMIT 25
+
+    '
+L771678fa:
+  question: For each marketing campaign, broken down by day and by week (week starting Monday), how many clicks
+    did we get between 2026-05-31 and 2026-06-30? Show the 500 campaign/day/week combinations with the most clicks,
+    ordered from highest to lowest.
+  compare:
+  - fct_campaign_engagement_campaign_name
+  - fct_campaign_engagement_event_date
+  - fct_campaign_engagement_event_week
+  - fct_campaign_engagement_clicks
+  unstated_filters: []
+  shape: 771678fa1c1810b1bcbc2e840cc0b014ea91a8b92423f6657a676ba7dbcff586
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_marketing.dim_campaign
+  - fennmoor-dw.dw_marketing.fct_campaign_engagement
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"0b3add8847054\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    dim_campaign.campaign_name  AS fct_campaign_engagement_campaign_name,\n    fct_campaign_engagement.event_date\
+    \  AS fct_campaign_engagement_event_date,\n    DATE_TRUNC(fct_campaign_engagement.event_date, WEEK(MONDAY))\
+    \  AS fct_campaign_engagement_event_week,\n    COUNTIF(fct_campaign_engagement.clicked) AS fct_campaign_engagement_clicks\n\
+    FROM `fennmoor-dw.dw_marketing.fct_campaign_engagement`  AS fct_campaign_engagement\nLEFT JOIN `fennmoor-dw.dw_marketing.dim_campaign`\
+    \  AS dim_campaign ON fct_campaign_engagement.campaign_id = dim_campaign.campaign_id\nWHERE ((( fct_campaign_engagement.event_date\
+    \ ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -30 DAY))) AND ( fct_campaign_engagement.event_date ) < ((DATE_ADD(DATE_ADD(DATE\
+    \ '2026-06-30', INTERVAL -30 DAY), INTERVAL 30 DAY)))))\nGROUP BY\n    1,\n    2,\n    3\nORDER BY\n    4 DESC\n\
+    LIMIT 500"
+L784cf2bf:
+  question: For each contact center site's cost center, what is the total payroll cost (entered debits minus entered
+    credits) for payroll-sourced journal entries with an accounting date between 2025-06-18 and 2026-04-17?
+  compare:
+  - cost_center_id
+  - payroll_cost
+  unstated_filters: []
+  shape: 784cf2bfec3bf60e41dd09aff39ef0541fab4cf4c2fb3e0839f7536c40c50e1a
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_contact_center.dim_cc_site
+  - fennmoor-raw.gl_erp.journal_line
+  sql: "SELECT cost_center_id, SUM(entered_dr - entered_cr) AS payroll_cost\nFROM `fennmoor-raw.gl_erp.journal_line`\n\
+    WHERE source = 'PAYROLL'\n  AND cost_center_id IN (SELECT cost_center_id FROM `fennmoor-dw.dw_contact_center.dim_cc_site`)\n\
+    \  AND accounting_date BETWEEN '2025-06-18' AND '2026-04-17'\nGROUP BY cost_center_id\n"
+L788679b6:
+  question: For each marketing campaign and week (weeks starting Monday), from 2025-07-01 to 2026-06-30, what was
+    the email open rate (opens divided by delivered) and the number of opens? Show the 500 campaign-week combinations
+    with the highest open rate.
+  compare:
+  - fct_campaign_engagement_campaign_name
+  - fct_campaign_engagement_event_week
+  - fct_campaign_engagement_open_rate
+  - fct_campaign_engagement_opens
+  unstated_filters: []
+  shape: 788679b6d35f27bda270a8f75730ebfa99d9f50dffa4415f51547e24abc18f7a
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_marketing.dim_campaign
+  - fennmoor-dw.dw_marketing.fct_campaign_engagement
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"883065400d9fe\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    dim_campaign.campaign_name  AS fct_campaign_engagement_campaign_name,\n    DATE_TRUNC(fct_campaign_engagement.event_date,\
+    \ WEEK(MONDAY))  AS fct_campaign_engagement_event_week,\n    SAFE_DIVIDE(COUNTIF(fct_campaign_engagement.opened),\
+    \ COUNTIF(fct_campaign_engagement.delivered)) AS fct_campaign_engagement_open_rate,\n    COUNTIF(fct_campaign_engagement.opened)\
+    \ AS fct_campaign_engagement_opens\nFROM `fennmoor-dw.dw_marketing.fct_campaign_engagement`  AS fct_campaign_engagement\n\
+    LEFT JOIN `fennmoor-dw.dw_marketing.dim_campaign`  AS dim_campaign ON fct_campaign_engagement.campaign_id =\
+    \ dim_campaign.campaign_id\nWHERE ((( fct_campaign_engagement.event_date ) >= ((DATE_ADD(DATE '2026-06-30',\
+    \ INTERVAL -365 DAY))) AND ( fct_campaign_engagement.event_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30', INTERVAL\
+    \ -365 DAY), INTERVAL 365 DAY)))))\nGROUP BY\n    1,\n    2\nORDER BY\n    3 DESC\nLIMIT 500"
+L78ae7fd3:
+  question: For customer-purpose contacts on 2026-05-03, what was the count of participants for each intent, ranked
+    from most to least common?
+  compare:
+  - intent
+  - n
+  unstated_filters: []
+  shape: 78ae7fd3b25084c7bcd070932526fa5f3abe03c002a6bb3d73945a907e68d4ed
+  who: an analyst
+  tables:
+  - fennmoor-raw.genesys_cloud.participant
+  sql: 'SELECT JSON_VALUE(attributes, ''$.intent'') AS intent, COUNT(*) AS n
+
+    FROM `fennmoor-raw.genesys_cloud.participant`
+
+    WHERE DATE(start_time) = ''2026-05-03'' AND purpose = ''customer''
+
+    GROUP BY intent
+
+    ORDER BY n DESC
+
+    '
+L78f9c15c:
+  question: For fraud alerts raised on or after 2026-03-31 on card-type entities, how many alerts and how many confirmed-fraud
+    alerts were there, broken down by whether the customer has a digital wallet?
+  compare:
+  - digital_wallet
+  - alerts
+  - confirmed
+  unstated_filters: []
+  shape: 78f9c15c8e488efe4269cc41353457b27dbf178d0085f34bc4a98f270fb72899
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_card
+  - fennmoor-dw.dw_risk.fct_fraud_alerts
+  sql: 'SELECT c.digital_wallet, COUNT(*) AS alerts, COUNTIF(a.is_confirmed_fraud) AS confirmed
+
+    FROM `fennmoor-dw.dw_risk.fct_fraud_alerts` a
+
+    JOIN `fennmoor-dw.dw_core.dim_card` c ON c.cif_number = a.cif_number
+
+    WHERE a.alert_date >= ''2026-03-31'' AND a.entity_type = ''CARD''
+
+    GROUP BY 1
+
+    '
+L7ac9ed17:
+  question: For each month-end from February 2026 through May 2026 (using balances between 2026-02-01 and 2026-05-05),
+    what was the total ledger balance across accounts, broken down by month and product line?
+  compare:
+  - m
+  - product_line
+  - balance
+  unstated_filters: []
+  shape: 7ac9ed1739464c1085ca95fbee340aafcb4fab6da972feab752e2cc365f014b3
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_product
+  - fennmoor-dw.dw_core.fct_daily_account_balances
+  sql: "WITH eom AS (\n  SELECT account_key, product_code, DATE_TRUNC(balance_date, MONTH) AS m,\n         ARRAY_AGG(ledger_balance\
+    \ ORDER BY balance_date DESC LIMIT 1)[OFFSET(0)] AS eom_balance\n  FROM `fennmoor-dw.dw_core.fct_daily_account_balances`\n\
+    \  WHERE balance_date BETWEEN '2026-02-01' AND '2026-05-05'\n  GROUP BY 1, 2, 3\n)\nSELECT m, p.product_line,\
+    \ SUM(eom_balance) AS balance\nFROM eom JOIN `fennmoor-dw.dw_core.dim_product` p USING (product_code)\nGROUP\
+    \ BY 1, 2\nORDER BY 1, 2\n"
+L7ccb76ec:
+  question: For web sessions starting from 2026-04-22 onward, what is the total number of sessions and the share
+    of sessions where the visitor was logged in, broken down by traffic medium, ordered from the most to the fewest
+    sessions?
+  compare:
+  - traffic_medium
+  - logged_in_share
+  - sessions
+  unstated_filters: []
+  shape: 7ccb76ec9461727e20988b3bdf2a0f328f0e651ae164be7d3fe640a816c4c899
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_digital.fct_web_sessions
+  sql: 'SELECT traffic_medium, COUNTIF(is_logged_in) / COUNT(*) AS logged_in_share, COUNT(*) AS sessions
+
+    FROM `fennmoor-dw.dw_digital.fct_web_sessions`
+
+    WHERE session_date >= ''2026-04-22''
+
+    GROUP BY traffic_medium
+
+    ORDER BY sessions DESC
+
+    '
+L7e33ce2f:
+  question: For each marketing campaign, how many unsubscribes occurred between 2026-05-31 and 2026-06-30, ordered
+    from the most unsubscribes to the least?
+  compare:
+  - fct_campaign_engagement_campaign_name
+  - fct_campaign_engagement_unsubscribes
+  unstated_filters: []
+  shape: 7e33ce2f7220989df094bed16875c6318bd5cef39c246094739bcbd3a39913d9
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_marketing.dim_campaign
+  - fennmoor-dw.dw_marketing.fct_campaign_engagement
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"685c5b078f479\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    dim_campaign.campaign_name  AS fct_campaign_engagement_campaign_name,\n    COUNTIF(fct_campaign_engagement.unsubscribed)\
+    \ AS fct_campaign_engagement_unsubscribes\nFROM `fennmoor-dw.dw_marketing.fct_campaign_engagement`  AS fct_campaign_engagement\n\
+    LEFT JOIN `fennmoor-dw.dw_marketing.dim_campaign`  AS dim_campaign ON fct_campaign_engagement.campaign_id =\
+    \ dim_campaign.campaign_id\nWHERE ((( fct_campaign_engagement.event_date ) >= ((DATE_ADD(DATE '2026-06-30',\
+    \ INTERVAL -30 DAY))) AND ( fct_campaign_engagement.event_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30', INTERVAL\
+    \ -30 DAY), INTERVAL 30 DAY)))))\nGROUP BY\n    1\nORDER BY\n    2 DESC\nLIMIT 5000"
+L7e87d30b:
+  question: For each score date from 2026-04-05 onward, how many customers were scored and what was the average
+    churn score, showing the 30 most recent dates?
+  compare:
+  - score_date
+  - scored
+  - avg_score
+  unstated_filters: []
+  shape: 7e87d30b791d8e337ba9f41193be2dcfa62816808814cc2cdb16d252d7cb6b7f
+  who: an analyst
+  tables:
+  - fennmoor-dw.ml_scores.churn_score_v2
+  sql: 'SELECT score_date, COUNT(*) AS scored, AVG(churn_score) AS avg_score
+
+    FROM `fennmoor-dw.ml_scores.churn_score_v2`
+
+    WHERE score_date >= ''2026-04-05''
+
+    GROUP BY score_date
+
+    ORDER BY score_date DESC
+
+    LIMIT 30
+
+    '
+L7f4db61e:
+  question: For card accounts opened on or after 2026-02-19, how many new accounts were opened each week, broken
+    down by opening channel?
+  compare:
+  - wk
+  - open_channel
+  - new_accounts
+  unstated_filters: []
+  shape: 7f4db61e390ad1b16e231963dab807ca470a176b9840fc4b459d8f7d112f350e
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_account
+  sql: 'SELECT DATE_TRUNC(open_date, WEEK) AS wk, open_channel, COUNT(*) AS new_accounts
+
+    FROM `fennmoor-dw.dw_core.dim_account`
+
+    WHERE account_family = ''CARD'' AND open_date >= ''2026-02-19''
+
+    GROUP BY 1, 2
+
+    ORDER BY 1, 2
+
+    '
+L7f966cf5:
+  question: For accounts with 10 or more P2P (person-to-person) transactions posted on 2026-04-27, what is the number
+    of transactions and the total absolute amount moved for each account, listed from the highest total amount moved
+    to the lowest?
+  compare:
+  - core_account_id
+  - txns
+  - moved
+  unstated_filters: []
+  shape: 7f966cf563b4bfcef31bab3bab38952af4a973dc60f7b236cfb45175a4058d3c
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.fct_deposit_transactions
+  sql: 'SELECT core_account_id, COUNT(*) AS txns, SUM(ABS(signed_amount)) AS moved
+
+    FROM `fennmoor-dw.dw_core.fct_deposit_transactions`
+
+    WHERE posted_date = ''2026-04-27'' AND transaction_type IN (''P2P'')
+
+    GROUP BY core_account_id
+
+    HAVING txns >= 10
+
+    ORDER BY moved DESC
+
+    '
+L800eda03:
+  question: For each non-archived marketing campaign, since 2026-04-12, how many engagement events were delivered,
+    opened, and clicked, and what is the click-through rate (clicks divided by delivered)? List campaigns from the
+    highest number delivered to the lowest.
+  compare:
+  - campaign_name
+  - delivered
+  - opens
+  - clicks
+  - ctr
+  unstated_filters:
+  - excludes archived campaigns
+  shape: 800eda03e9cde2992e8d491e1b796b00c1438bfa35765d6087a754dd90cd9254
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_marketing.dim_campaign
+  - fennmoor-dw.dw_marketing.fct_campaign_engagement
+  sql: "SELECT c.campaign_name,\n       COUNTIF(e.delivered) AS delivered,\n       COUNTIF(e.opened) AS opens,\n\
+    \       COUNTIF(e.clicked) AS clicks,\n       SAFE_DIVIDE(COUNTIF(e.clicked), COUNTIF(e.delivered)) AS ctr\n\
+    FROM `fennmoor-dw.dw_marketing.fct_campaign_engagement` e\nJOIN `fennmoor-dw.dw_marketing.dim_campaign` c ON\
+    \ c.campaign_id = e.campaign_id\nWHERE e.event_date >= '2026-04-12'\n AND NOT c.is_archived\nGROUP BY c.campaign_name\n\
+    ORDER BY delivered DESC\n"
+L808ab45e:
+  question: For app sessions starting 2026-05-25 onward, what are the screen count quartiles and the average number
+    of events per session, broken down by platform?
+  compare:
+  - platform
+  - screen_quartiles
+  - avg_events
+  unstated_filters: []
+  shape: 808ab45e3affdb312be1b8647aa084005c1ba30d39eb7ea18c7f32863424ce9a
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_digital.fct_app_sessions
+  sql: 'SELECT platform, APPROX_QUANTILES(screens, 4) AS screen_quartiles, AVG(events) AS avg_events
+
+    FROM `fennmoor-dw.dw_digital.fct_app_sessions`
+
+    WHERE session_date >= ''2026-05-25''
+
+    GROUP BY platform
+
+    '
+L839f551b:
+  question: For calls handled on 2026-04-21 that have no queue site assigned, what is the number of calls for each
+    queue name, ranked from the highest count to the lowest?
+  compare:
+  - queue_name
+  - calls
+  unstated_filters: []
+  shape: 839f551b9d8a4964072543b2a33cced2c87d2c06e0821490eef6ffeb54da3d66
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_intermediate.int_calls_enriched
+  sql: 'SELECT queue_name, COUNT(*) AS calls
+
+    FROM `fennmoor-dw.dw_intermediate.int_calls_enriched`
+
+    WHERE conversation_date = ''2026-04-21'' AND queue_site_id IS NULL
+
+    GROUP BY queue_name
+
+    ORDER BY calls DESC
+
+    '
+L83fe5e7b:
+  question: For card transactions, grouped by whether the transaction was foreign and by merchant category (MCC)
+    group, what is the number of distinct cardholders and the total interchange amount?
+  compare:
+  - fct_card_transactions_is_foreign
+  - fct_card_transactions_mcc_category_group
+  - fct_card_transactions_cardholders
+  - fct_card_transactions_interchange
+  unstated_filters: []
+  shape: 83fe5e7b065a5d5bc7141a1024d48e4f0de29dc23d3f9a7431158bd5ca353038
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_core.fct_card_transactions
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"1335e69de488a\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_card_transactions.is_foreign  AS fct_card_transactions_is_foreign,\n    fct_card_transactions.mcc_category_group\
+    \  AS fct_card_transactions_mcc_category_group,\n    COUNT(DISTINCT fct_card_transactions.customer_key ) AS\
+    \ fct_card_transactions_cardholders,\n    COALESCE(SUM(fct_card_transactions.interchange ), 0) AS fct_card_transactions_interchange\n\
+    FROM `fennmoor-dw.dw_core.fct_card_transactions`  AS fct_card_transactions\nGROUP BY\n    1,\n    2\nLIMIT 500"
+L8634c1ea:
+  question: For each month, how many distinct cardholders made card transactions, and what was the total purchase
+    spend, ordered from the highest number of cardholders to the lowest (showing up to the top 500 months)?
+  compare:
+  - fct_card_transactions_post_month
+  - fct_card_transactions_cardholders
+  - fct_card_transactions_total_spend
+  unstated_filters: []
+  shape: 8634c1ea706d872673b767df51f8fc9634515ff575361010a584998e350db4e4
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_core.fct_card_transactions
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"94fc9e772f638\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    DATE_TRUNC(fct_card_transactions.post_date, MONTH)  AS fct_card_transactions_post_month,\n \
+    \   COUNT(DISTINCT fct_card_transactions.customer_key ) AS fct_card_transactions_cardholders,\n    COALESCE(SUM(CASE\
+    \ WHEN fct_card_transactions.is_purchase THEN fct_card_transactions.amount ELSE NULL END), 0) AS fct_card_transactions_total_spend\n\
+    FROM `fennmoor-dw.dw_core.fct_card_transactions`  AS fct_card_transactions\nGROUP BY\n    1\nORDER BY\n    2\
+    \ DESC\nLIMIT 500"
+L873d32ca:
+  question: For all contacts that took place in the month of May (across all years), what is the total number of
+    contacts, broken down by year and site?
+  compare:
+  - yr
+  - site_id
+  - contacts
+  unstated_filters: []
+  shape: 873d32ca2f531a9ea1da97bfe3743d4f06644e0619f85fd8f9f5148a1cb19664
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_contact_center.fct_contacts_all
+  sql: 'select extract(year from conversation_date) as yr, site_id, count(*) as contacts
+
+    from `fennmoor-dw.dw_contact_center.fct_contacts_all`
+
+    where extract(month from conversation_date) = 5
+
+    group by 1, 2 order by 1, 2
+
+    '
+L87ee24ce:
+  question: For each day from 2026-05-02 onward, how many deposit transactions were posted for each transaction
+    type?
+  compare:
+  - posted_date
+  - transaction_type
+  - n
+  unstated_filters: []
+  shape: 87ee24cef7c04f82fd24f502605f01ad99751abc6f1ba364bd222c34de561f82
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.fct_deposit_transactions
+  sql: 'SELECT posted_date, transaction_type, COUNT(*) AS n
+
+    FROM `fennmoor-dw.dw_core.fct_deposit_transactions`
+
+    WHERE posted_date >= ''2026-05-02''
+
+    GROUP BY 1, 2
+
+    ORDER BY 1, 3 DESC
+
+    '
+L8bc8a936:
+  question: For calls on 2026-05-27 where the customer's NPS survey response was a detractor, list each conversation's
+    ID, the handling agent's user ID, the NPS score given, and the call's wrap-up code name.
+  compare:
+  - conversation_id
+  - agent_user_id
+  - nps_score
+  - wrapup_code_name
+  unstated_filters: []
+  shape: 8bc8a936ec0fcc9ed868dfcf488928017707d60f6d5cbd0a42dd4f901699a7fc
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_contact_center.fct_calls
+  - fennmoor-dw.dw_contact_center.fct_csat
+  sql: 'select s.conversation_id, s.agent_user_id, s.nps_score, f.wrapup_code_name
+
+    from `fennmoor-dw.dw_contact_center.fct_csat` s
+
+    join `fennmoor-dw.dw_contact_center.fct_calls` f using (conversation_id)
+
+    where s.is_detractor and s.conversation_date = ''2026-05-27''
+
+    '
+L8ee70d9a:
+  question: For the SPK contact center site, what was the call abandon rate (the share of calls that were abandoned)
+    for the week from 2026-06-23 to 2026-06-29?
+  compare:
+  - fct_calls_site_name
+  - fct_calls_abandon_rate
+  unstated_filters: []
+  shape: 8ee70d9aee230a1d705dfcf2c59557d0c66689cb3741c8e463e63b4deff3b750
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.dim_cc_site
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"bd114bd1556fe\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    dim_cc_site.site_name  AS fct_calls_site_name,\n    SAFE_DIVIDE(COUNTIF(fct_calls.is_abandoned),\
+    \ COUNT(*)) AS fct_calls_abandon_rate\nFROM `fennmoor-dw.dw_contact_center.fct_calls`  AS fct_calls\nLEFT JOIN\
+    \ `fennmoor-dw.dw_contact_center.dim_cc_site`  AS dim_cc_site ON fct_calls.site_id = dim_cc_site.site_id\nWHERE\
+    \ ((( fct_calls.conversation_date ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -7 DAY))) AND ( fct_calls.conversation_date\
+    \ ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30', INTERVAL -7 DAY), INTERVAL 7 DAY))))) AND (dim_cc_site.site_id\
+    \ ) = 'SPK'\nGROUP BY\n    1\nORDER BY\n    2 DESC\nLIMIT 500"
+L8f767484:
+  question: 'For account closure calls handled at the SPK site during the week of 2026-06-23 to 2026-06-29, what
+    is, for each agent, week, and site: the average handle time, the number of closure calls, and the total number
+    of calls?'
+  compare:
+  - fct_calls_agent_name
+  - fct_calls_conversation_week
+  - fct_calls_site_name
+  - fct_calls_avg_handle_time
+  - fct_calls_closure_calls
+  - fct_calls_count
+  unstated_filters: []
+  shape: 8f7674843834394b84f69a96f4415eb843a263e1aef044972252bc61766a0025
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.dim_agent
+  - fennmoor-dw.dw_contact_center.dim_cc_site
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"0f30d4ed07733\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    dim_agent.agent_name  AS fct_calls_agent_name,\n    DATE_TRUNC(fct_calls.conversation_date,\
+    \ WEEK(MONDAY))  AS fct_calls_conversation_week,\n    dim_cc_site.site_name  AS fct_calls_site_name,\n    AVG(fct_calls.handle_sec\
+    \ ) AS fct_calls_avg_handle_time,\n    COUNT(DISTINCT CASE WHEN fct_calls.is_account_closure_call THEN fct_calls.conversation_id\
+    \ ELSE NULL END) AS fct_calls_closure_calls,\n    COUNT(DISTINCT fct_calls.conversation_id ) AS fct_calls_count\n\
+    FROM `fennmoor-dw.dw_contact_center.fct_calls`  AS fct_calls\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_cc_site`\
+    \  AS dim_cc_site ON fct_calls.site_id = dim_cc_site.site_id\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_agent`\
+    \  AS dim_agent ON fct_calls.agent_user_id = dim_agent.agent_user_id\nWHERE ((( fct_calls.conversation_date\
+    \ ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -7 DAY))) AND ( fct_calls.conversation_date ) < ((DATE_ADD(DATE_ADD(DATE\
+    \ '2026-06-30', INTERVAL -7 DAY), INTERVAL 7 DAY))))) AND fct_calls.is_account_closure_call AND (dim_cc_site.site_id\
+    \ ) = 'SPK'\nGROUP BY\n    1,\n    2,\n    3\nLIMIT 500"
+L8f9a7871:
+  question: For each campaign, since 2026-04-09, how many engagement events were delivered, opened, and clicked,
+    and what is the click-through rate (clicks divided by delivered), ordered from most to fewest delivered?
+  compare:
+  - campaign_name
+  - delivered
+  - opens
+  - clicks
+  - ctr
+  unstated_filters: []
+  shape: 8f9a787182a24055c816039f06a0481fe68eaca35991552c1ed504c6c10f5509
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_marketing.dim_campaign
+  - fennmoor-dw.dw_marketing.fct_campaign_engagement
+  sql: "SELECT c.campaign_name,\n       COUNTIF(e.delivered) AS delivered,\n       COUNTIF(e.opened) AS opens,\n\
+    \       COUNTIF(e.clicked) AS clicks,\n       SAFE_DIVIDE(COUNTIF(e.clicked), COUNTIF(e.delivered)) AS ctr\n\
+    FROM `fennmoor-dw.dw_marketing.fct_campaign_engagement` e\nJOIN `fennmoor-dw.dw_marketing.dim_campaign` c ON\
+    \ c.campaign_id = e.campaign_id\nWHERE e.event_date >= '2026-04-09'\n\nGROUP BY c.campaign_name\nORDER BY delivered\
+    \ DESC\n"
+L9732be23:
+  question: For accounts that had a delinquency bucket as of 2026-03-15, show how many moved to each delinquency
+    bucket as of 2026-04-12 (or became 'CURED' if no longer delinquent), broken down by starting bucket and ending
+    bucket, with the count of accounts for each starting-to-ending bucket combination.
+  compare:
+  - FROM_BUCKET
+  - TO_BUCKET
+  - N
+  unstated_filters: []
+  shape: 9732be23f649198c3d10790d7743623ecef22e45e5afb738ce77c7972dd14ce8
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_risk.fct_delinquency_daily
+  sql: "WITH T0 AS (SELECT ACCOUNT_KEY, BUCKET FROM `fennmoor-dw.dw_risk.fct_delinquency_daily` WHERE SNAPSHOT_DATE\
+    \ = '2026-03-15'),\n     T1 AS (SELECT ACCOUNT_KEY, BUCKET FROM `fennmoor-dw.dw_risk.fct_delinquency_daily`\
+    \ WHERE SNAPSHOT_DATE = '2026-04-12')\nSELECT T0.BUCKET AS FROM_BUCKET, COALESCE(T1.BUCKET, 'CURED') AS TO_BUCKET,\
+    \ COUNT(*) AS N\nFROM T0 LEFT JOIN T1 USING (ACCOUNT_KEY)\nGROUP BY 1, 2\nORDER BY 1, 2\n"
+L97338912:
+  question: For voice calls about account closures with a conversation date from 2026-05-31 to 2026-06-29, what
+    is the abandon rate broken down by whether the site is outsourced, the IVR intent, and the media type? Show
+    the top 500 combinations ordered by abandon rate, highest first.
+  compare:
+  - fct_calls_is_outsourced
+  - fct_calls_ivr_intent
+  - fct_calls_media_type
+  - fct_calls_abandon_rate
+  unstated_filters: []
+  shape: 9733891230e1f3b3caf1d3a1db0798e625448aac66df5161f1754dcb7551126b
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.dim_cc_site
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"d6fa576c38cd6\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    dim_cc_site.is_outsourced  AS fct_calls_is_outsourced,\n    fct_calls.ivr_intent  AS fct_calls_ivr_intent,\n\
+    \    fct_calls.media_type  AS fct_calls_media_type,\n    SAFE_DIVIDE(COUNTIF(fct_calls.is_abandoned), COUNT(*))\
+    \ AS fct_calls_abandon_rate\nFROM `fennmoor-dw.dw_contact_center.fct_calls`  AS fct_calls\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_cc_site`\
+    \  AS dim_cc_site ON fct_calls.site_id = dim_cc_site.site_id\nWHERE ((( fct_calls.conversation_date ) >= ((DATE_ADD(DATE\
+    \ '2026-06-30', INTERVAL -30 DAY))) AND ( fct_calls.conversation_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30',\
+    \ INTERVAL -30 DAY), INTERVAL 30 DAY))))) AND fct_calls.is_account_closure_call AND (fct_calls.media_type )\
+    \ = 'voice'\nGROUP BY\n    1,\n    2,\n    3\nORDER BY\n    4 DESC\nLIMIT 500"
+L97629e25:
+  question: For the snapshot date 2026-04-26, how many loans and what total past due amount are there in each delinquency
+    bucket?
+  compare:
+  - SNAPSHOT_DATE
+  - BUCKET
+  - LOANS
+  - PAST_DUE
+  unstated_filters: []
+  shape: 97629e257da3f1b5be0f88281606a4353ad998c3aa44c766e6b93ec052cf83cf
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_risk.fct_delinquency_daily
+  sql: 'SELECT SNAPSHOT_DATE, BUCKET, COUNT(*) AS LOANS, SUM(PAST_DUE_AMOUNT) AS PAST_DUE
+
+    FROM `fennmoor-dw.dw_risk.fct_delinquency_daily`
+
+    WHERE SNAPSHOT_DATE = ''2026-04-26''
+
+    GROUP BY 1, 2
+
+    ORDER BY 2
+
+    '
+L986ea342:
+  question: For the most recent churn score date available, what is the average churn score and the number of customers
+    with a churn score of 0.6 or higher, broken down by customer segment?
+  compare:
+  - segment
+  - avg_churn
+  - high_risk
+  unstated_filters: []
+  shape: 986ea342933d93bb28e588a9d8115ed16ed21164be45ed8a194b9ebdac6f634e
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_customer
+  - fennmoor-dw.ml_scores.churn_score_v2
+  sql: 'SELECT c.segment, AVG(s.churn_score) AS avg_churn, COUNTIF(s.churn_score >= 0.6) AS high_risk
+
+    FROM `fennmoor-dw.ml_scores.churn_score_v2` s
+
+    JOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key)
+
+    WHERE s.score_date = (SELECT MAX(score_date) FROM `fennmoor-dw.ml_scores.churn_score_v2`)
+
+    GROUP BY c.segment
+
+    '
+L9890546d:
+  question: For customers scored for churn risk on 2026-05-22, split them into ten equal-sized groups (deciles)
+    from lowest to highest churn probability. For each decile, what is the number of customers, the share of those
+    customers who voluntarily closed their account after 2026-05-19, and the average churn probability?
+  compare:
+  - decile
+  - n
+  - closed_rate
+  - avg_p
+  unstated_filters: []
+  shape: 9890546d4de0c0d59ecec72c68a2a15b803a35b4ef321b4815d4ce96756f082c
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.fct_account_closures
+  - fennmoor-dw.ml_scores.churn_score_v3
+  sql: "WITH scored AS (\n  SELECT customer_key, churn_probability,\n         NTILE(10) OVER (ORDER BY churn_probability)\
+    \ AS decile\n  FROM `fennmoor-dw.ml_scores.churn_score_v3`\n  WHERE score_date = '2026-05-22'\n),\nclosed AS\
+    \ (\n  SELECT DISTINCT customer_key\n  FROM `fennmoor-dw.dw_core.fct_account_closures`\n  WHERE close_date >\
+    \ '2026-05-19' AND is_voluntary\n)\nSELECT decile, COUNT(*) AS n,\n       COUNTIF(closed.customer_key IS NOT\
+    \ NULL) / COUNT(*) AS closed_rate,\n       AVG(churn_probability) AS avg_p\nFROM scored LEFT JOIN closed USING\
+    \ (customer_key)\nGROUP BY decile\nORDER BY decile\n"
+L9bedbbe0:
+  question: As of the most recent churn scoring date available, what is the average churn probability and the number
+    of customers flagged as high risk, broken down by customer segment?
+  compare:
+  - segment
+  - avg_churn
+  - high_risk
+  unstated_filters: []
+  shape: 9bedbbe0dc8ece39d0d7f268989ab3c82a0eee720225c289ea3e6e8c5ea1b4cd
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_customer
+  - fennmoor-dw.ml_scores.churn_score_v3
+  sql: 'SELECT c.segment, AVG(s.churn_probability) AS avg_churn, COUNTIF(s.risk_band = ''HIGH'') AS high_risk
+
+    FROM `fennmoor-dw.ml_scores.churn_score_v3` s
+
+    JOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key)
+
+    WHERE s.score_date = (SELECT MAX(score_date) FROM `fennmoor-dw.ml_scores.churn_score_v3`)
+
+    GROUP BY c.segment
+
+    '
+L9c385afd:
+  question: As of 2026-05-04, how many loans fall into each delinquency bucket, broken down by product line?
+  compare:
+  - PRODUCT_LINE
+  - BUCKET
+  - LOANS
+  unstated_filters: []
+  shape: 9c385afd189ef57c672e23a6d397a8b50b2643b60be7145f22d539e16acb616c
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_product
+  - fennmoor-dw.dw_risk.fct_delinquency_daily
+  sql: 'SELECT P.PRODUCT_LINE, D.BUCKET, COUNT(*) AS LOANS
+
+    FROM `fennmoor-dw.dw_risk.fct_delinquency_daily` D
+
+    JOIN `fennmoor-dw.dw_core.dim_product` P USING (PRODUCT_CODE)
+
+    WHERE D.SNAPSHOT_DATE = ''2026-05-04''
+
+    GROUP BY 1, 2
+
+    ORDER BY 1, 2
+
+    '
+L9d80def1:
+  question: For deposit transactions posted between 2026-05-01 and 2026-06-03, what are the total inflow amounts
+    and total outflow amounts, broken down by customer segment and transaction type?
+  compare:
+  - segment
+  - transaction_type
+  - inflows
+  - outflows
+  unstated_filters: []
+  shape: 9d80def156af051b3f6c48690bdb71d55002a2ea49c879cb2526d54603045f7c
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_customer
+  - fennmoor-dw.dw_core.fct_deposit_transactions
+  sql: "SELECT c.segment, t.transaction_type,\n       SUM(IF(t.signed_amount > 0, t.signed_amount, 0)) AS inflows,\n\
+    \       SUM(IF(t.signed_amount < 0, -t.signed_amount, 0)) AS outflows\nFROM `fennmoor-dw.dw_core.fct_deposit_transactions`\
+    \ t\nJOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key)\nWHERE t.posted_date BETWEEN '2026-05-01'\
+    \ AND '2026-06-03' \nGROUP BY 1, 2\n"
+L9dfa7691:
+  question: For each date from 2026-03-04 onward, what was the average 30-day average balance, average 30-day login
+    count, and average 90-day contact count across customers?
+  compare:
+  - as_of_date
+  - balance
+  - logins
+  - contacts
+  unstated_filters: []
+  shape: 9dfa76914e84ad5df4e23635910759b465ed85b00c1aae5ea2252bc9ac1088c1
+  who: an analyst
+  tables:
+  - fennmoor-dw.ml_features.feat_customer_daily
+  sql: 'SELECT as_of_date, AVG(avg_balance_30d) AS balance, AVG(logins_30d) AS logins, AVG(contacts_90d) AS contacts
+
+    FROM `fennmoor-dw.ml_features.feat_customer_daily`
+
+    WHERE as_of_date >= ''2026-03-04''
+
+    GROUP BY as_of_date
+
+    ORDER BY as_of_date
+
+    '
+L9fba9bbc:
+  question: For transactions posted on 2026-04-13 that have no assigned merchant category group, how many transactions
+    were there for each merchant category code (MCC), listed from the highest count to the lowest?
+  compare:
+  - mcc
+  - txns
+  unstated_filters: []
+  shape: 9fba9bbcda8d53535936d6875abd4e2a38d2098e99aff4c80819d3627c83f36e
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_intermediate.int_card_transactions_enriched
+  sql: 'SELECT mcc, COUNT(*) AS txns
+
+    FROM `fennmoor-dw.dw_intermediate.int_card_transactions_enriched`
+
+    WHERE post_date = ''2026-04-13'' AND mcc_category_group IS NULL
+
+    GROUP BY mcc
+
+    ORDER BY txns DESC
+
+    '
+La0ef9034:
+  question: For customers grouped by the month they opened their first deposit account (for cohorts starting 2023-10-01
+    onward), how many customers are in each monthly cohort, and how many of them closed their deposit account within
+    12 months of opening it?
+  compare:
+  - cohort
+  - n
+  - closed_within_12m
+  unstated_filters: []
+  shape: a0ef90343ec8281f64c6746e5479b9214a1fcf39d59fdaf92c1b943808505b77
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_account
+  - fennmoor-dw.dw_core.fct_account_closures
+  sql: "WITH first_open AS (\n  SELECT customer_key, DATE_TRUNC(MIN(open_date), MONTH) AS cohort\n  FROM `fennmoor-dw.dw_core.dim_account`\n\
+    \  WHERE account_family = 'DEPOSIT'\n  GROUP BY customer_key\n),\nclosed AS (\n  SELECT customer_key, MIN(close_date)\
+    \ AS closed_on\n  FROM `fennmoor-dw.dw_core.fct_account_closures`\n  WHERE account_family = 'DEPOSIT'\n  GROUP\
+    \ BY customer_key\n)\nSELECT cohort, COUNT(*) AS n,\n       COUNTIF(closed_on IS NOT NULL AND DATE_DIFF(closed_on,\
+    \ cohort, MONTH) <= 12) AS closed_within_12m\nFROM first_open LEFT JOIN closed USING (customer_key)\nWHERE cohort\
+    \ >= '2023-10-01'\nGROUP BY cohort\nORDER BY cohort\n"
+La5545641:
+  question: For calls in the month of June (any year), what is the number of calls by call month and site code?
+  compare:
+  - mon
+  - SITE_CD
+  - calls
+  unstated_filters: []
+  shape: a5545641500afd60835d5dca7e7d4afd7cf6ea0d95920816100b1e8c548514d2
+  who: an analyst
+  tables:
+  - fennmoor-raw.contact_center_legacy.cdr_*
+  sql: 'select format_datetime(''%Y-%m'', CALL_START_DTTM) as mon, SITE_CD, count(*) as calls
+
+    from `fennmoor-raw.contact_center_legacy.cdr_*`
+
+    where extract(month from CALL_START_DTTM) = 6
+
+    group by 1, 2 order by 1
+
+    '
+La622ca35:
+  question: For loan/account application forms, between 2026-04-25 and 2026-05-06, how many distinct users reached
+    each application step, listing the steps from the one with the most users to the one with the fewest?
+  compare:
+  - step
+  - users
+  unstated_filters: []
+  shape: a622ca35878f5d606de8f85bc73f21c4dc977f95c5e0e0864e2074fd978c1051
+  who: an analyst
+  tables:
+  - fennmoor-raw.analytics_312874659.events_*
+  sql: "SELECT (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'application_step') AS step,\n \
+    \      COUNT(DISTINCT user_pseudo_id) AS users\nFROM `fennmoor-raw.analytics_312874659.events_*`\nWHERE _TABLE_SUFFIX\
+    \ BETWEEN '20260425' AND '20260506' AND event_name = 'form_progress'\nGROUP BY step\nORDER BY users DESC\n"
+La6c932d6:
+  question: Since 2026-03-14 (inclusive), how many distinct customers have called in and how many total calls have
+    there been, broken down by customer segment?
+  compare:
+  - segment
+  - callers
+  - contacts
+  unstated_filters: []
+  shape: a6c932d674421ea3949f5407432d0a0e64ab532bc085a2e4f029a5347d6de91a
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_contact_center.fct_calls
+  - fennmoor-dw.dw_core.dim_customer
+  sql: 'SELECT c.segment, COUNT(DISTINCT f.customer_key) AS callers, COUNT(*) AS contacts
+
+    FROM `fennmoor-dw.dw_contact_center.fct_calls` f
+
+    JOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key)
+
+    WHERE f.conversation_date >= ''2026-03-14''
+
+    GROUP BY c.segment
+
+    '
+La7769de1:
+  question: For each month from 2025-02-01 onward, broken down by site and source system, how many total contacts
+    were there and how many of them were account closure calls?
+  compare:
+  - m
+  - site_id
+  - source_system
+  - contacts
+  - closure_calls
+  unstated_filters: []
+  shape: a7769de1b2390eae6ab455b9910355773b3a0dcb5937ddce8fa3199d1711e9ae
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_contact_center.fct_contacts_all
+  sql: "select date_trunc(conversation_date, month) as m, site_id, source_system,\n       count(*) as contacts,\
+    \ countif(is_account_closure_call) as closure_calls\nfrom `fennmoor-dw.dw_contact_center.fct_contacts_all`\n\
+    where conversation_date >= '2025-02-01'\ngroup by 1, 2, 3 order by 1\n"
+Laae51758:
+  question: For voice calls with a conversation date from 2026-04-01 to 2026-06-29, what were the abandonment rate,
+    average handle time, and number of transferred calls for each queue, ordered from highest to lowest abandonment
+    rate?
+  compare:
+  - fct_calls_queue_name
+  - fct_calls_abandon_rate
+  - fct_calls_avg_handle_time
+  - fct_calls_transfers
+  unstated_filters: []
+  shape: aae517580a2f7680dcb00560f30b01693aabcd515f642ef3c52d475971a21742
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"2356e6792a5b5\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_calls.queue_name  AS fct_calls_queue_name,\n    SAFE_DIVIDE(COUNTIF(fct_calls.is_abandoned),\
+    \ COUNT(*)) AS fct_calls_abandon_rate,\n    AVG(fct_calls.handle_sec ) AS fct_calls_avg_handle_time,\n    COUNTIF(fct_calls.was_transferred)\
+    \ AS fct_calls_transfers\nFROM `fennmoor-dw.dw_contact_center.fct_calls`  AS fct_calls\nWHERE ((( fct_calls.conversation_date\
+    \ ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -90 DAY))) AND ( fct_calls.conversation_date ) < ((DATE_ADD(DATE_ADD(DATE\
+    \ '2026-06-30', INTERVAL -90 DAY), INTERVAL 90 DAY))))) AND (fct_calls.media_type ) = 'voice'\nGROUP BY\n  \
+    \  1\nORDER BY\n    2 DESC\nLIMIT 500"
+Laedcf94e:
+  question: How many account closures were there for each account family and close reason, sorted by account family
+    and then by number of closures from highest to lowest?
+  compare:
+  - account_family
+  - close_reason
+  - n
+  unstated_filters: []
+  shape: aedcf94ed38caef61e248e9267940645597f7dd89ae209d6eecbe68ce06c70eb
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_intermediate.int_account_closures
+  sql: 'SELECT account_family, close_reason, COUNT(*) AS n
+
+    FROM `fennmoor-dw.dw_intermediate.int_account_closures`
+
+    GROUP BY 1, 2
+
+    ORDER BY 1, 3 DESC
+
+    '
+Laf86f8c8:
+  question: For each contact center site and month from 2025-10-01 onward, what was the total expense, payroll expense,
+    and vendor expense?
+  compare:
+  - site_name
+  - month_start
+  - total_expense
+  - payroll_expense
+  - vendor_expense
+  unstated_filters: []
+  shape: af86f8c845f41e89a82308c779d198214ecf57a888e824b92b092698fb306b98
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_contact_center.dim_cc_site
+  - fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly
+  sql: 'SELECT s.site_name, k.month_start, k.total_expense, k.payroll_expense, k.vendor_expense
+
+    FROM `fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly` k
+
+    JOIN `fennmoor-dw.dw_contact_center.dim_cc_site` s USING (site_id)
+
+    WHERE k.month_start >= ''2025-10-01''
+
+    ORDER BY k.month_start, s.site_name
+
+    '
+Lb012a03c:
+  question: For each day since 2026-04-14, what share of voice calls were abandoned (i.e., the number of abandoned
+    voice calls divided by the total number of voice calls), broken down by conversation date?
+  compare:
+  - conversation_date
+  - abandon_rate
+  unstated_filters: []
+  shape: b012a03ca762c75bc020f13ee7b9f5abb743e0a6a512ddec4549077e63d30132
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: 'select conversation_date, countif(is_abandoned) / count(*) as abandon_rate
+
+    from `fennmoor-dw.dw_contact_center.fct_calls`
+
+    where media_type = ''voice'' and conversation_date >= ''2026-04-14''
+
+    group by 1 order by 1
+
+    '
+Lb04a395e:
+  question: Since 2026-06-01, how many app sessions have there been for each combination of app version and platform,
+    ranked from the most sessions to the fewest?
+  compare:
+  - app_version
+  - platform
+  - sessions
+  unstated_filters: []
+  shape: b04a395e294597b635defd5f7fdffa5e674f80316a5f7628ecdb606ef80fa635
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_digital.fct_app_sessions
+  sql: 'SELECT app_version, platform, COUNT(*) AS sessions
+
+    FROM `fennmoor-dw.dw_digital.fct_app_sessions`
+
+    WHERE session_date >= ''2026-06-01''
+
+    GROUP BY 1, 2
+
+    ORDER BY sessions DESC
+
+    '
+Lb680ccfe:
+  question: For each agent, site outsourcing status (outsourced vs in-house), and media type, what was the call
+    abandonment rate, average handle time, and number of transferred calls for contacts with a conversation date
+    from 2026-05-31 to 2026-06-29?
+  compare:
+  - fct_calls_agent_name
+  - fct_calls_is_outsourced
+  - fct_calls_media_type
+  - fct_calls_abandon_rate
+  - fct_calls_avg_handle_time
+  - fct_calls_transfers
+  unstated_filters: []
+  shape: b680ccfeb98e8a8015c2fecd91f4627f81497a0583173ec63bdbb68f34bd0a51
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.dim_agent
+  - fennmoor-dw.dw_contact_center.dim_cc_site
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"031217746c34a\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    dim_agent.agent_name  AS fct_calls_agent_name,\n    dim_cc_site.is_outsourced  AS fct_calls_is_outsourced,\n\
+    \    fct_calls.media_type  AS fct_calls_media_type,\n    SAFE_DIVIDE(COUNTIF(fct_calls.is_abandoned), COUNT(*))\
+    \ AS fct_calls_abandon_rate,\n    AVG(fct_calls.handle_sec ) AS fct_calls_avg_handle_time,\n    COUNTIF(fct_calls.was_transferred)\
+    \ AS fct_calls_transfers\nFROM `fennmoor-dw.dw_contact_center.fct_calls`  AS fct_calls\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_cc_site`\
+    \  AS dim_cc_site ON fct_calls.site_id = dim_cc_site.site_id\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_agent`\
+    \  AS dim_agent ON fct_calls.agent_user_id = dim_agent.agent_user_id\nWHERE ((( fct_calls.conversation_date\
+    \ ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -30 DAY))) AND ( fct_calls.conversation_date ) < ((DATE_ADD(DATE_ADD(DATE\
+    \ '2026-06-30', INTERVAL -30 DAY), INTERVAL 30 DAY)))))\nGROUP BY\n    1,\n    2,\n    3\nORDER BY\n    4 DESC\n\
+    LIMIT 5000"
+Lb79256f9:
+  question: Since 2026-04-06, for each online banking user, how many failed login attempts have they had, how many
+    distinct devices have they logged in from, and how many distinct countries have they logged in from? Include
+    only users with at least 10 failed attempts or logins from more than 1 country, and return the top 500 ordered
+    by failed attempts (highest first).
+  compare:
+  - olb_user_id
+  - failed
+  - devices
+  - countries
+  unstated_filters: []
+  shape: b79256f936ec1a6bdf8d5a3083f7c6dd270974c03430f61e69fdeb88ac76591e
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_digital.fct_digital_logins
+  sql: "SELECT olb_user_id,\n       COUNTIF(NOT is_success) AS failed,\n       COUNT(DISTINCT device_id) AS devices,\n\
+    \       COUNT(DISTINCT geo_country) AS countries\nFROM `fennmoor-dw.dw_digital.fct_digital_logins`\nWHERE event_date\
+    \ >= '2026-04-06'\nGROUP BY olb_user_id\nHAVING failed >= 10 OR countries > 1\nORDER BY failed DESC\nLIMIT 500\n"
+Lb7adf6c4:
+  question: As of 2026-04-28, what is the total ledger balance and the number of distinct accounts, broken down
+    by product family, ordered from the highest total balance to the lowest?
+  compare:
+  - grp
+  - accounts
+  - balance
+  unstated_filters: []
+  shape: b7adf6c42feecb9fa132600faf8f140e2407170014d42ba6ab4c5379c4c776e9
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_product
+  - fennmoor-dw.dw_core.fct_daily_account_balances
+  sql: 'SELECT p.product_family AS grp, COUNT(DISTINCT b.account_key) AS accounts, SUM(b.ledger_balance) AS balance
+
+    FROM `fennmoor-dw.dw_core.fct_daily_account_balances` b
+
+    JOIN `fennmoor-dw.dw_core.dim_product` p USING (product_code)
+
+    WHERE b.balance_date = ''2026-04-28''
+
+    GROUP BY grp
+
+    ORDER BY balance DESC
+
+    '
+Lb8a36f12:
+  question: Since 2026-04-07, how many distinct customers used the mobile app by platform, and what was the average
+    number of screens viewed per session for each platform?
+  compare:
+  - platform
+  - customers
+  - avg_screens
+  unstated_filters: []
+  shape: b8a36f128195df1f2dced68da8e809ca50089684b6773b6fcc32939317578744
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_digital.fct_app_sessions
+  sql: 'SELECT platform, COUNT(DISTINCT cif_number) AS customers, AVG(screens) AS avg_screens
+
+    FROM `fennmoor-dw.dw_digital.fct_app_sessions`
+
+    WHERE session_date >= ''2026-04-07''
+
+    GROUP BY platform
+
+    '
+Lb8cbb12b:
+  question: For June 15, 2026, what were the 100 page locations with the most page views, and how many page views
+    did each have?
+  compare:
+  - page_location
+  - views
+  unstated_filters: []
+  shape: b8cbb12bb71a7c7624146dad04f80e65e15402bb45b0b3cc70112cc7e524ff29
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_staging.stg_ga4__events
+  sql: 'SELECT page_location, COUNT(*) AS views
+
+    FROM `fennmoor-dw.dw_staging.stg_ga4__events`
+
+    WHERE event_date = ''2026-06-15'' AND event_name = ''page_view''
+
+    GROUP BY page_location
+
+    ORDER BY views DESC
+
+    LIMIT 100
+
+    '
+Lb93bfbd1:
+  question: For each conversation date from 2026-06-23 to 2026-06-29, what was the average handle time and the number
+    of distinct voice conversations?
+  compare:
+  - fct_calls_conversation_date
+  - fct_calls_avg_handle_time
+  - fct_calls_count
+  unstated_filters: []
+  shape: b93bfbd1fc14910422f1ca6694eb9d7400d38c9bc0484a42bd488d6a45f46f39
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"a4ac9f9cc23dc\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_calls.conversation_date  AS fct_calls_conversation_date,\n    AVG(fct_calls.handle_sec )\
+    \ AS fct_calls_avg_handle_time,\n    COUNT(DISTINCT fct_calls.conversation_id ) AS fct_calls_count\nFROM `fennmoor-dw.dw_contact_center.fct_calls`\
+    \  AS fct_calls\nWHERE ((( fct_calls.conversation_date ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -7 DAY)))\
+    \ AND ( fct_calls.conversation_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30', INTERVAL -7 DAY), INTERVAL 7\
+    \ DAY))))) AND (fct_calls.media_type ) = 'voice'\nGROUP BY\n    1\nORDER BY\n    2 DESC\nLIMIT 5000"
+Lb94b1361:
+  question: For each site, since 2025-11-01, what is the average cost per contact and the total number of closure
+    calls, ranked from highest to lowest average cost per contact?
+  compare:
+  - site_name
+  - avg_cost_per_contact
+  - closure_calls
+  unstated_filters: []
+  shape: b94b136156562b193d5f6277b475e4719e8f2c36c499756f30926957a5445ac3
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_contact_center.rpt_site_cost_per_contact
+  sql: 'select site_name, avg(cost_per_contact) as avg_cost_per_contact, sum(closure_calls) as closure_calls
+
+    from `fennmoor-dw.dw_contact_center.rpt_site_cost_per_contact`
+
+    where month_start >= ''2025-11-01''
+
+    group by 1 order by 2 desc
+
+    '
+Lba47b53e:
+  question: For each identified customer, how many web sessions did they have, what was their total number of page
+    views, and how many of those sessions included a visit to the help section, considering sessions from 2026-04-06
+    onward?
+  compare:
+  - customer_key
+  - sessions
+  - page_views
+  - help_sessions
+  unstated_filters: []
+  shape: ba47b53e0df3e67bda0d4cc8195929a2934a5e40feb06f198a03b7ef27ea0f3b
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_digital.fct_web_sessions
+  sql: 'SELECT customer_key, COUNT(*) AS sessions, SUM(page_views) AS page_views, COUNTIF(visited_help) AS help_sessions
+
+    FROM `fennmoor-dw.dw_digital.fct_web_sessions`
+
+    WHERE customer_key IS NOT NULL AND session_date >= ''2026-04-06''
+
+    GROUP BY customer_key
+
+    '
+Lba494fec:
+  question: By year of payment date, how many loan payments were made in total, and how many of those payments were
+    late?
+  compare:
+  - YR
+  - LATE
+  - N
+  unstated_filters: []
+  shape: ba494fece49a0270c17894914f6f2d69fb60ca7944f4d11d4795f3cf6a330d2e
+  who: an analyst
+  tables:
+  - fennmoor-analytics.legacy_edw.LN_PMT_HIST
+  sql: 'SELECT EXTRACT(YEAR FROM PMT_DT) AS YR, COUNTIF(LATE_IND = ''Y'') AS LATE, COUNT(*) AS N
+
+    FROM legacy_edw.LN_PMT_HIST
+
+    GROUP BY 1
+
+    ORDER BY 1
+
+    '
+Lba99d5e4:
+  question: For voice calls handled at the MNL contact center site between 2026-04-01 and 2026-06-30, what is the
+    average handle time and the count of distinct conversations, broken down by agent name, media type, and site
+    name?
+  compare:
+  - fct_calls_agent_name
+  - fct_calls_media_type
+  - fct_calls_site_name
+  - fct_calls_avg_handle_time
+  - fct_calls_count
+  unstated_filters: []
+  shape: ba99d5e49f33e43c35741a406b3359bb5dc6b4dff53e1a954402542c91383538
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.dim_agent
+  - fennmoor-dw.dw_contact_center.dim_cc_site
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"6e03da291eac3\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    dim_agent.agent_name  AS fct_calls_agent_name,\n    fct_calls.media_type  AS fct_calls_media_type,\n\
+    \    dim_cc_site.site_name  AS fct_calls_site_name,\n    AVG(fct_calls.handle_sec ) AS fct_calls_avg_handle_time,\n\
+    \    COUNT(DISTINCT fct_calls.conversation_id ) AS fct_calls_count\nFROM `fennmoor-dw.dw_contact_center.fct_calls`\
+    \  AS fct_calls\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_cc_site`  AS dim_cc_site ON fct_calls.site_id\
+    \ = dim_cc_site.site_id\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_agent`  AS dim_agent ON fct_calls.agent_user_id\
+    \ = dim_agent.agent_user_id\nWHERE ((( fct_calls.conversation_date ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL\
+    \ -90 DAY))) AND ( fct_calls.conversation_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30', INTERVAL -90 DAY),\
+    \ INTERVAL 90 DAY))))) AND (dim_cc_site.site_id ) = 'MNL' AND (fct_calls.media_type ) = 'voice'\nGROUP BY\n\
+    \    1,\n    2,\n    3\nORDER BY\n    4 DESC\nLIMIT 5000"
+Lbed96252:
+  question: How many credit applications were submitted from 2026-01-29 onward, broken down by week and product
+    code?
+  compare:
+  - WK
+  - CUT
+  - APPS
+  unstated_filters: []
+  shape: bed9625244edf4b4e68361de3b79c70d18cb9ef4af55c9b99dc714606e0ed9d4
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_risk.fct_credit_applications
+  sql: 'SELECT DATE_TRUNC(SUBMITTED_DATE, WEEK) AS WK, PRODUCT_CODE AS CUT, COUNT(*) AS APPS
+
+    FROM `fennmoor-dw.dw_risk.fct_credit_applications`
+
+    WHERE SUBMITTED_DATE >= ''2026-01-29''
+
+    GROUP BY 1, 2
+
+    ORDER BY 1, 2
+
+    '
+Lc08d2ecb:
+  question: Between 2026-05-16 and 2026-06-07, for each campaign and channel, how many messages were sent and how
+    many distinct customers received them?
+  compare:
+  - campaign_id
+  - channel
+  - sends
+  - recipients
+  unstated_filters: []
+  shape: c08d2ecbe4ad64c8f9d6739fd2c91206b04723350bc6897fccf004d94fe7c63d
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_marketing.fct_campaign_sends
+  sql: 'SELECT campaign_id, channel, COUNT(*) AS sends, COUNT(DISTINCT customer_key) AS recipients
+
+    FROM `fennmoor-dw.dw_marketing.fct_campaign_sends`
+
+    WHERE sent_date BETWEEN ''2026-05-16'' AND ''2026-06-07''
+
+    GROUP BY campaign_id, channel
+
+    '
+Lc18a6b9d:
+  question: For each marketing campaign, what was the email open rate (opened emails divided by delivered emails)
+    for the week from 2026-06-23 to 2026-06-29? List the campaigns ordered from highest to lowest open rate.
+  compare:
+  - fct_campaign_engagement_campaign_name
+  - fct_campaign_engagement_open_rate
+  unstated_filters: []
+  shape: c18a6b9dde6ba54a71dbd7d11c1b7369883f8e0e9538d8dea95c8603462ae491
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_marketing.dim_campaign
+  - fennmoor-dw.dw_marketing.fct_campaign_engagement
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"e0846d2f3948a\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    dim_campaign.campaign_name  AS fct_campaign_engagement_campaign_name,\n    SAFE_DIVIDE(COUNTIF(fct_campaign_engagement.opened),\
+    \ COUNTIF(fct_campaign_engagement.delivered)) AS fct_campaign_engagement_open_rate\nFROM `fennmoor-dw.dw_marketing.fct_campaign_engagement`\
+    \  AS fct_campaign_engagement\nLEFT JOIN `fennmoor-dw.dw_marketing.dim_campaign`  AS dim_campaign ON fct_campaign_engagement.campaign_id\
+    \ = dim_campaign.campaign_id\nWHERE ((( fct_campaign_engagement.event_date ) >= ((DATE_ADD(DATE '2026-06-30',\
+    \ INTERVAL -7 DAY))) AND ( fct_campaign_engagement.event_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30', INTERVAL\
+    \ -7 DAY), INTERVAL 7 DAY)))))\nGROUP BY\n    1\nORDER BY\n    2 DESC\nLIMIT 500"
+Lc3266632:
+  question: How many active cards are there, broken down by digital wallet and card role?
+  compare:
+  - digital_wallet
+  - cut
+  - cards
+  unstated_filters: []
+  shape: c32666328fa62cd61d94d33e1910f1a346dd77a5f493b797dcae641ca86743e0
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_card
+  sql: 'SELECT digital_wallet, card_role AS cut, COUNT(*) AS cards
+
+    FROM `fennmoor-dw.dw_core.dim_card`
+
+    WHERE status = ''A''
+
+    GROUP BY 1, 2
+
+    '
+Lc38c81cf:
+  question: For affluent and private-banking customers, for purchase transactions posted from 2026-06-23 to 2026-06-29,
+    how many distinct cardholders made purchases each day, broken down by whether the transaction was foreign and
+    by merchant category group?
+  compare:
+  - fct_card_transactions_is_foreign
+  - fct_card_transactions_mcc_category_group
+  - fct_card_transactions_post_date
+  - fct_card_transactions_cardholders
+  unstated_filters: []
+  shape: c38c81cfd738cce0bb101c2be4eada1a16367d97fbc26e4b810fe2f4a27f8d38
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_core.dim_customer
+  - fennmoor-dw.dw_core.fct_card_transactions
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"442071fd0c97f\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_card_transactions.is_foreign  AS fct_card_transactions_is_foreign,\n    fct_card_transactions.mcc_category_group\
+    \  AS fct_card_transactions_mcc_category_group,\n    fct_card_transactions.post_date  AS fct_card_transactions_post_date,\n\
+    \    COUNT(DISTINCT fct_card_transactions.customer_key ) AS fct_card_transactions_cardholders\nFROM `fennmoor-dw.dw_core.fct_card_transactions`\
+    \  AS fct_card_transactions\nLEFT JOIN `fennmoor-dw.dw_core.dim_customer`  AS dim_customer ON fct_card_transactions.customer_key\
+    \ = dim_customer.customer_key\nWHERE ((( fct_card_transactions.post_date ) >= ((DATE_ADD(DATE '2026-06-30',\
+    \ INTERVAL -7 DAY))) AND ( fct_card_transactions.post_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30', INTERVAL\
+    \ -7 DAY), INTERVAL 7 DAY))))) AND (dim_customer.segment ) IN ('affluent', 'private') AND (fct_card_transactions.txn_type\
+    \ ) = 'PURCH'\nGROUP BY\n    1,\n    2,\n    3\nLIMIT 5000"
+Lc3f3abff:
+  question: For each week (starting Thursday, March 19, 2026 onward) and marketing channel, how many campaign sends
+    were there?
+  compare:
+  - wk
+  - channel
+  - sends
+  unstated_filters: []
+  shape: c3f3abffe2615c1d44839b428d00e9e47a8d1a27ef9c7cbbc939d4a0bd6fcf1b
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_marketing.fct_campaign_sends
+  sql: "SELECT DATE_TRUNC(sent_date, WEEK) AS wk, channel, COUNT(*) AS sends\nFROM `fennmoor-dw.dw_marketing.fct_campaign_sends`\n\
+    WHERE sent_date >= '2026-03-19' \nGROUP BY 1, 2\nORDER BY 1, 2\n"
+Lc9bd1a0b:
+  question: For the SPK contact center site, from 2026-04-01 to 2026-06-30, how many closure calls (calls where
+    the customer was closing their account) were there by week (week starting Monday), call intent, and site name?
+  compare:
+  - fct_calls_conversation_week
+  - fct_calls_ivr_intent
+  - fct_calls_site_name
+  - fct_calls_closure_calls
+  unstated_filters: []
+  shape: c9bd1a0b3406e7eb1dbde6cd1645d004d83d9f2040c1363c32502cef0d407441
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.dim_cc_site
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"cc93d45984637\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    DATE_TRUNC(fct_calls.conversation_date, WEEK(MONDAY))  AS fct_calls_conversation_week,\n   \
+    \ fct_calls.ivr_intent  AS fct_calls_ivr_intent,\n    dim_cc_site.site_name  AS fct_calls_site_name,\n    COUNT(DISTINCT\
+    \ CASE WHEN fct_calls.is_account_closure_call THEN fct_calls.conversation_id ELSE NULL END) AS fct_calls_closure_calls\n\
+    FROM `fennmoor-dw.dw_contact_center.fct_calls`  AS fct_calls\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_cc_site`\
+    \  AS dim_cc_site ON fct_calls.site_id = dim_cc_site.site_id\nWHERE ((( fct_calls.conversation_date ) >= ((DATE_ADD(DATE\
+    \ '2026-06-30', INTERVAL -90 DAY))) AND ( fct_calls.conversation_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30',\
+    \ INTERVAL -90 DAY), INTERVAL 90 DAY))))) AND (dim_cc_site.site_id ) = 'SPK'\nGROUP BY\n    1,\n    2,\n   \
+    \ 3\nORDER BY\n    4 DESC\nLIMIT 5000"
+Lccd8d6b4:
+  question: For card transactions posted from 2026-05-31 to 2026-06-29, what is the total interchange earned and
+    the number of distinct settlements, grouped by month, ranked from highest to lowest interchange?
+  compare:
+  - fct_card_transactions_post_month
+  - fct_card_transactions_interchange
+  - fct_card_transactions_txn_count
+  unstated_filters: []
+  shape: ccd8d6b42a12da0bbade24080939ac15536fbe4831d6cb4c2467f6246b9da233
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_core.fct_card_transactions
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"ae82bef89a661\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    DATE_TRUNC(fct_card_transactions.post_date, MONTH)  AS fct_card_transactions_post_month,\n \
+    \   COALESCE(SUM(fct_card_transactions.interchange ), 0) AS fct_card_transactions_interchange,\n    COUNT(DISTINCT\
+    \ fct_card_transactions.settlement_id ) AS fct_card_transactions_txn_count\nFROM `fennmoor-dw.dw_core.fct_card_transactions`\
+    \  AS fct_card_transactions\nWHERE ((( fct_card_transactions.post_date ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL\
+    \ -30 DAY))) AND ( fct_card_transactions.post_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30', INTERVAL -30 DAY),\
+    \ INTERVAL 30 DAY)))))\nGROUP BY\n    1\nORDER BY\n    2 DESC\nLIMIT 500"
+Lcd902824:
+  question: For each site, since 2026-04-23, what is the average CSAT score, the net promoter count (number of promoters
+    minus number of detractors), and the number of surveys received?
+  compare:
+  - site_id
+  - csat
+  - net_promoters
+  - surveys
+  unstated_filters: []
+  shape: cd902824832fd9d4e27fa0282de4855fa749ede4a266f607c92fdb3a877cc2ba
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_contact_center.fct_csat
+  sql: 'select site_id, avg(csat_score) as csat, countif(is_promoter) - countif(is_detractor) as net_promoters,
+    count(*) as surveys
+
+    from `fennmoor-dw.dw_contact_center.fct_csat`
+
+    where conversation_date >= ''2026-04-23''
+
+    group by 1
+
+    '
+Lce8f8c9f:
+  question: For all fraud alerts, grouped into score bands of 100 (0-99, 100-199, 200-299, etc. based on the model
+    score), how many alerts fell into each band and how many of those were confirmed as fraud?
+  compare:
+  - score_band
+  - alerts
+  - confirmed
+  unstated_filters: []
+  shape: ce8f8c9f5f07d9a4d3763c0990f3ba286256b3efbf98a320d9646ecc5cc62df6
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_risk.fct_fraud_alerts
+  sql: 'SELECT CAST(FLOOR(model_score / 100) * 100 AS INT64) AS score_band, COUNT(*) AS alerts, COUNTIF(is_confirmed_fraud)
+    AS confirmed
+
+    FROM `fennmoor-dw.dw_risk.fct_fraud_alerts`
+
+    GROUP BY score_band
+
+    ORDER BY score_band
+
+    '
+Lcf63b774:
+  question: How many distinct cardholders made card transactions in each customer segment?
+  compare:
+  - fct_card_transactions_segment
+  - fct_card_transactions_cardholders
+  unstated_filters: []
+  shape: cf63b7743fdc619c5bcfccee5e05d4d7624c667d6f58a98bdc6d987aa70bb656
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_core.dim_customer
+  - fennmoor-dw.dw_core.fct_card_transactions
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"ce316f306d961\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    dim_customer.segment  AS fct_card_transactions_segment,\n    COUNT(DISTINCT fct_card_transactions.customer_key\
+    \ ) AS fct_card_transactions_cardholders\nFROM `fennmoor-dw.dw_core.fct_card_transactions`  AS fct_card_transactions\n\
+    LEFT JOIN `fennmoor-dw.dw_core.dim_customer`  AS dim_customer ON fct_card_transactions.customer_key = dim_customer.customer_key\n\
+    GROUP BY\n    1\nLIMIT 500"
+Lcf746f33:
+  question: For voice calls about account closures with a conversation date from 2026-05-31 to 2026-06-29, what
+    is the average handle time (in seconds) and the count of transferred calls, broken down by whether the call
+    center site is outsourced and by wrap-up code/reason, ordered from highest to lowest average handle time?
+  compare:
+  - fct_calls_is_outsourced
+  - fct_calls_wrapup
+  - fct_calls_avg_handle_time
+  - fct_calls_transfers
+  unstated_filters: []
+  shape: cf746f338ccd1a9fefa03f1741aea37873fff80c043e45640cc837c415cb5145
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.dim_cc_site
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"02d0759a6f9f1\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    dim_cc_site.is_outsourced  AS fct_calls_is_outsourced,\n    fct_calls.wrapup_code_name  AS fct_calls_wrapup,\n\
+    \    AVG(fct_calls.handle_sec ) AS fct_calls_avg_handle_time,\n    COUNTIF(fct_calls.was_transferred) AS fct_calls_transfers\n\
+    FROM `fennmoor-dw.dw_contact_center.fct_calls`  AS fct_calls\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_cc_site`\
+    \  AS dim_cc_site ON fct_calls.site_id = dim_cc_site.site_id\nWHERE ((( fct_calls.conversation_date ) >= ((DATE_ADD(DATE\
+    \ '2026-06-30', INTERVAL -30 DAY))) AND ( fct_calls.conversation_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30',\
+    \ INTERVAL -30 DAY), INTERVAL 30 DAY))))) AND fct_calls.is_account_closure_call AND (fct_calls.media_type )\
+    \ = 'voice'\nGROUP BY\n    1,\n    2\nORDER BY\n    3 DESC\nLIMIT 500"
+Ld0463faf:
+  question: For parties flagged as politically exposed persons (PEP), how many parties are there by party type and
+    risk rating?
+  compare:
+  - party_type
+  - risk_rating
+  - parties
+  unstated_filters: []
+  shape: d0463faf2a556220ffa514d63ec9b4e2c6bc71a1acbe41cc3190341b3fa2474d
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_compliance.dim_aml_party
+  sql: 'SELECT party_type, risk_rating, COUNT(*) AS parties
+
+    FROM `fennmoor-dw.dw_compliance.dim_aml_party`
+
+    WHERE pep_flag
+
+    GROUP BY 1, 2
+
+    '
+Ld349ea7a:
+  question: For each customer, how many purchase transactions did they make in each merchant category group, counting
+    all card purchase transactions posted on or after 2026-03-08?
+  compare:
+  - customer_key
+  - category_group
+  - txns
+  unstated_filters: []
+  shape: d349ea7a55765cb706b7cc8b62e2ee80f473d8bdc3b4d47d75260c22d35c8861
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_merchant
+  - fennmoor-dw.dw_core.fct_card_transactions
+  sql: 'SELECT t.customer_key, m.category_group, COUNT(*) AS txns
+
+    FROM `fennmoor-dw.dw_core.fct_card_transactions` t
+
+    JOIN `fennmoor-dw.dw_core.dim_merchant` m USING (merchant_id)
+
+    WHERE t.post_date >= ''2026-03-08'' AND t.is_purchase
+
+    GROUP BY 1, 2
+
+    '
+Ld49d2be4:
+  question: Since 2026-04-15, how many customers received each possible number of campaign sends? For each count
+    of sends per customer, show how many customers received that many sends.
+  compare:
+  - sends_per_customer
+  - customers
+  unstated_filters: []
+  shape: d49d2be4f2709d6171cbbc3e37b07272abb0259ea6f0efa2e4d80a57f5bfafd7
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_marketing.fct_campaign_sends
+  sql: "SELECT sends_per_customer, COUNT(*) AS customers\nFROM (\n  SELECT customer_key, COUNT(*) AS sends_per_customer\n\
+    \  FROM `fennmoor-dw.dw_marketing.fct_campaign_sends`\n  WHERE sent_date >= '2026-04-15'\n  GROUP BY customer_key\n\
+    )\nGROUP BY sends_per_customer\nORDER BY sends_per_customer\n"
+Ld5366f8d:
+  question: How many distinct accounts do not have a primary holder assigned?
+  compare:
+  - accounts_without_primary
+  unstated_filters: []
+  shape: d5366f8dd634bdbf49a3b4cfb46a9b3a2192aadf083471e7fe8d70ae1e113946
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_intermediate.int_account_holders
+  sql: 'SELECT COUNT(DISTINCT account_id) AS accounts_without_primary
+
+    FROM `fennmoor-dw.dw_intermediate.int_account_holders`
+
+    WHERE account_id NOT IN (SELECT account_id FROM `fennmoor-dw.dw_intermediate.int_account_holders` WHERE is_primary_holder)
+
+    '
+Ld63381a3:
+  question: For each site and month from 2025-11-01 onward, what was the number of contacts and the total expense?
+  compare:
+  - month_start
+  - site_id
+  - contacts
+  - total_expense
+  unstated_filters: []
+  shape: d63381a3d4a31df7a2ec2281710e441c9ec86d337ac17b598dfc71a8a5097d7b
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_contact_center.agg_site_monthly
+  - fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly
+  sql: 'SELECT a.month_start, a.site_id, a.contacts, k.total_expense
+
+    FROM `fennmoor-dw.dw_contact_center.agg_site_monthly` a
+
+    JOIN `fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly` k USING (site_id, month_start)
+
+    WHERE a.month_start >= ''2025-11-01''
+
+    ORDER BY 1, 2
+
+    '
+Ld9c8c1f0:
+  question: Since 2026-04-01, how many login attempts have there been by channel and country, ranked from highest
+    to lowest count?
+  compare:
+  - channel
+  - cut
+  - attempts
+  unstated_filters: []
+  shape: d9c8c1f0e1d747b00e5b6e49f675ed6993df520a2a57b15da92cfb8748adc10a
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_digital.fct_digital_logins
+  sql: 'SELECT channel, geo_country AS cut, COUNT(*) AS attempts
+
+    FROM `fennmoor-dw.dw_digital.fct_digital_logins`
+
+    WHERE event_date >= ''2026-04-01''
+
+    GROUP BY 1, 2
+
+    ORDER BY 3 DESC
+
+    '
+Ldb7eb3ce:
+  question: What is the correlation between customers' churn scores from the version 2 model as of 2026-05-14 and
+    their churn probabilities from the version 3 model as of 2026-05-15, and how many customers had scores from
+    both models on those dates?
+  compare:
+  - rank_agreement
+  - n
+  unstated_filters: []
+  shape: db7eb3cec243401dca0a5e49f865b73076faca34dcc842f171c12d1149bcf301
+  who: an analyst
+  tables:
+  - fennmoor-dw.ml_scores.churn_score_v2
+  - fennmoor-dw.ml_scores.churn_score_v3
+  sql: "SELECT CORR(a.churn_score, b.churn_probability) AS rank_agreement, COUNT(*) AS n\nFROM (SELECT customer_key,\
+    \ churn_score FROM `fennmoor-dw.ml_scores.churn_score_v2` WHERE score_date = '2026-05-14') a\nJOIN (SELECT customer_key,\
+    \ churn_probability FROM `fennmoor-dw.ml_scores.churn_score_v3` WHERE score_date = '2026-05-15') b\n  USING\
+    \ (customer_key)\n"
+Ldc0a459b:
+  question: Which affluent or private-segment customers have opted in to email and have an email address on file?
+    List their customer ID (CIF number), full name, and primary email address.
+  compare:
+  - cif_number
+  - full_name
+  - primary_email
+  unstated_filters: []
+  shape: dc0a459b366e8a89f17d9e0c1c89764ee9bc4f95a554fa805102e39131b5063b
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_customer
+  - fennmoor-dw.dw_customer.customer_360
+  sql: 'SELECT c.cif_number, c.full_name, c.primary_email
+
+    FROM `fennmoor-dw.dw_customer.customer_360` x
+
+    JOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key)
+
+    WHERE x.segment IN (''affluent'', ''private'') AND c.email_opt_in AND c.primary_email IS NOT NULL
+
+    '
+Ldc27f830:
+  question: For campaign sends from 2026-04-03 onward, how many sends were there each week, broken down by channel,
+    for the email and push channels?
+  compare:
+  - wk
+  - channel
+  - sends
+  unstated_filters: []
+  shape: dc27f830b1e31d97b19249fb1208deb6a42a56a72b28ceaa55b849af508cc5b3
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_marketing.fct_campaign_sends
+  sql: 'SELECT DATE_TRUNC(sent_date, WEEK) AS wk, channel, COUNT(*) AS sends
+
+    FROM `fennmoor-dw.dw_marketing.fct_campaign_sends`
+
+    WHERE sent_date >= ''2026-04-03''  AND channel IN (''email'', ''push'')
+
+    GROUP BY 1, 2
+
+    ORDER BY 1, 2
+
+    '
+Ldd1130d2:
+  question: For page views recorded from 2026-05-01 onward, what is the total number of views for each page location,
+    listed for the top 100 pages by view count?
+  compare:
+  - page
+  - views
+  unstated_filters: []
+  shape: dd1130d25d7931a7958efc68f10abd53b7fcad69fea92e48f56afdff9b3d63e6
+  who: an analyst
+  tables:
+  - fennmoor-raw.analytics_312874659.events_*
+  sql: "SELECT (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_location') AS page,\n    \
+    \   COUNT(*) AS views\nFROM `fennmoor-raw.analytics_312874659.events_*`\nWHERE event_date >= '20260501' AND\
+    \ event_name = 'page_view'\nGROUP BY page\nORDER BY views DESC\nLIMIT 100\n"
+Ldf5bcf3a:
+  question: For each site, how many total contact center calls were there and how many of those were account closure
+    calls, for calls with a conversation date between 2026-03-11 and 2026-04-01?
+  compare:
+  - site_id
+  - closure_calls
+  - contacts
+  unstated_filters: []
+  shape: df5bcf3a7376e58910c2a7eef2928106f3bf31f67c300d1413f3686bd88e85f5
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: 'select site_id, countif(is_account_closure_call) as closure_calls, count(*) as contacts
+
+    from `fennmoor-dw.dw_contact_center.fct_calls`
+
+    where conversation_date between ''2026-03-11'' and ''2026-04-01''
+
+    group by 1
+
+    '
+Ldf622140:
+  question: For card purchase transactions posted from 2026-05-31 to 2026-06-29, broken down by whether the transaction
+    was foreign, merchant category group, and customer segment (affluent and private customers only), what was the
+    total spend?
+  compare:
+  - fct_card_transactions_is_foreign
+  - fct_card_transactions_mcc_category_group
+  - fct_card_transactions_segment
+  - fct_card_transactions_total_spend
+  unstated_filters: []
+  shape: df62214017fd7031aed2139f29811d2805a63625f17360c6698a01d81922265a
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_core.dim_customer
+  - fennmoor-dw.dw_core.fct_card_transactions
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"018f0e59570d6\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_card_transactions.is_foreign  AS fct_card_transactions_is_foreign,\n    fct_card_transactions.mcc_category_group\
+    \  AS fct_card_transactions_mcc_category_group,\n    dim_customer.segment  AS fct_card_transactions_segment,\n\
+    \    COALESCE(SUM(CASE WHEN fct_card_transactions.is_purchase THEN fct_card_transactions.amount ELSE NULL END),\
+    \ 0) AS fct_card_transactions_total_spend\nFROM `fennmoor-dw.dw_core.fct_card_transactions`  AS fct_card_transactions\n\
+    LEFT JOIN `fennmoor-dw.dw_core.dim_customer`  AS dim_customer ON fct_card_transactions.customer_key = dim_customer.customer_key\n\
+    WHERE ((( fct_card_transactions.post_date ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -30 DAY))) AND ( fct_card_transactions.post_date\
+    \ ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30', INTERVAL -30 DAY), INTERVAL 30 DAY))))) AND (dim_customer.segment\
+    \ ) IN ('affluent', 'private') AND (fct_card_transactions.txn_type ) = 'PURCH'\nGROUP BY\n    1,\n    2,\n \
+    \   3\nORDER BY\n    4 DESC\nLIMIT 500"
+Ldfe49bfa:
+  question: For fees assessed between 2026-03-04 and 2026-06-11, what were the total net fee amount, total gross
+    fee amount, and count of waived fees, broken down by customer segment and fee type?
+  compare:
+  - segment
+  - fee_type
+  - net
+  - gross
+  - waived
+  unstated_filters: []
+  shape: dfe49bfa027cf7af1f564097a8b6d92ef96724d31cb9c532a676a4ce91fd6d4b
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_customer
+  - fennmoor-dw.dw_core.fct_fees
+  sql: "SELECT c.segment, f.fee_type,\n       SUM(f.net_fee) AS net, SUM(f.fee_amount) AS gross, COUNTIF(f.is_waived)\
+    \ AS waived\nFROM `fennmoor-dw.dw_core.fct_fees` f\nJOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key)\n\
+    WHERE f.assessed_date BETWEEN '2026-03-04' AND '2026-06-11'\nGROUP BY ALL\n"
+Le166be49:
+  question: For each site and month from 2025-11-01 onward, what were the total contacts, the number of closure
+    calls, and the average handle time in minutes (rounded to 1 decimal place)?
+  compare:
+  - month_start
+  - site_id
+  - contacts
+  - closure_calls
+  - aht_min
+  unstated_filters: []
+  shape: e166be49ff198a46a3d7bd2c040506a0f7ae9e4a32a92c3a8eb978bf3045700e
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_contact_center.agg_site_monthly
+  sql: 'select month_start, site_id, contacts, closure_calls, round(avg_handle_sec / 60, 1) as aht_min
+
+    from `fennmoor-dw.dw_contact_center.agg_site_monthly`
+
+    where month_start >= ''2025-11-01''
+
+    order by month_start, site_id
+
+    '
+Le50954e7:
+  question: For calls with a conversation date from 2026-06-23 to 2026-06-29, how many distinct account closure
+    calls were there for each contact center site type (outsourced vs. not outsourced)?
+  compare:
+  - fct_calls_is_outsourced
+  - fct_calls_closure_calls
+  unstated_filters: []
+  shape: e50954e77938d39c517b5c0fefdca68ee6da3206eb09f0e4ad67547fb020da37
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.dim_cc_site
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"03c5bce6f8fed\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    dim_cc_site.is_outsourced  AS fct_calls_is_outsourced,\n    COUNT(DISTINCT CASE WHEN fct_calls.is_account_closure_call\
+    \ THEN fct_calls.conversation_id ELSE NULL END) AS fct_calls_closure_calls\nFROM `fennmoor-dw.dw_contact_center.fct_calls`\
+    \  AS fct_calls\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_cc_site`  AS dim_cc_site ON fct_calls.site_id\
+    \ = dim_cc_site.site_id\nWHERE ((( fct_calls.conversation_date ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -7\
+    \ DAY))) AND ( fct_calls.conversation_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30', INTERVAL -7 DAY), INTERVAL\
+    \ 7 DAY)))))\nGROUP BY\n    1\nORDER BY\n    2 DESC\nLIMIT 500"
+Le5559ed6:
+  question: Since 2026-03-16, how many conversions have there been, broken down by send channel and conversion behavior?
+  compare:
+  - channel
+  - conversion_behavior
+  - conversions
+  unstated_filters: []
+  shape: e5559ed64daf5bf3dfd5acd7cab7d0c20d72946ae6bb08652b458ee011c44165
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_marketing.fct_campaign_attribution
+  - fennmoor-dw.dw_marketing.fct_campaign_sends
+  sql: 'SELECT s.channel, a.conversion_behavior, COUNT(*) AS conversions
+
+    FROM `fennmoor-dw.dw_marketing.fct_campaign_attribution` a
+
+    JOIN `fennmoor-dw.dw_marketing.fct_campaign_sends` s ON s.message_send_id = a.attributed_send_id
+
+    WHERE DATE(a.conversion_at) >= ''2026-03-16''
+
+    GROUP BY 1, 2
+
+    '
+Le59b2970:
+  question: For affluent and private segment customers, from 2026-04-01 to 2026-06-30, how many distinct card purchase
+    transactions (settlements) were there for each combination of foreign transaction flag, transaction month, and
+    transaction type?
+  compare:
+  - fct_card_transactions_is_foreign
+  - fct_card_transactions_post_month
+  - fct_card_transactions_txn_type
+  - fct_card_transactions_txn_count
+  unstated_filters: []
+  shape: e59b29707ac901d5cc58c390abbde717f2aa5f9e674f50f276e28b0d175059d7
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_core.dim_customer
+  - fennmoor-dw.dw_core.fct_card_transactions
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"923e0e7dfde2a\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_card_transactions.is_foreign  AS fct_card_transactions_is_foreign,\n    DATE_TRUNC(fct_card_transactions.post_date,\
+    \ MONTH)  AS fct_card_transactions_post_month,\n    fct_card_transactions.txn_type  AS fct_card_transactions_txn_type,\n\
+    \    COUNT(DISTINCT fct_card_transactions.settlement_id ) AS fct_card_transactions_txn_count\nFROM `fennmoor-dw.dw_core.fct_card_transactions`\
+    \  AS fct_card_transactions\nLEFT JOIN `fennmoor-dw.dw_core.dim_customer`  AS dim_customer ON fct_card_transactions.customer_key\
+    \ = dim_customer.customer_key\nWHERE ((( fct_card_transactions.post_date ) >= ((DATE_ADD(DATE '2026-06-30',\
+    \ INTERVAL -90 DAY))) AND ( fct_card_transactions.post_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30', INTERVAL\
+    \ -90 DAY), INTERVAL 90 DAY))))) AND (dim_customer.segment ) IN ('affluent', 'private') AND (fct_card_transactions.txn_type\
+    \ ) = 'PURCH'\nGROUP BY\n    1,\n    2,\n    3\nORDER BY\n    4 DESC\nLIMIT 5000"
+Le6d5789b:
+  question: For customers who voluntarily closed their account on or after 2026-02-05, and who called the contact
+    center within the 30 days before their closure date up through the closure date itself, how many distinct such
+    closing customers called into each site?
+  compare:
+  - site_id
+  - closers_who_called
+  unstated_filters: []
+  shape: e6d5789bbee7ca32d5fcaaeb28e0482ab77e673839d311976f18bcffd5db04d6
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_contact_center.fct_calls
+  - fennmoor-dw.dw_core.fct_account_closures
+  sql: "WITH closed AS (\n  SELECT customer_key, MIN(close_date) AS close_date\n  FROM `fennmoor-dw.dw_core.fct_account_closures`\n\
+    \  WHERE is_voluntary AND close_date >= '2026-02-05'\n  GROUP BY customer_key\n)\nSELECT f.site_id, COUNT(DISTINCT\
+    \ closed.customer_key) AS closers_who_called\nFROM closed\nJOIN `fennmoor-dw.dw_contact_center.fct_calls` f\n\
+    \  ON f.customer_key = closed.customer_key\n AND f.conversation_date BETWEEN DATE_SUB(closed.close_date, INTERVAL\
+    \ 30 DAY) AND closed.close_date\nGROUP BY f.site_id\n"
+Le85ab9f9:
+  question: For card purchase transactions from 2025-06-30 to 2026-06-29, for affluent and private segment customers,
+    how many distinct cardholders made purchases each day, broken down by whether the transaction was foreign or
+    domestic? Show the 500 day/foreign-status combinations with the most cardholders.
+  compare:
+  - fct_card_transactions_is_foreign
+  - fct_card_transactions_post_date
+  - fct_card_transactions_cardholders
+  unstated_filters: []
+  shape: e85ab9f9012d54c25ada56e5c1d70e5aa8ecd627c909b6b4e1b7ec49f9092518
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_core.dim_customer
+  - fennmoor-dw.dw_core.fct_card_transactions
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"e2a5871417c15\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_card_transactions.is_foreign  AS fct_card_transactions_is_foreign,\n    fct_card_transactions.post_date\
+    \  AS fct_card_transactions_post_date,\n    COUNT(DISTINCT fct_card_transactions.customer_key ) AS fct_card_transactions_cardholders\n\
+    FROM `fennmoor-dw.dw_core.fct_card_transactions`  AS fct_card_transactions\nLEFT JOIN `fennmoor-dw.dw_core.dim_customer`\
+    \  AS dim_customer ON fct_card_transactions.customer_key = dim_customer.customer_key\nWHERE ((( fct_card_transactions.post_date\
+    \ ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -365 DAY))) AND ( fct_card_transactions.post_date ) < ((DATE_ADD(DATE_ADD(DATE\
+    \ '2026-06-30', INTERVAL -365 DAY), INTERVAL 365 DAY))))) AND (dim_customer.segment ) IN ('affluent', 'private')\
+    \ AND (fct_card_transactions.txn_type ) = 'PURCH'\nGROUP BY\n    1,\n    2\nORDER BY\n    3 DESC\nLIMIT 500"
+Le8c70805:
+  question: For each combination of digital enrollment status and whether a customer had any web sessions in the
+    last 30 days, how many customers are there and what is their average total deposit balance?
+  compare:
+  - is_digitally_enrolled
+  - web_active
+  - customers
+  - avg_balance
+  unstated_filters: []
+  shape: e8c70805d730616e80af3ae3dea66b0b30473ce0ca6e158a3cbbf14390d0136a
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_customer.customer_360
+  sql: "SELECT is_digitally_enrolled, web_sessions_30d > 0 AS web_active,\n       COUNT(*) AS customers, AVG(total_deposit_balance)\
+    \ AS avg_balance\nFROM `fennmoor-dw.dw_customer.customer_360`\nGROUP BY 1, 2\n"
+Lea0a11f5:
+  question: For each week starting 2026-02-06 onward, how many unsubscribes and how many bounces occurred among
+    campaign engagement events?
+  compare:
+  - wk
+  - unsubscribes
+  - bounces
+  unstated_filters: []
+  shape: ea0a11f571277892e4b2f7129e28aa692203dd71d926978e99ee34d960783605
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_marketing.fct_campaign_engagement
+  sql: 'SELECT DATE_TRUNC(event_date, WEEK) AS wk, COUNTIF(unsubscribed) AS unsubscribes, COUNTIF(bounced) AS bounces
+
+    FROM `fennmoor-dw.dw_marketing.fct_campaign_engagement`
+
+    WHERE event_date >= ''2026-02-06''
+
+    GROUP BY wk
+
+    ORDER BY wk
+
+    '
+Lea731b4b:
+  question: For deposit transactions posted from 2025-10-01 onward, what is the total transaction amount by month
+    and transaction type, for wire transfers and ACH debits?
+  compare:
+  - m
+  - transaction_type
+  - amount
+  unstated_filters: []
+  shape: ea731b4bac5dccd0de4bc27aae60fed298a46917bcc14cb0297ea551f2db9be8
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.fct_deposit_transactions
+  sql: 'SELECT DATE_TRUNC(posted_date, MONTH) AS m, transaction_type, SUM(amount) AS amount
+
+    FROM `fennmoor-dw.dw_core.fct_deposit_transactions`
+
+    WHERE posted_date >= ''2025-10-01'' AND transaction_type IN (''WIRE'', ''ACH_DR'')
+
+    GROUP BY 1, 2
+
+    ORDER BY 1
+
+    '
+Leb26b397:
+  question: For each week starting on or after 2026-03-12, what was the average CSAT score and average NPS score
+    from customer conversations, broken down by week?
+  compare:
+  - wk
+  - csat
+  - nps
+  unstated_filters: []
+  shape: eb26b397102137f7314c1a333bc4e058bf2aea607a572baf2cb2407dd9d172e1
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_contact_center.fct_csat
+  sql: 'select date_trunc(conversation_date, week) as wk, avg(csat_score) as csat, avg(nps_score) as nps
+
+    from `fennmoor-dw.dw_contact_center.fct_csat`
+
+    where conversation_date >= ''2026-03-12''
+
+    group by 1 order by 1
+
+    '
+Lecec1d54:
+  question: For voluntary account closures since 2026-02-01, how many closures were there each week, broken down
+    by account family and close reason? Please group the results by week, account family, and close reason, and
+    within each week order results by closure count from highest to lowest.
+  compare:
+  - period
+  - account_family
+  - close_reason
+  - closures
+  unstated_filters: []
+  shape: ecec1d54cc7c5d89ef1e07c1b54e8860b084af2e7819a35ec005ea831c90611d
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.fct_account_closures
+  sql: "SELECT DATE_TRUNC(close_date, WEEK) AS period, account_family, close_reason, COUNT(*) AS closures\nFROM\
+    \ `fennmoor-dw.dw_core.fct_account_closures`\nWHERE close_date >= '2026-02-01'\n AND is_voluntary\nGROUP BY\
+    \ ALL\nORDER BY period, closures DESC\n"
+Led874c20:
+  question: For affluent and private segment customers, for card transactions posted from 2026-05-31 to 2026-06-29,
+    what is the total interchange and total spend (spend on purchase transactions only), broken down by whether
+    the transaction was foreign, the merchant category group, and the transaction type?
+  compare:
+  - fct_card_transactions_is_foreign
+  - fct_card_transactions_mcc_category_group
+  - fct_card_transactions_txn_type
+  - fct_card_transactions_interchange
+  - fct_card_transactions_total_spend
+  unstated_filters: []
+  shape: ed874c20bf06999e994df6c854a9204d982672c67d5b57d8c0a73e2f6bb5012f
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_core.dim_customer
+  - fennmoor-dw.dw_core.fct_card_transactions
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"a52f741676764\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_card_transactions.is_foreign  AS fct_card_transactions_is_foreign,\n    fct_card_transactions.mcc_category_group\
+    \  AS fct_card_transactions_mcc_category_group,\n    fct_card_transactions.txn_type  AS fct_card_transactions_txn_type,\n\
+    \    COALESCE(SUM(fct_card_transactions.interchange ), 0) AS fct_card_transactions_interchange,\n    COALESCE(SUM(CASE\
+    \ WHEN fct_card_transactions.is_purchase THEN fct_card_transactions.amount ELSE NULL END), 0) AS fct_card_transactions_total_spend\n\
+    FROM `fennmoor-dw.dw_core.fct_card_transactions`  AS fct_card_transactions\nLEFT JOIN `fennmoor-dw.dw_core.dim_customer`\
+    \  AS dim_customer ON fct_card_transactions.customer_key = dim_customer.customer_key\nWHERE ((( fct_card_transactions.post_date\
+    \ ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -30 DAY))) AND ( fct_card_transactions.post_date ) < ((DATE_ADD(DATE_ADD(DATE\
+    \ '2026-06-30', INTERVAL -30 DAY), INTERVAL 30 DAY))))) AND (dim_customer.segment ) IN ('affluent', 'private')\n\
+    GROUP BY\n    1,\n    2,\n    3\nLIMIT 5000"
+Ledff3723:
+  question: For each conversation date from 2026-05-31 to 2026-06-29, how many distinct calls were handled and what
+    was the average handle time (in seconds), ranked from the highest call count to the lowest?
+  compare:
+  - fct_calls_conversation_date
+  - fct_calls_count
+  - fct_calls_avg_handle_time
+  unstated_filters: []
+  shape: edff37234b00424056f46c5a3030cd4361d7949c24d99d9eafe6e349a37c84c9
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"3adbd958298e6\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_calls.conversation_date  AS fct_calls_conversation_date,\n    COUNT(DISTINCT fct_calls.conversation_id\
+    \ ) AS fct_calls_count,\n    AVG(fct_calls.handle_sec ) AS fct_calls_avg_handle_time\nFROM `fennmoor-dw.dw_contact_center.fct_calls`\
+    \  AS fct_calls\nWHERE ((( fct_calls.conversation_date ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -30 DAY)))\
+    \ AND ( fct_calls.conversation_date ) < ((DATE_ADD(DATE_ADD(DATE '2026-06-30', INTERVAL -30 DAY), INTERVAL 30\
+    \ DAY)))))\nGROUP BY\n    1\nORDER BY\n    2 DESC\nLIMIT 500"
+Lee760ebe:
+  question: How many online banking enrollments were there each month, broken down by enrollment channel?
+  compare:
+  - m
+  - enrollment_channel
+  - enrollments
+  unstated_filters: []
+  shape: ee760ebe6e253f1f88604ec7e8124527bd714c2b6872cf3c2eed6bf30b653262
+  who: an analyst
+  tables:
+  - fennmoor-raw.digital_banking.online_user
+  sql: 'SELECT DATE_TRUNC(DATE(enrolled_at), MONTH) AS m, enrollment_channel, COUNT(*) AS enrollments
+
+    FROM `fennmoor-raw.digital_banking.online_user`
+
+    GROUP BY 1, 2
+
+    ORDER BY 1
+
+    '
+Leea58714:
+  question: For credit applications submitted from 2026-02-21 onward, what is the number of applications and the
+    approval rate (share with final outcome approve), broken down by FICO band (740+, 670-739, 580-669, and below
+    580) based on credit score at application?
+  compare:
+  - FICO_BAND
+  - APPS
+  - APPROVAL_RATE
+  unstated_filters: []
+  shape: eea58714cb90e59ab7ad7284ca7a6979f2d7ffa58b2f8a65ae0d511865b60041
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_risk.fct_credit_applications
+  sql: "SELECT CASE WHEN CREDIT_SCORE_AT_APP >= 740 THEN '740+' WHEN CREDIT_SCORE_AT_APP >= 670 THEN '670-739'\n\
+    \            WHEN CREDIT_SCORE_AT_APP >= 580 THEN '580-669' ELSE '<580' END AS FICO_BAND,\n       COUNT(*) AS\
+    \ APPS, COUNTIF(FINAL_OUTCOME = 'APPROVE') / COUNT(*) AS APPROVAL_RATE\nFROM `fennmoor-dw.dw_risk.fct_credit_applications`\n\
+    WHERE SUBMITTED_DATE >= '2026-02-21'\nGROUP BY 1\nORDER BY 1\n"
+Leeca746a:
+  question: Since 2026-05-20, for each fraud detection rule that has triggered more than 50 alerts, what is the
+    total number of alerts, the number confirmed as fraud, and the total loss amount? List the rules ordered from
+    the most confirmed fraud cases to the fewest.
+  compare:
+  - rule_id
+  - alerts
+  - confirmed
+  - losses
+  unstated_filters: []
+  shape: eeca746ad535a1f60aed6c0fd45a94224139a48cf8f55c2d74d317b55cf0b817
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_risk.fct_fraud_alerts
+  sql: 'SELECT rule_id, COUNT(*) AS alerts, COUNTIF(is_confirmed_fraud) AS confirmed, SUM(loss_amount) AS losses
+
+    FROM `fennmoor-dw.dw_risk.fct_fraud_alerts`
+
+    WHERE alert_date >= ''2026-05-20''
+
+    GROUP BY rule_id
+
+    HAVING COUNT(*) > 50
+
+    ORDER BY confirmed DESC
+
+    '
+Lef4377dd:
+  question: For calls that took place on 2026-06-30, how many calls were there at each site?
+  compare:
+  - site_id
+  - count(*)
+  unstated_filters: []
+  shape: ef4377dd2dbe533f95e3885625a9715827d5e4a4b1e6c3ed42e1c27f46804d3c
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: 'select site_id, count(*) from `fennmoor-dw.dw_contact_center.fct_calls` where conversation_date = DATE ''2026-06-30''
+    group by site_id
+
+    '
+Lef98f427:
+  question: What are the total expense, payroll expense, and vendor expense for each site by month, listed with
+    the most recent month first?
+  compare:
+  - month_start
+  - site_id
+  - total_expense
+  - payroll_expense
+  - vendor_expense
+  unstated_filters: []
+  shape: ef98f427948b5567e8fa5587a6cb0bb038707f0bd54bbf890cac0d02f3d62477
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly
+  sql: 'select month_start, site_id, total_expense, payroll_expense, vendor_expense
+
+    from `fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly`
+
+    order by month_start desc, site_id
+
+    '
+Lefe10343:
+  question: For affluent and private-segment customers, for each merchant category (MCC) group and post date from
+    2026-07-01 to 2027-06-29, what is the number of distinct cardholders who made purchase transactions and the
+    total interchange earned? Show the 500 rows with the highest cardholder counts.
+  compare:
+  - fct_card_transactions_mcc_category_group
+  - fct_card_transactions_post_date
+  - fct_card_transactions_cardholders
+  - fct_card_transactions_interchange
+  unstated_filters: []
+  shape: efe1034377ca203ca68ef9774177afdb81a8a45e89d1d96bb5f6cda6143adef8
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_core.dim_customer
+  - fennmoor-dw.dw_core.fct_card_transactions
+  sql: "-- Looker Query Context '{\"user_id\":99,\"history_slug\":\"d680f3c9c688e\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_card_transactions.mcc_category_group  AS fct_card_transactions_mcc_category_group,\n   \
+    \ fct_card_transactions.post_date  AS fct_card_transactions_post_date,\n    COUNT(DISTINCT fct_card_transactions.customer_key\
+    \ ) AS fct_card_transactions_cardholders,\n    COALESCE(SUM(fct_card_transactions.interchange ), 0) AS fct_card_transactions_interchange\n\
+    FROM `fennmoor-dw.dw_core.fct_card_transactions`  AS fct_card_transactions\nLEFT JOIN `fennmoor-dw.dw_core.dim_customer`\
+    \  AS dim_customer ON fct_card_transactions.customer_key = dim_customer.customer_key\nWHERE ((( fct_card_transactions.post_date\
+    \ ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -365 DAY))) AND ( fct_card_transactions.post_date ) < ((DATE_ADD(DATE_ADD(DATE\
+    \ '2026-06-30', INTERVAL -365 DAY), INTERVAL 365 DAY))))) AND (dim_customer.segment ) IN ('affluent', 'private')\
+    \ AND (fct_card_transactions.txn_type ) = 'PURCH'\nGROUP BY\n    1,\n    2\nORDER BY\n    3 DESC\nLIMIT 500"
+Lf24da50d:
+  question: For messages sent on 2026-05-17, how many sends were there per channel?
+  compare:
+  - channel
+  - sends
+  unstated_filters: []
+  shape: f24da50dce46cc3ae398825ba3545a13d5d3bac307f8feaef754164d029b3c0b
+  who: an analyst
+  tables:
+  - fennmoor-raw.braze.message_send
+  sql: 'SELECT channel, COUNT(*) AS sends
+
+    FROM `fennmoor-raw.braze.message_send`
+
+    WHERE DATE(sent_at) = ''2026-05-17''
+
+    GROUP BY channel
+
+    '
+Lf3aa1fe7:
+  question: For calls with a conversation date from 2026-06-23 to 2026-06-29 (inclusive), how many distinct conversations
+    were there for each wrap-up code, showing the top 50 wrap-up codes ranked by number of conversations?
+  compare:
+  - fct_calls_wrapup
+  - fct_calls_count
+  unstated_filters: []
+  shape: f3aa1fe712985a5e5d1f28313b574922cef5d2492d58d0ad7a77d5dec06f7595
+  who: a Looker dashboard (production)
+  tables:
+  - fennmoor-dw.dw_contact_center.fct_calls
+  sql: "-- Looker Query Context '{\"user_id\":60,\"history_slug\":\"3c0c90edeb8cd\",\"instance_slug\":\"7e3f0c2b9a4d4f1e8c6b5a0d3e2f1a9b\"\
+    }'\nSELECT\n    fct_calls.wrapup_code_name  AS fct_calls_wrapup,\n    COUNT(DISTINCT fct_calls.conversation_id\
+    \ ) AS fct_calls_count\nFROM `fennmoor-dw.dw_contact_center.fct_calls`  AS fct_calls\nWHERE ((( fct_calls.conversation_date\
+    \ ) >= ((DATE_ADD(DATE '2026-06-30', INTERVAL -7 DAY))) AND ( fct_calls.conversation_date ) < ((DATE_ADD(DATE_ADD(DATE\
+    \ '2026-06-30', INTERVAL -7 DAY), INTERVAL 7 DAY)))))\nGROUP BY\n    1\nORDER BY\n    2 DESC\nLIMIT 50"
+Lf431cd40:
+  question: For each month, broken down by fraud type, what was the total confirmed fraud loss amount? Include all
+    confirmed fraud alerts across all available months, and order results by month, with each month's fraud types
+    sorted from highest to lowest total loss.
+  compare:
+  - m
+  - fraud_type
+  - losses
+  unstated_filters: []
+  shape: f431cd409e8a16064e4db21ff969fb236c8faaaf1cf08ddb065a6d790fa1f12d
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_risk.fct_fraud_alerts
+  sql: 'SELECT DATE_TRUNC(alert_date, MONTH) AS m, fraud_type, SUM(loss_amount) AS losses
+
+    FROM `fennmoor-dw.dw_risk.fct_fraud_alerts`
+
+    WHERE is_confirmed_fraud
+
+    GROUP BY 1, 2
+
+    ORDER BY 1, 3 DESC
+
+    '
+Lf6331a08:
+  question: For currently active cards, how many cards and how many distinct customers are there, broken down by
+    digital wallet status (e.g. enrolled vs not enrolled in a digital wallet)?
+  compare:
+  - digital_wallet
+  - cards
+  - customers
+  unstated_filters: []
+  shape: f6331a08fca85727c12cfd90b5dee16b0308cfc26ee7410a8efb96f4c7c62029
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_core.dim_card
+  sql: "SELECT c.digital_wallet, COUNT(*) AS cards, COUNT(DISTINCT c.cif_number) AS customers\nFROM `fennmoor-dw.dw_core.dim_card`\
+    \ c\nWHERE c.status = 'A' \nGROUP BY c.digital_wallet\n"
+Lfba52c1e:
+  question: For the accounting period MAR-26, what were the total actual expense amount, total budget amount, and
+    total variance amount for each cost center, sorted from most negative (or smallest) variance to largest?
+  compare:
+  - PERIOD_NAME
+  - CC_ID
+  - actual
+  - budget
+  - variance
+  unstated_filters: []
+  shape: fba52c1e22b797c46fd62d3d69e03b2acbfb17b1551e94be4191a986cd9e5ce8
+  who: an analyst
+  tables:
+  - fennmoor-raw.gl_erp.CC_EXPENSE_SUMMARY
+  sql: 'SELECT PERIOD_NAME, CC_ID, SUM(ACTUAL_AMT) AS actual, SUM(BUDGET_AMT) AS budget, SUM(VARIANCE_AMT) AS variance
+
+    FROM `fennmoor-raw.gl_erp.CC_EXPENSE_SUMMARY`
+
+    WHERE PERIOD_NAME = ''MAR-26''
+
+    GROUP BY PERIOD_NAME, CC_ID
+
+    ORDER BY variance
+
+    '
+Lff8ef74e:
+  question: For logins on 2026-05-17, grouped into risk score bands of 100 (0-99, 100-199, 200-299, etc.), what
+    was the total number of logins and how many of those logins failed, for each band?
+  compare:
+  - band
+  - logins
+  - failed
+  unstated_filters: []
+  shape: ff8ef74edc3151888e581dbd02c845af17f96fd3723095aae2df1e9f4a965ffc
+  who: an analyst
+  tables:
+  - fennmoor-dw.dw_digital.fct_digital_logins
+  sql: 'SELECT CAST(FLOOR(risk_score / 100) * 100 AS INT64) AS band, COUNT(*) AS logins, COUNTIF(NOT is_success)
+    AS failed
+
+    FROM `fennmoor-dw.dw_digital.fct_digital_logins`
+
+    WHERE event_date = ''2026-05-17''
+
+    GROUP BY band
+
+    ORDER BY band
+
+    '

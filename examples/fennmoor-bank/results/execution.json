@@ -66,8 +66,8 @@
   },
   "cypher": {
    "verdict": "failed",
-   "why": "unknown properties: a.current_balance (Account has no current_balance)",
-   "query": "MATCH (a:Account)-[:OWNED_BY]->(c:Customer)\nWHERE a.account_family = 'DEPOSIT' AND a.is_open = true\nWITH c, sum(a.current_balance) AS total_balance\n"
+   "why": "42NG1: Unsupported syntax: `Aggregating WITH clause is not supported`. (line 3, column 1 (offset: 108))",
+   "query": "MATCH (a:Account)-[:OWNED_BY]->(c:Customer)\nWHERE a.account_family = 'DEPOSIT' AND a.is_open = true\nWITH c, sum(0) AS dummy\nMATCH (dt:DepositTransaction)-[:INITIATED_BY]->(c2:Customer)\nWHERE dt.customer_key = c.customer_key\nWITH c, sum(dt.signed_amount) AS total_deposit_balance\nWHERE total_deposit_balance >= 100000\nRETURN c.customer_key AS customer_key, c.segment AS segment, c.tenure_months AS tenure_months, total_deposit_balance AS total_deposit_balance\nORDER BY total_deposit_balance DESC"
   }
  },
  "Q03": {
@@ -93,8 +93,8 @@
   },
   "cypher": {
    "verdict": "not scored",
-   "why": "1 rows",
-   "query": "// No web session / page visit data is exposed in the given graph (labels, relationships, properties).\n// The only web-page browsing data referenced in the bank's SQL comes from `dw_digital.fct_web_sessions`,\n// which is not part of the provided Virtual Graph schema (no Node label or relationship maps to it).\n// Therefore this question cannot be answered with the labels/relationships available.\nRETURN \"No web session/page-visit data available in the provided graph schema\" AS note"
+   "why": "50 rows",
+   "query": "MATCH (c:Call)-[:RECEIVED_FROM]->(cust:Customer)\nRETURN cust.customer_key AS customer_key, count(c) AS calls\nORDER BY calls DESC\nLIMIT 50"
   }
  },
  "Q04": {
@@ -163,9 +163,9 @@
    "query": "WITH eom AS (\n  SELECT\n    account_key,\n    product_code,\n    DATE_TRUNC(balance_date, MONTH) AS month_start,\n    ARRAY_AGG(ledger_balance ORDER BY balance_date DESC LIMIT 1)[OFFSET(0)] AS eom_balance\n  FROM `fennmoor-dw.dw_core.fct_daily_account_balances`\n  GROUP BY 1, 2, 3\n)\nSELECT\n  eom.month_start,\n  p.product_line,\n  SUM(eom.eom_balance) AS month_end_balance\nFROM eom\nJOIN `fennmoor-dw.dw_core.dim_product` p\n  USING (product_code)\nGROUP BY eom.month_start, p.product_line\nORDER BY eom.month_start, p.product_line\n"
   },
   "cypher": {
-   "verdict": "failed",
-   "why": "42NG1: Unsupported syntax: `Aggregating WITH clause is not supported`. (line 3, column 1 (offset: 175))",
-   "query": "MATCH (dt:DepositTransaction)-[:CREDITED_TO]->(a:Account)-[:CONTAINS]->(p:Product)\nWHERE dt.posted_date >= date('2026-08-01') AND dt.posted_date <= date('2026-08-31')\nWITH p.product_line AS product_line, a.account_key AS account_key, max(dt.posted_date) AS last_posted_date\nMATCH (dt2:DepositTransaction)-[:CREDITED_TO]->(a2:Account)\nWHERE a2.account_key = account_key AND dt2.posted_date = last_posted_date\nWITH product_line, account_key, max(dt2.signed_amount) AS eom_balance\nRETURN product_line, sum(eom_balance) AS deposit_balance\nORDER BY product_line"
+   "verdict": "wrong",
+   "why": "1 rows, not 12",
+   "query": "MATCH (a:Account)-[:CONTAINS]->(p:Product)\nMATCH (dt:DepositTransaction)-[:CREDITED_TO]->(a)\nWHERE dt.posted_date >= date('2026-01-01') AND dt.posted_date <= date('2026-09-27')\nWITH a, p, dt\nORDER BY dt.posted_date DESC\nWITH a.account_key AS account_key, p.product_line AS product_line, dt.posted_date AS posted_date\nRETURN product_line, posted_date, account_key\nLIMIT 1"
   }
  },
  "Q06": {
@@ -188,8 +188,8 @@
   },
   "cypher": {
    "verdict": "not scored",
-   "why": "25 rows",
-   "query": "MATCH (c:Customer)\nRETURN c.customer_key AS customer_key, c.tax_id_hash AS tax_id_hash\nLIMIT 25"
+   "why": "100 rows",
+   "query": "MATCH (c:Customer)\nRETURN c.customer_key AS customer_key, c.tax_id_hash AS tax_id_hash\nLIMIT 100"
   }
  },
  "Q07": {
@@ -253,9 +253,9 @@
    "query": "SELECT\n  c.campaign_name,\n  COUNT(DISTINCT a.customer_key) AS customers_applied,\n  COUNT(*) AS card_applications\nFROM `fennmoor-dw.dw_marketing.fct_campaign_attribution` a\nJOIN `fennmoor-dw.dw_marketing.dim_campaign` c\n  USING (campaign_id)\nWHERE a.conversion_behavior = 'card_application_submitted'\nGROUP BY c.campaign_name\nORDER BY card_applications DESC"
   },
   "cypher": {
-   "verdict": "empty",
-   "why": "no rows",
-   "query": "MATCH (a)\nRETURN a LIMIT 0"
+   "verdict": "wrong",
+   "why": "1 rows, not 5200",
+   "query": "MATCH (a:Account)\nRETURN a.open_channel AS channel, count(*) AS accounts\nLIMIT 1"
   }
  },
  "Q09": {
@@ -290,9 +290,9 @@
    "query": "WITH OPEN_LOANS AS (\n  SELECT\n    PRODUCT_CODE,\n    BRANCH_ID,\n    COUNT(*) AS N\n  FROM `fennmoor-dw.dw_core.dim_account`\n  WHERE ACCOUNT_FAMILY = 'LOAN'\n    AND IS_OPEN\n  GROUP BY 1, 2\n),\nDLQ AS (\n  SELECT\n    A.PRODUCT_CODE,\n    A.BRANCH_ID,\n    COUNT(*) AS D\n  FROM `fennmoor-dw.dw_risk.fct_delinquency_daily` DD\n  JOIN `fennmoor-dw.dw_core.dim_account` A USING (ACCOUNT_KEY)\n  WHERE DD.SNAPSHOT_DATE = (SELECT MAX(SNAPSHOT_DATE) FROM `fennmoor-dw.dw_risk.fct_delinquency_daily`)\n    AND DD.DPD >= 30\n  GROUP BY 1, 2\n)\nSELECT\n  O.PRODUCT_CODE,\n  B.BRANCH_NAME,\n  O.N AS OPEN_LOANS,\n  COALESCE(DLQ.D, 0) AS DELINQUENT_LOANS,\n  SAFE_DIVIDE(DLQ.D, O.N) AS DELINQUENCY_RATE\nFROM OPEN_LOANS O\nLEFT JOIN DLQ USING (PRODUCT_CODE, BRANCH_ID)\nLEFT JOIN `fennmoor-dw.dw_core.dim_branch` B ON B.BRANCH_ID = O.BRANCH_ID\nORDER BY DELINQUENCY_RATE DESC\n"
   },
   "cypher": {
-   "verdict": "correct",
-   "why": "matches on product_code=productCode, branch_name=branchName, delinquency_rate=delinquentLoans",
-   "query": "MATCH (a:Account)-[:MAINTAINED_AT]->(b:Branch)\nWHERE a.account_family = 'LOAN'\nWITH a.product_code AS productCode, b.branch_name AS branchName,\n     count(a) AS totalLoans,\n     sum(CASE WHEN a.is_open THEN 1 ELSE 0 END) AS openLoans,\n     sum(CASE WHEN a.status_code = 'DELINQUENT' THEN 1 ELSE 0 END) AS delinquentLoans\nRETURN productCode, branchName, openLoans,\n       delinquentLoans,\n       CASE WHEN openLoans = 0 THEN 0.0 ELSE toFloat(delinquentLoans) / openLoans END AS delinquencyRate\nORDER BY delinquencyRate DESC"
+   "verdict": "wrong",
+   "why": "no column holds delinquency_rate (2 of 3 match)",
+   "query": "MATCH (a:Account)-[:MAINTAINED_AT]->(b:Branch)\nWHERE a.account_family = 'LOAN' AND a.is_open\nWITH a.product_code AS productCode, b.branch_name AS branchName, count(*) AS openLoans\nRETURN productCode, branchName, openLoans\nORDER BY branchName, productCode"
   }
  },
  "Q10": {
@@ -317,7 +317,7 @@
   "cypher": {
    "verdict": "not scored",
    "why": "3 rows",
-   "query": "MATCH (c:Call)-[:HANDLED_BY]->(a:Agent)\nWITH a, c,\n  CASE WHEN a.tenure_months < 12 THEN '0-1y'\n       WHEN a.tenure_months < 60 THEN '1-5y'\n       ELSE '5y+' END AS tenure_band,\n  CASE WHEN c.handle_sec IS NOT NULL THEN 1 ELSE 0 END AS handled\nRETURN tenure_band, count(c) AS call_count\nORDER BY tenure_band"
+   "query": "MATCH (c:Call)-[:HANDLED_BY]->(a:Agent)\nWITH a, c,\n  CASE\n    WHEN a.tenure_months < 12 THEN '0-1y'\n    WHEN a.tenure_months < 60 THEN '1-5y'\n    ELSE '5y+'\n  END AS tenure_band\nRETURN tenure_band,\n       count(c) AS call_count,\n       avg(c.handle_sec) AS avg_handle_sec,\n       avg(c.hold_sec) AS avg_hold_sec,\n       sum(CASE WHEN c.was_transferred THEN 1 ELSE 0 END) AS transferred_calls,\n       sum(CASE WHEN c.is_abandoned THEN 1 ELSE 0 END) AS abandoned_calls\nORDER BY tenure_band"
   }
  },
  "Q11": {
@@ -347,9 +347,9 @@
    "query": "SELECT\n  DATE_TRUNC(session_date, WEEK) AS week_start,\n  COUNT(DISTINCT cif_number) AS mobile_app_customers\nFROM `fennmoor-dw.dw_digital.fct_app_sessions`\nGROUP BY week_start\nORDER BY week_start"
   },
   "cypher": {
-   "verdict": "failed",
-   "why": "Invalid input 'UNKNOWN': expected 'ALTER', 'ORDER BY', 'CALL', 'CREATE', 'LOAD CSV', 'START DATABASE', 'STOP DATABASE', 'DEALLOCATE', 'DELETE', 'DENY', 'DETACH'",
-   "query": "UNKNOWN"
+   "verdict": "wrong",
+   "why": "1 rows, not 14",
+   "query": "// No mobile app session data (fct_app_sessions) is exposed in this graph schema.\n// The available labels/relationships (Customer, DepositTransaction, Account, Branch, Call, CardTransaction)\n// do not include any node representing app sessions or digital channel usage, so this question cannot be answered\n// with the given graph.\nRETURN \"UNKNOWN: no app-session data available in provided graph schema\" AS note"
   }
  },
  "Q12": {
@@ -379,9 +379,9 @@
    "query": "SELECT\n  c.cif_number,\n  c.full_name,\n  c.primary_email\nFROM `fennmoor-dw.dw_customer.customer_360` x\nJOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key)\nWHERE x.segment = 'affluent'\n  AND c.email_opt_in\n  AND c.primary_email IS NOT NULL\n  AND c.customer_status = 'A'\n  AND c.is_deceased IS FALSE"
   },
   "cypher": {
-   "verdict": "wrong",
-   "why": "1149 rows, not 1566",
-   "query": "MATCH (c:Customer)\nWHERE c.segment = 'affluent'\n  AND c.email_opt_in = true\n  AND c.primary_email IS NOT NULL\n  AND c.customer_status = 'A'\n  AND c.is_deceased = false\nRETURN c.cif_number AS cif_number, c.full_name AS full_name, c.primary_email AS primary_email\nORDER BY full_name"
+   "verdict": "correct",
+   "why": "matches on cif_number (as Q12.alt)",
+   "query": "MATCH (c:Customer)\nWHERE c.segment = 'affluent'\n  AND c.email_opt_in = true\n  AND c.primary_email IS NOT NULL\nRETURN c.cif_number AS cif_number, c.full_name AS full_name, c.primary_email AS primary_email"
   }
  },
  "Q13": {
@@ -438,7 +438,7 @@
   "cypher": {
    "verdict": "correct",
    "why": "matches on account_family, closures=n",
-   "query": "MATCH (a:Account)\nWHERE a.account_family IN ['DEPOSIT', 'CARD'] AND a.close_date IS NOT NULL\nRETURN a.account_family AS account_family, a.close_reason AS close_reason, count(a.account_key) AS n\nORDER BY account_family, n DESC"
+   "query": "MATCH (a:Account)\nWHERE a.account_family IN ['DEPOSIT', 'CARD'] AND a.close_date IS NOT NULL\nRETURN a.account_family AS account_family, a.close_reason AS close_reason, count(a) AS n\nORDER BY account_family, n DESC"
   }
  }
 }

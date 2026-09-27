@@ -114,21 +114,86 @@ def compare_rows(ref: dict, got: dict, items: list[list[str]]) -> tuple[str, str
             c, g, k, ref_col = found
             mapping[c], scale[c] = g, (k, ref_col)
         else:
-            missing.append("|".join(alternatives))
-    if missing:
-        return "wrong", "no column holds " + ", ".join(missing) + f" ({len(mapping)} of {len(items)} match)"
+            missing.append(alternatives)
     cols = list(mapping)
-    key = lambda row: tuple(order(v) for v in row)
     ref_cols = {c: scaled(scale[c][1], scale[c][0]) for c in cols}
-    ref_rows = sorted((tuple(ref_cols[c][i] for c in cols) for i in range(len(ref["rows"]))), key=key)
-    got_rows = sorted(
-        (tuple(got_cols[mapping[c]][i] for c in cols) for i in range(len(got["rows"]))), key=key
-    )
+    ref_key = [tuple(ref_cols[c][i] for c in cols) for i in range(len(ref["rows"]))]
+    got_key = [tuple(got_cols[mapping[c]][i] for c in cols) for i in range(len(got["rows"]))]
+    relabels = {}
+    for alternatives in list(missing) if cols else []:
+        for c in alternatives:
+            ref_col = [norm(r[c]) for r in ref["rows"]] if c in ref["columns"] else None
+            if ref_col is None or not identifies(c, ref_col):
+                continue
+            g = next(
+                (
+                    g
+                    for g in got_cols
+                    if g not in mapping.values()
+                    and g not in relabels.values()
+                    and relabeled(ref_key, ref_col, got_key, got_cols[g])
+                ),
+                None,
+            )
+            if g:
+                relabels[c] = g
+                missing.remove(alternatives)
+                break
+    if missing:
+        matched = len(mapping) + len(relabels)
+        return "wrong", "no column holds " + ", ".join(
+            "|".join(a) for a in missing
+        ) + f" ({matched} of {len(items)} match)"
+    key = lambda row: tuple(order(v) for v in row)
+    ref_rows, got_rows = sorted(ref_key, key=key), sorted(got_key, key=key)
     if all(all(same(a, b) for a, b in zip(r, g)) for r, g in zip(ref_rows, got_rows)):
         return "correct", "matches on " + ", ".join(
-            f"{c}={mapping[c]}" if c != mapping[c] else c for c in cols
+            [f"{c}={mapping[c]}" if c != mapping[c] else c for c in cols]
+            + [f"{c}~{g} (relabeled)" for c, g in relabels.items()]
         )
     return "wrong", "every column's values match, but not row by row"
+
+
+IDENTIFIER = re.compile(r"(^|_)(id|key|code|number|num|no)$", re.I)
+
+
+def identifies(name: str, values: list) -> bool:
+    """A column that names things (text, or an identifier by its name) may be answered by another
+    column naming the same things (a site's id by its name); a measure never is."""
+    return all(v is None or isinstance(v, str) for v in values) or bool(IDENTIFIER.search(name))
+
+
+def relabeled(ref_key: list[tuple], ref_vals: list, got_key: list[tuple], got_vals: list) -> bool:
+    """Whether got_vals relabel ref_vals one to one, the rows paired by their other compared columns
+    (the key). Rows the key doesn't tell apart only need the same number of values not yet paired."""
+    if len(set(ref_vals)) != len(set(got_vals)):
+        return False
+    k = lambda row: tuple(order(v) for v in row[0])
+    r, g = sorted(zip(ref_key, ref_vals), key=k), sorted(zip(got_key, got_vals), key=k)
+    if not all(all(same(a, b) for a, b in zip(x[0], y[0])) for x, y in zip(r, g)):
+        return False
+    groups: list[tuple[list, list, tuple]] = []
+    for x, y in zip(r, g):
+        if groups and all(same(a, b) for a, b in zip(groups[-1][2], x[0])):
+            groups[-1][0].append(x[1])
+            groups[-1][1].append(y[1])
+        else:
+            groups.append(([x[1]], [y[1]], x[0]))
+    fwd, back = {}, {}
+    for rv, gv, _ in groups:
+        if len(rv) == 1 and (fwd.setdefault(rv[0], gv[0]) != gv[0] or back.setdefault(gv[0], rv[0]) != rv[0]):
+            return False
+    for rv, gv, _ in groups:
+        if len(rv) > 1:
+            rest = list(gv)
+            for a in rv:
+                if a in fwd:
+                    if fwd[a] not in rest:
+                        return False
+                    rest.remove(fwd[a])
+            if len(rest) != sum(1 for a in rv if a not in fwd) or any(b in back for b in rest):
+                return False
+    return True
 
 
 def melt(ref: dict, got: dict, items: list[list[str]]) -> dict | None:

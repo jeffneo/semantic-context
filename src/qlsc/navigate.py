@@ -302,15 +302,17 @@ def similar(v: list[float], shapes: list[dict], vecs: list, distrusted: set[str]
     return out
 
 
-def trace(G: Graph, s: Settings, question: str) -> dict:
+def trace(G: Graph, s: Settings, question: str, exclude: frozenset[str] = frozenset()) -> dict:
     """Steps 1-4, deterministic: the closest Semantic nodes, the groups opened, the cohort of tables,
-    the log's queries closest to the question (and the tables they read), and the joins between them."""
+    the log's queries closest to the question (and the tables they read), and the joins between them.
+    `exclude` names query shapes never to offer as examples (an evaluation leaves out the query a
+    question was written from)."""
     p = s.params["navigate"]
     emb = Embedder(s)
     v = emb.embed([question])[0]
     groups, tables, top = cohort(G, v, p)
     if p["examples_by"] == "similarity":
-        shapes = G.rows(SHAPES, statements=p["example_statements"])
+        shapes = [x for x in G.rows(SHAPES, statements=p["example_statements"]) if x["id"] not in exclude]
         vecs = emb.embed([shape_text(x["sql"], p["example_chars"]) for x in shapes])
         everything = [r["t"] for r in G.rows(ALL_TABLES)]
         distrusted = {r["t"] for r in G.rows(PERSONAL)} | {r["t"] for r in G.rows(FROZEN, tables=everything)}
