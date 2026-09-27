@@ -12,7 +12,9 @@ question.
   legacy copies.
 - Count people by the identifier of what is being counted: customers by the customer number, not by
   logins, devices, sessions or accounts (one customer can have several of each).
-- Filter date ranges on the table's date column. "Last year" is the previous calendar year; "each week"
-  groups by DATE_TRUNC(date, WEEK).
+- Filter on a period only when the question names one; a question that names none covers all the data.
+  A period it names is filtered on the table's date column, with literal dates from the calendar given
+  with the question, never the warehouse's current date: "last quarter" is the calendar quarter it
+  gives, "last year" the previous calendar year. "Each week" groups by DATE_TRUNC(date, WEEK).
 - Keep it readable: CTEs for steps, clear column aliases.
 Also give a one or two sentence explanation of what the query computes and any caveat.

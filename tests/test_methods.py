@@ -14,6 +14,7 @@ from qlsc.navigate import (
     round_robin,
     shape_text,
     similar,
+    unknown_names,
     unknown_properties,
 )
 from qlsc_parse.catalog import Catalog
@@ -119,6 +120,19 @@ def test_unknown_properties_are_caught():
     ]
     q = "MATCH (t:CardTransaction)-[:AT]->(m:Merchant) RETURN m.mcc_category_group, t.amount, m.category_group"
     assert unknown_properties(q, nodes) == ["m.mcc_category_group (Merchant has no mcc_category_group)"]
+
+
+def test_unknown_labels_and_types_are_caught():
+    nodes = [{"label": "Account", "properties": []}, {"label": "Customer", "properties": []}]
+    rels = [{"label": "OWNED_BY"}]
+    ok = "MATCH (a:Account)-[:OWNED_BY]->(c:Customer {segment: 'mass'}) WHERE a.opened >= date('2026-01-01') RETURN count(c)"
+    assert unknown_names(ok, nodes, rels) == []
+    bad = "MATCH (b:DailyBalance)-[:BALANCE_OF|OWNED_BY]->(a:Account) MATCH (x) WHERE x:Card RETURN count(*)"
+    assert unknown_names(bad, nodes, rels) == [
+        "label Card",
+        "label DailyBalance",
+        "relationship type BALANCE_OF",
+    ]
 
 
 def test_similar_examples_skip_distrusted_tables():

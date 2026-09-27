@@ -52,8 +52,15 @@ SQL_SCHEMA = {
 
 CYPHER_SCHEMA = {
     "type": "object",
-    "required": ["cypher", "explanation"],
-    "properties": {"cypher": {"type": "string"}, "explanation": {"type": "string"}},
+    "required": ["answerable", "cypher", "explanation"],
+    "properties": {
+        "answerable": {
+            "type": "boolean",
+            "description": "false when the graph given can't answer the question (then cypher is empty)",
+        },
+        "cypher": {"type": "string"},
+        "explanation": {"type": "string"},
+    },
 }
 
 HITS = """
@@ -260,6 +267,12 @@ def calendar(today: dt.date) -> str:
     )
 
 
+def today(s: Settings) -> dt.date:
+    """The date questions are asked on: the estate's pinned date, else the real one."""
+    pinned = s.params["navigate"]["today"]
+    return dt.date.fromisoformat(str(pinned)) if pinned else dt.date.today()
+
+
 def cell(v) -> str:
     if v is None:
         return ""
@@ -360,6 +373,7 @@ def answer_sql(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int
         tables=tables,
         joins=joins_txt,
         examples=example_sql(tr["examples"]),
+        today=calendar(today(s)),
         **s.business,
     )
     out = llm.call(request, SQL_SCHEMA, "record_sql", max_tokens=3000)
@@ -379,7 +393,7 @@ def answer_sql(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int
 def answer_cypher(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int | None = None) -> dict:
     """Step 6 over the virtual graph: the cohort's labels -> one Cypher query, checked with Virtual
     Graph's EXPLAIN; step 7, the answer, with `execute`.
-    -> {start, around, cypher, explanation, check, result?} | {skipped: why}"""
+    -> {start, around, cypher, explanation, check, result?} | {skipped: why} | {start, around, declined: why}"""
     p, instance = s.params["navigate"], s.get("virtualize", {}).get("neo4j")
     labels = {r["table"]: r["label"] for r in G.rows(LABELS)}
     path = s.work / "virtual" / "schema.json"
@@ -412,7 +426,7 @@ def answer_cypher(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: 
         nodes=node_txt,
         relationships=rel_txt or "(none)",
         examples=example_sql(tr["examples"]),
-        today=calendar(dt.date.today()),  # Virtual Graph has no date(): relative periods need literals
+        today=calendar(today(s)),  # Virtual Graph has no date(): relative periods need literals
         **s.business,
     )
     answer = {
@@ -423,11 +437,13 @@ def answer_cypher(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: 
     try:
         with Graph(s, instance) as V:
             out = llm.call(request, CYPHER_SCHEMA, "record_cypher", max_tokens=3000)
-            check = explain(V, out["cypher"], nodes)
+            if not out["answerable"]:
+                return answer | {"declined": out["explanation"]}
+            check = explain(V, out["cypher"], nodes, rels)
             if "error" in check:
                 fix = prompt("cypher_fix", error=check["error"])
                 out = llm.call(request + "\n\n" + fix, CYPHER_SCHEMA, "record_cypher", max_tokens=3000)
-                check = explain(V, out["cypher"], nodes)
+                check = explain(V, out["cypher"], nodes, rels)
             answer |= {"cypher": out["cypher"], "explanation": out["explanation"], "check": check}
             if execute and "error" not in check:
                 t0 = time.time()
@@ -517,6 +533,9 @@ def print_cypher(a: dict) -> None:
     print("   " + ", ".join(f"{x} ({short(t)})" for x, t in a["start"]))
     if a["around"]:
         print("   one hop: " + ", ".join(a["around"]))
+    if "declined" in a:
+        print("\n6. no Cypher: the writer found the graph can't answer this")
+        print("   " + textwrap.fill(a["declined"], 100, subsequent_indent="   "))
     if "cypher" in a:
         print("\n6. the Cypher (written from the labels above, checked with Virtual Graph's EXPLAIN)")
         print(textwrap.indent(a["cypher"].strip(), "   "))
@@ -551,9 +570,24 @@ def unknown_properties(cypher: str, nodes: list[dict]) -> list[str]:
     )
 
 
-def explain(V: Graph, cypher: str, nodes: list[dict] | None = None) -> dict:
+def unknown_names(cypher: str, nodes: list[dict], rels: list[dict]) -> list[str]:
+    """Labels and relationship types a query names that the graph given lacks. Virtual Graph runs a
+    pattern over a label it doesn't have and returns no rows, so the answer is silently empty."""
+    labels, types = {n["label"] for n in nodes}, {r["label"] for r in rels}
+    named = {x for g in re.findall(r"\(\s*\w*\s*((?::\s*\w+\s*)+)", cypher) for x in re.findall(r"\w+", g)}
+    named |= set(re.findall(r"\b\w+:(\w+)\b(?!\s*[:(])", re.sub(r"\([^()]*\)|\[[^\]]*\]", "", cypher)))
+    rel_named = {x for g in re.findall(r"\[\s*\w*\s*:\s*([\w|:\s]+)", cypher) for x in re.findall(r"\w+", g)}
+    return sorted(f"label {x}" for x in named - labels) + sorted(
+        f"relationship type {x}" for x in rel_named - types
+    )
+
+
+def explain(V: Graph, cypher: str, nodes: list[dict] | None = None, rels: list[dict] | None = None) -> dict:
     """Virtual Graph's verdict on a query without running it: {sql: [...]} | {error}. With the model's
-    nodes, a property its label lacks is an error too."""
+    nodes and relationships, a label, relationship type or property the graph lacks is an error too."""
+    missing = unknown_names(cypher, nodes, rels or []) if nodes else []
+    if missing:
+        return {"error": "not in the graph given: " + "; ".join(missing)}
     missing = unknown_properties(cypher, nodes or [])
     if missing:
         return {"error": "unknown properties: " + "; ".join(missing)}

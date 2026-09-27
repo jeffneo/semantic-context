@@ -52,4 +52,8 @@ virtualize:                           # qlsc virtualize: the Virtual Graph spike
            fct_card_transactions, fct_deposit_transactions, fct_account_closures,
            fct_calls, dim_agent, dim_queue, dim_cc_site]
 
+parameters:
+  navigate:
+    today: 2026-07-01                 # the day after the log window: the gold questions' "last quarter" is 2026 Q2, "last year" 2025
+
 work_dir: work

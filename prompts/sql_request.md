@@ -1,4 +1,5 @@
 Question: {question}
+Today: {today}
 
 Tables and columns:
 {tables}

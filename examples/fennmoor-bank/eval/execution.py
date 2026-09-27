@@ -269,6 +269,8 @@ def main() -> int:
                 got = a.get("result")
                 if "skipped" in a:
                     verdict, why = "not covered", a["skipped"]
+                elif "declined" in a:
+                    verdict, why = "declined", a["declined"]
                 elif got is None or not got.get("ok", True):
                     failure = (got or {}).get("error") or a.get("error") or a.get("check", {}).get("error")
                     failure = failure or a.get("dry_run", {}).get("error")
@@ -289,13 +291,13 @@ def main() -> int:
     scored = [q for q in res if res[q]["compare"]]
     L += [
         "",
-        "| route | correct | wrong | empty | failed | not covered | of scored |",
-        "|---|---|---|---|---|---|---|",
+        "| route | correct | wrong | empty | failed | declined | not covered | of scored |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for route in ROUTES:
         n = lambda v, r=route: sum(1 for q in scored if res[q][r]["verdict"] == v)
         L.append(
-            f"| {route} | {n('correct')} | {n('wrong')} | {n('empty')} | {n('failed')} | {n('not covered')} | {len(scored)} |"
+            f"| {route} | {n('correct')} | {n('wrong')} | {n('empty')} | {n('failed')} | {n('declined')} | {n('not covered')} | {len(scored)} |"
         )
     either = sum(1 for q in scored if "correct" in (res[q]["sql"]["verdict"], res[q]["cypher"]["verdict"]))
     L += ["", f"Either route correct (an oracle router's score): {either} of {len(scored)}.", ""]

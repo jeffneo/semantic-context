@@ -1,0 +1,1037 @@
+{
+ "L000c43e2": {
+  "question": "For each site, how many calls with wrap-up code \"ACCT_MAINT\" (account maintenance) occurred on or after 2026-04-15, ranked from the highest count to the lowest?",
+  "labels": {
+   "verdict": "wrong",
+   "why": "3 rows, not 4",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.wrapup_code_name = 'ACCT_MAINT' AND c.conversation_date >= date('2026-04-15')\nRETURN s.site_name AS site_name, count(DISTINCT c.conversation_id) AS call_count\nORDER BY call_count DESC"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on site_id, closure_calls=acct_maint_calls",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)\nWHERE c.wrapup_code_name = 'ACCT_MAINT' AND c.conversation_date >= date('2026-04-15')\nRETURN c.site_id AS site_id, count(*) AS acct_maint_calls\nORDER BY acct_maint_calls DESC"
+  }
+ },
+ "L04bfef55": {
+  "question": "For each customer, between 2026-02-21 and 2026-05-11, how many ACH credit transactions, how many ATM transactions, and what was the total outflow amount (sum of negative transaction amounts, converted to positive)?",
+  "labels": {
+   "verdict": "wrong",
+   "why": "16700 rows, not 16701",
+   "lenient": "wrong",
+   "query": "MATCH (t:DepositTransaction)-[:INITIATED_BY]->(c:Customer)\nWHERE t.posted_date >= date('2026-02-21') AND t.posted_date <= date('2026-05-11')\nWITH c,\n     CASE WHEN t.transaction_type = 'ACH_CR' THEN 1 ELSE 0 END AS isAchCredit,\n     CASE WHEN t.channel = 'ATM' THEN 1 ELSE 0 END AS isAtm,\n     CASE WHEN t.signed_amount < 0 THEN -t.signed_amount ELSE 0 END AS outflow\nRETURN c.customer_key AS customer_key,\n       sum(isAchCredit) AS ach_credit_count,\n       sum(isAtm) AS atm_count,\n       sum(outflow) AS total_outflow\nORDER BY customer_key"
+  },
+  "translate": {
+   "verdict": "wrong",
+   "why": "16700 rows, not 16701",
+   "lenient": "correct",
+   "query": "MATCH (t:DepositTransaction)-[:INITIATED_BY]->(c:Customer)\nWHERE t.posted_date >= date('2026-02-21') AND t.posted_date <= date('2026-05-11')\nWITH c.customer_key AS customer_key,\n     sum(CASE WHEN t.transaction_type = 'ACH_CR' THEN 1 ELSE 0 END) AS ach_credits,\n     sum(CASE WHEN t.transaction_type = 'ATM' THEN 1 ELSE 0 END) AS atm_txns,\n     sum(CASE WHEN t.signed_amount < 0 THEN -t.signed_amount ELSE 0 END) AS outflows\nRETURN customer_key, ach_credits, atm_txns, outflows"
+  }
+ },
+ "L05fc9f83": {
+  "question": "Since April 9, 2026, how many calls were handled where the agent's site was different from the call's queue site, broken down by queue site and agent site?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on queue_site_id=queue_site, agent_site_id=agent_site, calls",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)\nWHERE c.conversation_date >= date('2026-04-09')\n  AND c.queue_site_id IS NOT NULL\n  AND c.agent_site_id IS NOT NULL\n  AND c.queue_site_id <> c.agent_site_id\nRETURN c.queue_site_id AS queue_site, c.agent_site_id AS agent_site, count(*) AS calls\nORDER BY calls DESC"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on queue_site_id, agent_site_id, calls",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)\nWHERE c.conversation_date >= date('2026-04-09')\n  AND c.queue_site_id <> c.agent_site_id\nRETURN c.queue_site_id AS queue_site_id, c.agent_site_id AS agent_site_id, count(*) AS calls\nORDER BY queue_site_id, agent_site_id"
+  }
+ },
+ "L0a42f6cf": {
+  "question": "For card transactions posted from 2026-05-31 to 2026-06-30, broken down by whether the transaction was foreign, merchant name, and transaction type, what is the number of distinct cardholders, the total interchange, and the number of distinct transactions (settlements)?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_is_foreign=is_foreign, fct_card_transactions_merchant_name=merchant_name, fct_card_transactions_txn_type=txn_type, fct_card_transactions_cardholders=distinct_cardholders, fct_card_transactions_interchange=total_interchange, fct_card_transactions_txn_count=distinct_transactions",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)\nWHERE t.post_date >= date('2026-05-31') AND t.post_date <= date('2026-06-30')\nRETURN t.is_foreign AS is_foreign,\n       t.merchant_name AS merchant_name,\n       t.txn_type AS txn_type,\n       count(DISTINCT t.customer_key) AS distinct_cardholders,\n       sum(t.interchange) AS total_interchange,\n       count(DISTINCT t.settlement_id) AS distinct_transactions\nORDER BY total_interchange DESC"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_is_foreign=is_foreign, fct_card_transactions_merchant_name=merchant_name, fct_card_transactions_txn_type=txn_type, fct_card_transactions_cardholders=cardholders, fct_card_transactions_interchange=total_interchange, fct_card_transactions_txn_count=txn_count",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)\nWHERE t.post_date >= date('2026-05-31') AND t.post_date <= date('2026-06-30')\nWITH t.is_foreign AS is_foreign, t.merchant_name AS merchant_name, t.txn_type AS txn_type,\n     t.customer_key AS customer_key, t.settlement_id AS settlement_id, t.interchange AS interchange\nRETURN is_foreign, merchant_name, txn_type,\n       count(DISTINCT customer_key) AS cardholders,\n       sum(interchange) AS total_interchange,\n       count(DISTINCT settlement_id) AS txn_count\nORDER BY cardholders DESC"
+  }
+ },
+ "L0b88eeab": {
+  "question": "For each card product, how many currently open accounts are there?",
+  "labels": {
+   "verdict": "empty",
+   "why": "no rows",
+   "lenient": "empty",
+   "query": "MATCH (a:Account)-[:CONTAINS]->(p:Product)\nWHERE a.product_family = 'CARD' AND a.is_open = true\nRETURN p.product_code AS product_code, p.product_name AS product_name, count(a.account_key) AS open_account_count\nORDER BY open_account_count DESC"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on product_name, open_card_accounts",
+   "lenient": "correct",
+   "query": "MATCH (a:Account)-[:CONTAINS]->(p:Product)\nWHERE a.account_family = 'CARD' AND a.is_open = true\nRETURN p.product_name AS product_name, count(a.account_key) AS open_card_accounts\nORDER BY open_card_accounts DESC"
+  }
+ },
+ "L0ecb0a57": {
+  "question": "For purchase-type transactions posted between 2026-05-31 and 2026-06-29 (inclusive), how many distinct cardholders and what total spend did each merchant have, broken down by merchant name and transaction type, ranked from the most cardholders to the fewest (top 500)?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_merchant_name=merchant_name, fct_card_transactions_txn_type=txn_type, fct_card_transactions_cardholders=distinct_cardholders, fct_card_transactions_total_spend=total_spend",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)-[:TRANSACTED_AT]->(m:Merchant)\nWHERE t.txn_type = 'PURCH'\n  AND t.post_date >= date('2026-05-31')\n  AND t.post_date <= date('2026-06-29')\nRETURN m.merchant_name AS merchant_name,\n       t.txn_type AS txn_type,\n       count(DISTINCT t.customer_key) AS distinct_cardholders,\n       sum(t.amount) AS total_spend\nORDER BY distinct_cardholders DESC\nLIMIT 500"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_merchant_name=merchant_name, fct_card_transactions_txn_type=txn_type, fct_card_transactions_cardholders=cardholders, fct_card_transactions_total_spend=total_spend",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)\nWHERE t.txn_type = 'PURCH'\n  AND t.post_date >= date('2026-05-31')\n  AND t.post_date <= date('2026-06-29')\nWITH t.merchant_name AS merchant_name, t.txn_type AS txn_type,\n     t.customer_key AS customer_key,\n     CASE WHEN t.is_purchase THEN t.amount ELSE 0 END AS spend_amount\nWITH merchant_name, txn_type,\n     count(DISTINCT customer_key) AS cardholders,\n     sum(spend_amount) AS total_spend\nRETURN merchant_name, txn_type, cardholders, total_spend\nORDER BY cardholders DESC\nLIMIT 500"
+  }
+ },
+ "L1aaabd76": {
+  "question": "For card transactions posted from 2026-04-01 to 2026-06-30, among affluent and private customers, what is the total purchase spend broken down by whether the transaction was foreign and by customer segment?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_is_foreign=is_foreign, fct_card_transactions_segment=segment, fct_card_transactions_total_spend=total_spend",
+   "lenient": "correct",
+   "query": "MATCH (ct:CardTransaction)-[:MADE_BY]->(c:Customer)\nWHERE ct.post_date >= date('2026-04-01') AND ct.post_date <= date('2026-06-30')\n  AND c.segment IN ['affluent', 'private']\n  AND ct.txn_type = 'PURCH'\n  AND ct.is_purchase = true\nRETURN ct.is_foreign AS is_foreign, c.segment AS segment, sum(ct.amount) AS total_spend\nORDER BY total_spend DESC"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_is_foreign=is_foreign, fct_card_transactions_segment=segment, fct_card_transactions_total_spend=total_spend",
+   "lenient": "correct",
+   "query": "MATCH (ct:CardTransaction)-[:MADE_BY]->(c:Customer)\nWHERE ct.post_date >= date('2026-04-01') AND ct.post_date <= date('2026-06-30')\n  AND c.segment IN ['affluent', 'private']\n  AND ct.txn_type = 'PURCH'\nWITH ct.is_foreign AS is_foreign, c.segment AS segment,\n     CASE WHEN ct.is_purchase THEN ct.amount ELSE 0 END AS spend\nRETURN is_foreign, segment, sum(spend) AS total_spend\nORDER BY total_spend DESC"
+  }
+ },
+ "L1ee476f0": {
+  "question": "For mass-segment customers, from 2026-05-16 through today, what are the top 50 merchants (by merchant name and category group) by total purchase spend, ranked from highest to lowest?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on merchant_name, category_group, spend=total_spend",
+   "lenient": "correct",
+   "query": "MATCH (c:CardTransaction)-[:MADE_BY]->(cu:Customer)\nMATCH (c:CardTransaction)-[:TRANSACTED_AT]->(m:Merchant)\nWHERE cu.segment = 'mass'\n  AND c.txn_type = 'PURCH'\n  AND c.is_purchase = true\n  AND c.post_date >= date('2026-05-16') AND c.post_date <= date('2026-07-01')\nRETURN m.merchant_name AS merchant_name, m.category_group AS category_group, sum(c.amount) AS total_spend\nORDER BY total_spend DESC\nLIMIT 50"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on merchant_name, category_group, spend",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)-[:TRANSACTED_AT]->(m:Merchant)\nMATCH (t)-[:MADE_BY]->(c:Customer)\nWHERE t.post_date >= date('2026-05-16')\n  AND t.post_date <= date('2026-07-01')\n  AND t.is_purchase = true\n  AND c.segment = 'mass'\nRETURN m.merchant_name AS merchant_name, m.category_group AS category_group, sum(t.amount) AS spend\nORDER BY spend DESC\nLIMIT 50"
+  }
+ },
+ "L21259f73": {
+  "question": "For each week starting from 2026-04-26 onward, how many distinct customers received an ACH credit deposit transaction?",
+  "labels": {
+   "verdict": "wrong",
+   "why": "11 rows, not 10",
+   "lenient": "wrong",
+   "query": "MATCH (d:DepositTransaction)\nWHERE d.transaction_type = 'ACH_CR' AND d.posted_date >= date('2026-04-26')\nWITH date.truncate('week', d.posted_date) AS week_start, d.customer_key AS customer_key\nRETURN week_start, count(DISTINCT customer_key) AS customers_with_ach_credit\nORDER BY week_start"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on period, customers_with_ach_credit",
+   "lenient": "correct",
+   "query": "MATCH (t:DepositTransaction)\nWHERE t.transaction_type = 'ACH_CR' AND t.posted_date >= date('2026-04-26')\nWITH t.posted_date AS pd, t.customer_key AS ck\nWITH date({year: pd.year, month: pd.month, day: pd.day}) - duration({days: (pd.dayOfWeek % 7)}) AS period, ck AS customer_key\nRETURN period, count(DISTINCT customer_key) AS customers_with_ach_credit\nORDER BY period"
+  }
+ },
+ "L30b11cd6": {
+  "question": "How many calls have there been since 2026-04-08, broken down by line of business and site, ordered from the highest number of calls to the lowest?",
+  "labels": {
+   "verdict": "wrong",
+   "why": "258 rows, not 86",
+   "lenient": "wrong",
+   "query": "MATCH (c:Call)-[:ROUTED_THROUGH]->(q:Queue)\nMATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.conversation_date >= date('2026-04-08')\nRETURN q.line_of_business AS line_of_business, s.site_id AS site_id, count(c) AS calls\nORDER BY calls DESC"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on line_of_business, site_id, calls",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:ROUTED_THROUGH]->(q:Queue)\nWHERE c.conversation_date >= date('2026-04-08')\nRETURN q.line_of_business AS line_of_business, q.site_id AS site_id, count(*) AS calls\nORDER BY calls DESC"
+  }
+ },
+ "L31b89126": {
+  "question": "For each calendar month and customer segment (limited to affluent and private customers), how many distinct cardholders made card transactions and how many total card transactions (distinct settlements) were there?",
+  "labels": {
+   "verdict": "wrong",
+   "why": "no column holds fct_card_transactions_txn_count (3 of 4 match)",
+   "lenient": "wrong",
+   "query": "MATCH (ct:CardTransaction)-[:MADE_BY]->(c:Customer)\nWHERE c.segment IN ['affluent', 'private']\n  AND ct.txn_type = 'PURCH'\nWITH c.segment AS segment,\n     date({year: ct.post_date.year, month: ct.post_date.month, day: 1}) AS txn_month,\n     c.customer_key AS customer_key,\n     ct.settlement_id AS settlement_id\nRETURN segment, txn_month,\n       count(DISTINCT customer_key) AS distinct_cardholders,\n       count(DISTINCT settlement_id) AS total_transactions\nORDER BY txn_month, segment"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_post_month=post_month, fct_card_transactions_segment=segment, fct_card_transactions_cardholders=cardholders, fct_card_transactions_txn_count=txn_count",
+   "lenient": "correct",
+   "query": "MATCH (ct:CardTransaction)-[:MADE_BY]->(c:Customer)\nWHERE c.segment IN ['affluent', 'private']\nWITH date.truncate('month', ct.post_date) AS post_month, c.segment AS segment,\n     ct.customer_key AS customer_key, ct.settlement_id AS settlement_id\nWITH post_month, segment, count(DISTINCT customer_key) AS cardholders, count(DISTINCT settlement_id) AS txn_count\nRETURN post_month, segment, cardholders, txn_count\nORDER BY cardholders DESC"
+  }
+ },
+ "L359c74a0": {
+  "question": "For gambling-category merchants, what are the top 100 merchants (with their merchant category description) by total card transaction amount since 2026-04-10, showing for each the number of transactions and the total amount?",
+  "labels": {
+   "verdict": "wrong",
+   "why": "100 rows, not 62",
+   "lenient": "wrong",
+   "query": "MATCH (t:CardTransaction)-[:TRANSACTED_AT]->(m:Merchant)\nWHERE m.category_group = 'GAMBLING' AND t.is_purchase = true AND t.post_date >= date('2026-04-10')\nWITH m.merchant_id AS merchant_id, m.merchant_name AS merchant_name, m.mcc_description AS mcc_description,\n     count(t) AS txn_count, sum(t.amount) AS total_amount\nRETURN merchant_id, merchant_name, mcc_description, txn_count, total_amount\nORDER BY total_amount DESC\nLIMIT 100"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on merchant_name, mcc_description, txns, amount",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)-[:TRANSACTED_AT]->(m:Merchant)\nWHERE t.post_date >= date('2026-04-10') AND m.category_group = 'GAMBLING'\nWITH m.merchant_name AS merchant_name, m.mcc_description AS mcc_description, count(*) AS txns, sum(t.amount) AS amount\nRETURN merchant_name, mcc_description, txns, amount\nORDER BY amount DESC\nLIMIT 100"
+  }
+ },
+ "L37d38fdd": {
+  "question": "What is the total interchange earned on purchase transactions, broken down by month and customer segment, for transactions posted from 2025-07-01 to 2026-06-30?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_segment=segment, fct_card_transactions_interchange=total_interchange, fct_card_transactions_post_month~month (relabeled)",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)-[:MADE_BY]->(c:Customer)\nWHERE t.txn_type = 'PURCH'\n  AND t.post_date >= date('2025-07-01') AND t.post_date <= date('2026-06-30')\nWITH substring(toString(t.post_date), 0, 7) AS month, c.segment AS segment, t.interchange AS interchange\nRETURN month, segment, sum(interchange) AS total_interchange\nORDER BY month, segment"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_post_month=post_month, fct_card_transactions_segment=segment, fct_card_transactions_interchange=total_interchange",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)-[:MADE_BY]->(c:Customer)\nWHERE t.txn_type = 'PURCH'\n  AND t.post_date >= date('2025-07-01')\n  AND t.post_date <= date('2026-06-30')\nWITH date.truncate('month', t.post_date) AS post_month, c.segment AS segment, t.interchange AS interchange\nRETURN post_month, segment, sum(interchange) AS total_interchange\nORDER BY post_month, segment"
+  }
+ },
+ "L3ca155d7": {
+  "question": "For each contact center site, how many distinct calls (conversations) were handled and how many of those were account closure calls, for calls with a conversation date from 2026-05-31 to 2026-06-29? List sites ordered from most calls to fewest.",
+  "labels": {
+   "verdict": "wrong",
+   "why": "3 rows, not 4",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.conversation_date >= date('2026-05-31') AND c.conversation_date <= date('2026-06-29')\nWITH s.site_id AS site_id,\n     count(DISTINCT c.conversation_id) AS total_calls,\n     count(DISTINCT CASE WHEN c.is_account_closure_call THEN c.conversation_id ELSE NULL END) AS closure_calls\nRETURN site_id, total_calls, closure_calls\nORDER BY total_calls DESC"
+  },
+  "translate": {
+   "verdict": "wrong",
+   "why": "3 rows, not 4",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.conversation_date >= date('2026-05-31') AND c.conversation_date <= date('2026-06-29')\nWITH s.site_name AS site_name,\n     count(DISTINCT c.conversation_id) AS call_count,\n     count(DISTINCT CASE WHEN c.is_account_closure_call THEN c.conversation_id ELSE NULL END) AS closure_call_count\nRETURN site_name, call_count, closure_call_count\nORDER BY call_count DESC"
+  }
+ },
+ "L3cb32f46": {
+  "question": "For each merchant name, calendar month of posting, and transaction type, how many distinct cardholders made card transactions and how many distinct settled transactions were there?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_merchant_name=merchant_name, fct_card_transactions_txn_type=txn_type, fct_card_transactions_cardholders=distinct_cardholders, fct_card_transactions_txn_count=distinct_settled_transactions, fct_card_transactions_post_month~post_month (relabeled)",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)\nWITH t.merchant_name AS merchant_name,\n     substring(toString(t.post_date), 0, 7) AS post_month,\n     t.txn_type AS txn_type,\n     t.customer_key AS customer_key,\n     t.settlement_id AS settlement_id\nRETURN merchant_name, post_month, txn_type,\n       count(DISTINCT customer_key) AS distinct_cardholders,\n       count(DISTINCT settlement_id) AS distinct_settled_transactions\nORDER BY merchant_name, post_month, txn_type"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_merchant_name=merchant_name, fct_card_transactions_post_month=post_month, fct_card_transactions_txn_type=txn_type, fct_card_transactions_cardholders=cardholders, fct_card_transactions_txn_count=txn_count",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)\nWITH t.merchant_name AS merchant_name,\n     date.truncate('month', t.post_date) AS post_month,\n     t.txn_type AS txn_type,\n     t.customer_key AS customer_key,\n     t.settlement_id AS settlement_id\nRETURN merchant_name, post_month, txn_type,\n       count(DISTINCT customer_key) AS cardholders,\n       count(DISTINCT settlement_id) AS txn_count\nORDER BY merchant_name, post_month, txn_type"
+  }
+ },
+ "L3d84d777": {
+  "question": "For each contact center site and week (weeks starting Monday), what was the call abandonment rate (share of calls that were abandoned) between 2026-04-01 and 2026-06-30? Show the 500 site-week combinations with the highest abandonment rate.",
+  "labels": {
+   "verdict": "wrong",
+   "why": "42 rows, not 56",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.conversation_date >= date('2026-04-01') AND c.conversation_date <= date('2026-06-30')\nWITH s.site_id AS site_id, s.site_name AS site_name,\n     date.truncate('week', c.conversation_date, {dayOfWeek: 1}) AS week_start,\n     count(*) AS total_calls,\n     sum(CASE WHEN c.is_abandoned THEN 1 ELSE 0 END) AS abandoned_calls\nRETURN site_id, site_name, week_start,\n       toFloat(abandoned_calls) / total_calls AS abandonment_rate\nORDER BY abandonment_rate DESC\nLIMIT 500"
+  },
+  "translate": {
+   "verdict": "wrong",
+   "why": "42 rows, not 56",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.conversation_date >= date('2026-04-01') AND c.conversation_date <= date('2026-06-30')\nWITH s.site_name AS site_name,\n     date.truncate('week', c.conversation_date) AS week_start,\n     c AS c\nWITH site_name, week_start,\n     count(c) AS total_calls,\n     sum(CASE WHEN c.is_abandoned THEN 1 ELSE 0 END) AS abandoned_calls\nRETURN site_name, week_start,\n       toFloat(abandoned_calls) / total_calls AS abandon_rate\nORDER BY abandon_rate DESC\nLIMIT 500"
+  }
+ },
+ "L41064b12": {
+  "question": "For voice calls handled at the MNL site between 2025-07-01 and 2026-06-30, broken down by week (week starting Monday) and IVR intent, what was the average handle time, the number of account closure calls, and the total number of calls?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_calls_conversation_week=week_start, fct_calls_ivr_intent=ivr_intent, fct_calls_avg_handle_time=avg_handle_time, fct_calls_closure_calls=closure_calls, fct_calls_count=total_calls",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE s.site_id = 'MNL'\n  AND c.media_type = 'voice'\n  AND c.conversation_date >= date('2025-07-01')\n  AND c.conversation_date <= date('2026-06-30')\nWITH c, date.truncate('week', c.conversation_date, {dayOfWeek: 1}) AS week_start\nWITH week_start, c.ivr_intent AS ivr_intent,\n     avg(c.handle_sec) AS avg_handle_time,\n     count(CASE WHEN c.is_account_closure_call THEN c.conversation_id ELSE NULL END) AS closure_calls,\n     count(c.conversation_id) AS total_calls\nRETURN week_start, ivr_intent, avg_handle_time, closure_calls, total_calls\nORDER BY week_start, ivr_intent"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_calls_conversation_week=week_start, fct_calls_ivr_intent=ivr_intent, fct_calls_avg_handle_time=avg_handle_time, fct_calls_closure_calls=closure_calls, fct_calls_count=call_count",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE s.site_id = 'MNL'\n  AND c.media_type = 'voice'\n  AND c.conversation_date >= date('2025-07-01')\n  AND c.conversation_date <= date('2026-06-30')\nWITH date.truncate('week', c.conversation_date, {dayOfWeek: 1}) AS week_start,\n     c.ivr_intent AS ivr_intent,\n     c.handle_sec AS handle_sec,\n     c.is_account_closure_call AS is_closure,\n     c.conversation_id AS conversation_id\nRETURN week_start,\n       ivr_intent,\n       avg(handle_sec) AS avg_handle_time,\n       count(CASE WHEN is_closure THEN conversation_id ELSE NULL END) AS closure_calls,\n       count(conversation_id) AS call_count\nORDER BY week_start, ivr_intent"
+  }
+ },
+ "L4115df4b": {
+  "question": "For each month starting 2026-05-02 onward, how many distinct customers received an ACH credit deposit transaction?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on customers_with_ach_credit=distinct_customers, period~mo (relabeled)",
+   "lenient": "correct",
+   "query": "MATCH (d:DepositTransaction)-[:INITIATED_BY]->(c:Customer)\nWHERE d.transaction_type = 'ACH_CR' AND d.posted_date >= date('2026-05-02')\nWITH d.posted_date.year AS yr, d.posted_date.month AS mo, c.customer_key AS customer_key\nRETURN yr, mo, count(DISTINCT customer_key) AS distinct_customers\nORDER BY yr, mo"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on customers_with_ach_credit, period~m (relabeled)",
+   "lenient": "correct",
+   "query": "MATCH (d:DepositTransaction)\nWHERE d.transaction_type = 'ACH_CR' AND d.posted_date >= date('2026-05-02')\nWITH date(d.posted_date).year AS y, date(d.posted_date).month AS m, d.customer_key AS customer_key\nWITH y, m, count(DISTINCT customer_key) AS customers_with_ach_credit\nRETURN y, m, customers_with_ach_credit\nORDER BY y, m"
+  }
+ },
+ "L42c41a99": {
+  "question": "For voice calls with a conversation date on or after 2026-02-26, what is the average handle time (in seconds), broken down by week and by site?",
+  "labels": {
+   "verdict": "wrong",
+   "why": "42 rows, not 56",
+   "lenient": "wrong",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.media_type = 'voice' AND c.conversation_date >= date('2026-02-26')\nWITH date.truncate('week', c.conversation_date, {dayOfWeek: 1}) AS week_start, s.site_name AS site_name, c.handle_sec AS handle_sec\nRETURN week_start, site_name, avg(handle_sec) AS avg_handle_time_sec\nORDER BY week_start, site_name"
+  },
+  "translate": {
+   "verdict": "declined",
+   "why": "The graph has no date_trunc or week-bucketing function (date(), datetime(), duration() and similar temporal functions are disallowed), so we cannot compute a week grouping like date_trunc(conversation_date, week) from conversation_date. Without a way to derive the week bucket, this question cannot be answered with the supported Cypher subset.",
+   "lenient": "declined",
+   "query": null
+  }
+ },
+ "L42fc491a": {
+  "question": "For each customer, from 2026-02-25 to 2026-05-12, how many purchase transactions did they make, what was their total spend, how many distinct merchant categories (MCCs) did they purchase from, and how many of their transactions were foreign transactions?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on customer_key, txns=purchase_txn_count, spend=total_spend, distinct_mcc=distinct_mcc_count, foreign_txns=foreign_txn_count",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)-[:MADE_BY]->(c:Customer)\nWHERE t.txn_type = 'PURCH'\n  AND t.post_date >= date('2026-02-25')\n  AND t.post_date <= date('2026-05-12')\nRETURN c.customer_key AS customer_key,\n       count(t) AS purchase_txn_count,\n       sum(t.amount) AS total_spend,\n       count(DISTINCT t.mcc) AS distinct_mcc_count,\n       sum(CASE WHEN t.is_foreign THEN 1 ELSE 0 END) AS foreign_txn_count\nORDER BY customer_key"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on customer_key, txns, spend, distinct_mcc, foreign_txns",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)\nWHERE t.post_date >= date('2026-02-25') AND t.post_date <= date('2026-05-12') AND t.is_purchase\nWITH t.customer_key AS customer_key,\n     count(*) AS txns,\n     sum(t.amount) AS spend,\n     count(DISTINCT t.mcc) AS distinct_mcc,\n     sum(CASE WHEN t.is_foreign THEN 1 ELSE 0 END) AS foreign_txns\nRETURN customer_key, txns, spend, distinct_mcc, foreign_txns"
+  }
+ },
+ "L4379b829": {
+  "question": "For each conversation date and contact center site, what was the average call handle time (in seconds) and the number of transferred calls, for calls from 2026-05-31 to 2026-06-29?",
+  "labels": {
+   "verdict": "wrong",
+   "why": "90 rows, not 120",
+   "lenient": "wrong",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.conversation_date >= date('2026-05-31') AND c.conversation_date <= date('2026-06-29')\n  AND c.media_type = 'voice'\nRETURN c.conversation_date AS conversation_date,\n       s.site_id AS site_id,\n       avg(c.handle_sec) AS avg_handle_time_sec,\n       count(CASE WHEN c.was_transferred THEN c.conversation_id END) AS transferred_calls\nORDER BY conversation_date, site_id"
+  },
+  "translate": {
+   "verdict": "wrong",
+   "why": "90 rows, not 120",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.conversation_date >= date('2026-05-31') AND c.conversation_date <= date('2026-06-29')\nWITH c.conversation_date AS conversation_date, s.site_name AS site_name,\n     avg(c.handle_sec) AS avg_handle_time,\n     sum(CASE WHEN c.was_transferred THEN 1 ELSE 0 END) AS transfers\nRETURN conversation_date, site_name, avg_handle_time, transfers\nORDER BY transfers DESC"
+  }
+ },
+ "L4b4d230a": {
+  "question": "For calls handled between 2026-05-31 and 2026-06-30, break down by agent name, queue, and wrap-up code: how many distinct conversations were handled and how many of those calls were transferred? Show the top 500 combinations ranked by number of conversations, highest first.",
+  "labels": {
+   "verdict": "wrong",
+   "why": "no column holds fct_calls_agent_name, fct_calls_queue_name, fct_calls_wrapup, fct_calls_count, fct_calls_transfers (0 of 5 match)",
+   "lenient": "wrong",
+   "query": "MATCH (c:Call)-[:HANDLED_BY]->(a:Agent)\nMATCH (c:Call)-[:ROUTED_THROUGH]->(q:Queue)\nWHERE c.conversation_date >= date('2026-05-31') AND c.conversation_date <= date('2026-06-30')\nWITH a.agent_name AS agent_name, q.queue_name AS queue_name, c.wrapup_code_name AS wrapup_code, \n     count(DISTINCT c.conversation_id) AS conversations, \n     count(CASE WHEN c.was_transferred THEN c.conversation_id END) AS transferred_calls\nRETURN agent_name, queue_name, wrapup_code, conversations, transferred_calls\nORDER BY conversations DESC\nLIMIT 500"
+  },
+  "translate": {
+   "verdict": "wrong",
+   "why": "no column holds fct_calls_agent_name, fct_calls_queue_name, fct_calls_wrapup, fct_calls_count, fct_calls_transfers (0 of 5 match)",
+   "lenient": "wrong",
+   "query": "MATCH (c:Call)-[:HANDLED_BY]->(a:Agent)\nWHERE c.conversation_date >= date('2026-05-31') AND c.conversation_date <= date('2026-06-30')\nWITH a.agent_name AS agent_name, c.queue_name AS queue_name, c.wrapup_code_name AS wrapup_code,\n     count(DISTINCT c.conversation_id) AS conversation_count,\n     sum(CASE WHEN c.was_transferred THEN 1 ELSE 0 END) AS transfer_count\nRETURN agent_name, queue_name, wrapup_code, conversation_count, transfer_count\nORDER BY conversation_count DESC\nLIMIT 500"
+  }
+ },
+ "L4e0f44e9": {
+  "question": "For account closure calls handled at the SPK site between 2026-05-31 and 2026-06-30, what is the abandonment rate for each wrap-up code, broken down by week (week starting Monday)?",
+  "labels": {
+   "verdict": "declined",
+   "why": "The graph has no week-bucketing capability: Call only exposes conversation_date (and conversation_start), and Virtual Graph disallows date()/datetime()/duration() functions or any date-truncation logic needed to derive 'week starting Monday' from a date. Without a way to compute the week boundary in Cypher, the requested weekly breakdown cannot be produced, so this question is not answerable with the given graph.",
+   "lenient": "declined",
+   "query": null
+  },
+  "translate": {
+   "verdict": "declined",
+   "why": "The graph has no way to truncate a date to the start of its week (no date()/duration() functions and no week-bucketing property on Call), so the \"week starting Monday\" grouping required by the SQL (DATE_TRUNC(conversation_date, WEEK(MONDAY))) cannot be computed with the given schema and allowed Cypher subset.",
+   "lenient": "declined",
+   "query": null
+  }
+ },
+ "L4f929b5b": {
+  "question": "For each conversation date, the week it falls in (weeks starting Monday), and IVR intent, between 2026-04-01 and 2026-06-29, how many distinct calls were there and how many of those calls were transferred? Show the top 500 rows ranked by call count.",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_calls_conversation_date=conversation_date, fct_calls_conversation_week=conversation_week, fct_calls_ivr_intent=ivr_intent, fct_calls_count=call_count, fct_calls_transfers=transferred_call_count",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)\nWHERE c.conversation_date >= date('2026-04-01') AND c.conversation_date <= date('2026-06-29')\nWITH c.conversation_date AS conversation_date,\n     date.truncate('week', c.conversation_date) AS conversation_week,\n     c.ivr_intent AS ivr_intent,\n     c.conversation_id AS conversation_id,\n     c.was_transferred AS was_transferred\nWITH conversation_date, conversation_week, ivr_intent,\n     count(DISTINCT conversation_id) AS call_count,\n     count(DISTINCT CASE WHEN was_transferred THEN conversation_id ELSE NULL END) AS transferred_call_count\nRETURN conversation_date, conversation_week, ivr_intent, call_count, transferred_call_count\nORDER BY call_count DESC\nLIMIT 500"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_calls_conversation_date=conversation_date, fct_calls_conversation_week=conversation_week, fct_calls_ivr_intent=ivr_intent, fct_calls_count=call_count, fct_calls_transfers=transfer_count",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)\nWHERE c.conversation_date >= date('2026-04-01') AND c.conversation_date <= date('2026-06-29')\nWITH c.conversation_date AS conversation_date,\n     date.truncate('week', c.conversation_date) AS conversation_week,\n     c.ivr_intent AS ivr_intent,\n     c.conversation_id AS conversation_id,\n     c.was_transferred AS was_transferred\nWITH conversation_date, conversation_week, ivr_intent,\n     count(DISTINCT conversation_id) AS call_count,\n     sum(CASE WHEN was_transferred THEN 1 ELSE 0 END) AS transfer_count\nRETURN conversation_date, conversation_week, ivr_intent, call_count, transfer_count\nORDER BY call_count DESC\nLIMIT 500"
+  }
+ },
+ "L5330bf47": {
+  "question": "For account closure calls handled between 2025-06-30 and 2026-06-30, what is the call abandon rate for each contact center site, listing all sites ordered from highest to lowest abandon rate?",
+  "labels": {
+   "verdict": "wrong",
+   "why": "3 rows, not 4",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.is_account_closure_call = true\n  AND c.conversation_date >= date('2025-06-30')\n  AND c.conversation_date <= date('2026-06-30')\nWITH s.site_name AS site_name,\n     count(*) AS total_calls,\n     sum(CASE WHEN c.is_abandoned THEN 1 ELSE 0 END) AS abandoned_calls\nRETURN site_name,\n       toFloat(abandoned_calls) / total_calls AS abandon_rate\nORDER BY abandon_rate DESC"
+  },
+  "translate": {
+   "verdict": "wrong",
+   "why": "3 rows, not 4",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.is_account_closure_call = true\n  AND c.conversation_date >= date('2025-06-30')\n  AND c.conversation_date < date('2026-06-30')\nWITH s.site_name AS site_name,\n     count(*) AS total_calls,\n     sum(CASE WHEN c.is_abandoned THEN 1 ELSE 0 END) AS abandoned_calls\nRETURN site_name, toFloat(abandoned_calls) / total_calls AS abandon_rate\nORDER BY abandon_rate DESC"
+  }
+ },
+ "L55c0e195": {
+  "question": "What is the total interchange income from card transactions for each month, based on the transaction post date?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_interchange=total_interchange, fct_card_transactions_post_month~month (relabeled)",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)\nWITH t.post_date.year AS year, t.post_date.month AS month, t.interchange AS interchange\nRETURN year, month, sum(interchange) AS total_interchange\nORDER BY year, month"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_interchange=total_interchange, fct_card_transactions_post_month~post_month (relabeled)",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)\nWITH date(t.post_date).year AS y, date(t.post_date).month AS m, t.interchange AS interchange\nWITH y, m, sum(interchange) AS total_interchange\nRETURN y AS post_year, m AS post_month, total_interchange\nORDER BY y, m"
+  }
+ },
+ "L56b51129": {
+  "question": "For calls handled between 2026-04-01 and 2026-06-30, how many were transferred, broken down by media type and wrap-up code?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_calls_media_type=media_type, fct_calls_wrapup=wrapup_code, fct_calls_transfers=transferred_calls",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)\nWHERE c.conversation_date >= date('2026-04-01') AND c.conversation_date <= date('2026-06-30')\n  AND c.was_transferred\nRETURN c.media_type AS media_type, c.wrapup_code_name AS wrapup_code, count(*) AS transferred_calls\nORDER BY media_type, wrapup_code"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_calls_media_type=media_type, fct_calls_wrapup=wrapup_code, fct_calls_transfers=transferred_calls",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)\nWHERE c.conversation_date >= date('2026-04-01') AND c.conversation_date <= date('2026-06-30')\n  AND c.was_transferred = true\nWITH c.media_type AS media_type, c.wrapup_code_name AS wrapup_code, count(c) AS transferred_calls\nRETURN media_type, wrapup_code, transferred_calls\nORDER BY media_type, wrapup_code"
+  }
+ },
+ "L582f3941": {
+  "question": "For calls at the MNL site between 2026-05-31 and 2026-06-30, and restricted to account closure calls, what is the count of distinct account closure calls and the count of transferred calls, broken down by wrap-up code?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_calls_wrapup=wrapup_code, fct_calls_closure_calls=closure_call_count, fct_calls_transfers=transferred_call_count",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE s.site_id = 'MNL'\n  AND c.conversation_date >= date('2026-05-31')\n  AND c.conversation_date <= date('2026-06-30')\n  AND c.is_account_closure_call = true\nWITH c.wrapup_code_name AS wrapup_code,\n     count(DISTINCT c.conversation_id) AS closure_call_count,\n     count(CASE WHEN c.was_transferred THEN c.conversation_id END) AS transferred_call_count\nRETURN wrapup_code, closure_call_count, transferred_call_count\nORDER BY wrapup_code"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_calls_wrapup=wrapup_code, fct_calls_closure_calls=closure_calls, fct_calls_transfers=transferred_calls",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE s.site_id = 'MNL'\n  AND c.conversation_date >= date('2026-05-31')\n  AND c.conversation_date < date('2026-06-30')\n  AND c.is_account_closure_call = true\nWITH c.wrapup_code_name AS wrapup_code,\n     c.conversation_id AS conversation_id,\n     c.was_transferred AS was_transferred\nRETURN wrapup_code,\n       count(DISTINCT conversation_id) AS closure_calls,\n       sum(CASE WHEN was_transferred THEN 1 ELSE 0 END) AS transferred_calls\nORDER BY wrapup_code"
+  }
+ },
+ "L5d233427": {
+  "question": "For each combination of foreign-transaction flag, merchant name, and customer segment, what is the total interchange earned on card transactions? Show the 500 combinations with the highest total interchange, ordered from highest to lowest.",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_is_foreign=is_foreign, fct_card_transactions_merchant_name=merchant_name, fct_card_transactions_segment=segment, fct_card_transactions_interchange=total_interchange",
+   "lenient": "correct",
+   "query": "MATCH (ct:CardTransaction)-[:MADE_BY]->(c:Customer)\nMATCH (ct)-[:TRANSACTED_AT]->(m:Merchant)\nWITH ct.is_foreign AS is_foreign, m.merchant_name AS merchant_name, c.segment AS segment, sum(ct.interchange) AS total_interchange\nRETURN is_foreign, merchant_name, segment, total_interchange\nORDER BY total_interchange DESC\nLIMIT 500"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_is_foreign=is_foreign, fct_card_transactions_merchant_name=merchant_name, fct_card_transactions_segment=segment, fct_card_transactions_interchange=total_interchange",
+   "lenient": "correct",
+   "query": "MATCH (ct:CardTransaction)-[:MADE_BY]->(c:Customer)\nWITH ct.is_foreign AS is_foreign, ct.merchant_name AS merchant_name, c.segment AS segment, SUM(ct.interchange) AS total_interchange\nRETURN is_foreign, merchant_name, segment, total_interchange\nORDER BY total_interchange DESC\nLIMIT 500"
+  }
+ },
+ "L5ed9db67": {
+  "question": "List the customers (CIF number and full name) who had an account closure call on 2026-05-21, along with the conversation date and wrap-up code name for each call.",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on cif_number, full_name, conversation_date, wrapup_code_name",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:RECEIVED_FROM]->(cust:Customer)\nWHERE c.conversation_date = date('2026-05-21') AND c.is_account_closure_call = true\nRETURN cust.cif_number AS cif_number, cust.full_name AS full_name, c.conversation_date AS conversation_date, c.wrapup_code_name AS wrapup_code_name"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on cif_number, full_name, conversation_date, wrapup_code_name",
+   "lenient": "correct",
+   "query": "MATCH (call:Call)-[:RECEIVED_FROM]->(cust:Customer)\nWHERE call.is_account_closure_call = true AND call.conversation_date = date('2026-05-21')\nRETURN cust.cif_number AS cif_number, cust.full_name AS full_name, call.conversation_date AS conversation_date, call.wrapup_code_name AS wrapup_code_name"
+  }
+ },
+ "L5f5e344a": {
+  "question": "For voice calls handled from 2026-06-23 to 2026-06-29, what were the abandonment rate, average handle time, and number of distinct conversations by queue, ranked from highest to lowest abandonment rate?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_calls_queue_name=queue_name, fct_calls_abandon_rate=abandonment_rate, fct_calls_avg_handle_time=avg_handle_time, fct_calls_count=num_conversations",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)\nWHERE c.media_type = 'voice'\n  AND c.conversation_date >= date('2026-06-23')\n  AND c.conversation_date <= date('2026-06-29')\nRETURN c.queue_name AS queue_name,\n       toFloat(sum(CASE WHEN c.is_abandoned THEN 1 ELSE 0 END)) / count(*) AS abandonment_rate,\n       avg(c.handle_sec) AS avg_handle_time,\n       count(DISTINCT c.conversation_id) AS num_conversations\nORDER BY abandonment_rate DESC"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_calls_queue_name=queue_name, fct_calls_abandon_rate=abandonment_rate, fct_calls_avg_handle_time=avg_handle_time, fct_calls_count=conversation_count",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)\nWHERE c.media_type = 'voice'\n  AND c.conversation_date >= date('2026-06-23')\n  AND c.conversation_date <= date('2026-06-29')\nWITH c.queue_name AS queue_name,\n     count(*) AS total_calls,\n     sum(CASE WHEN c.is_abandoned THEN 1 ELSE 0 END) AS abandoned_calls,\n     avg(c.handle_sec) AS avg_handle_time,\n     count(DISTINCT c.conversation_id) AS conversation_count\nRETURN queue_name,\n       toFloat(abandoned_calls) / total_calls AS abandonment_rate,\n       avg_handle_time,\n       conversation_count\nORDER BY abandonment_rate DESC"
+  }
+ },
+ "L66b70456": {
+  "question": "For voice calls with a conversation date from 2026-04-01 to 2026-06-29, what is, for each conversation date, site outsourced status, and wrap-up code, the call abandonment rate and the number of distinct calls, ordered by abandonment rate from highest to lowest, limited to the top 500 rows?",
+  "labels": {
+   "verdict": "wrong",
+   "why": "no column holds fct_calls_conversation_date, fct_calls_is_outsourced, fct_calls_wrapup, fct_calls_count (1 of 5 match)",
+   "lenient": "wrong",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.media_type = 'voice'\n  AND c.conversation_date >= date('2026-04-01')\n  AND c.conversation_date <= date('2026-06-29')\nWITH c.conversation_date AS conversation_date,\n     s.is_outsourced AS is_outsourced,\n     c.wrapup_code_name AS wrapup_code,\n     count(DISTINCT c.conversation_id) AS num_calls,\n     sum(CASE WHEN c.is_abandoned THEN 1 ELSE 0 END) AS abandoned_calls\nRETURN conversation_date, is_outsourced, wrapup_code,\n       toFloat(abandoned_calls) / num_calls AS abandonment_rate,\n       num_calls\nORDER BY abandonment_rate DESC\nLIMIT 500"
+  },
+  "translate": {
+   "verdict": "wrong",
+   "why": "no column holds fct_calls_conversation_date, fct_calls_is_outsourced, fct_calls_wrapup, fct_calls_count (1 of 5 match)",
+   "lenient": "wrong",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.media_type = 'voice'\n  AND c.conversation_date >= date('2026-04-01')\n  AND c.conversation_date <= date('2026-06-29')\nWITH c.conversation_date AS conversation_date,\n     s.is_outsourced AS is_outsourced,\n     c.wrapup_code_name AS wrapup_code,\n     count(c) AS total_calls,\n     sum(CASE WHEN c.is_abandoned THEN 1 ELSE 0 END) AS abandoned_calls,\n     count(DISTINCT c.conversation_id) AS call_count\nRETURN conversation_date,\n       is_outsourced,\n       wrapup_code,\n       toFloat(abandoned_calls) / total_calls AS abandon_rate,\n       call_count\nORDER BY abandon_rate DESC\nLIMIT 500"
+  }
+ },
+ "L66ee1a03": {
+  "question": "For account closure calls handled by voice between 2026-04-01 and 2026-06-29, what is the average handle time (in seconds), broken down by week (week starting Monday), contact center site, and wrap-up code? Return the top 500 rows ordered by average handle time, highest first.",
+  "labels": {
+   "verdict": "wrong",
+   "why": "45 rows, not 60",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.is_account_closure_call = true\n  AND c.media_type = 'voice'\n  AND c.conversation_date >= date('2026-04-01')\n  AND c.conversation_date <= date('2026-06-29')\nWITH date.truncate('week', c.conversation_date, {dayOfWeek: 1}) AS week_start,\n     s.site_name AS site_name,\n     c.wrapup_code_name AS wrapup_code,\n     c.handle_sec AS handle_sec\nWITH week_start, site_name, wrapup_code, avg(handle_sec) AS avg_handle_time_sec\nRETURN week_start, site_name, wrapup_code, avg_handle_time_sec\nORDER BY avg_handle_time_sec DESC\nLIMIT 500"
+  },
+  "translate": {
+   "verdict": "wrong",
+   "why": "45 rows, not 60",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.conversation_date >= date('2026-04-01') AND c.conversation_date <= date('2026-06-29')\n  AND c.is_account_closure_call = true\n  AND c.media_type = 'voice'\nWITH c, s,\n     date(c.conversation_date) - duration({days: (date(c.conversation_date).dayOfWeek - 1)}) AS week_start\nRETURN week_start AS conversation_week,\n       s.site_name AS site_name,\n       c.wrapup_code_name AS wrapup,\n       avg(c.handle_sec) AS avg_handle_time\nORDER BY avg_handle_time DESC\nLIMIT 500"
+  }
+ },
+ "L67c545c8": {
+  "question": "For affluent and private-segment customers' purchase-type card transactions, broken down by whether the transaction was foreign and by transaction type, what is the total interchange, the total spend (for purchase transactions), and the number of distinct settlements, ordered from highest to lowest total interchange?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_is_foreign=is_foreign, fct_card_transactions_txn_type=txn_type, fct_card_transactions_interchange=total_interchange, fct_card_transactions_total_spend=total_spend, fct_card_transactions_txn_count=settlement_count",
+   "lenient": "correct",
+   "query": "MATCH (ct:CardTransaction)-[:MADE_BY]->(c:Customer)\nWHERE c.segment IN ['affluent', 'private']\n  AND ct.txn_type = 'PURCH'\nWITH ct.is_foreign AS is_foreign, ct.txn_type AS txn_type,\n     sum(ct.interchange) AS total_interchange,\n     sum(CASE WHEN ct.is_purchase THEN ct.amount ELSE 0 END) AS total_spend,\n     count(DISTINCT ct.settlement_id) AS settlement_count\nRETURN is_foreign, txn_type, total_interchange, total_spend, settlement_count\nORDER BY total_interchange DESC"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_is_foreign=is_foreign, fct_card_transactions_txn_type=txn_type, fct_card_transactions_interchange=total_interchange, fct_card_transactions_total_spend=total_spend, fct_card_transactions_txn_count=txn_count",
+   "lenient": "correct",
+   "query": "MATCH (ct:CardTransaction)-[:MADE_BY]->(c:Customer)\nWHERE c.segment IN ['affluent', 'private'] AND ct.txn_type = 'PURCH'\nWITH ct.is_foreign AS is_foreign, ct.txn_type AS txn_type,\n     COALESCE(sum(ct.interchange), 0) AS total_interchange,\n     COALESCE(sum(CASE WHEN ct.is_purchase THEN ct.amount ELSE NULL END), 0) AS total_spend,\n     count(DISTINCT ct.settlement_id) AS txn_count\nRETURN is_foreign, txn_type, total_interchange, total_spend, txn_count\nORDER BY total_interchange DESC"
+  }
+ },
+ "L6ce6e9c3": {
+  "question": "For card transactions of type purchase (PURCH) made by affluent or private segment customers, with a post date from 2025-07-01 to 2026-06-30, show for each combination of whether the transaction was foreign and the transaction type: the total interchange, the total spend on purchase transactions, and the count of distinct settlements.",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_is_foreign=is_foreign, fct_card_transactions_txn_type=txn_type, fct_card_transactions_interchange=total_interchange, fct_card_transactions_total_spend=total_spend, fct_card_transactions_txn_count=settlement_count",
+   "lenient": "correct",
+   "query": "MATCH (ct:CardTransaction)-[:MADE_BY]->(c:Customer)\nWHERE ct.txn_type = 'PURCH'\n  AND c.segment IN ['affluent', 'private']\n  AND ct.post_date >= date('2025-07-01') AND ct.post_date <= date('2026-06-30')\nWITH ct.is_foreign AS is_foreign, ct.txn_type AS txn_type,\n     ct.interchange AS interchange,\n     CASE WHEN ct.is_purchase THEN ct.amount ELSE NULL END AS spend,\n     ct.settlement_id AS settlement_id\nRETURN is_foreign, txn_type,\n       sum(interchange) AS total_interchange,\n       sum(spend) AS total_spend,\n       count(DISTINCT settlement_id) AS settlement_count\nORDER BY total_interchange DESC"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_is_foreign=is_foreign, fct_card_transactions_txn_type=txn_type, fct_card_transactions_interchange=total_interchange, fct_card_transactions_total_spend=total_spend, fct_card_transactions_txn_count=settlement_count",
+   "lenient": "correct",
+   "query": "MATCH (ct:CardTransaction)-[:MADE_BY]->(c:Customer)\nWHERE ct.txn_type = 'PURCH'\n  AND c.segment IN ['affluent', 'private']\n  AND ct.post_date >= date('2025-07-01') AND ct.post_date <= date('2026-06-30')\nWITH ct.is_foreign AS is_foreign, ct.txn_type AS txn_type,\n     sum(ct.interchange) AS total_interchange,\n     sum(CASE WHEN ct.is_purchase THEN ct.amount ELSE 0 END) AS total_spend,\n     count(DISTINCT ct.settlement_id) AS settlement_count\nRETURN is_foreign, txn_type, total_interchange, total_spend, settlement_count"
+  }
+ },
+ "L6d2aee92": {
+  "question": "What is the total card purchase spend by merchant category group and by month, for transactions posted on or after 2026-02-03?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on category_group, spend=total_spend, m~month (relabeled)",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)\nWHERE t.is_purchase = true AND t.post_date >= date('2026-02-03')\nWITH t.mcc_category_group AS category_group,\n     substring(toString(t.post_date), 0, 7) AS month,\n     t.amount AS amount\nRETURN category_group, month, sum(amount) AS total_spend\nORDER BY month, category_group"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on category_group, m=month, spend",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)-[:TRANSACTED_AT]->(m:Merchant)\nWHERE t.post_date >= date('2026-02-03') AND t.is_purchase = true\nWITH m.category_group AS category_group,\n     date({year: t.post_date.year, month: t.post_date.month, day: 1}) AS month,\n     t.amount AS amount\nRETURN category_group, month, sum(amount) AS spend\nORDER BY month, spend DESC"
+  }
+ },
+ "L6e2cd931": {
+  "question": "For voice calls with a conversation date from 2025-07-01 to 2026-06-30, broken down by whether the call center site is outsourced and by call wrap-up code, what was the abandonment rate and the number of transferred calls? Show the 500 combinations with the highest abandonment rate.",
+  "labels": {
+   "verdict": "wrong",
+   "why": "116 rows, not 174",
+   "lenient": "wrong",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.media_type = 'voice'\n  AND c.conversation_date >= date('2025-07-01')\n  AND c.conversation_date <= date('2026-06-30')\nWITH s.is_outsourced AS is_outsourced, c.wrapup_code_name AS wrapup_code,\n     count(*) AS total_calls,\n     sum(CASE WHEN c.is_abandoned THEN 1 ELSE 0 END) AS abandoned_calls,\n     sum(CASE WHEN c.was_transferred THEN 1 ELSE 0 END) AS transferred_calls\nRETURN is_outsourced, wrapup_code,\n       toFloat(abandoned_calls) / total_calls AS abandonment_rate,\n       transferred_calls\nORDER BY abandonment_rate DESC\nLIMIT 500"
+  },
+  "translate": {
+   "verdict": "wrong",
+   "why": "116 rows, not 174",
+   "lenient": "wrong",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.media_type = 'voice'\n  AND c.conversation_date >= date('2025-07-01')\n  AND c.conversation_date <= date('2026-06-30')\nWITH s.is_outsourced AS is_outsourced, c.wrapup_code_name AS wrapup_code,\n     count(*) AS total_calls,\n     sum(CASE WHEN c.is_abandoned THEN 1 ELSE 0 END) AS abandoned_calls,\n     sum(CASE WHEN c.was_transferred THEN 1 ELSE 0 END) AS transfers\nRETURN is_outsourced, wrapup_code,\n       toFloat(abandoned_calls) / total_calls AS abandon_rate,\n       transfers AS transfers\nORDER BY abandon_rate DESC\nLIMIT 500"
+  }
+ },
+ "L73371e91": {
+  "question": "For deposit transactions posted between 2026-03-08 and 2026-04-14, what are the total inflows and total outflows, broken down by customer segment and transaction type?",
+  "labels": {
+   "verdict": "wrong",
+   "why": "no column holds inflows, outflows (2 of 4 match)",
+   "lenient": "wrong",
+   "query": "MATCH (t:DepositTransaction)-[:INITIATED_BY]->(c:Customer)\nWHERE t.posted_date >= date('2026-03-08') AND t.posted_date <= date('2026-04-14')\nRETURN c.segment AS segment,\n       t.transaction_type AS transaction_type,\n       SUM(CASE WHEN t.signed_amount > 0 THEN t.signed_amount ELSE 0 END) AS inflows,\n       SUM(CASE WHEN t.signed_amount < 0 THEN -t.signed_amount ELSE 0 END) AS outflows\nORDER BY segment, transaction_type"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on segment, transaction_type, inflows, outflows",
+   "lenient": "correct",
+   "query": "MATCH (t:DepositTransaction)-[:INITIATED_BY]->(c:Customer)\nWHERE t.posted_date >= date('2026-03-08') AND t.posted_date <= date('2026-04-14')\n  AND NOT t.is_reversal\nWITH c.segment AS segment, t.transaction_type AS transaction_type,\n     SUM(CASE WHEN t.signed_amount > 0 THEN t.signed_amount ELSE 0 END) AS inflows,\n     SUM(CASE WHEN t.signed_amount < 0 THEN -t.signed_amount ELSE 0 END) AS outflows\nRETURN segment, transaction_type, inflows, outflows\nORDER BY segment, transaction_type"
+  }
+ },
+ "L74224b5f": {
+  "question": "How many active customers (excluding deceased customers) are there in each state, broken down by segment?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on state_code, segment, n=customer_count",
+   "lenient": "correct",
+   "query": "MATCH (c:Customer)\nWHERE c.customer_status = 'A' AND c.is_deceased = false\nRETURN c.state_code AS state_code, c.segment AS segment, count(DISTINCT c.customer_key) AS customer_count\nORDER BY state_code, segment"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on state_code, segment, n",
+   "lenient": "correct",
+   "query": "MATCH (c:Customer)\nWHERE c.customer_status = 'A' AND NOT c.is_deceased\nRETURN c.state_code AS state_code, c.segment AS segment, count(c.customer_key) AS n\nORDER BY state_code, segment"
+  }
+ },
+ "L74cd39cb": {
+  "question": "For voice calls handled at the Tulsa (TUL) contact center site between 2026-05-31 and 2026-06-30, what was the call abandon rate, the number of distinct account closure calls, and the total number of distinct calls, broken down by media type?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_calls_media_type=media_type, fct_calls_abandon_rate=abandon_rate, fct_calls_closure_calls=account_closure_calls, fct_calls_count=total_calls",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE s.site_id = 'TUL'\n  AND c.media_type = 'voice'\n  AND c.conversation_date >= date('2026-05-31')\n  AND c.conversation_date <= date('2026-06-30')\nWITH c.media_type AS media_type,\n     count(DISTINCT c.conversation_id) AS total_calls,\n     count(DISTINCT CASE WHEN c.is_abandoned THEN c.conversation_id END) AS abandoned_calls,\n     count(DISTINCT CASE WHEN c.is_account_closure_call THEN c.conversation_id END) AS closure_calls\nRETURN media_type,\n       toFloat(abandoned_calls) / total_calls AS abandon_rate,\n       closure_calls AS account_closure_calls,\n       total_calls\nORDER BY media_type"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_calls_media_type=media_type, fct_calls_abandon_rate=abandon_rate, fct_calls_closure_calls=closure_calls, fct_calls_count=call_count",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE s.site_id = 'TUL'\n  AND c.media_type = 'voice'\n  AND c.conversation_date >= date('2026-05-31')\n  AND c.conversation_date < date('2026-06-30')\nWITH c.media_type AS media_type,\n     count(*) AS total_calls,\n     sum(CASE WHEN c.is_abandoned THEN 1 ELSE 0 END) AS abandoned_calls,\n     count(DISTINCT CASE WHEN c.is_account_closure_call THEN c.conversation_id ELSE NULL END) AS closure_calls,\n     count(DISTINCT c.conversation_id) AS call_count\nRETURN media_type,\n       toFloat(abandoned_calls) / total_calls AS abandon_rate,\n       closure_calls,\n       call_count\nORDER BY abandon_rate DESC"
+  }
+ },
+ "L7f4db61e": {
+  "question": "For card accounts opened on or after 2026-02-19, how many new accounts were opened each week, broken down by opening channel?",
+  "labels": {
+   "verdict": "wrong",
+   "why": "no column holds new_accounts (2 of 3 match)",
+   "lenient": "wrong",
+   "query": "MATCH (a:Account)\nWHERE a.account_family = 'CARD' AND a.open_date >= date('2026-02-19')\nWITH date.truncate('week', a.open_date) AS week_start, a.open_channel AS channel, a AS a\nRETURN week_start, channel, count(a) AS new_accounts\nORDER BY week_start, channel"
+  },
+  "translate": {
+   "verdict": "declined",
+   "why": "The graph has no date-truncation function (DATE_TRUNC/week bucketing) available - Virtual Graph explicitly disallows temporal functions like date()/datetime(), and there's no property that pre-computes a week bucket for open_date. Without a way to compute DATE_TRUNC(open_date, WEEK), this query cannot be expressed in the supported Cypher subset.",
+   "lenient": "declined",
+   "query": null
+  }
+ },
+ "L83fe5e7b": {
+  "question": "For card transactions, grouped by whether the transaction was foreign and by merchant category (MCC) group, what is the number of distinct cardholders and the total interchange amount?",
+  "labels": {
+   "verdict": "wrong",
+   "why": "no column holds fct_card_transactions_cardholders, fct_card_transactions_interchange (2 of 4 match)",
+   "lenient": "wrong",
+   "query": "MATCH (t:CardTransaction)\nWHERE t.txn_type = 'PURCH'\nRETURN t.is_foreign AS is_foreign,\n       t.mcc_category_group AS mcc_category_group,\n       count(DISTINCT t.customer_key) AS distinct_cardholders,\n       COALESCE(sum(t.interchange), 0) AS total_interchange\nORDER BY is_foreign, mcc_category_group"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_is_foreign=is_foreign, fct_card_transactions_mcc_category_group=mcc_category_group, fct_card_transactions_cardholders=cardholders, fct_card_transactions_interchange=total_interchange",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)\nRETURN t.is_foreign AS is_foreign,\n       t.mcc_category_group AS mcc_category_group,\n       count(DISTINCT t.customer_key) AS cardholders,\n       sum(t.interchange) AS total_interchange\nORDER BY is_foreign, mcc_category_group"
+  }
+ },
+ "L8634c1ea": {
+  "question": "For each month, how many distinct cardholders made card transactions, and what was the total purchase spend, ordered from the highest number of cardholders to the lowest (showing up to the top 500 months)?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_cardholders=cardholders, fct_card_transactions_total_spend=total_spend, fct_card_transactions_post_month~month (relabeled)",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)\nWHERE t.txn_type = 'PURCH'\nWITH date(t.post_date).year AS y, date(t.post_date).month AS m, t\nWITH y, m, count(DISTINCT t.customer_key) AS cardholders, sum(t.amount) AS total_spend\nRETURN y AS year, m AS month, cardholders, total_spend\nORDER BY cardholders DESC\nLIMIT 500"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_cardholders=cardholders, fct_card_transactions_total_spend=total_spend, fct_card_transactions_post_month~month (relabeled)",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)\nWITH substring(toString(t.post_date), 0, 7) AS month,\n     t.customer_key AS customer_key,\n     CASE WHEN t.is_purchase THEN t.amount ELSE 0 END AS purchase_amount\nWITH month,\n     count(DISTINCT customer_key) AS cardholders,\n     sum(purchase_amount) AS total_spend\nRETURN month, cardholders, total_spend\nORDER BY cardholders DESC\nLIMIT 500"
+  }
+ },
+ "L87ee24ce": {
+  "question": "For each day from 2026-05-02 onward, how many deposit transactions were posted for each transaction type?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on posted_date, transaction_type, n=transaction_count",
+   "lenient": "correct",
+   "query": "MATCH (t:DepositTransaction)\nWHERE t.posted_date >= date('2026-05-02')\nRETURN t.posted_date AS posted_date, t.transaction_type AS transaction_type, count(*) AS transaction_count\nORDER BY posted_date, transaction_type"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on posted_date, transaction_type, n",
+   "lenient": "correct",
+   "query": "MATCH (t:DepositTransaction)\nWHERE t.posted_date >= date('2026-05-02')\nWITH t.posted_date AS posted_date, t.transaction_type AS transaction_type, count(*) AS n\nRETURN posted_date, transaction_type, n\nORDER BY posted_date, n DESC"
+  }
+ },
+ "L8ee70d9a": {
+  "question": "For the SPK contact center site, what was the call abandon rate (the share of calls that were abandoned) for the week from 2026-06-23 to 2026-06-29?",
+  "labels": {
+   "verdict": "wrong",
+   "why": "no column holds fct_calls_site_name (1 of 2 match)",
+   "lenient": "wrong",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE s.site_id = 'SPK'\n  AND c.conversation_date >= date('2026-06-23')\n  AND c.conversation_date <= date('2026-06-29')\nWITH count(*) AS total_calls,\n     sum(CASE WHEN c.is_abandoned THEN 1 ELSE 0 END) AS abandoned_calls\nRETURN abandoned_calls * 1.0 / total_calls AS abandon_rate"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_calls_site_name=site_name, fct_calls_abandon_rate=abandon_rate",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE s.site_id = 'SPK'\n  AND c.conversation_date >= date('2026-06-23')\n  AND c.conversation_date <= date('2026-06-29')\nWITH s.site_name AS site_name,\n     count(*) AS total_calls,\n     count(CASE WHEN c.is_abandoned THEN 1 END) AS abandoned_calls\nRETURN site_name, toFloat(abandoned_calls) / total_calls AS abandon_rate"
+  }
+ },
+ "L8f767484": {
+  "question": "For account closure calls handled at the SPK site during the week of 2026-06-23 to 2026-06-29, what is, for each agent, week, and site: the average handle time, the number of closure calls, and the total number of calls?",
+  "labels": {
+   "verdict": "wrong",
+   "why": "315 rows, not 32",
+   "lenient": "wrong",
+   "query": "MATCH (c:Call)-[:HANDLED_BY]->(a:Agent)\nMATCH (c)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE s.site_id = 'SPK'\n  AND c.conversation_date >= date('2026-06-23')\n  AND c.conversation_date <= date('2026-06-29')\nWITH a.agent_user_id AS agent_user_id,\n     s.site_id AS site_id,\n     date('2026-06-23') AS week_start,\n     avg(c.handle_sec) AS avg_handle_sec,\n     count(CASE WHEN c.is_account_closure_call THEN c.conversation_id END) AS closure_calls,\n     count(c.conversation_id) AS total_calls\nRETURN agent_user_id, week_start, site_id, avg_handle_sec, closure_calls, total_calls\nORDER BY agent_user_id"
+  },
+  "translate": {
+   "verdict": "wrong",
+   "why": "29 rows, not 32",
+   "lenient": "wrong",
+   "query": "MATCH (c:Call)-[:HANDLED_BY]->(a:Agent)\nMATCH (c)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.conversation_date >= date('2026-06-23') AND c.conversation_date <= date('2026-06-29')\n  AND c.is_account_closure_call = true\n  AND s.site_id = 'SPK'\nWITH a.agent_name AS agent_name,\n     date('2026-06-23') AS week_start,\n     s.site_name AS site_name,\n     avg(c.handle_sec) AS avg_handle_time,\n     count(DISTINCT CASE WHEN c.is_account_closure_call THEN c.conversation_id ELSE NULL END) AS closure_calls,\n     count(DISTINCT c.conversation_id) AS total_calls\nRETURN agent_name, week_start, site_name, avg_handle_time, closure_calls, total_calls\n"
+  }
+ },
+ "L97338912": {
+  "question": "For voice calls about account closures with a conversation date from 2026-05-31 to 2026-06-29, what is the abandon rate broken down by whether the site is outsourced, the IVR intent, and the media type? Show the top 500 combinations ordered by abandon rate, highest first.",
+  "labels": {
+   "verdict": "wrong",
+   "why": "2 rows, not 3",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.media_type = 'voice'\n  AND c.is_account_closure_call = true\n  AND c.conversation_date >= date('2026-05-31')\n  AND c.conversation_date <= date('2026-06-29')\nWITH s.is_outsourced AS is_outsourced,\n     c.ivr_intent AS ivr_intent,\n     c.media_type AS media_type,\n     count(*) AS total_calls,\n     sum(CASE WHEN c.is_abandoned = true THEN 1 ELSE 0 END) AS abandoned_calls\nRETURN is_outsourced,\n       ivr_intent,\n       media_type,\n       toFloat(abandoned_calls) / total_calls AS abandon_rate\nORDER BY abandon_rate DESC\nLIMIT 500"
+  },
+  "translate": {
+   "verdict": "wrong",
+   "why": "2 rows, not 3",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.conversation_date >= date('2026-05-31')\n  AND c.conversation_date < date('2026-06-30')\n  AND c.is_account_closure_call = true\n  AND c.media_type = 'voice'\nWITH s.is_outsourced AS is_outsourced,\n     c.ivr_intent AS ivr_intent,\n     c.media_type AS media_type,\n     count(*) AS total,\n     count(CASE WHEN c.is_abandoned = true THEN 1 END) AS abandoned\nRETURN is_outsourced, ivr_intent, media_type,\n       toFloat(abandoned) / total AS abandon_rate\nORDER BY abandon_rate DESC\nLIMIT 500"
+  }
+ },
+ "L9d80def1": {
+  "question": "For deposit transactions posted between 2026-05-01 and 2026-06-03, what are the total inflow amounts and total outflow amounts, broken down by customer segment and transaction type?",
+  "labels": {
+   "verdict": "wrong",
+   "why": "no column holds inflows, outflows (2 of 4 match)",
+   "lenient": "wrong",
+   "query": "MATCH (t:DepositTransaction)-[:INITIATED_BY]->(c:Customer)\nWHERE t.posted_date >= date('2026-05-01') AND t.posted_date <= date('2026-06-03')\n  AND NOT t.is_reversal\nWITH c.segment AS segment, t.transaction_type AS transaction_type,\n     SUM(CASE WHEN t.signed_amount > 0 THEN t.signed_amount ELSE 0 END) AS inflows,\n     SUM(CASE WHEN t.signed_amount < 0 THEN -t.signed_amount ELSE 0 END) AS outflows\nRETURN segment, transaction_type, inflows, outflows\nORDER BY segment, transaction_type"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on segment, transaction_type, inflows, outflows",
+   "lenient": "correct",
+   "query": "MATCH (t:DepositTransaction)-[:INITIATED_BY]->(c:Customer)\nWHERE t.posted_date >= date('2026-05-01') AND t.posted_date <= date('2026-06-03')\nWITH c.segment AS segment, t.transaction_type AS transaction_type,\n     SUM(CASE WHEN t.signed_amount > 0 THEN t.signed_amount ELSE 0 END) AS inflows,\n     SUM(CASE WHEN t.signed_amount < 0 THEN -t.signed_amount ELSE 0 END) AS outflows\nRETURN segment, transaction_type, inflows, outflows\nORDER BY segment, transaction_type"
+  }
+ },
+ "La6c932d6": {
+  "question": "Since 2026-03-14 (inclusive), how many distinct customers have called in and how many total calls have there been, broken down by customer segment?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on segment, callers=distinct_customers, contacts=total_calls",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:RECEIVED_FROM]->(cu:Customer)\nWHERE c.conversation_date >= date('2026-03-14')\nRETURN cu.segment AS segment, count(DISTINCT cu.customer_key) AS distinct_customers, count(c) AS total_calls\nORDER BY total_calls DESC"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on segment, callers, contacts",
+   "lenient": "correct",
+   "query": "MATCH (f:Call)-[:RECEIVED_FROM]->(c:Customer)\nWHERE f.conversation_date >= date('2026-03-14')\nRETURN c.segment AS segment, count(DISTINCT c.customer_key) AS callers, count(*) AS contacts"
+  }
+ },
+ "Laae51758": {
+  "question": "For voice calls with a conversation date from 2026-04-01 to 2026-06-29, what were the abandonment rate, average handle time, and number of transferred calls for each queue, ordered from highest to lowest abandonment rate?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_calls_queue_name=queue_name, fct_calls_abandon_rate=abandonment_rate, fct_calls_avg_handle_time=avg_handle_time, fct_calls_transfers=transferred_calls",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)\nWHERE c.media_type = 'voice'\n  AND c.conversation_date >= date('2026-04-01')\n  AND c.conversation_date <= date('2026-06-29')\nWITH c.queue_name AS queue_name,\n     count(*) AS total_calls,\n     sum(CASE WHEN c.is_abandoned THEN 1 ELSE 0 END) AS abandoned_calls,\n     avg(c.handle_sec) AS avg_handle_time,\n     sum(CASE WHEN c.was_transferred THEN 1 ELSE 0 END) AS transferred_calls\nRETURN queue_name,\n       toFloat(abandoned_calls) / total_calls AS abandonment_rate,\n       avg_handle_time,\n       transferred_calls\nORDER BY abandonment_rate DESC"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_calls_queue_name=queue_name, fct_calls_abandon_rate=abandonment_rate, fct_calls_avg_handle_time=avg_handle_time, fct_calls_transfers=transferred_calls",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)\nWHERE c.media_type = 'voice'\n  AND c.conversation_date >= date('2026-04-01')\n  AND c.conversation_date <= date('2026-06-29')\nWITH c.queue_name AS queue_name,\n     count(*) AS total_calls,\n     sum(CASE WHEN c.is_abandoned THEN 1 ELSE 0 END) AS abandoned_calls,\n     avg(c.handle_sec) AS avg_handle_time,\n     sum(CASE WHEN c.was_transferred THEN 1 ELSE 0 END) AS transferred_calls\nRETURN queue_name,\n       toFloat(abandoned_calls) / total_calls AS abandonment_rate,\n       avg_handle_time,\n       transferred_calls\nORDER BY abandonment_rate DESC"
+  }
+ },
+ "Lb012a03c": {
+  "question": "For each day since 2026-04-14, what share of voice calls were abandoned (i.e., the number of abandoned voice calls divided by the total number of voice calls), broken down by conversation date?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on conversation_date, abandon_rate",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)\nWHERE c.media_type = 'voice' AND c.conversation_date >= date('2026-04-14')\nWITH c.conversation_date AS conversation_date,\n     count(*) AS total_calls,\n     sum(CASE WHEN c.is_abandoned THEN 1 ELSE 0 END) AS abandoned_calls\nRETURN conversation_date,\n       toFloat(abandoned_calls) / total_calls AS abandon_rate\nORDER BY conversation_date"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on conversation_date, abandon_rate",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)\nWHERE c.media_type = 'voice' AND c.conversation_date >= date('2026-04-14')\nWITH c.conversation_date AS conversation_date,\n     sum(CASE WHEN c.is_abandoned THEN 1 ELSE 0 END) AS abandoned_calls,\n     count(*) AS total_calls\nRETURN conversation_date, toFloat(abandoned_calls) / total_calls AS abandon_rate\nORDER BY conversation_date"
+  }
+ },
+ "Lb680ccfe": {
+  "question": "For each agent, site outsourcing status (outsourced vs in-house), and media type, what was the call abandonment rate, average handle time, and number of transferred calls for contacts with a conversation date from 2026-05-31 to 2026-06-29?",
+  "labels": {
+   "verdict": "wrong",
+   "why": "3137 rows, not 2683",
+   "lenient": "wrong",
+   "query": "MATCH (c:Call)-[:HANDLED_BY]->(a:Agent)\nMATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.conversation_date >= date('2026-05-31') AND c.conversation_date <= date('2026-06-29')\nWITH a.agent_user_id AS agent_user_id,\n     a.agent_name AS agent_name,\n     s.is_outsourced AS is_outsourced,\n     c.media_type AS media_type,\n     count(*) AS total_calls,\n     sum(CASE WHEN c.is_abandoned THEN 1 ELSE 0 END) AS abandoned_calls,\n     avg(c.handle_sec) AS avg_handle_time_sec,\n     sum(CASE WHEN c.was_transferred THEN 1 ELSE 0 END) AS transferred_calls\nRETURN agent_user_id, agent_name, is_outsourced, media_type,\n       toFloat(abandoned_calls) / total_calls AS abandonment_rate,\n       avg_handle_time_sec,\n       transferred_calls\nORDER BY agent_user_id, is_outsourced, media_type"
+  },
+  "translate": {
+   "verdict": "wrong",
+   "why": "2671 rows, not 2683",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:HANDLED_BY]->(a:Agent)\nMATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.conversation_date >= date('2026-05-31') AND c.conversation_date <= date('2026-06-29')\nWITH a.agent_name AS agent_name, s.is_outsourced AS is_outsourced, c.media_type AS media_type,\n     count(*) AS total_calls,\n     sum(CASE WHEN c.is_abandoned THEN 1 ELSE 0 END) AS abandoned_calls,\n     avg(c.handle_sec) AS avg_handle_time,\n     sum(CASE WHEN c.was_transferred THEN 1 ELSE 0 END) AS transferred_calls\nRETURN agent_name, is_outsourced, media_type,\n       toFloat(abandoned_calls) / total_calls AS abandon_rate,\n       avg_handle_time,\n       transferred_calls\nORDER BY abandon_rate DESC\nLIMIT 5000"
+  }
+ },
+ "Lb93bfbd1": {
+  "question": "For each conversation date from 2026-06-23 to 2026-06-29, what was the average handle time and the number of distinct voice conversations?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_calls_conversation_date=conversation_date, fct_calls_avg_handle_time=avg_handle_time, fct_calls_count=voice_conversation_count",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)\nWHERE c.media_type = 'voice'\n  AND c.conversation_date >= date('2026-06-23')\n  AND c.conversation_date <= date('2026-06-29')\nWITH c.conversation_date AS conversation_date,\n     avg(c.handle_sec) AS avg_handle_time,\n     count(DISTINCT c.conversation_id) AS voice_conversation_count\nRETURN conversation_date, avg_handle_time, voice_conversation_count\nORDER BY conversation_date"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_calls_conversation_date=conversation_date, fct_calls_avg_handle_time=avg_handle_time, fct_calls_count=call_count",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)\nWHERE c.media_type = 'voice'\n  AND c.conversation_date >= date('2026-06-23')\n  AND c.conversation_date <= date('2026-06-29')\nWITH c.conversation_date AS conversation_date,\n     avg(c.handle_sec) AS avg_handle_time,\n     count(DISTINCT c.conversation_id) AS call_count\nRETURN conversation_date, avg_handle_time, call_count\nORDER BY avg_handle_time DESC"
+  }
+ },
+ "Lba99d5e4": {
+  "question": "For voice calls handled at the MNL contact center site between 2026-04-01 and 2026-06-30, what is the average handle time and the count of distinct conversations, broken down by agent name, media type, and site name?",
+  "labels": {
+   "verdict": "wrong",
+   "why": "446 rows, not 447",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:HANDLED_BY]->(a:Agent)\nMATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE s.site_id = 'MNL'\n  AND c.media_type = 'voice'\n  AND c.conversation_date >= date('2026-04-01')\n  AND c.conversation_date <= date('2026-06-30')\nRETURN a.agent_name AS agent_name,\n       c.media_type AS media_type,\n       s.site_name AS site_name,\n       avg(c.handle_sec) AS avg_handle_time,\n       count(DISTINCT c.conversation_id) AS conversation_count\nORDER BY agent_name"
+  },
+  "translate": {
+   "verdict": "wrong",
+   "why": "446 rows, not 447",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:HANDLED_BY]->(a:Agent)\nMATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE s.site_id = 'MNL'\n  AND c.media_type = 'voice'\n  AND c.conversation_date >= date('2026-04-01')\n  AND c.conversation_date <= date('2026-06-30')\nWITH a.agent_name AS agent_name, c.media_type AS media_type, s.site_name AS site_name,\n     avg(c.handle_sec) AS avg_handle_time, count(DISTINCT c.conversation_id) AS conversation_count\nRETURN agent_name, media_type, site_name, avg_handle_time, conversation_count\nORDER BY avg_handle_time DESC"
+  }
+ },
+ "Lc38c81cf": {
+  "question": "For affluent and private-banking customers, for purchase transactions posted from 2026-06-23 to 2026-06-29, how many distinct cardholders made purchases each day, broken down by whether the transaction was foreign and by merchant category group?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_is_foreign=is_foreign, fct_card_transactions_mcc_category_group=mcc_category_group, fct_card_transactions_post_date=post_date, fct_card_transactions_cardholders=distinct_cardholders",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)-[:MADE_BY]->(c:Customer)\nWHERE c.segment IN ['affluent', 'private']\n  AND t.txn_type = 'PURCH'\n  AND t.post_date >= date('2026-06-23') AND t.post_date <= date('2026-06-29')\nRETURN t.post_date AS post_date,\n       t.is_foreign AS is_foreign,\n       t.mcc_category_group AS mcc_category_group,\n       count(DISTINCT t.customer_key) AS distinct_cardholders\nORDER BY post_date, is_foreign, mcc_category_group"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_is_foreign=is_foreign, fct_card_transactions_mcc_category_group=mcc_category_group, fct_card_transactions_post_date=post_date, fct_card_transactions_cardholders=cardholders",
+   "lenient": "correct",
+   "query": "MATCH (ct:CardTransaction)-[:MADE_BY]->(c:Customer)\nWHERE c.segment IN ['affluent', 'private']\n  AND ct.txn_type = 'PURCH'\n  AND ct.post_date >= date('2026-06-23') AND ct.post_date <= date('2026-06-29')\nWITH ct.post_date AS post_date, ct.is_foreign AS is_foreign, ct.mcc_category_group AS mcc_category_group, ct.customer_key AS customer_key\nRETURN post_date, is_foreign, mcc_category_group, count(DISTINCT customer_key) AS cardholders\nORDER BY post_date, is_foreign, mcc_category_group"
+  }
+ },
+ "Lc9bd1a0b": {
+  "question": "For the SPK contact center site, from 2026-04-01 to 2026-06-30, how many closure calls (calls where the customer was closing their account) were there by week (week starting Monday), call intent, and site name?",
+  "labels": {
+   "verdict": "wrong",
+   "why": "14 rows, not 98",
+   "lenient": "wrong",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE s.site_id = 'SPK'\n  AND c.conversation_date >= date('2026-04-01')\n  AND c.conversation_date <= date('2026-06-30')\n  AND c.is_account_closure_call = true\nWITH c, s,\n     date.truncate('week', c.conversation_date) AS week_start\nRETURN week_start,\n       c.ivr_intent AS call_intent,\n       s.site_name AS site_name,\n       count(*) AS closure_calls\nORDER BY week_start, call_intent"
+  },
+  "translate": {
+   "verdict": "declined",
+   "why": "The graph has no date truncation/week-bucketing function available (date(), datetime(), duration() and similar temporal functions are disallowed, and there is no equivalent WEEK(MONDAY) truncation primitive exposed), so we cannot compute \"week starting Monday\" grouping from conversation_date over this Virtual Graph subset of Cypher. Without that capability the query cannot reproduce the DATE_TRUNC(...,WEEK(MONDAY)) grouping the SQL performs.",
+   "lenient": "declined",
+   "query": null
+  }
+ },
+ "Lccd8d6b4": {
+  "question": "For card transactions posted from 2026-05-31 to 2026-06-29, what is the total interchange earned and the number of distinct settlements, grouped by month, ranked from highest to lowest interchange?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_interchange=total_interchange, fct_card_transactions_txn_count=distinct_settlements, fct_card_transactions_post_month~month (relabeled)",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)\nWHERE t.post_date >= date('2026-05-31') AND t.post_date <= date('2026-06-29')\nWITH substring(toString(t.post_date), 0, 7) AS month, t\nRETURN month,\n       sum(t.interchange) AS total_interchange,\n       count(DISTINCT t.settlement_id) AS distinct_settlements\nORDER BY total_interchange DESC"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_post_month=post_month, fct_card_transactions_interchange=total_interchange, fct_card_transactions_txn_count=distinct_settlements",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)\nWHERE t.post_date >= date('2026-05-31') AND t.post_date < date('2026-06-30')\nWITH date.truncate('month', t.post_date) AS post_month, t.interchange AS interchange, t.settlement_id AS settlement_id\nRETURN post_month, COALESCE(SUM(interchange), 0) AS total_interchange, COUNT(DISTINCT settlement_id) AS distinct_settlements\nORDER BY total_interchange DESC"
+  }
+ },
+ "Lcf63b774": {
+  "question": "How many distinct cardholders made card transactions in each customer segment?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_segment=segment, fct_card_transactions_cardholders=distinct_cardholders",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)-[:MADE_BY]->(c:Customer)\nRETURN c.segment AS segment, COUNT(DISTINCT c.customer_key) AS distinct_cardholders\nORDER BY distinct_cardholders DESC"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_segment=segment, fct_card_transactions_cardholders=cardholders",
+   "lenient": "correct",
+   "query": "MATCH (ct:CardTransaction)-[:MADE_BY]->(c:Customer)\nRETURN c.segment AS segment, count(DISTINCT ct.customer_key) AS cardholders"
+  }
+ },
+ "Lcf746f33": {
+  "question": "For voice calls about account closures with a conversation date from 2026-05-31 to 2026-06-29, what is the average handle time (in seconds) and the count of transferred calls, broken down by whether the call center site is outsourced and by wrap-up code/reason, ordered from highest to lowest average handle time?",
+  "labels": {
+   "verdict": "wrong",
+   "why": "4 rows, not 6",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.media_type = 'voice'\n  AND c.is_account_closure_call = true\n  AND c.conversation_date >= date('2026-05-31')\n  AND c.conversation_date <= date('2026-06-29')\nWITH s.is_outsourced AS is_outsourced, c.wrapup_code_name AS wrapup_code, c\nRETURN is_outsourced, wrapup_code,\n       avg(c.handle_sec) AS avg_handle_time_sec,\n       count(CASE WHEN c.was_transferred THEN c.conversation_id ELSE NULL END) AS transferred_calls\nORDER BY avg_handle_time_sec DESC"
+  },
+  "translate": {
+   "verdict": "wrong",
+   "why": "4 rows, not 6",
+   "lenient": "wrong",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.media_type = 'voice'\n  AND c.is_account_closure_call = true\n  AND c.conversation_date >= date('2026-05-31')\n  AND c.conversation_date < date('2026-06-29')\nWITH s.is_outsourced AS is_outsourced, c.wrapup_code_name AS wrapup_code, avg(c.handle_sec) AS avg_handle_time_sec, count(CASE WHEN c.was_transferred = true THEN 1 END) AS transferred_calls\nRETURN is_outsourced, wrapup_code, avg_handle_time_sec, transferred_calls\nORDER BY avg_handle_time_sec DESC"
+  }
+ },
+ "Ldf5bcf3a": {
+  "question": "For each site, how many total contact center calls were there and how many of those were account closure calls, for calls with a conversation date between 2026-03-11 and 2026-04-01?",
+  "labels": {
+   "verdict": "wrong",
+   "why": "3 rows, not 4",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.conversation_date >= date('2026-03-11') AND c.conversation_date <= date('2026-04-01')\nWITH s.site_id AS site_id,\n     count(DISTINCT c.conversation_id) AS total_calls,\n     count(DISTINCT CASE WHEN c.is_account_closure_call THEN c.conversation_id ELSE NULL END) AS closure_calls\nRETURN site_id, total_calls, closure_calls\nORDER BY total_calls DESC"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on site_id, closure_calls, contacts",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)\nWHERE c.conversation_date >= date('2026-03-11') AND c.conversation_date <= date('2026-04-01')\nWITH c.site_id AS site_id,\n     count(*) AS contacts,\n     sum(CASE WHEN c.is_account_closure_call THEN 1 ELSE 0 END) AS closure_calls\nRETURN site_id, contacts, closure_calls\nORDER BY site_id"
+  }
+ },
+ "Ldf622140": {
+  "question": "For card purchase transactions posted from 2026-05-31 to 2026-06-29, broken down by whether the transaction was foreign, merchant category group, and customer segment (affluent and private customers only), what was the total spend?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_is_foreign=is_foreign, fct_card_transactions_mcc_category_group=mcc_category_group, fct_card_transactions_segment=segment, fct_card_transactions_total_spend=total_spend",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)-[:MADE_BY]->(c:Customer)\nWHERE t.post_date >= date('2026-05-31') AND t.post_date <= date('2026-06-29')\n  AND t.txn_type = 'PURCH'\n  AND c.segment IN ['affluent', 'private']\nRETURN t.is_foreign AS is_foreign,\n       t.mcc_category_group AS mcc_category_group,\n       c.segment AS segment,\n       sum(t.amount) AS total_spend\nORDER BY total_spend DESC"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_is_foreign=is_foreign, fct_card_transactions_mcc_category_group=mcc_category_group, fct_card_transactions_segment=segment, fct_card_transactions_total_spend=total_spend",
+   "lenient": "correct",
+   "query": "MATCH (ct:CardTransaction)-[:MADE_BY]->(c:Customer)\nWHERE ct.post_date >= date('2026-05-31') AND ct.post_date <= date('2026-06-29')\n  AND ct.txn_type = 'PURCH'\n  AND c.segment IN ['affluent', 'private']\nWITH ct.is_foreign AS is_foreign,\n     ct.mcc_category_group AS mcc_category_group,\n     c.segment AS segment,\n     CASE WHEN ct.is_purchase THEN ct.amount ELSE NULL END AS purchase_amount\nRETURN is_foreign, mcc_category_group, segment,\n       coalesce(sum(purchase_amount), 0) AS total_spend\nORDER BY total_spend DESC"
+  }
+ },
+ "Le50954e7": {
+  "question": "For calls with a conversation date from 2026-06-23 to 2026-06-29, how many distinct account closure calls were there for each contact center site type (outsourced vs. not outsourced)?",
+  "labels": {
+   "verdict": "wrong",
+   "why": "2 rows, not 3",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.conversation_date >= date('2026-06-23') AND c.conversation_date <= date('2026-06-29')\n  AND c.is_account_closure_call = true\nRETURN s.is_outsourced AS is_outsourced, count(DISTINCT c.conversation_id) AS closure_calls\nORDER BY is_outsourced"
+  },
+  "translate": {
+   "verdict": "wrong",
+   "why": "2 rows, not 3",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.conversation_date >= date('2026-06-23') AND c.conversation_date <= date('2026-06-29')\n  AND c.is_account_closure_call = true\nRETURN s.is_outsourced AS is_outsourced, count(DISTINCT c.conversation_id) AS closure_calls\nORDER BY closure_calls DESC"
+  }
+ },
+ "Le59b2970": {
+  "question": "For affluent and private segment customers, from 2026-04-01 to 2026-06-30, how many distinct card purchase transactions (settlements) were there for each combination of foreign transaction flag, transaction month, and transaction type?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_is_foreign=is_foreign, fct_card_transactions_txn_type=txn_type, fct_card_transactions_txn_count=txn_count, fct_card_transactions_post_month~txn_month (relabeled)",
+   "lenient": "correct",
+   "query": "MATCH (ct:CardTransaction)-[:MADE_BY]->(c:Customer)\nWHERE c.segment IN ['affluent', 'private']\n  AND ct.txn_type = 'PURCH'\n  AND ct.post_date >= date('2026-04-01') AND ct.post_date <= date('2026-06-30')\nWITH ct.is_foreign AS is_foreign,\n     substring(toString(ct.post_date), 0, 7) AS txn_month,\n     ct.txn_type AS txn_type,\n     ct.settlement_id AS settlement_id\nRETURN is_foreign, txn_month, txn_type, count(DISTINCT settlement_id) AS txn_count\nORDER BY txn_month, is_foreign, txn_type"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_is_foreign=is_foreign, fct_card_transactions_post_month=post_month, fct_card_transactions_txn_type=txn_type, fct_card_transactions_txn_count=txn_count",
+   "lenient": "correct",
+   "query": "MATCH (ct:CardTransaction)-[:MADE_BY]->(c:Customer)\nWHERE c.segment IN ['affluent', 'private']\n  AND ct.txn_type = 'PURCH'\n  AND ct.post_date >= date('2026-04-01') AND ct.post_date <= date('2026-06-30')\nWITH ct.is_foreign AS is_foreign,\n     date(ct.post_date.year + '-' + ct.post_date.month + '-01') AS post_month,\n     ct.txn_type AS txn_type,\n     ct.settlement_id AS settlement_id\nRETURN is_foreign, post_month, txn_type, count(DISTINCT settlement_id) AS txn_count\nORDER BY txn_count DESC"
+  }
+ },
+ "Le85ab9f9": {
+  "question": "For card purchase transactions from 2025-06-30 to 2026-06-29, for affluent and private segment customers, how many distinct cardholders made purchases each day, broken down by whether the transaction was foreign or domestic? Show the 500 day/foreign-status combinations with the most cardholders.",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_is_foreign=is_foreign, fct_card_transactions_post_date=post_date, fct_card_transactions_cardholders=cardholders",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)-[:MADE_BY]->(c:Customer)\nWHERE t.txn_type = 'PURCH'\n  AND t.post_date >= date('2025-06-30') AND t.post_date <= date('2026-06-29')\n  AND c.segment IN ['affluent', 'private']\nWITH t.post_date AS post_date, t.is_foreign AS is_foreign, count(DISTINCT c.customer_key) AS cardholders\nRETURN post_date, is_foreign, cardholders\nORDER BY cardholders DESC\nLIMIT 500"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_is_foreign=is_foreign, fct_card_transactions_post_date=post_date, fct_card_transactions_cardholders=cardholders",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)-[:MADE_BY]->(c:Customer)\nWHERE t.txn_type = 'PURCH'\n  AND t.post_date >= date('2025-06-30')\n  AND t.post_date < date('2026-06-30')\n  AND c.segment IN ['affluent', 'private']\nRETURN t.post_date AS post_date, t.is_foreign AS is_foreign, count(DISTINCT c.customer_key) AS cardholders\nORDER BY cardholders DESC\nLIMIT 500"
+  }
+ },
+ "Lea731b4b": {
+  "question": "For deposit transactions posted from 2025-10-01 onward, what is the total transaction amount by month and transaction type, for wire transfers and ACH debits?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on transaction_type, amount=total_amount, m~month (relabeled)",
+   "lenient": "correct",
+   "query": "MATCH (t:DepositTransaction)\nWHERE t.posted_date >= date('2025-10-01')\n  AND t.transaction_type IN ['WIRE', 'ACH_DR']\nWITH substring(toString(t.posted_date), 0, 7) AS month, t.transaction_type AS transaction_type, sum(t.amount) AS total_amount\nRETURN month, transaction_type, total_amount\nORDER BY month, transaction_type"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on m, transaction_type, amount",
+   "lenient": "correct",
+   "query": "MATCH (t:DepositTransaction)\nWHERE t.posted_date >= date('2025-10-01')\n  AND t.transaction_type IN ['WIRE', 'ACH_DR']\nWITH date.truncate('month', t.posted_date) AS m, t.transaction_type AS transaction_type, t.amount AS amount\nRETURN m, transaction_type, sum(amount) AS amount\nORDER BY m"
+  }
+ },
+ "Led874c20": {
+  "question": "For affluent and private segment customers, for card transactions posted from 2026-05-31 to 2026-06-29, what is the total interchange and total spend (spend on purchase transactions only), broken down by whether the transaction was foreign, the merchant category group, and the transaction type?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_is_foreign=is_foreign, fct_card_transactions_mcc_category_group=mcc_category_group, fct_card_transactions_txn_type=txn_type, fct_card_transactions_interchange=total_interchange, fct_card_transactions_total_spend=total_spend",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)-[:MADE_BY]->(c:Customer)\nWHERE c.segment IN ['affluent', 'private']\n  AND t.post_date >= date('2026-05-31') AND t.post_date <= date('2026-06-29')\nRETURN t.is_foreign AS is_foreign,\n       t.mcc_category_group AS mcc_category_group,\n       t.txn_type AS txn_type,\n       COALESCE(SUM(t.interchange), 0) AS total_interchange,\n       COALESCE(SUM(CASE WHEN t.is_purchase THEN t.amount ELSE NULL END), 0) AS total_spend\nORDER BY total_spend DESC"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_card_transactions_is_foreign=is_foreign, fct_card_transactions_mcc_category_group=mcc_category_group, fct_card_transactions_txn_type=txn_type, fct_card_transactions_interchange=total_interchange, fct_card_transactions_total_spend=total_spend",
+   "lenient": "correct",
+   "query": "MATCH (t:CardTransaction)-[:MADE_BY]->(c:Customer)\nWHERE t.post_date >= date('2026-05-31') AND t.post_date <= date('2026-06-29')\n  AND c.segment IN ['affluent', 'private']\nWITH t.is_foreign AS is_foreign,\n     t.mcc_category_group AS mcc_category_group,\n     t.txn_type AS txn_type,\n     t.interchange AS interchange,\n     CASE WHEN t.is_purchase THEN t.amount ELSE NULL END AS purchase_amount\nRETURN is_foreign,\n       mcc_category_group,\n       txn_type,\n       sum(interchange) AS total_interchange,\n       sum(purchase_amount) AS total_spend\nORDER BY is_foreign, mcc_category_group, txn_type"
+  }
+ },
+ "Ledff3723": {
+  "question": "For each conversation date from 2026-05-31 to 2026-06-29, how many distinct calls were handled and what was the average handle time (in seconds), ranked from the highest call count to the lowest?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_calls_conversation_date=conversation_date, fct_calls_count=call_count, fct_calls_avg_handle_time=avg_handle_sec",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)\nWHERE c.conversation_date >= date('2026-05-31') AND c.conversation_date <= date('2026-06-29')\nWITH c.conversation_date AS conversation_date,\n     count(DISTINCT c.conversation_id) AS call_count,\n     avg(c.handle_sec) AS avg_handle_sec\nRETURN conversation_date, call_count, avg_handle_sec\nORDER BY call_count DESC"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_calls_conversation_date=conversation_date, fct_calls_count=call_count, fct_calls_avg_handle_time=avg_handle_time",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)\nWHERE c.conversation_date >= date('2026-05-31') AND c.conversation_date < date('2026-06-30')\nWITH c.conversation_date AS conversation_date,\n     count(DISTINCT c.conversation_id) AS call_count,\n     avg(c.handle_sec) AS avg_handle_time\nRETURN conversation_date, call_count, avg_handle_time\nORDER BY call_count DESC"
+  }
+ },
+ "Lefe10343": {
+  "question": "For affluent and private-segment customers, for each merchant category (MCC) group and post date from 2026-07-01 to 2027-06-29, what is the number of distinct cardholders who made purchase transactions and the total interchange earned? Show the 500 rows with the highest cardholder counts.",
+  "labels": {
+   "verdict": "empty",
+   "why": "no rows",
+   "lenient": "empty",
+   "query": "MATCH (ct:CardTransaction)-[:MADE_BY]->(c:Customer)\nWHERE c.segment IN ['affluent', 'private']\n  AND ct.txn_type = 'PURCH'\n  AND ct.post_date >= date('2026-07-01') AND ct.post_date <= date('2027-06-29')\nWITH ct.mcc_category_group AS mcc_category_group, ct.post_date AS post_date,\n     count(DISTINCT ct.customer_key) AS cardholders,\n     sum(ct.interchange) AS total_interchange\nRETURN mcc_category_group, post_date, cardholders, total_interchange\nORDER BY cardholders DESC\nLIMIT 500"
+  },
+  "translate": {
+   "verdict": "empty",
+   "why": "no rows",
+   "lenient": "empty",
+   "query": "MATCH (ct:CardTransaction)-[:MADE_BY]->(c:Customer)\nWHERE c.segment IN ['affluent', 'private']\n  AND ct.txn_type = 'PURCH'\n  AND ct.post_date >= date('2026-07-01')\n  AND ct.post_date <= date('2027-06-29')\nWITH ct.mcc_category_group AS mcc_category_group,\n     ct.post_date AS post_date,\n     count(DISTINCT ct.customer_key) AS cardholders,\n     sum(ct.interchange) AS interchange\nRETURN mcc_category_group, post_date, cardholders, interchange\nORDER BY cardholders DESC\nLIMIT 500"
+  }
+ },
+ "Lf3aa1fe7": {
+  "question": "For calls with a conversation date from 2026-06-23 to 2026-06-29 (inclusive), how many distinct conversations were there for each wrap-up code, showing the top 50 wrap-up codes ranked by number of conversations?",
+  "labels": {
+   "verdict": "correct",
+   "why": "matches on fct_calls_wrapup=wrapup_code, fct_calls_count=conversation_count",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)\nWHERE c.conversation_date >= date('2026-06-23') AND c.conversation_date <= date('2026-06-29')\nRETURN c.wrapup_code_name AS wrapup_code, count(DISTINCT c.conversation_id) AS conversation_count\nORDER BY conversation_count DESC\nLIMIT 50"
+  },
+  "translate": {
+   "verdict": "correct",
+   "why": "matches on fct_calls_wrapup=wrapup_code, fct_calls_count=conversation_count",
+   "lenient": "correct",
+   "query": "MATCH (c:Call)\nWHERE c.conversation_date >= date('2026-06-23') AND c.conversation_date <= date('2026-06-29')\nRETURN c.wrapup_code_name AS wrapup_code, count(DISTINCT c.conversation_id) AS conversation_count\nORDER BY conversation_count DESC\nLIMIT 50"
+  }
+ }
+}

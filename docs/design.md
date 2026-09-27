@@ -92,8 +92,15 @@ single, suspect, self), `identity`, `production`, `people`, `confidence_reason`.
    and those queries go to the LLM (`llm.query_model`), which writes one query; the warehouse dry-runs it, and with `--run` runs it, billing at most
    `navigate.maximum_bytes_billed`. With `--cypher` the query is Cypher over the virtual graph
    instead. The LLM gets the cohort's tables that are labels there, plus one hop of relationships
-   around them. Virtual Graph's `EXPLAIN` is the check, and shows the SQL it sends. Virtual Graph
-   can't compute dates (no `date()`), so the request carries today's calendar periods as literals.
+   around them. Before `EXPLAIN`, every label, relationship type and property the query names is
+   checked against that part of the model: Virtual Graph runs a pattern over a label it doesn't have
+   and returns no rows, so a hallucinated label would otherwise come back as a silently empty answer.
+   `EXPLAIN` is then the check, and shows the SQL Virtual Graph sends. When the graph given can't answer
+   the question, the writer declines rather than writing a stand-in over the wrong label.
+   Both routes get the calendar of the day questions are asked on (`navigate.today`, pinned by an
+   estate whose data stops, else the real date) and write periods as literal dates. Virtual Graph
+   can't compute dates at all (no `date()`), and a pinned day keeps the answers reproducible from one
+   day to the next.
    In both routes each text column carries the values the log's queries filter it on, so code values
    are spelled as the business spells them, not guessed.
 5. **Align.** Catalog bindings are exact; embedding matches are `status: 'proposed'`. The diff lists
@@ -122,6 +129,7 @@ any. `tests/test_config.py` fails if one is not read by the code. Sensitivity on
 | `align.floor_term`, `floor_class` | 0.52, 0.40 (raw cosine) | Where the best matches turn wrong on inspection | |
 | `navigate.examples`, `examples_by`, `example_tables` | 3, similarity, true | The most-run queries over the cohort held a question's defining logic for 4 of 10 gold questions; the 3 closest by embedding, for 9. Their tables found what navigation missed | SQL route, Sonnet 5: 4 of 10 with the most-run examples, 4 with the closest, 6 with the closest and their tables |
 | `llm.query_model` | claude-sonnet-5 | Writing SQL needs a stronger model than naming | Given the answer key's own tables, Haiku 4.5 answered 1 of 10 gold questions, Sonnet 5 answered 4 |
+| `navigate.today` | null (the real date); the Fennmoor estate pins 2026-07-01 | Relative periods need a day. An estate whose data stops pins it, so "last quarter" has rows and a new day doesn't rewrite every query | Unpinned, a new day missed the LLM cache and changed three gold Cypher verdicts |
 | `navigate.filter_values` | 8 | Enough for a code list (segments, families, statuses); more adds noise from free-text filters | Q12 and Q14 went from guessed values to the data's |
 | `navigate.maximum_bytes_billed`, `rows_shown` | 1 GB, 20 | `ask --run`: the gold questions run so far each bill under 100 MiB at the example's scale; a query over it fails rather than runs | |
 | `navigate.mode`, `rank` | combined, round_robin | The direct level-1 search guards against a group filed under the wrong parent; round robin keeps a hub table from crowding out the closest group's core table | [results/navigation.md](../examples/fennmoor-bank/results/navigation.md); over seeds, recall 59% ± 7 ([results/seeds.md](../examples/fennmoor-bank/results/seeds.md)) |

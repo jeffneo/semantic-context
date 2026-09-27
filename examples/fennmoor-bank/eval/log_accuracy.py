@@ -48,6 +48,8 @@ def verdict_of(a: dict, ref: dict, items: list[list[str]]) -> tuple[str, str]:
     got = a.get("result")
     if "skipped" in a:
         return "not covered", a["skipped"]
+    if "declined" in a:
+        return "declined", a["declined"]
     if got is None or not got.get("ok", True):
         failure = (got or {}).get("error") or a.get("error") or a.get("check", {}).get("error")
         return "failed", str(failure or a.get("dry_run", {}).get("error"))[:160]
@@ -104,13 +106,13 @@ def report(s, res: dict, tokens: dict) -> int:
     n = lambda route, v, sub=res: sum(1 for r in sub.values() if r[route]["verdict"] == v)
     L += [
         "",
-        "| route | correct | wrong | empty | failed | not covered | of |",
-        "|---|---|---|---|---|---|---|",
+        "| route | correct | wrong | empty | failed | declined | not covered | of |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for route in ROUTES:
         L.append(
             f"| {route} | {n(route, 'correct')} | {n(route, 'wrong')} | {n(route, 'empty')} | "
-            f"{n(route, 'failed')} | {n(route, 'not covered')} | {len(res)} |"
+            f"{n(route, 'failed')} | {n(route, 'declined')} | {n(route, 'not covered')} | {len(res)} |"
         )
     either = sum(1 for r in res.values() if "correct" in (r["sql"]["verdict"], r["cypher"]["verdict"]))
     all_found = [q for q, r in res.items() if set(r["found"]) == set(r["tables"])]

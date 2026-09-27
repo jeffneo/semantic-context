@@ -63,4 +63,5 @@ parameters:
     example_tables: true              # the tables those queries read join the cohort (found Q05's and Q08's missing tables)
     example_statements: [SELECT, CREATE_TABLE_AS_SELECT, MERGE, CREATE_VIEW]   # statements that compute something
     example_chars: 3000               # of each query's SQL, comments removed, that is embedded
+    today: null                       # the date questions are asked on (YYYY-MM-DD), for "last quarter" and the like: both routes get its calendar and write literal dates. null: the real date. An estate whose data stops (a synthetic one) pins it, which also keeps answers reproducible from day to day
     filter_values: 8                  # values the log filters a text column on, shown with it to the LLM (spelled as the data has them)

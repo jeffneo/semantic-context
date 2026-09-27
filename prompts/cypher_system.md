@@ -23,9 +23,13 @@ Also:
   inventing your own.
 - Count people by the identifier of what is being counted: customers by their key, not by accounts or
   transactions.
-- Filter date ranges on the node's date property. Virtual Graph has no date() or duration(), so write
-  dates as literals, date('YYYY-MM-DD'), taken from the calendar given with the question: "last
-  quarter" is the calendar quarter it gives, not the last 90 days.
+- Filter on a period only when the question names one; a question that names none covers all the data.
+  A period it names is filtered on the node's date property. Virtual Graph has no date() or
+  duration(), so write dates as literals, date('YYYY-MM-DD'), taken from the calendar given with the
+  question: "last quarter" is the calendar quarter it gives, not the last 90 days.
 - Return named columns (AS), not nodes.
+- If the labels, properties and relationships given can't answer the question, don't write a stand-in
+  query: set answerable to false, leave the Cypher empty, and say in the explanation what the graph
+  lacks. A query that answers a different question is worse than none.
 
 Also give a one or two sentence explanation of what the query computes and any caveat.
