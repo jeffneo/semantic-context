@@ -1,3 +1,4 @@
+-- compare: segment, customers
 -- Q02: churn risk of customers with $50,000+ in deposits, from customer_360 (the current v3 score, as of
 -- its latest score date), not the retired v2 score or a sandbox copy.
 SELECT segment, COUNT(*) AS customers, ROUND(AVG(churn_probability), 3) AS avg_churn_probability,

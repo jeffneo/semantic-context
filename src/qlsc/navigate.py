@@ -11,8 +11,10 @@
      nearby group cannot crowd out the core table of the closest one. Frozen tables (nothing wrote
      them in the log window and no production process reads them) go last. Variables are the links
      between tables, so a table reached only through a shared variable is not part of the cohort.
-  5. The log's evidence for that cohort: the joins between those tables, and the queries that already
-     read them together, with who ran them.
+  5. The log's evidence: the queries closest to the question (their SQL's embedding), skipping any
+     that read a sandbox (a table only people write) or a frozen table, and the tables they read, which
+     join the cohort; then the joins between all of them. (examples_by: runs instead takes the most-run
+     queries over the cohort.)
   6. The SQL: the LLM writes one query from that cohort (prompts/sql_*.md) and the warehouse dry-runs
      it - valid or not, and how many bytes it would scan - at no cost. A failed dry run goes back to
      the LLM once.
@@ -29,6 +31,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import re
 import textwrap
 import time
 from decimal import Decimal
@@ -37,7 +40,7 @@ from neo4j.exceptions import Neo4jError, ServiceUnavailable
 
 from qlsc.config import Settings
 from qlsc.graph import Graph
-from qlsc.llm import LLM, Embedder, prompt
+from qlsc.llm import LLM, Embedder, cosine, prompt
 from qlsc.names import short
 from qlsc.warehouse import connect
 
@@ -110,8 +113,29 @@ MATCH (s:QueryShape {succeeded: true})-[:REFERENCES]->(t:Table) WHERE t.id IN $t
 WITH s, count(DISTINCT t) AS hit WHERE hit >= 2
 MATCH (p:Principal)-[r:RAN]->(s)
 WITH s, hit, collect(DISTINCT split(p.id, '@')[0]) AS who, sum(r.jobs) AS jobs
-RETURN s.sample_sql AS sql, hit, who, jobs ORDER BY hit DESC, jobs DESC LIMIT 2
+RETURN s.sample_sql AS sql, hit, who, jobs ORDER BY hit DESC, jobs DESC LIMIT $n
 """
+
+# Every query shape that computes something, with who runs it and the tables it reads: the candidates
+# for the examples closest to a question.
+SHAPES = """
+MATCH (s:QueryShape {succeeded: true}) WHERE s.statement_type IN $statements AND s.sample_sql IS NOT NULL
+MATCH (p:Principal)-[r:RAN]->(s)
+WITH s, collect(DISTINCT split(p.id, '@')[0]) AS who, sum(r.jobs) AS jobs
+RETURN s.id AS id, s.sample_sql AS sql, who, jobs, [(s)-[:REFERENCES]->(t:Table) WHERE t.in_catalog | t.id] AS tables
+ORDER BY id
+"""
+
+# Tables only people write, never a production process (a load or a service account): sandboxes and
+# personal copies, which an example query must not lead the writer to.
+PERSONAL = """
+MATCH (p:Principal)-[:RAN]->(:QueryShape {succeeded: true})-[:WRITES]->(t:Table)
+WITH t, collect(DISTINCT p.kind) AS kinds WHERE NOT 'service_account' IN kinds
+  AND NOT EXISTS { MATCH (:Principal {kind: 'service_account'})-[:LOADED]->(t) }
+RETURN t.id AS t
+"""
+
+ALL_TABLES = "MATCH (t:Table) RETURN t.id AS t"
 
 COLUMNS = """
 MATCH (t:Table)-[:HAS_COLUMN]->(c:Column) WHERE t.id IN $tables AND c.in_catalog
@@ -187,7 +211,7 @@ def filter_values(G: Graph, tables: list[str], n: int) -> dict[tuple[str, str], 
 
 def column_text(name: str, typ: str, values: list | None) -> str:
     """A column for the prompt: its name and type, and the values the log filters it on."""
-    seen = f" (filtered on {', '.join(repr(v) for v in values)})" if values else ""
+    seen = f" (values seen: {', '.join(repr(v) for v in values)})" if values else ""
     return f"{name} {typ}".strip() + seen
 
 
@@ -261,18 +285,60 @@ def show(columns: list[str], rows: list[dict], total: int, where: str) -> None:
     print(f"   {total:,} rows{f' (the first {len(rows)} shown)' if total > len(rows) else ''}, {where}")
 
 
-def write_sql(
-    G: Graph,
-    s: Settings,
-    question: str,
-    top: list[str],
-    joins: list[dict],
-    examples: list[dict],
-    execute: bool = False,
-) -> None:
-    """Step 6: the cohort -> one query, dry-run in the warehouse; step 7 with `execute`."""
+def shape_text(sql: str, chars: int) -> str:
+    """A query's SQL as it is embedded: comments (dbt and Looker headers) removed, whitespace folded."""
+    sql = re.sub(r"--[^\n]*", " ", re.sub(r"/\*.*?\*/", " ", sql, flags=re.S))
+    return " ".join(sql.split())[:chars]
+
+
+def similar(v: list[float], shapes: list[dict], vecs: list, distrusted: set[str], k: int) -> list[dict]:
+    """The k query shapes closest to the question that read no distrusted table, closest first."""
+    out = []
+    for sh, vec in sorted(zip(shapes, vecs), key=lambda x: (-cosine(v, x[1]), x[0]["id"])):
+        if not set(sh["tables"]) & distrusted:
+            out.append({**sh, "similarity": cosine(v, vec)})
+            if len(out) == k:
+                break
+    return out
+
+
+def trace(G: Graph, s: Settings, question: str) -> dict:
+    """Steps 1-4, deterministic: the closest Semantic nodes, the groups opened, the cohort of tables,
+    the log's queries closest to the question (and the tables they read), and the joins between them."""
+    p = s.params["navigate"]
+    emb = Embedder(s)
+    v = emb.embed([question])[0]
+    groups, tables, top = cohort(G, v, p)
+    if p["examples_by"] == "similarity":
+        shapes = G.rows(SHAPES, statements=p["example_statements"])
+        vecs = emb.embed([shape_text(x["sql"], p["example_chars"]) for x in shapes])
+        everything = [r["t"] for r in G.rows(ALL_TABLES)]
+        distrusted = {r["t"] for r in G.rows(PERSONAL)} | {r["t"] for r in G.rows(FROZEN, tables=everything)}
+        examples = similar(v, shapes, vecs, distrusted, p["examples"])
+    else:
+        examples = G.rows(QUERIES, tables=top, n=p["examples"])
+    added = []
+    if p["example_tables"]:
+        added = list(dict.fromkeys(t for e in examples for t in e.get("tables", []) if t not in top))
+    return {
+        "question": question,
+        "hits": G.rows(HITS, hits=p["hits"], v=v),
+        "groups": groups,
+        "tables": tables,
+        "cohort": top,
+        "added": added,
+        "top": top + added,
+        "joins": G.rows(JOINS, tables=top + added),
+        "examples": examples,
+    }
+
+
+def answer_sql(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int | None = None) -> dict:
+    """Step 6: the cohort -> one query, dry-run in the warehouse; step 7, the answer, with `execute`.
+    -> {sql, explanation, dry_run, result?}"""
     p = s.params["navigate"]
     wh = connect(s)
+    top = tr["top"]
     cols = G.rows(COLUMNS, tables=top)
     values = filter_values(G, top, p["filter_values"])
     tables = "\n".join(
@@ -282,11 +348,17 @@ def write_sql(
         )
         for r in cols
     )
-    joins_txt = "\n".join(f"{j['a']}.{j['ac']} = {j['b']}.{j['bc']}" for j in joins) or "(none recorded)"
-    ex = example_sql(examples)
-    llm = LLM(prompt("sql_system", sql=wh.sql, **s.business), s)
+    joins_txt = (
+        "\n".join(f"{j['a']}.{j['ac']} = {j['b']}.{j['bc']}" for j in tr["joins"]) or "(none recorded)"
+    )
+    llm = LLM(prompt("sql_system", sql=wh.sql, **s.business), s, s["llm"]["query_model"])
     request = prompt(
-        "sql_request", question=question, tables=tables, joins=joins_txt, examples=ex, **s.business
+        "sql_request",
+        question=tr["question"],
+        tables=tables,
+        joins=joins_txt,
+        examples=example_sql(tr["examples"]),
+        **s.business,
     )
     out = llm.call(request, SQL_SCHEMA, "record_sql", max_tokens=3000)
     res = wh.dry_run(out["sql"])
@@ -294,48 +366,28 @@ def write_sql(
         fix = prompt("sql_fix", error=res["error"], warehouse=wh.name)
         out = llm.call(request + "\n\n" + fix, SQL_SCHEMA, "record_sql", max_tokens=3000)
         res = wh.dry_run(out["sql"])
-    print(f"\n5. the SQL (written from the cohort above, dry-run in {wh.name})")
-    print(textwrap.indent(out["sql"].strip(), "   "))
-    print("\n   " + textwrap.fill(out["explanation"], 100, subsequent_indent="   "))
-    if res["ok"]:
-        print(f"   dry run: valid; would scan {res.get('bytes_processed') or 0:,} bytes")
-    elif res["ok"] is None:
-        print(f"   dry run skipped: {res['error']}")
-    else:
-        print(f"   dry run failed: {res['error']}")
+    answer = {"warehouse": wh.name, "sql": out["sql"], "explanation": out["explanation"], "dry_run": res}
     if execute and res["ok"]:
-        print(f"\n6. the answer (run in {wh.name})")
         t0 = time.time()
-        out = wh.run(out["sql"], p["maximum_bytes_billed"], p["rows_shown"])
-        if out["ok"]:
-            where = f"{time.time() - t0:.1f} s, {out['bytes_billed'] / 2**20:,.0f} MiB billed"
-            show(out["columns"], out["rows"], out["total"], where)
-        else:
-            print(f"   failed: {out['error']}")
+        answer["result"] = wh.run(out["sql"], p["maximum_bytes_billed"], rows or p["rows_shown"])
+        answer["result"]["seconds"] = time.time() - t0
+    return answer
 
 
-def write_cypher(
-    G: Graph, s: Settings, question: str, top: list[str], examples: list[dict], execute: bool = False
-) -> None:
+def answer_cypher(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int | None = None) -> dict:
     """Step 6 over the virtual graph: the cohort's labels -> one Cypher query, checked with Virtual
-    Graph's EXPLAIN; step 7 with `execute`."""
+    Graph's EXPLAIN; step 7, the answer, with `execute`.
+    -> {start, around, cypher, explanation, check, result?} | {skipped: why}"""
     p, instance = s.params["navigate"], s.get("virtualize", {}).get("neo4j")
     labels = {r["table"]: r["label"] for r in G.rows(LABELS)}
     path = s.work / "virtual" / "schema.json"
-    print("\n5. the virtual graph: the cohort's tables that are labels there, and one hop around them")
     if not (labels and instance and path.exists()):
-        print("   no virtual graph: run qlsc virtualize, and set virtualize.neo4j in the config")
-        return
-    start = [labels[t] for t in top if t in labels]
+        return {"skipped": "no virtual graph: run qlsc virtualize, and set virtualize.neo4j in the config"}
+    start = [labels[t] for t in tr["top"] if t in labels]
     if not start:
-        print("   none of the cohort's tables is in the virtual graph")
-        return
+        return {"skipped": "none of the cohort's tables is in the virtual graph"}
     nodes, rels = model_slice(json.loads(path.read_text()), start)
     table = {label: t for t, label in labels.items()}
-    print("   " + ", ".join(f"{x} ({short(table[x])})" for x in start))
-    around = [n["label"] for n in nodes if n["label"] not in start]
-    if around:
-        print("   one hop: " + ", ".join(around))
     values = filter_values(G, [table[n["label"]] for n in nodes if n["label"] in table], p["filter_values"])
     node_txt = "\n".join(
         f"(:{n['label']}) rows of `{table.get(n['label'], n['table'])}`, key {n['key'][0]['column']}: "
@@ -351,50 +403,158 @@ def write_cypher(
         f"{r['end']['targetEntity']}.{r['end']['keys'][0]['nodeColumn']})"
         for r in rels
     )
-    llm = LLM(prompt("cypher_system", **s.business), s)
+    llm = LLM(prompt("cypher_system", **s.business), s, s["llm"]["query_model"])
     request = prompt(
         "cypher_request",
-        question=question,
+        question=tr["question"],
         nodes=node_txt,
         relationships=rel_txt or "(none)",
-        examples=example_sql(examples),
+        examples=example_sql(tr["examples"]),
         today=calendar(dt.date.today()),  # Virtual Graph has no date(): relative periods need literals
         **s.business,
     )
-    wh = connect(s)
+    answer = {
+        "warehouse": connect(s).name,
+        "start": [(x, table[x]) for x in start],
+        "around": [n["label"] for n in nodes if n["label"] not in start],
+    }
     try:
         with Graph(s, instance) as V:
             out = llm.call(request, CYPHER_SCHEMA, "record_cypher", max_tokens=3000)
-            check = explain(V, out["cypher"])
+            check = explain(V, out["cypher"], nodes)
             if "error" in check:
                 fix = prompt("cypher_fix", error=check["error"])
                 out = llm.call(request + "\n\n" + fix, CYPHER_SCHEMA, "record_cypher", max_tokens=3000)
-                check = explain(V, out["cypher"])
-            print("\n6. the Cypher (written from the labels above, checked with Virtual Graph's EXPLAIN)")
-            print(textwrap.indent(out["cypher"].strip(), "   "))
-            print("\n   " + textwrap.fill(out["explanation"], 100, subsequent_indent="   "))
-            if "error" in check:
-                print(f"   EXPLAIN failed: {check['error']}")
-                return
-            print(
-                f"\n   the SQL Virtual Graph sends to {wh.name} (? are the query's literals, as parameters):"
-            )
-            for q in check["sql"]:
-                print(textwrap.indent(q.strip(), "     "))
-            if execute:
-                print(f"\n7. the answer (run through Virtual Graph, in {wh.name})")
+                check = explain(V, out["cypher"], nodes)
+            answer |= {"cypher": out["cypher"], "explanation": out["explanation"], "check": check}
+            if execute and "error" not in check:
                 t0 = time.time()
                 result = V.run(out["cypher"])
-                rows = [r.data() for r in result.records]
-                show(result.keys, rows[: p["rows_shown"]], len(rows), f"{time.time() - t0:.1f} s")
+                data = [r.data() for r in result.records]
+                answer["result"] = {
+                    "ok": True,
+                    "columns": list(result.keys),
+                    "rows": data[: rows or p["rows_shown"]],
+                    "total": len(data),
+                    "seconds": time.time() - t0,
+                }
     except ServiceUnavailable:
-        print(f"   the Virtual Graph instance is not running at {instance['uri']}")
+        answer["error"] = f"the Virtual Graph instance is not running at {instance['uri']}"
     except Neo4jError as e:
-        print(f"   failed: {e.message}")
+        answer["error"] = e.message
+    return answer
 
 
-def explain(V: Graph, cypher: str) -> dict:
-    """Virtual Graph's verdict on a query without running it: {sql: [...]} | {error}."""
+def print_trace(tr: dict) -> None:
+    print(f"QUESTION  {tr['question']}\n")
+    print("1. semantic layer: closest Semantic nodes (any level)")
+    for h in tr["hits"]:
+        print(f"   {h['score']:.3f}  L{h['level']}  {h['name']}")
+    print("\n2. down to the level-1 groups under those hits, closest first")
+    for name, g in tr["groups"].items():
+        print(f"   {g['sim']:.3f}  {name}  (under: {', '.join(g['via'])})")
+        print("          " + textwrap.shorten(", ".join(sorted(g["members"])), 150))
+    tables, top = tr["tables"], tr.get("cohort", tr["top"])
+    print(
+        f"\n3. down to the physical layer: the cohort ({len(top)} of {len(tables)} tables; each group, "
+        "closest first, contributes its most-used table in turn; frozen tables last)"
+    )
+    for t in top:
+        cols = textwrap.shorten(", ".join(sorted(tables[t]["cols"])), 80)
+        print(
+            f"   {short(t):46} {tables[t]['used']:2} principals{' FROZEN' if tables[t]['frozen'] else ''}  {cols}"
+        )
+    if tr.get("added"):
+        print("   + read by the example queries below: " + ", ".join(short(t) for t in tr["added"]))
+    print("\n4. how the log connects them")
+    for j in tr["joins"]:
+        print(
+            f"   join  {short(j['a'])}.{j['ac']} = {short(j['b'])}.{j['bc']}"
+            + (f"  [{j['variable']}]" if j["variable"] else "")
+            + f"  ({j['queries']} queries)"
+        )
+    for q in tr["examples"]:
+        if "similarity" in q:
+            print(
+                f"\n   a query {q['similarity']:.2f} like the question, {q['jobs']} runs by "
+                f"{', '.join(q['who'][:4])}, reads {', '.join(short(t) for t in q['tables'][:4])}:"
+            )
+        else:
+            print(
+                f"\n   a query that reads {q['hit']} of them, {q['jobs']} runs by {', '.join(q['who'][:4])}:"
+            )
+        print(textwrap.indent(textwrap.shorten(" ".join(q["sql"].split()), 600), "     "))
+
+
+def print_sql(a: dict) -> None:
+    res = a["dry_run"]
+    print(f"\n5. the SQL (written from the cohort above, dry-run in {a['warehouse']})")
+    print(textwrap.indent(a["sql"].strip(), "   "))
+    print("\n   " + textwrap.fill(a["explanation"], 100, subsequent_indent="   "))
+    if res["ok"]:
+        print(f"   dry run: valid; would scan {res.get('bytes_processed') or 0:,} bytes")
+    elif res["ok"] is None:
+        print(f"   dry run skipped: {res['error']}")
+    else:
+        print(f"   dry run failed: {res['error']}")
+    if "result" in a:
+        out = a["result"]
+        print(f"\n6. the answer (run in {a['warehouse']})")
+        if out["ok"]:
+            where = f"{out['seconds']:.1f} s, {out['bytes_billed'] / 2**20:,.0f} MiB billed"
+            show(out["columns"], out["rows"], out["total"], where)
+        else:
+            print(f"   failed: {out['error']}")
+
+
+def print_cypher(a: dict) -> None:
+    print("\n5. the virtual graph: the cohort's tables that are labels there, and one hop around them")
+    if "skipped" in a:
+        print(f"   {a['skipped']}")
+        return
+    print("   " + ", ".join(f"{x} ({short(t)})" for x, t in a["start"]))
+    if a["around"]:
+        print("   one hop: " + ", ".join(a["around"]))
+    if "cypher" in a:
+        print("\n6. the Cypher (written from the labels above, checked with Virtual Graph's EXPLAIN)")
+        print(textwrap.indent(a["cypher"].strip(), "   "))
+        print("\n   " + textwrap.fill(a["explanation"], 100, subsequent_indent="   "))
+        if "error" in a["check"]:
+            print(f"   EXPLAIN failed: {a['check']['error']}")
+        else:
+            print(
+                f"\n   the SQL Virtual Graph sends to {a['warehouse']} (? are the query's literals, as parameters):"
+            )
+            for q in a["check"]["sql"]:
+                print(textwrap.indent(q.strip(), "     "))
+    if "result" in a:
+        out = a["result"]
+        print(f"\n7. the answer (run through Virtual Graph, in {a['warehouse']})")
+        show(out["columns"], out["rows"], out["total"], f"{out['seconds']:.1f} s")
+    if "error" in a:
+        print(f"   failed: {a['error']}")
+
+
+def unknown_properties(cypher: str, nodes: list[dict]) -> list[str]:
+    """Properties a query reads that its variable's label does not have. Cypher returns null for a
+    missing property, so Virtual Graph accepts them and the answer silently loses a column."""
+    have = {n["label"]: {x["name"] for x in n["properties"]} for n in nodes}
+    bound = {v: label for v, label in re.findall(r"\((\w+):(\w+)", cypher) if label in have}
+    return sorted(
+        {
+            f"{v}.{prop} ({bound[v]} has no {prop})"
+            for v, prop in re.findall(r"\b(\w+)\.(\w+)\b", cypher)
+            if v in bound and prop not in have[bound[v]]
+        }
+    )
+
+
+def explain(V: Graph, cypher: str, nodes: list[dict] | None = None) -> dict:
+    """Virtual Graph's verdict on a query without running it: {sql: [...]} | {error}. With the model's
+    nodes, a property its label lacks is an error too."""
+    missing = unknown_properties(cypher, nodes or [])
+    if missing:
+        return {"error": "unknown properties: " + "; ".join(missing)}
     try:
         return {"sql": external_sql(V.run("EXPLAIN " + cypher).summary.plan)}
     except ServiceUnavailable:
@@ -404,43 +564,10 @@ def explain(V: Graph, cypher: str) -> dict:
 
 
 def run(s: Settings, question: str, sql: bool = True, cypher: bool = False, execute: bool = False) -> None:
-    p = s.params["navigate"]
     with Graph(s) as G:
-        v = Embedder(s).embed([question])[0]
-        print(f"QUESTION  {question}\n")
-        print("1. semantic layer: closest Semantic nodes (any level)")
-        for h in G.rows(HITS, hits=p["hits"], v=v):
-            print(f"   {h['score']:.3f}  L{h['level']}  {h['name']}")
-
-        groups, tables, top = cohort(G, v, p)
-        print("\n2. down to the level-1 groups under those hits, closest first")
-        for name, g in groups.items():
-            print(f"   {g['sim']:.3f}  {name}  (under: {', '.join(g['via'])})")
-            print("          " + textwrap.shorten(", ".join(sorted(g["members"])), 150))
-        print(
-            f"\n3. down to the physical layer: the cohort ({len(top)} of {len(tables)} tables; each group, "
-            "closest first, contributes its most-used table in turn; frozen tables last)"
-        )
-        for t in top:
-            cols = textwrap.shorten(", ".join(sorted(tables[t]["cols"])), 80)
-            print(
-                f"   {short(t):46} {tables[t]['used']:2} principals{' FROZEN' if tables[t]['frozen'] else ''}  {cols}"
-            )
-
-        print("\n4. how the log connects them")
-        joins, examples = G.rows(JOINS, tables=top), G.rows(QUERIES, tables=top)
-        for j in joins:
-            print(
-                f"   join  {short(j['a'])}.{j['ac']} = {short(j['b'])}.{j['bc']}"
-                + (f"  [{j['variable']}]" if j["variable"] else "")
-                + f"  ({j['queries']} queries)"
-            )
-        for q in examples:
-            print(
-                f"\n   a query that reads {q['hit']} of them, {q['jobs']} runs by {', '.join(q['who'][:4])}:"
-            )
-            print(textwrap.indent(textwrap.shorten(" ".join(q["sql"].split()), 600), "     "))
+        tr = trace(G, s, question)
+        print_trace(tr)
         if sql and cypher:
-            write_cypher(G, s, question, top, examples, execute)
+            print_cypher(answer_cypher(G, s, tr, execute))
         elif sql:
-            write_sql(G, s, question, top, joins, examples, execute)
+            print_sql(answer_sql(G, s, tr, execute))

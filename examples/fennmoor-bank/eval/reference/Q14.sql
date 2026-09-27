@@ -1,3 +1,4 @@
+-- compare: account_family, closures
 -- Q14: account closures by reason, deposits versus cards. The card processor has its own codes: mapped to
 -- core banking's (CH cardholder request -> CUST_REQ, FR -> FRAUD, IN inactive -> DORMANT); PC and CO
 -- have no core-banking equivalent and keep their own names.

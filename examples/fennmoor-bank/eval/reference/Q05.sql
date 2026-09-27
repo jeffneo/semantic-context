@@ -1,3 +1,4 @@
+-- compare: month, product_line, month_end_balance
 -- Q05: month-end deposit balances by product line: each account's last balance date in each month.
 WITH month_end AS (
   SELECT b.*, ROW_NUMBER() OVER (PARTITION BY b.account_key, DATE_TRUNC(b.balance_date, MONTH)

@@ -7,7 +7,15 @@ import datetime as dt
 
 from qlsc.joins import DSU, joins_identity, keeps_identity
 from qlsc.names import canonical_table, short
-from qlsc.navigate import calendar, external_sql, model_slice, round_robin
+from qlsc.navigate import (
+    calendar,
+    external_sql,
+    model_slice,
+    round_robin,
+    shape_text,
+    similar,
+    unknown_properties,
+)
 from qlsc_parse.catalog import Catalog
 
 
@@ -102,3 +110,24 @@ def test_calendar_periods():
     assert "last month: 2026-08-01 to 2026-08-31" in c.lower()
     assert "last year: 2025-01-01 to 2025-12-31" in c
     assert "last quarter: 2025-10-01 to 2025-12-31" in calendar(dt.date(2026, 1, 15))
+
+
+def test_unknown_properties_are_caught():
+    nodes = [
+        {"label": "Merchant", "properties": [{"name": "category_group"}]},
+        {"label": "CardTransaction", "properties": [{"name": "amount"}, {"name": "mcc_category_group"}]},
+    ]
+    q = "MATCH (t:CardTransaction)-[:AT]->(m:Merchant) RETURN m.mcc_category_group, t.amount, m.category_group"
+    assert unknown_properties(q, nodes) == ["m.mcc_category_group (Merchant has no mcc_category_group)"]
+
+
+def test_similar_examples_skip_distrusted_tables():
+    shapes = [
+        {"id": "a", "tables": ["sbx.copy"]},
+        {"id": "b", "tables": ["dw.fact", "dw.dim"]},
+        {"id": "c", "tables": ["dw.fact"]},
+    ]
+    vecs = [[1.0, 0.0], [0.8, 0.6], [0.6, 0.8]]
+    got = similar([1.0, 0.0], shapes, vecs, distrusted={"sbx.copy"}, k=1)
+    assert [x["id"] for x in got] == ["b"]  # a is closest but reads a sandbox
+    assert shape_text("/* dbt */ SELECT a -- note\n FROM t", 100) == "SELECT a FROM t"

@@ -1,0 +1,444 @@
+{
+ "Q01": {
+  "question": "Which contact centers see the most account cancellations, and what did each cost to run last year?",
+  "compare": [
+   [
+    "site_name",
+    "site_id"
+   ],
+   [
+    "closure_contacts"
+   ],
+   [
+    "expense_2025"
+   ]
+  ],
+  "cohort": [
+   "fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly",
+   "fennmoor-analytics.sbx_finance.cc_cost_per_call_fy25",
+   "fennmoor-dw.dw_contact_center.fct_calls",
+   "fennmoor-dw.dw_contact_center.rpt_site_cost_per_contact",
+   "fennmoor-raw.gl_erp.journal_line",
+   "fennmoor-raw.gl_erp.vendor_invoice",
+   "fennmoor-dw.dw_core.dim_date",
+   "fennmoor-analytics.looker_scratch.LR_{id}_site_monthly_kpis",
+   "fennmoor-dw.dw_finance.dim_cost_center",
+   "fennmoor-dw.dw_contact_center.dim_cc_site"
+  ],
+  "sql": {
+   "verdict": "empty",
+   "why": "no rows",
+   "query": "\nWITH closures AS (\n  SELECT\n    fc.site_id,\n    COUNT(DISTINCT CASE WHEN fc.is_account_closure_call THEN fc.conversation_id END) AS closure_calls\n  FROM `fennmoor-dw.dw_contact_center.fct_calls` AS fc\n  JOIN `fennmoor-dw.dw_core.dim_date` AS d\n    ON fc.conversation_date = d.date_day\n  WHERE d.year = EXTRACT(YEAR FROM CURRENT_DATE()) - 1\n  GROUP BY fc.site_id\n),\ncosts AS (\n  SELECT\n    c.site_id,\n    SUM(c.total_expense) AS total_expense_last_year\n  FROM `fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly` AS c\n  WHERE EXTRACT(YEAR FROM c.month_start) = EXTRACT(YEAR FROM CURRENT_DATE()) - 1\n  GROUP BY c.site_id\n)\nSELECT\n  s.site_id,\n  s.site_name,\n  cl.closure_calls,\n  co.total_expense_last_year\nFROM closures AS cl\nJOIN `fennmoor-dw.dw_contact_center.dim_cc_site` AS s\n  ON cl.site_id = s.site_id\nLEFT JOIN costs AS co\n  ON cl.site_id = co.site_id\nORDER BY cl.closure_calls DESC\n"
+  },
+  "cypher": {
+   "verdict": "empty",
+   "why": "no rows",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE c.is_account_closure_call = true\n  AND c.conversation_date >= date('2025-01-01') AND c.conversation_date <= date('2025-12-31')\nRETURN s.site_id AS site_id,\n       s.site_name AS site_name,\n       s.cost_center_id AS cost_center_id,\n       s.cost_center_name AS cost_center_name,\n       count(c) AS closure_calls\nORDER BY closure_calls DESC"
+  }
+ },
+ "Q02": {
+  "question": "What is the churn risk of our high-balance customers?",
+  "compare": [
+   [
+    "segment"
+   ],
+   [
+    "customers"
+   ]
+  ],
+  "cohort": [
+   "fennmoor-dw.dw_core.fct_account_closures",
+   "fennmoor-analytics.looker_scratch.LR_{id}_churn_explore",
+   "fennmoor-analytics.sbx_customer_analytics.customer_360_final",
+   "fennmoor-dw.ml_features.feat_customer_daily",
+   "fennmoor-analytics.looker_scratch.LR_{id}_customer_facts",
+   "fennmoor-analytics.sbx_customer_analytics.customer_360_final_FIXED",
+   "fennmoor-analytics.sbx_customer_analytics.churn_cohort_analysis_2026q1",
+   "fennmoor-analytics.sbx_customer_analytics.customer_360_v2",
+   "fennmoor-dw.dw_core.dim_customer",
+   "fennmoor-dw.ml_scores.churn_score_v3",
+   "fennmoor-dw.ml_scores.churn_score_v2"
+  ],
+  "sql": {
+   "verdict": "empty",
+   "why": "no rows",
+   "query": "SELECT\n  customer_facts.churn_risk_band AS customer_facts_churn_risk_band,\n  customer_facts.segment AS customer_facts_segment,\n  CASE\n    WHEN customer_facts.tenure_months < 12 THEN '0-1y'\n    WHEN customer_facts.tenure_months < 60 THEN '1-5y'\n    ELSE '5y+'\n  END AS customer_facts_tenure_band,\n  AVG(customer_facts.churn_probability) AS customer_facts_avg_churn\nFROM `fennmoor-analytics.looker_scratch.LR_6H0IZB3PQ4C6N_customer_facts` AS customer_facts\nWHERE customer_facts.is_digitally_enrolled\n  AND customer_facts.total_deposit_balance >= 100000\nGROUP BY\n  customer_facts_churn_risk_band,\n  customer_facts_segment,\n  customer_facts_tenure_band\nLIMIT 500"
+  },
+  "cypher": {
+   "verdict": "failed",
+   "why": "unknown properties: a.current_balance (Account has no current_balance)",
+   "query": "MATCH (a:Account)-[:OWNED_BY]->(c:Customer)\nWHERE a.account_family = 'DEPOSIT' AND a.is_open = true\nWITH c, sum(a.current_balance) AS total_balance\n"
+  }
+ },
+ "Q03": {
+  "question": "Which web pages do customers visit before they call us?",
+  "compare": [],
+  "cohort": [
+   "fennmoor-dw.dw_digital.fct_account_opening_funnel",
+   "fennmoor-dw.dw_contact_center.fct_calls",
+   "fennmoor-raw.analytics_312874659.events_*",
+   "fennmoor-dw.dw_core.dim_customer",
+   "fennmoor-dw.dw_digital.fct_web_sessions",
+   "fennmoor-analytics.looker_scratch.LR_{id}_digital_funnel_daily",
+   "fennmoor-dw.dw_core.dim_date",
+   "fennmoor-dw.dw_staging.stg_ga4__events",
+   "fennmoor-dw.dw_customer.customer_360",
+   "fennmoor-dw.dw_contact_center.dim_queue",
+   "fennmoor-dw.dw_contact_center.dim_cc_site"
+  ],
+  "sql": {
+   "verdict": "not scored",
+   "why": "15 rows",
+   "query": "WITH calls AS (\n  SELECT\n    customer_key,\n    conversation_date,\n    conversation_start\n  FROM `fennmoor-dw.dw_contact_center.fct_calls`\n  WHERE customer_key IS NOT NULL\n    AND media_type = 'voice'\n),\nweb_before_call AS (\n  SELECT\n    ws.customer_key,\n    ws.landing_page,\n    ws.session_start,\n    c.conversation_start\n  FROM `fennmoor-dw.dw_digital.fct_web_sessions` ws\n  JOIN calls c\n    ON ws.customer_key = c.customer_key\n   AND ws.session_date <= c.conversation_date\n   AND ws.session_start <= c.conversation_start\n  WHERE ws.customer_key IS NOT NULL\n)\nSELECT\n  landing_page,\n  COUNT(DISTINCT customer_key) AS customers_who_visited_before_calling\nFROM web_before_call\nGROUP BY landing_page\nORDER BY customers_who_visited_before_calling DESC\nLIMIT 50\n"
+  },
+  "cypher": {
+   "verdict": "not scored",
+   "why": "1 rows",
+   "query": "// No web session / page visit data is exposed in the given graph (labels, relationships, properties).\n// The only web-page browsing data referenced in the bank's SQL comes from `dw_digital.fct_web_sessions`,\n// which is not part of the provided Virtual Graph schema (no Node label or relationship maps to it).\n// Therefore this question cannot be answered with the labels/relationships available.\nRETURN \"No web session/page-visit data available in the provided graph schema\" AS note"
+  }
+ },
+ "Q04": {
+  "question": "Card spend by merchant category and customer segment, last quarter.",
+  "compare": [
+   [
+    "segment"
+   ],
+   [
+    "mcc_category_group"
+   ],
+   [
+    "spend"
+   ]
+  ],
+  "cohort": [
+   "fennmoor-analytics.looker_scratch.LR_{id}_card_spend_by_mcc",
+   "fennmoor-dw.dw_core.fct_card_transactions",
+   "fennmoor-analytics.sbx_customer_analytics.customer_360_final",
+   "fennmoor-raw.card_processor.merchant",
+   "fennmoor-dw.dw_intermediate.int_card_transactions_enriched",
+   "fennmoor-analytics.sbx_customer_analytics.customer_360_final_FIXED",
+   "fennmoor-dw.dw_staging.stg_cards__merchant",
+   "fennmoor-analytics.sbx_customer_analytics.customer_360_v2",
+   "fennmoor-dw.dw_core.dim_customer",
+   "fennmoor-dw.dw_core.dim_merchant"
+  ],
+  "sql": {
+   "verdict": "correct",
+   "why": "matches on segment=customer_segment, mcc_category_group, spend=total_spend",
+   "query": "WITH last_quarter AS (\n  SELECT\n    DATE_TRUNC(DATE_SUB(CURRENT_DATE('America/Chicago'), INTERVAL 1 QUARTER), QUARTER) AS q_start,\n    DATE_TRUNC(CURRENT_DATE('America/Chicago'), QUARTER) AS q_end\n)\nSELECT\n  t.mcc_category_group AS mcc_category_group,\n  c.segment AS customer_segment,\n  COALESCE(SUM(CASE WHEN t.is_purchase THEN t.amount ELSE NULL END), 0) AS total_spend\nFROM `fennmoor-dw.dw_core.fct_card_transactions` t\nJOIN `fennmoor-dw.dw_core.dim_customer` c\n  ON t.customer_key = c.customer_key\nCROSS JOIN last_quarter lq\nWHERE t.post_date >= lq.q_start\n  AND t.post_date < lq.q_end\n  AND t.txn_type = 'PURCH'\nGROUP BY 1, 2\nORDER BY total_spend DESC;\n"
+  },
+  "cypher": {
+   "verdict": "correct",
+   "why": "matches on segment, mcc_category_group, spend=total_spend",
+   "query": "MATCH (t:CardTransaction)-[:MADE_BY]->(c:Customer)\nWHERE t.post_date >= date('2026-04-01') AND t.post_date <= date('2026-06-30')\n  AND t.is_purchase = true\nRETURN t.mcc_category_group AS mcc_category_group,\n       c.segment AS segment,\n       sum(t.amount) AS total_spend\nORDER BY total_spend DESC"
+  }
+ },
+ "Q05": {
+  "question": "Month-end deposit balances by product line.",
+  "compare": [
+   [
+    "month"
+   ],
+   [
+    "product_line"
+   ],
+   [
+    "month_end_balance"
+   ]
+  ],
+  "cohort": [
+   "fennmoor-dw.dw_core.dim_product",
+   "fennmoor-raw.core_banking_cdc.ACCOUNT",
+   "fennmoor-dw.dw_core.dim_account",
+   "fennmoor-dw.dw_core.fct_deposit_transactions",
+   "fennmoor-analytics.legacy_edw.EOM_BAL_SNAP",
+   "fennmoor-dw.dw_staging.stg_ref__product_hierarchy",
+   "fennmoor-analytics.legacy_edw.ACCT_DLY_BAL",
+   "fennmoor-dw.dw_customer.customer_monthly_summary",
+   "fennmoor-dw.dw_core.fct_daily_account_balances"
+  ],
+  "sql": {
+   "verdict": "correct",
+   "why": "matches on month=month_start, product_line, month_end_balance",
+   "query": "WITH eom AS (\n  SELECT\n    account_key,\n    product_code,\n    DATE_TRUNC(balance_date, MONTH) AS month_start,\n    ARRAY_AGG(ledger_balance ORDER BY balance_date DESC LIMIT 1)[OFFSET(0)] AS eom_balance\n  FROM `fennmoor-dw.dw_core.fct_daily_account_balances`\n  GROUP BY 1, 2, 3\n)\nSELECT\n  eom.month_start,\n  p.product_line,\n  SUM(eom.eom_balance) AS month_end_balance\nFROM eom\nJOIN `fennmoor-dw.dw_core.dim_product` p\n  USING (product_code)\nGROUP BY eom.month_start, p.product_line\nORDER BY eom.month_start, p.product_line\n"
+  },
+  "cypher": {
+   "verdict": "failed",
+   "why": "42NG1: Unsupported syntax: `Aggregating WITH clause is not supported`. (line 3, column 1 (offset: 175))",
+   "query": "MATCH (dt:DepositTransaction)-[:CREDITED_TO]->(a:Account)-[:CONTAINS]->(p:Product)\nWHERE dt.posted_date >= date('2026-08-01') AND dt.posted_date <= date('2026-08-31')\nWITH p.product_line AS product_line, a.account_key AS account_key, max(dt.posted_date) AS last_posted_date\nMATCH (dt2:DepositTransaction)-[:CREDITED_TO]->(a2:Account)\nWHERE a2.account_key = account_key AND dt2.posted_date = last_posted_date\nWITH product_line, account_key, max(dt2.signed_amount) AS eom_balance\nRETURN product_line, sum(eom_balance) AS deposit_balance\nORDER BY product_line"
+  }
+ },
+ "Q06": {
+  "question": "Where do we store Social Security numbers, raw or hashed?",
+  "compare": [],
+  "cohort": [
+   "fennmoor-dw.dw_compliance.dim_aml_party",
+   "fennmoor-raw.loan_origination.applicant",
+   "fennmoor-dw.dw_core.dim_customer",
+   "fennmoor-raw.aml_kyc.screening_hit",
+   "fennmoor-raw.aml_kyc.party",
+   "fennmoor-dw.dw_staging_restricted.stg_aml__party",
+   "fennmoor-dw.dw_staging.stg_los__applicant",
+   "fennmoor-dw.dw_intermediate.int_customer_identity"
+  ],
+  "sql": {
+   "verdict": "not scored",
+   "why": "6 rows",
+   "query": "SELECT\n  table_schema,\n  table_name,\n  column_name,\n  CASE\n    WHEN LOWER(column_name) LIKE '%ssn%' AND LOWER(column_name) NOT LIKE '%hash%' THEN 'raw (partial or full SSN)'\n    WHEN LOWER(column_name) LIKE '%tax_id%' AND LOWER(column_name) LIKE '%hash%' THEN 'hashed'\n    WHEN LOWER(column_name) LIKE '%tax_id%' THEN 'raw'\n    ELSE 'unknown'\n  END AS storage_form\nFROM (\n  SELECT 'dw_compliance' AS table_schema, 'dim_aml_party' AS table_name, 'tax_id_hash' AS column_name\n  UNION ALL\n  SELECT 'dw_core', 'dim_customer', 'tax_id_hash'\n  UNION ALL\n  SELECT 'dw_staging', 'stg_los__applicant', 'ssn_last4'\n  UNION ALL\n  SELECT 'dw_staging_restricted', 'stg_aml__party', 'tax_id_hash'\n  UNION ALL\n  SELECT 'aml_kyc', 'party', 'tax_id'\n  UNION ALL\n  SELECT 'loan_origination', 'applicant', 'ssnLast4'\n)\nORDER BY table_schema, table_name, column_name\n"
+  },
+  "cypher": {
+   "verdict": "not scored",
+   "why": "25 rows",
+   "query": "MATCH (c:Customer)\nRETURN c.customer_key AS customer_key, c.tax_id_hash AS tax_id_hash\nLIMIT 25"
+  }
+ },
+ "Q07": {
+  "question": "What share of fraud alerts are confirmed fraud, by channel?",
+  "compare": [
+   [
+    "channel"
+   ],
+   [
+    "confirmed_share"
+   ]
+  ],
+  "cohort": [
+   "fennmoor-raw.fraud_platform.alert",
+   "fennmoor-raw.fraud_platform.fraud_case",
+   "fennmoor-dw.dw_core.dim_card",
+   "fennmoor-raw.digital_banking.alert_subscription",
+   "fennmoor-raw.fraud_platform.rule",
+   "fennmoor-raw.fraud_platform.case_alert_link",
+   "fennmoor-dw.dw_staging.stg_fraud__fraud_case",
+   "fennmoor-dw.dw_risk.fct_fraud_alerts"
+  ],
+  "sql": {
+   "verdict": "correct",
+   "why": "matches on channel, confirmed_share=confirm_rate",
+   "query": "SELECT\n  channel,\n  COUNT(*) AS alerts,\n  COUNTIF(is_confirmed_fraud) AS confirmed_alerts,\n  SAFE_DIVIDE(COUNTIF(is_confirmed_fraud), COUNT(*)) AS confirm_rate\nFROM `fennmoor-dw.dw_risk.fct_fraud_alerts`\nGROUP BY channel\nORDER BY confirm_rate DESC"
+  },
+  "cypher": {
+   "verdict": "not covered",
+   "why": "none of the cohort's tables is in the virtual graph",
+   "query": null
+  }
+ },
+ "Q08": {
+  "question": "Which marketing campaigns drove credit card applications?",
+  "compare": [
+   [
+    "campaign_id",
+    "campaign_name"
+   ],
+   [
+    "card_applications"
+   ]
+  ],
+  "cohort": [
+   "fennmoor-dw.dw_risk.fct_credit_applications",
+   "fennmoor-dw.dw_marketing.fct_campaign_sends",
+   "fennmoor-dw.dw_core.dim_customer",
+   "fennmoor-analytics.sbx_customer_analytics.customer_360_final",
+   "fennmoor-raw.loan_origination.decision",
+   "fennmoor-dw.dw_staging.stg_los__decision",
+   "fennmoor-dw.dw_marketing.dim_campaign",
+   "fennmoor-dw.dw_core.fct_deposit_transactions",
+   "fennmoor-dw.dw_marketing.fct_campaign_attribution",
+   "fennmoor-dw.dw_core.dim_account",
+   "fennmoor-dw.dw_core.dim_product"
+  ],
+  "sql": {
+   "verdict": "correct",
+   "why": "matches on campaign_name, card_applications",
+   "query": "SELECT\n  c.campaign_name,\n  COUNT(DISTINCT a.customer_key) AS customers_applied,\n  COUNT(*) AS card_applications\nFROM `fennmoor-dw.dw_marketing.fct_campaign_attribution` a\nJOIN `fennmoor-dw.dw_marketing.dim_campaign` c\n  USING (campaign_id)\nWHERE a.conversion_behavior = 'card_application_submitted'\nGROUP BY c.campaign_name\nORDER BY card_applications DESC"
+  },
+  "cypher": {
+   "verdict": "empty",
+   "why": "no rows",
+   "query": "MATCH (a)\nRETURN a LIMIT 0"
+  }
+ },
+ "Q09": {
+  "question": "Loan delinquency rate by product and branch.",
+  "compare": [
+   [
+    "product_code"
+   ],
+   [
+    "branch_id",
+    "branch_name"
+   ],
+   [
+    "delinquency_rate"
+   ]
+  ],
+  "cohort": [
+   "fennmoor-dw.dw_core.dim_account",
+   "fennmoor-raw.loan_origination.delinquency_snapshot",
+   "fennmoor-analytics.looker_scratch.LR_{id}_delinquency_trend",
+   "fennmoor-raw.loan_origination.loan",
+   "fennmoor-dw.dw_core.dim_product",
+   "fennmoor-dw.dw_customer.customer_monthly_summary",
+   "fennmoor-dw.dw_staging.stg_los__delinquency_snapshot",
+   "fennmoor-dw.dw_staging.stg_los__loan",
+   "fennmoor-dw.dw_core.dim_branch",
+   "fennmoor-dw.dw_risk.fct_delinquency_daily"
+  ],
+  "sql": {
+   "verdict": "wrong",
+   "why": "no column holds delinquency_rate (2 of 3 match)",
+   "query": "WITH OPEN_LOANS AS (\n  SELECT\n    PRODUCT_CODE,\n    BRANCH_ID,\n    COUNT(*) AS N\n  FROM `fennmoor-dw.dw_core.dim_account`\n  WHERE ACCOUNT_FAMILY = 'LOAN'\n    AND IS_OPEN\n  GROUP BY 1, 2\n),\nDLQ AS (\n  SELECT\n    A.PRODUCT_CODE,\n    A.BRANCH_ID,\n    COUNT(*) AS D\n  FROM `fennmoor-dw.dw_risk.fct_delinquency_daily` DD\n  JOIN `fennmoor-dw.dw_core.dim_account` A USING (ACCOUNT_KEY)\n  WHERE DD.SNAPSHOT_DATE = (SELECT MAX(SNAPSHOT_DATE) FROM `fennmoor-dw.dw_risk.fct_delinquency_daily`)\n    AND DD.DPD >= 30\n  GROUP BY 1, 2\n)\nSELECT\n  O.PRODUCT_CODE,\n  B.BRANCH_NAME,\n  O.N AS OPEN_LOANS,\n  COALESCE(DLQ.D, 0) AS DELINQUENT_LOANS,\n  SAFE_DIVIDE(DLQ.D, O.N) AS DELINQUENCY_RATE\nFROM OPEN_LOANS O\nLEFT JOIN DLQ USING (PRODUCT_CODE, BRANCH_ID)\nLEFT JOIN `fennmoor-dw.dw_core.dim_branch` B ON B.BRANCH_ID = O.BRANCH_ID\nORDER BY DELINQUENCY_RATE DESC\n"
+  },
+  "cypher": {
+   "verdict": "correct",
+   "why": "matches on product_code=productCode, branch_name=branchName, delinquency_rate=delinquentLoans",
+   "query": "MATCH (a:Account)-[:MAINTAINED_AT]->(b:Branch)\nWHERE a.account_family = 'LOAN'\nWITH a.product_code AS productCode, b.branch_name AS branchName,\n     count(a) AS totalLoans,\n     sum(CASE WHEN a.is_open THEN 1 ELSE 0 END) AS openLoans,\n     sum(CASE WHEN a.status_code = 'DELINQUENT' THEN 1 ELSE 0 END) AS delinquentLoans\nRETURN productCode, branchName, openLoans,\n       delinquentLoans,\n       CASE WHEN openLoans = 0 THEN 0.0 ELSE toFloat(delinquentLoans) / openLoans END AS delinquencyRate\nORDER BY delinquencyRate DESC"
+  }
+ },
+ "Q10": {
+  "question": "Does customer satisfaction vary with agent tenure?",
+  "compare": [],
+  "cohort": [
+   "fennmoor-dw.dw_contact_center.dim_agent",
+   "fennmoor-dw.dw_contact_center.fct_csat",
+   "fennmoor-analytics.looker_scratch.LR_{id}_customer_facts",
+   "fennmoor-dw.dw_contact_center.fct_agent_daily",
+   "fennmoor-raw.genesys_cloud.user",
+   "fennmoor-dw.dw_staging.stg_genesys__user",
+   "fennmoor-raw.genesys_cloud.survey_response",
+   "fennmoor-dw.dw_staging_restricted.stg_wd__worker",
+   "fennmoor-dw.dw_contact_center.fct_calls"
+  ],
+  "sql": {
+   "verdict": "not scored",
+   "why": "3 rows",
+   "query": "WITH agent_tenure_band AS (\n  SELECT\n    agent_user_id,\n    CASE\n      WHEN tenure_months < 12 THEN '0-1y'\n      WHEN tenure_months < 60 THEN '1-5y'\n      ELSE '5y+'\n    END AS tenure_band\n  FROM `fennmoor-dw.dw_contact_center.dim_agent`\n)\n\nSELECT\n  atb.tenure_band AS agent_tenure_band,\n  COUNT(DISTINCT c.conversation_id) AS survey_count,\n  AVG(c.csat_score) AS avg_csat_score,\n  AVG(c.nps_score) AS avg_nps_score\nFROM `fennmoor-dw.dw_contact_center.fct_csat` c\nJOIN agent_tenure_band atb\n  ON c.agent_user_id = atb.agent_user_id\nGROUP BY atb.tenure_band\nORDER BY\n  CASE atb.tenure_band\n    WHEN '0-1y' THEN 1\n    WHEN '1-5y' THEN 2\n    WHEN '5y+' THEN 3\n  END;\n"
+  },
+  "cypher": {
+   "verdict": "not scored",
+   "why": "3 rows",
+   "query": "MATCH (c:Call)-[:HANDLED_BY]->(a:Agent)\nWITH a, c,\n  CASE WHEN a.tenure_months < 12 THEN '0-1y'\n       WHEN a.tenure_months < 60 THEN '1-5y'\n       ELSE '5y+' END AS tenure_band,\n  CASE WHEN c.handle_sec IS NOT NULL THEN 1 ELSE 0 END AS handled\nRETURN tenure_band, count(c) AS call_count\nORDER BY tenure_band"
+  }
+ },
+ "Q11": {
+  "question": "How many customers use the mobile app each week?",
+  "compare": [
+   [
+    "week"
+   ],
+   [
+    "customers"
+   ]
+  ],
+  "cohort": [
+   "fennmoor-dw.dw_digital.fct_app_sessions",
+   "fennmoor-dw.dw_core.dim_customer",
+   "fennmoor-analytics.sbx_customer_analytics.customer_360_final",
+   "fennmoor-raw.amplitude_mobile.EVENTS_318842",
+   "fennmoor-dw.dw_digital.fct_digital_logins",
+   "fennmoor-dw.dw_digital.fct_web_sessions",
+   "fennmoor-dw.dw_core.fct_deposit_transactions",
+   "fennmoor-analytics.sbx_customer_analytics.customer_360_final_FIXED",
+   "fennmoor-dw.dw_customer.customer_360"
+  ],
+  "sql": {
+   "verdict": "correct",
+   "why": "matches on week=week_start, customers=mobile_app_customers",
+   "query": "SELECT\n  DATE_TRUNC(session_date, WEEK) AS week_start,\n  COUNT(DISTINCT cif_number) AS mobile_app_customers\nFROM `fennmoor-dw.dw_digital.fct_app_sessions`\nGROUP BY week_start\nORDER BY week_start"
+  },
+  "cypher": {
+   "verdict": "failed",
+   "why": "Invalid input 'UNKNOWN': expected 'ALTER', 'ORDER BY', 'CALL', 'CREATE', 'LOAD CSV', 'START DATABASE', 'STOP DATABASE', 'DEALLOCATE', 'DELETE', 'DENY', 'DETACH'",
+   "query": "UNKNOWN"
+  }
+ },
+ "Q12": {
+  "question": "Contact details for an email campaign to affluent customers.",
+  "compare": [
+   [
+    "cif_number"
+   ]
+  ],
+  "cohort": [
+   "fennmoor-dw.dw_intermediate.int_customer_contact_points",
+   "fennmoor-dw.dw_core.dim_customer",
+   "fennmoor-dw.dw_intermediate.int_customer_identity",
+   "fennmoor-raw.salesforce.contact",
+   "fennmoor-raw.core_banking_cdc.CUSTOMER_CONTACT",
+   "fennmoor-dw.dw_core.fct_deposit_transactions",
+   "fennmoor-dw.dw_staging.stg_core__customer",
+   "fennmoor-dw.dw_staging.stg_sf__contact",
+   "fennmoor-dw.dw_customer.customer_360",
+   "fennmoor-dw.dw_marketing.fct_campaign_sends",
+   "fennmoor-dw.dw_marketing.dim_campaign",
+   "fennmoor-dw.dw_marketing.fct_campaign_engagement"
+  ],
+  "sql": {
+   "verdict": "wrong",
+   "why": "1149 rows, not 1566",
+   "query": "SELECT\n  c.cif_number,\n  c.full_name,\n  c.primary_email\nFROM `fennmoor-dw.dw_customer.customer_360` x\nJOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key)\nWHERE x.segment = 'affluent'\n  AND c.email_opt_in\n  AND c.primary_email IS NOT NULL\n  AND c.customer_status = 'A'\n  AND c.is_deceased IS FALSE"
+  },
+  "cypher": {
+   "verdict": "wrong",
+   "why": "1149 rows, not 1566",
+   "query": "MATCH (c:Customer)\nWHERE c.segment = 'affluent'\n  AND c.email_opt_in = true\n  AND c.primary_email IS NOT NULL\n  AND c.customer_status = 'A'\n  AND c.is_deceased = false\nRETURN c.cif_number AS cif_number, c.full_name AS full_name, c.primary_email AS primary_email\nORDER BY full_name"
+  }
+ },
+ "Q13": {
+  "question": "What is in the tables whose names start with CC?",
+  "compare": [],
+  "cohort": [
+   "fennmoor-dw.dw_contact_center.dim_cc_site",
+   "fennmoor-raw.gl_erp.CC_EXPENSE_SUMMARY",
+   "fennmoor-analytics.sbx_finance.cc_cost_per_call_fy25",
+   "fennmoor-analytics.sbx_cx_ops.cc_site_scorecard_2026",
+   "fennmoor-raw.reference_data.contact_center_site",
+   "fennmoor-dw.dw_staging.stg_ref__contact_center_site",
+   "fennmoor-dw.dw_finance.fct_gl_monthly",
+   "fennmoor-dw.dw_staging.stg_gl__cost_center"
+  ],
+  "sql": {
+   "verdict": "not scored",
+   "why": "41 rows",
+   "query": "SELECT\n  table_catalog,\n  table_schema,\n  table_name,\n  column_name,\n  data_type,\n  ordinal_position\nFROM `fennmoor-dw.dw_contact_center`.INFORMATION_SCHEMA.COLUMNS\nWHERE table_name LIKE 'CC%' OR table_name LIKE 'cc%'\n\nUNION ALL\n\nSELECT\n  table_catalog,\n  table_schema,\n  table_name,\n  column_name,\n  data_type,\n  ordinal_position\nFROM `fennmoor-dw.dw_finance`.INFORMATION_SCHEMA.COLUMNS\nWHERE table_name LIKE 'CC%' OR table_name LIKE 'cc%'\n\nUNION ALL\n\nSELECT\n  table_catalog,\n  table_schema,\n  table_name,\n  column_name,\n  data_type,\n  ordinal_position\nFROM `fennmoor-dw.dw_staging`.INFORMATION_SCHEMA.COLUMNS\nWHERE table_name LIKE 'CC%' OR table_name LIKE 'cc%'\n\nUNION ALL\n\nSELECT\n  table_catalog,\n  table_schema,\n  table_name,\n  column_name,\n  data_type,\n  ordinal_position\nFROM `fennmoor-raw.gl_erp`.INFORMATION_SCHEMA.COLUMNS\nWHERE table_name LIKE 'CC%' OR table_name LIKE 'cc%'\n\nUNION ALL\n\nSELECT\n  table_catalog,\n  table_schema,\n  table_name,\n  column_name,\n  data_type,\n  ordinal_position\nFROM `fennmoor-raw.reference_data`.INFORMATION_SCHEMA.COLUMNS\nWHERE table_name LIKE 'CC%' OR table_name LIKE 'cc%'\n\nUNION ALL\n\nSELECT\n  table_catalog,\n  table_schema,\n  table_name,\n  column_name,\n  data_type,\n  ordinal_position\nFROM `fennmoor-analytics.sbx_cx_ops`.INFORMATION_SCHEMA.COLUMNS\nWHERE table_name LIKE 'CC%' OR table_name LIKE 'cc%'\n\nUNION ALL\n\nSELECT\n  table_catalog,\n  table_schema,\n  table_name,\n  column_name,\n  data_type,\n  ordinal_position\nFROM `fennmoor-analytics.sbx_finance`.INFORMATION_SCHEMA.COLUMNS\nWHERE table_name LIKE 'CC%' OR table_name LIKE 'cc%'\n\nORDER BY table_schema, table_name, ordinal_position"
+  },
+  "cypher": {
+   "verdict": "not scored",
+   "why": "3 rows",
+   "query": "MATCH (c:ContactCenterSite)\nRETURN c.site_id AS site_id, c.site_name AS site_name, c.city AS city, c.state AS state, c.operator AS operator, c.is_outsourced AS is_outsourced, c.cost_center_id AS cost_center_id, c.cost_center_name AS cost_center_name, c.seat_count AS seat_count, c.go_live_date AS go_live_date, c.queue_prefix AS queue_prefix"
+  }
+ },
+ "Q14": {
+  "question": "Account closures by reason, deposits versus cards.",
+  "compare": [
+   [
+    "account_family"
+   ],
+   [
+    "closures"
+   ]
+  ],
+  "cohort": [
+   "fennmoor-dw.dw_core.fct_account_closures",
+   "fennmoor-dw.dw_core.dim_merchant",
+   "fennmoor-dw.dw_core.dim_account",
+   "fennmoor-dw.dw_core.fct_deposit_transactions",
+   "fennmoor-dw.ml_features.feat_customer_daily",
+   "fennmoor-analytics.sbx_customer_analytics.churn_cohort_analysis_2026q1",
+   "fennmoor-dw.dw_core.dim_card",
+   "fennmoor-dw.dw_core.dim_product",
+   "fennmoor-raw.card_processor.authorization",
+   "fennmoor-dw.dw_intermediate.int_account_closures"
+  ],
+  "sql": {
+   "verdict": "correct",
+   "why": "matches on account_family, closures",
+   "query": "SELECT\n  account_family,\n  close_reason,\n  COUNT(*) AS closures\nFROM `fennmoor-dw.dw_intermediate.int_account_closures`\nWHERE account_family IN ('DEPOSIT', 'CARD')\nGROUP BY account_family, close_reason\nORDER BY account_family, closures DESC"
+  },
+  "cypher": {
+   "verdict": "correct",
+   "why": "matches on account_family, closures=n",
+   "query": "MATCH (a:Account)\nWHERE a.account_family IN ['DEPOSIT', 'CARD'] AND a.close_date IS NOT NULL\nRETURN a.account_family AS account_family, a.close_reason AS close_reason, count(a.account_key) AS n\nORDER BY account_family, n DESC"
+  }
+ }
+}

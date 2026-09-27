@@ -181,7 +181,7 @@ tables:
   core_banking_cdc.BRANCH:
     parents: {reference_data.zip_region_map: {}}
     columns:
-      BRNCH_NM: {pattern: "Fennmoor {CITY_NM} Branch"}
+      BRNCH_NM: {pattern: "Fennmoor {CITY_NM} #{BRNCH_ID}"}   # unique: several branches share a city
       BRNCH_TYP_CD: {choice: {FULL: 70, LTD: 20, ISTORE: 10}}
       CLS_DT: {share: 0.05, after: OPEN_DT}
       LAT: {range: [34.0, 48.5]}
@@ -543,7 +543,7 @@ tables:
   # Marketing (Q08): sends; conversions and email events follow a send (same customer, campaign, later)
   braze.campaign:
     columns:
-      name: {words: [Spring Cash Back, Travel Rewards Launch, HELOC Rate Drop, Checking Bonus 300, Digital Enrollment Nudge, Card Activation Reminder, Savings Rate Alert]}
+      name: {words: [Spring Cash Back, Travel Rewards Launch, HELOC Rate Drop, Checking Bonus 300, Digital Enrollment Nudge, Card Activation Reminder, Savings Rate Alert], numbered: true}
       channels: {choice: [[email], [push], [email, push], [sms], [email, in_app]]}
       tags: {choice: [[acquisition], [cards], [lending], [deposits], [retention]]}
       archived: {bool: 0.3}

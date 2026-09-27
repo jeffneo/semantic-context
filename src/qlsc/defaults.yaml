@@ -4,7 +4,9 @@
 # docs/design.md#parameters and the example's results/robustness.md.
 
 llm:
-  model: claude-haiku-4-5-20251001    # names variables and groups, writes SQL; ANTHROPIC_API_KEY
+  model: claude-haiku-4-5-20251001    # names variables and groups: hundreds of short calls; ANTHROPIC_API_KEY
+  query_model: claude-sonnet-5       # writes ask's SQL and Cypher, without extended thinking. Haiku got 1 of 10
+                                     # gold questions right given the answer key's own tables; Sonnet 5 got 4
   concurrency: 6
 
 embeddings:                           # Azure OpenAI: AZURE_OPENAI_API_KEY, _ENDPOINT, _API_VERSION
@@ -56,4 +58,9 @@ parameters:
     rank: round_robin                 # round_robin (each group in turn) | usage (most-queried first)
     maximum_bytes_billed: 1000000000  # ask --run: the most one answer may bill (1 GB); a bigger query fails rather than runs
     rows_shown: 20                    # ask --run: rows of the answer printed
+    examples: 3                       # queries from the log shown to the query writer
+    examples_by: similarity           # similarity: closest to the question, none reading a sandbox or frozen table | runs: most-run over the cohort
+    example_tables: true              # the tables those queries read join the cohort (found Q05's and Q08's missing tables)
+    example_statements: [SELECT, CREATE_TABLE_AS_SELECT, MERGE, CREATE_VIEW]   # statements that compute something
+    example_chars: 3000               # of each query's SQL, comments removed, that is embedded
     filter_values: 8                  # values the log filters a text column on, shown with it to the LLM (spelled as the data has them)

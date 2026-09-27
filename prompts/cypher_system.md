@@ -16,8 +16,9 @@ Virtual Graph runs a subset of Cypher:
 Also:
 - Use only the labels, relationship types (in the direction given) and properties given. Every pattern
   must connect through the relationships given.
-- Where a column lists the values it is filtered on (the values the {kind}'s own queries use), filter
-  on those values, spelled exactly as given. Never guess a code value.
+- Some columns show values seen in the {kind}'s own queries. They show how the data spells its codes,
+  nothing more: when the question itself calls for a filter, spell its values exactly as shown, never
+  guessed. Do not filter on a column just because it shows values.
 - Follow the example SQL for definitions (flags, filters, date logic, aggregations) rather than
   inventing your own.
 - Count people by the identifier of what is being counted: customers by their key, not by accounts or

@@ -1,3 +1,4 @@
+-- compare: segment, mcc_category_group, spend
 -- Q04: card spend by merchant category and customer segment, last quarter (2026 Q2), purchases only,
 -- filtered on the partition column.
 SELECT c.segment, t.mcc_category_group, ROUND(SUM(t.amount), 2) AS spend, COUNT(*) AS purchases

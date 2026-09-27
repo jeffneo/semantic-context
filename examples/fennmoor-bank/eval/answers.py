@@ -2,7 +2,7 @@
 
 Each question in spec/questions.yaml has a hand-written query in eval/reference/Qnn.sql, in the log's
 logical table names, written from the spec and checked against the filled data (slice 2 of the fill).
-This runs them through the warehouse connector, billing at most MAXIMUM_BYTES_BILLED each, and records
+An ambiguous question may also have Qnn.alt.sql: another reading the business itself uses. This runs them through the warehouse connector, billing at most MAXIMUM_BYTES_BILLED each, and records
 every result. A reference that returns nothing is a finding: either the data does not hold the answer
 yet, or the reference is wrong.
 
@@ -43,22 +43,30 @@ def main() -> int:
         "estate. These are the answers execution accuracy scores against."
     )
     for qid in wanted:
-        sql = (REFERENCE / f"{qid}.sql").read_text()
-        out = wh.run(sql, MAXIMUM_BYTES_BILLED, ROWS_KEPT)
-        res[qid] = {"question": questions[qid]["question"], **{k: v for k, v in out.items() if k != "rows"}}
-        L += ["", f"## {qid}. {questions[qid]['question']}", ""]
-        if not out["ok"]:
-            L.append(f"Failed: {out['error']}")
-            print(f"{qid}: failed: {out['error']}")
-            continue
-        rows = [{c: cell(r.get(c)) for c in out["columns"]} for r in out["rows"]]
-        res[qid]["rows"] = rows
-        L.append("| " + " | ".join(out["columns"]) + " |")
-        L.append("|" + "---|" * len(out["columns"]))
-        L += ["| " + " | ".join(r[c] for c in out["columns"]) + " |" for r in rows]
-        more = f", the first {len(rows)} shown" if out["total"] > len(rows) else ""
-        L += ["", f"{out['total']:,} rows{more}; {out['bytes_billed'] / 2**20:,.0f} MiB billed."]
-        print(f"{qid}: {out['total']:,} rows, {out['bytes_billed'] / 2**20:,.0f} MiB billed")
+        for path in [REFERENCE / f"{qid}.sql", *sorted(REFERENCE.glob(f"{qid}.*.sql"))]:
+            sql = path.read_text()
+            out = wh.run(sql, MAXIMUM_BYTES_BILLED, ROWS_KEPT)
+            name = path.stem
+            res[name] = {
+                "question": questions[qid]["question"],
+                **{k: v for k, v in out.items() if k != "rows"},
+            }
+            heading = (
+                f"{qid}. {questions[qid]['question']}" if name == qid else f"{qid}, also accepted ({name})"
+            )
+            L += ["", f"## {heading}", ""]
+            if not out["ok"]:
+                L.append(f"Failed: {out['error']}")
+                print(f"{name}: failed: {out['error']}")
+                continue
+            rows = [{c: cell(r.get(c)) for c in out["columns"]} for r in out["rows"]]
+            res[name]["rows"] = rows
+            L.append("| " + " | ".join(out["columns"]) + " |")
+            L.append("|" + "---|" * len(out["columns"]))
+            L += ["| " + " | ".join(r[c] for c in out["columns"]) + " |" for r in rows]
+            more = f", the first {len(rows)} shown" if out["total"] > len(rows) else ""
+            L += ["", f"{out['total']:,} rows{more}; {out['bytes_billed'] / 2**20:,.0f} MiB billed."]
+            print(f"{name}: {out['total']:,} rows, {out['bytes_billed'] / 2**20:,.0f} MiB billed")
     print(f"-> {write_result('answers', L, res)}")
     return 0
 

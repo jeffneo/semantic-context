@@ -30,8 +30,8 @@ def prompt(name: str, **values) -> str:
 
 
 class LLM:
-    def __init__(self, system: str, settings: Settings):
-        self.model = settings["llm"]["model"]
+    def __init__(self, system: str, settings: Settings, model: str | None = None):
+        self.model = model or settings["llm"]["model"]
         self.workers = settings["llm"]["concurrency"]
         self.system = system
         self.client = anthropic.Anthropic(api_key=secret("ANTHROPIC_API_KEY"))

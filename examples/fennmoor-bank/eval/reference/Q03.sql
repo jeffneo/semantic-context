@@ -1,3 +1,4 @@
+-- compare: none (open-ended: how far before a call is a choice)
 -- Q03: landing pages of customers' web sessions in the three days up to a call. Only logged-in sessions
 -- resolve to a customer (GA4 user_id -> online_user.ga4_user_id -> CIF); logged_in_share says how many.
 WITH calls AS (

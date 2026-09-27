@@ -89,8 +89,7 @@ the same rows, byte for byte.
 - **Cost:**
   - Storage: under $1 a month.
   - Model runs scan roughly tens of GB in total, cents at on-demand prices.
-  - The project's custom quota (10 GiB of queries a day, set in `gcp-setup.md`) may be exceeded by a
-    full fill. Either fill slice by slice across days, or raise it for the fill.
+  - The project's daily query cap is 1 TiB (first recorded here as 10 GiB), so a full fill fits in a day.
 
 ## Validation
 

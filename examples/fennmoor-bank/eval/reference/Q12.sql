@@ -1,3 +1,4 @@
+-- compare: cif_number
 -- Q12: contact details of affluent (and private) customers who opted in to email.
 SELECT c.cif_number, c.full_name, c.primary_email, c.segment
 FROM `fennmoor-dw.dw_customer.customer_360` c

@@ -376,6 +376,8 @@ class Estate:
             return lambda i, row: pick(rng, domain)
         if "choice" in rule or "words" in rule:
             domain = rule.get("choice", rule.get("words"))
+            if rule.get("numbered"):  # a name drawn from a list, made unique by the row's number
+                return lambda i, row: f"{pick(rng, domain)} {i + 1}"
             return lambda i, row: pick(rng, domain)
         if "bool" in rule:
             return lambda i, row: rng.random() < rule["bool"]
@@ -964,8 +966,10 @@ def load(bq, spec: dict, names: list[str], project: str, prefix: str, state: dic
 
 def compute(
     bq, spec: dict, cfg: dict, keys: set[str], project: str, prefix: str, changed: set[str], state: dict
-) -> None:
-    """Run each model that was never computed, or reads (through views too) a table that changed."""
+) -> set[str]:
+    """Run each model that was never computed, or reads (through views too) a table that changed;
+    -> the models run."""
+    ran = set()
     as_of = str(cfg["dates"]["as_of"])
     derived = []
     for k in keys:
@@ -996,26 +1000,47 @@ def compute(
             job.result()
             n = next(iter(bq.query(f"SELECT COUNT(*) FROM `{target}`").result()))[0]
             state["computed"] = sorted(set(state["computed"]) | {k})
+            ran.add(k)
             STATE.write_text(json.dumps(state, indent=1, sort_keys=True))
             print(
                 f"  computed {k:50} {n:>10,} rows  ({(job.total_bytes_billed or 0) / 2**20:,.0f} MiB billed)"
             )
+    return ran
 
 
 def check(
-    bq, spec: dict, cfg: dict, concepts: dict, keys: set[str], expected: dict, project: str, prefix: str
+    bq,
+    spec: dict,
+    cfg: dict,
+    concepts: dict,
+    keys: set[str],
+    expected: dict,
+    project: str,
+    prefix: str,
+    state: dict,
+    stale: set[str] | None,
 ) -> list[str]:
-    L = [
-        "# Fill check",
-        "",
-        "| table | rows | expected | key unique | required filled |",
-        "|---|---|---|---|---|",
-    ]
-    problems = []
-    for k in sorted(keys):
+    """Check the tables that changed (`stale`; None: every table), those never checked, and those whose
+    identifiers' home changed; keep the rest's earlier results (state.json). BigQuery bills at least
+    10 MiB for each table a query reads, so a full check of 171 tables costs several GiB."""
+    homes = {
+        k: {
+            (concepts.get(c.get("concept") or "") or {}).get("home", "").rsplit(".", 1)[0]
+            for c in spec[k]["columns"]
+        }
+        for k in keys
+    }
+    done = state.setdefault("checked", {})
+    todo = {
+        k
+        for k in keys
+        if spec[k].get("materialized") != "view"
+        and (stale is None or k in stale or k not in done or homes[k] & stale)
+    }
+    for k in todo:
+        done[k] = {"row": None, "problem": None, "ids": []}
+    for k in sorted(todo):
         t = spec[k]
-        if t.get("materialized") == "view":
-            continue
         target = deployed(t, project, prefix) + ("*" if t.get("shard") else "")  # every shard
         names = {c["name"] for c in t["columns"]}  # a grain naming a column the table lacks is not checked
         grain = [g.strip() for g in (t.get("grain") or "").split(",") if g.strip() in names]
@@ -1029,20 +1054,17 @@ def check(
         )
         exp = expected.get(k, "")
         unique = distinct == n if grain else True
-        L.append(
+        done[k]["row"] = (
             f"| {k} | {n:,} | {exp if exp == '' else f'{exp:,}'} | {'yes' if unique else f'no ({n - distinct:,} dup)'} | "
             f"{'yes' if not missing else f'no ({missing:,} null)'} |"
         )
         if (n == 0 and not cfg["tables"].get(k, {}).get("expect_empty")) or not unique or missing:
-            problems.append(
+            done[k]["problem"] = (
                 f"{k}: {n} rows, {n - distinct} duplicate keys, {missing} nulls in required columns"
             )
     # identifiers found at their home table
-    L += ["", "## Identifiers found at their home table", "", "| column | home | found |", "|---|---|---|"]
-    for k in sorted(keys):
+    for k in sorted(todo):
         t = spec[k]
-        if t.get("materialized") == "view":
-            continue
         for c in [] if t.get("shard") else t["columns"]:
             home = (concepts.get(c.get("concept") or "") or {}).get("home", "")
             if not home or home.rsplit(".", 1)[0] == k:
@@ -1066,18 +1088,35 @@ def check(
                     )
                 )[0]
             except Exception as e:  # the deployed table differs from the spec (a copy that drops columns)
-                L.append(f"| {k}.{c['name']} | {home} | not checked: {getattr(e, 'message', str(e))[:80]} |")
+                done[k]["ids"].append(
+                    f"| {k}.{c['name']} | {home} | not checked: {getattr(e, 'message', str(e))[:80]} |"
+                )
                 continue
             if share is not None:
-                L.append(f"| {k}.{c['name']} | {home} | {share:.0%} |")
+                done[k]["ids"].append(f"| {k}.{c['name']} | {home} | {share:.0%} |")
+        STATE.write_text(json.dumps(state, indent=1, sort_keys=True))
+    shown = sorted(k for k in keys if k in done)
+    L = [
+        "# Fill check",
+        "",
+        "| table | rows | expected | key unique | required filled |",
+        "|---|---|---|---|---|",
+    ]
+    L += [done[k]["row"] for k in shown if done[k]["row"]]
+    L += ["", "## Identifiers found at their home table", "", "| column | home | found |", "|---|---|---|"]
+    L += [line for k in shown for line in done[k]["ids"]]
     (DATA / "FILL.md").write_text("\n".join(L) + "\n")
-    return problems
+    print(
+        f"  checked {len(todo)} tables (the other {len(shown) - len(todo)} unchanged since their last check)"
+    )
+    return [done[k]["problem"] for k in shown if done[k]["problem"]]
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--slice", type=int, default=1)
     ap.add_argument("--steps", default="generate,load,compute,check")
+    ap.add_argument("--recheck", action="store_true", help="check every table, not only what changed")
     a = ap.parse_args()
     steps = set(a.steps.split(","))
     cfg = yaml.safe_load((SPEC / "data.yaml").read_text())
@@ -1123,9 +1162,10 @@ def main() -> int:
         if "load" in steps:
             changed = load(bq, spec, names, project, prefix, state)
         if "compute" in steps:
-            compute(bq, spec, cfg, keys, project, prefix, changed, state)
+            changed |= compute(bq, spec, cfg, keys, project, prefix, changed, state)
         if "check" in steps:
-            problems = check(bq, spec, cfg, concepts, keys, expected, project, prefix)
+            stale = None if a.recheck else changed
+            problems = check(bq, spec, cfg, concepts, keys, expected, project, prefix, state, stale)
             print(
                 f"-> {DATA / 'FILL.md'}" + ("" if not problems else "\nproblems:\n  " + "\n  ".join(problems))
             )

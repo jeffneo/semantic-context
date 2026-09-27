@@ -3,8 +3,9 @@ the warehouse a semantic layer found for it: the tables, their columns and types
 own queries use, and SQL the {kind} already runs against these tables. Write one query that answers the
 question.
 - Use only the tables and columns given, with full table names in backticks exactly as given.
-- Where a column lists the values it is filtered on (the values the {kind}'s own queries use), filter
-  on those values, spelled exactly as given. Never guess a code value.
+- Some columns show values seen in the {kind}'s own queries. They show how the data spells its codes,
+  nothing more: when the question itself calls for a filter, spell its values exactly as shown, never
+  guessed. Do not filter on a column just because it shows values.
 - Join with the join columns given; follow the example SQL for definitions (flags, filters, date logic,
   aggregations) rather than inventing your own.
 - Prefer the production tables (the ones the example SQL builds or reads) over staging, sandbox or

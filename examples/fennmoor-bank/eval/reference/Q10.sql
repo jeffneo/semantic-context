@@ -1,3 +1,4 @@
+-- compare: none (open-ended: the tenure bands are a choice)
 -- Q10: CSAT by agent tenure. BPO agents have no hire date: a band of their own, not "new".
 SELECT CASE WHEN a.hire_date IS NULL THEN 'BPO (no hire date)'
             WHEN a.tenure_months < 12 THEN 'under 1 year'

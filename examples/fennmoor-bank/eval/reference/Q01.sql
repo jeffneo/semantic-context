@@ -1,3 +1,4 @@
+-- compare: site_name|site_id, closure_contacts, expense_2025
 -- Q01: account-closure contacts by site in 2025 (both phone systems: Avaya to 2025-09-30, then Genesys),
 -- and each site's 2025 GL expense on its cost center. Avaya codes closures CLSACCT/CLOSE (fct_contacts_all
 -- maps them); the site is the one the contact was handled at.

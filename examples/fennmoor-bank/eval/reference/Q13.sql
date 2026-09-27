@@ -1,3 +1,4 @@
+-- compare: none (a catalog question: what the tables are)
 -- Q13: the CC tables and their three meanings of CC: credit card (CC_TXN_HIST, CC_ACCT_MSTR), contact
 -- center (CC_CALL_VOL_DLY, CC_AGENT_DLY), cost center (CC_EXPNS_MTHLY, CC_EXPENSE_SUMMARY).
 SELECT 'legacy_edw.CC_TXN_HIST' AS table_, 'credit card transactions' AS meaning, COUNT(*) AS rows_,

@@ -1,3 +1,4 @@
+-- compare: none (a catalog question: where, not how many)
 -- Q06: where SSNs are stored, raw or hashed. The catalog answers where; this counts the values each holds.
 -- Raw: CUSTOMER (restricted source), party (restricted source), and three copies outside restricted
 -- datasets: CUST_MSTR, its backup, and the KYC sandbox extract (F08).

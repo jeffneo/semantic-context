@@ -58,8 +58,10 @@ gcloud iam service-accounts add-iam-policy-binding qlsc-bq@$QLSC_PROJECT.iam.gse
 ### 6. Cap query bytes (belt and braces)
 
 Console -> IAM & Admin -> Quotas -> filter "BigQuery API" -> **Query usage per
-day** -> set to 10 GiB for this project. Dry runs and DDL don't count against
-it; it only stops a mistake.
+day** -> set a cap for this project (Fennmoor's is 1 TiB). Dry runs and DDL don't count against
+it; it only stops a mistake. Over the empty estate, qlsc stays well under 10 GiB a day; filling it
+with rows (`generate/fill.py`) and the evaluations that run queries bill tens of GiB on the days they
+run, most of it BigQuery's 10 MiB minimum on each table a small query reads.
 
 ### 7. Create a separate gcloud configuration
 
