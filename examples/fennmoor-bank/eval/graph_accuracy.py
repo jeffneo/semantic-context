@@ -5,7 +5,7 @@ the virtual graph: an entity's neighbourhood, several hops, shared neighbours, a
 directional check (ten questions, a few minutes), scored like the others (execution.py's matcher).
 
 Writes results/graph_accuracy.md and .json. Prints a line per question as it goes.
-Usage: uv run examples/fennmoor-bank/eval/graph_accuracy.py [G01 ...]
+Usage: uv run examples/fennmoor-bank/eval/graph_accuracy.py [G01 ...] [param=value ...]
 """
 
 from __future__ import annotations
@@ -27,8 +27,11 @@ QUESTIONS = Path(__file__).resolve().parent / "graph_questions.yaml"
 
 def main() -> int:
     s = settings()
+    for a in [a for a in sys.argv[1:] if "=" in a]:  # navigate overrides: writer=compiled
+        k, v = a.split("=", 1)
+        s.params["navigate"][k] = yaml.safe_load(v)
     qs = yaml.safe_load(QUESTIONS.read_text())
-    wanted = sys.argv[1:] or list(qs)
+    wanted = [a for a in sys.argv[1:] if "=" not in a] or list(qs)
     wh, res = connect(s), {}
     with Graph(s) as G:
         for i, qid in enumerate(wanted, 1):

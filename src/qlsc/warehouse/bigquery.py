@@ -131,6 +131,7 @@ FROM `{project}.{ds}.INFORMATION_SCHEMA.VIEWS`
 class BigQuery(Warehouse):
     name = "BigQuery"
     sql = "BigQuery Standard SQL"
+    dialect = "bigquery"  # sqlglot's name for it: the compiler renders its SQL in this dialect
     dialect = "bigquery"
 
     def __init__(self, settings):

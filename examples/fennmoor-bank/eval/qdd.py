@@ -5,7 +5,8 @@ as in log_accuracy.py), answered with the navigation parameters as configured pl
 Run it twice, once per setting, and compare the two result files.
 
 Writes results/qdd_<name>.md and .json. Prints a line per question as it goes.
-Usage: uv run examples/fennmoor-bank/eval/qdd.py <name> [--all] [param=value ...]   (--all: every log question)
+Usage: uv run examples/fennmoor-bank/eval/qdd.py <name> [--all | --offset=N] [param=value ...]
+  (--all: every log question; --offset: which of each STEP questions to take, for a second sample)
   e.g. qdd.py base computations=0     qdd.py definitions computations=5
 """
 
@@ -13,6 +14,7 @@ from __future__ import annotations
 
 import json
 import sys
+from collections import Counter
 
 import yaml
 from common import RESULTS, SPEC, settings, write_result
@@ -29,7 +31,8 @@ STEP = 6  # every sixth log question: about 30
 
 def main() -> int:
     every = "--all" in sys.argv
-    args = [a for a in sys.argv[1:] if a != "--all"]
+    offset = next((int(a.split("=")[1]) for a in sys.argv if a.startswith("--offset=")), 0)
+    args = [a for a in sys.argv[1:] if a != "--all" and not a.startswith("--offset=")]
     name, overrides = args[0], dict(a.split("=", 1) for a in args[1:])
     step = 1 if every else STEP
     s = settings()
@@ -43,7 +46,7 @@ def main() -> int:
     wh, res = connect(s), {}
     if (probe := wh.dry_run("SELECT 1"))["ok"] is not True:  # fail now, not after an hour of failed queries
         raise SystemExit(f"the warehouse isn't reachable: {probe.get('error')}")
-    todo = [("gold", q) for q in sorted(gold)] + [("log", q) for q in kept[::step]]
+    todo = [("gold", q) for q in sorted(gold)] + [("log", q) for q in kept[offset::step]]
     with Graph(s) as G:
         for i, (src, qid) in enumerate(todo, 1):
             if src == "gold":
@@ -68,8 +71,10 @@ def main() -> int:
                 "why": why,
                 "sql": a.get("sql"),
                 "definitions": [d["name"] for d in tr.get("definitions", [])],
+                "writer": a.get("writer"),
+                "fallback": a.get("fallback"),
             }
-            print(f"{i}/{len(todo)} {qid} {v:10} {why[:90]}", flush=True)
+            print(f"{i}/{len(todo)} {qid} {v:10} {(a.get('writer') or '')[:8]:8} {why[:80]}", flush=True)
             if "fresh login" in why:  # the credentials expired mid-run: every answer from here would fail
                 raise SystemExit(f"stopped at {qid}: {why}")
     n = lambda src: (
@@ -80,9 +85,18 @@ def main() -> int:
     L = [f"# Quick A/B: {name}", "", f"Overrides: {overrides or 'none'}. SQL route.", ""]
     which = "all" if every else f"every {STEP}th"
     L += [f"Gold questions: {g} of {gn} correct. Log questions ({which}): {lg} of {ln}.", ""]
+    writers = Counter(r["writer"] for r in res.values())
+    if writers.get("compiled"):
+        fits = sum(1 for r in res.values() if r["writer"] == "compiled" and r["verdict"] == "correct")
+        L += [
+            f"Compiled {writers['compiled']} of {len(res)} ({fits} correct); fell back to free SQL for {writers.get('free', 0)}.",
+            "",
+        ]
     L += ["| question | verdict |", "|---|---|"]
     L += [f"| {q} | {r['verdict']}: {r['why']}".replace("\n", " ")[:200] + " |" for q, r in res.items()]
-    print(f"gold {g}/{gn}, log {lg}/{ln} -> {write_result(f'qdd_{name}', L, res)}")
+    print(
+        f"gold {g}/{gn}, log {lg}/{ln}, writers {dict(Counter(r['writer'] for r in res.values()))} -> {write_result(f'qdd_{name}', L, res)}"
+    )
     return 0
 
 

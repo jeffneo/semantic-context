@@ -38,6 +38,7 @@ from decimal import Decimal
 
 from neo4j.exceptions import Neo4jError, ServiceUnavailable
 
+from qlsc import compile as compiler
 from qlsc.config import Settings
 from qlsc.graph import Graph
 from qlsc.llm import LLM, Embedder, cosine, prompt
@@ -210,6 +211,18 @@ VALUE_COLUMNS = """
 MATCH (t:Table)-[:HAS_COLUMN]->(c:Column)<-[f:FILTERS]-(:QueryShape)
 WHERE any(x IN f.values WHERE toLower(toString(x)) = toLower($value))
 RETURN t.id AS t, c.name AS c, count(*) AS n ORDER BY n DESC, t LIMIT $k
+"""
+
+# The trusted joins between some tables: identity-preserving, of a confidence that builds Variables,
+# each with the join type most of the log's queries use for it. The compiler's paths run only along these.
+TRUSTED_JOINS = """
+MATCH (a:Table)-[:HAS_COLUMN]->(x:Column)<-[:ON]-(k:JoinKey)-[:ON]->(y:Column)<-[:HAS_COLUMN]-(b:Table)
+WHERE a.id IN $tables AND b.id IN $tables AND a.id < b.id AND k.identity AND k.confidence IN $usable
+OPTIONAL MATCH (:QueryShape)-[u:USES_JOIN]->(k)
+WITH a.id AS a, x.name AS ac, b.id AS b, y.name AS bc, u.type AS type, count(u) AS n
+ORDER BY a, ac, b, bc, n DESC, type
+WITH a, ac, b, bc, collect(type)[0] AS type
+RETURN a, ac, b, bc, coalesce(type, 'INNER') AS type
 """
 
 # The tables `qlsc virtualize` made node labels.
@@ -514,6 +527,7 @@ def trace(G: Graph, s: Settings, question: str, exclude: frozenset[str] = frozen
         glossary = G.rows(GLOSSARY, tables=top + added, groups=list(groups), v=v, k=p["concepts"])
     return {
         "question": question,
+        "exclude": sorted(exclude),
         "glossary": glossary,
         "parts": parts,
         "hits": G.rows(HITS, hits=p["hits"], v=v),
@@ -529,6 +543,98 @@ def trace(G: Graph, s: Settings, question: str, exclude: frozenset[str] = frozen
 
 
 def answer_sql(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int | None = None) -> dict:
+    """Step 6, by the writer configured (navigate.writer): the compiler, falling back to free SQL when
+    the question doesn't compile; or free SQL. -> {writer, sql, explanation, dry_run, result?, ...}"""
+    if s.params["navigate"]["writer"] == "compiled":
+        out = answer_compiled(G, s, tr, execute, rows)
+        if "sql" in out:
+            return out
+        return answer_free(G, s, tr, execute, rows) | {
+            "writer": "free",
+            "fallback": out["fallback"],
+            "request": out.get("request"),
+        }
+    return answer_free(G, s, tr, execute, rows) | {"writer": "free"}
+
+
+def unique_check(s: Settings):
+    """`unique(table, column)`, from the warehouse, cached in <work>/unique_cache.json."""
+    path = s.work / "unique_cache.json"
+    cache = json.loads(path.read_text()) if path.exists() else {}
+    wh = connect(s)
+
+    def unique(table: str, column: str) -> bool:
+        key = f"{table}|{column}"
+        if key not in cache:
+            cache[key] = wh.is_unique(table, [column])
+            path.write_text(json.dumps(cache, indent=0, sort_keys=True))
+        return cache[key]
+
+    return unique
+
+
+def answer_compiled(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int | None = None) -> dict:
+    """The compiler (qlsc/compile.py): the LLM fills a typed request from the layer's options, code
+    compiles it. -> {writer: compiled, request, sql, ...} | {fallback: why, request?}"""
+    p = s.params["navigate"]
+    wh = connect(s)
+    v = Embedder(s).embed([tr["question"]])[0]
+    offered = {
+        r["c"]["id"]: r["c"]
+        for r in G.rows(
+            DEFINITIONS,
+            pool=p["compile_computations"] * 10,
+            k=p["compile_computations"],
+            v=v,
+            kinds=["measure", "dimension", "population"],
+            exclude=tr.get("exclude", []),
+            min=p["computation_min_similarity"],
+        )
+    }
+    ids = list(dict.fromkeys(tr["top"] + [t for c in offered.values() for t in c["tables"]]))
+    tables = {r["t"]: {c["name"]: c["type"] for c in r["cols"]} for r in G.rows(COLUMNS, tables=ids)}
+    offered = {k: c for k, c in offered.items() if set(c["tables"]) <= set(tables)}
+    joins = G.rows(TRUSTED_JOINS, tables=list(tables), usable=s.params["variables"]["joins"])
+    cat = compiler.Catalogue(tables, joins, offered)
+    llm = LLM(prompt("compile_system", **s.business), s, s["llm"]["query_model"])
+    request = llm.call(
+        prompt(
+            "compile_request",
+            question=tr["question"],
+            today=calendar(today(s)),
+            tables=compiler.options_text(cat, filter_values(G, list(tables), p["filter_values"])),
+            joins=compiler.joins_text(joins),
+            computations=compiler.computations_text(cat),
+            examples=example_sql(tr["examples"]),
+            **s.business,
+        ),
+        compiler.SCHEMA,
+        "record_request",
+        max_tokens=3000,
+    )
+    try:
+        sql = compiler.compile_sql(request, cat, unique_check(s), dialect=wh.dialect, hops=p["compile_hops"])
+    except compiler.Unfit as e:
+        return {"fallback": str(e), "request": request}
+    res = wh.dry_run(sql)
+    if res["ok"] is False:
+        return {"fallback": f"the compiled SQL failed its dry run: {res['error'][:200]}", "request": request}
+    answer = {
+        "writer": "compiled",
+        "warehouse": wh.name,
+        "request": request,
+        "sql": sql,
+        "explanation": request.get("reason", ""),
+        "dry_run": res,
+    }
+    if execute and res["ok"]:
+        t0 = time.time()
+        answer["result"] = wh.run(sql, p["maximum_bytes_billed"], rows or p["rows_shown"])
+        answer["result"]["seconds"] = time.time() - t0
+    return answer
+
+
+def answer_free(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int | None = None) -> dict:
     """Step 6: the cohort -> one query, dry-run in the warehouse; step 7, the answer, with `execute`.
     -> {sql, explanation, dry_run, result?}"""
     p = s.params["navigate"]
