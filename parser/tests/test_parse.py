@@ -572,3 +572,25 @@ def test_fingerprint_canonicalizes_volatile_names():
 def test_fingerprint_annotations():
     f = fingerprint('-- Looker Query Context \'{"user_id":113,"history_slug":"2b3"}\'\nSELECT 1', CAT, "p")
     assert f["annotations"] == [{"source": "Looker Query Context", "user_id": 113, "history_slug": "2b3"}]
+
+
+def test_computations_over_base_columns():
+    from qlsc_parse.computations import computations
+
+    got = computations(
+        "SELECT c.segment, SUM(t.amount_cents) AS spend, "
+        "CASE WHEN t.amount_cents > 100 THEN 'big' ELSE 'small' END AS size "
+        "FROM `p.dw.fct_txn` t JOIN `p.dw.dim_customer` c ON t.customer_key = c.customer_key "
+        "WHERE c.segment IN ('affluent', 'private') AND t.post_date >= '2026-04-01' GROUP BY 1, 3",
+        CAT,
+    )
+    kinds = {(c["kind"], c["expression"]) for c in got}
+    assert ("measure", "SUM(fct_txn.amount_cents)") in kinds
+    assert ("dimension", "CASE WHEN fct_txn.amount_cents > 100 THEN 'big' ELSE 'small' END") in kinds
+    assert ("population", "dim_customer.segment IN ('affluent', 'private')") in kinds  # the period is not
+    spend = next(c for c in got if c["kind"] == "measure")
+    assert spend["filters"] == ["dim_customer.segment IN ('affluent', 'private')"]
+    assert spend["grain"] == [
+        "CASE WHEN fct_txn.amount_cents > 100 THEN 'big' ELSE 'small' END",
+        "dim_customer.segment",
+    ]

@@ -1,0 +1,130 @@
+# Graph-shaped questions: an entity's neighbourhood, several hops, paths through shared neighbours,
+# comparisons around a cycle. Not written from the log (which holds what is easy in SQL); written by
+# hand to show questions that are natural over the virtual graph. Each reference is SQL over the same
+# tables the virtual graph reads; `compare` names the columns an answer must hold.
+# Run: uv run examples/fennmoor-bank/eval/graph_accuracy.py
+
+G01:
+  question: What accounts does customer 0001000025 hold? For each, the product name and the name of the branch it is maintained at.
+  compare: [account_key, product_name, branch_name]
+  sql: |
+    SELECT a.account_key, p.product_name, b.branch_name
+    FROM `fennmoor-dw.dw_core.dim_account` a
+    JOIN `fennmoor-dw.dw_core.dim_customer` c ON c.customer_key = a.customer_key
+    JOIN `fennmoor-dw.dw_core.dim_product` p ON p.product_code = a.product_code
+    JOIN `fennmoor-dw.dw_core.dim_branch` b ON b.branch_id = a.branch_id
+    WHERE c.cif_number = '0001000025'
+
+G02:
+  question: Which agents handled calls from customer 0001000025, and how many of that customer's calls did each handle?
+  compare: [agent_user_id, calls]
+  sql: |
+    SELECT k.agent_user_id, COUNT(*) AS calls
+    FROM `fennmoor-dw.dw_contact_center.fct_calls` k
+    JOIN `fennmoor-dw.dw_core.dim_customer` c ON c.customer_key = k.customer_key
+    JOIN `fennmoor-dw.dw_contact_center.dim_agent` g ON g.agent_user_id = k.agent_user_id
+    WHERE c.cif_number = '0001000025'
+    GROUP BY 1
+
+G03:
+  question: Which merchants has customer 0001000025 bought from that customer 0001000021 has also bought from?
+  compare: [merchant_id]
+  sql: |
+    SELECT DISTINCT m.merchant_id, m.merchant_name
+    FROM `fennmoor-dw.dw_core.fct_card_transactions` t1
+    JOIN `fennmoor-dw.dw_core.dim_customer` c1 ON c1.customer_key = t1.customer_key
+    JOIN `fennmoor-dw.dw_core.dim_merchant` m ON m.merchant_id = t1.merchant_id
+    JOIN `fennmoor-dw.dw_core.fct_card_transactions` t2 ON t2.merchant_id = m.merchant_id
+    JOIN `fennmoor-dw.dw_core.dim_customer` c2 ON c2.customer_key = t2.customer_key
+    WHERE c1.cif_number = '0001000025' AND c2.cif_number = '0001000021' AND t1.is_purchase AND t2.is_purchase
+
+G04:
+  question: Customers who bought at Main Street Pharmacy (merchant MID000100000) bank at which branches? Count the distinct customers by the name of the branch where their accounts are maintained.
+  compare: [branch_name, customers]
+  sql: |
+    SELECT b.branch_name, COUNT(DISTINCT c.customer_key) AS customers
+    FROM `fennmoor-dw.dw_core.fct_card_transactions` t
+    JOIN `fennmoor-dw.dw_core.dim_merchant` m ON m.merchant_id = t.merchant_id
+    JOIN `fennmoor-dw.dw_core.dim_customer` c ON c.customer_key = t.customer_key
+    JOIN `fennmoor-dw.dw_core.dim_account` a ON a.customer_key = c.customer_key
+    JOIN `fennmoor-dw.dw_core.dim_branch` b ON b.branch_id = a.branch_id
+    WHERE m.merchant_id = 'MID000100000' AND t.is_purchase
+    GROUP BY 1
+
+
+G05:
+  question: For calls from private-segment customers, which queues were they routed through and which sites serviced them? Count the calls by queue name and site name.
+  compare: [queue_name, site_name, calls]
+  sql: |
+    SELECT q.queue_name, s.site_name, COUNT(*) AS calls
+    FROM `fennmoor-dw.dw_contact_center.fct_calls` k
+    JOIN `fennmoor-dw.dw_core.dim_customer` c ON c.customer_key = k.customer_key
+    JOIN `fennmoor-dw.dw_contact_center.dim_queue` q ON q.queue_id = k.queue_id
+    JOIN `fennmoor-dw.dw_contact_center.dim_cc_site` s ON s.site_id = k.site_id
+    WHERE c.segment = 'private'
+    GROUP BY 1, 2
+
+
+
+G06:
+  question: Which other agents also handled calls from the customers that agent 9143e7f7-8e11-6904-c98e-fb076ea611a1 served? For each other agent, how many of those customers they share.
+  compare: [agent_user_id, shared_customers]
+  sql: |
+    SELECT k2.agent_user_id, COUNT(DISTINCT c.customer_key) AS shared_customers
+    FROM `fennmoor-dw.dw_contact_center.fct_calls` k1
+    JOIN `fennmoor-dw.dw_core.dim_customer` c ON c.customer_key = k1.customer_key
+    JOIN `fennmoor-dw.dw_contact_center.fct_calls` k2 ON k2.customer_key = c.customer_key
+    JOIN `fennmoor-dw.dw_contact_center.dim_agent` g ON g.agent_user_id = k2.agent_user_id
+    WHERE k1.agent_user_id = '9143e7f7-8e11-6904-c98e-fb076ea611a1'
+      AND k2.agent_user_id != '9143e7f7-8e11-6904-c98e-fb076ea611a1'
+    GROUP BY 1
+
+G07:
+  question: For customers who called the Tulsa Contact Center, which product lines do their accounts belong to? Count distinct customers by product line.
+  compare: [product_line, customers]
+  sql: |
+    SELECT p.product_line, COUNT(DISTINCT c.customer_key) AS customers
+    FROM `fennmoor-dw.dw_contact_center.fct_calls` k
+    JOIN `fennmoor-dw.dw_contact_center.dim_cc_site` s ON s.site_id = k.site_id
+    JOIN `fennmoor-dw.dw_core.dim_customer` c ON c.customer_key = k.customer_key
+    JOIN `fennmoor-dw.dw_core.dim_account` a ON a.customer_key = c.customer_key
+    JOIN `fennmoor-dw.dw_core.dim_product` p ON p.product_code = a.product_code
+    WHERE s.site_name = 'Tulsa Contact Center'
+    GROUP BY 1
+
+G08:
+  question: For all deposit transactions, of every type, on accounts owned by affluent customers, what is the total transaction amount by the product line of the account?
+  compare: [product_line, total_amount]
+  sql: |
+    SELECT p.product_line, SUM(d.amount) AS total_amount
+    FROM `fennmoor-dw.dw_core.fct_deposit_transactions` d
+    JOIN `fennmoor-dw.dw_core.dim_account` a ON a.account_key = d.account_key
+    JOIN `fennmoor-dw.dw_core.dim_customer` c ON c.customer_key = a.customer_key
+    JOIN `fennmoor-dw.dw_core.dim_product` p ON p.product_code = a.product_code
+    WHERE c.segment = 'affluent'
+    GROUP BY 1
+
+
+G09:
+  question: Customers who made card purchases at Main Street Pharmacy (merchant MID000100000) and also called the contact center about closing an account — how many are there, by customer segment?
+  compare: [segment, customers]
+  sql: |
+    SELECT c.segment, COUNT(DISTINCT c.customer_key) AS customers
+    FROM `fennmoor-dw.dw_core.dim_customer` c
+    JOIN `fennmoor-dw.dw_core.fct_card_transactions` t ON t.customer_key = c.customer_key
+    JOIN `fennmoor-dw.dw_core.dim_merchant` m ON m.merchant_id = t.merchant_id
+    JOIN `fennmoor-dw.dw_contact_center.fct_calls` k ON k.customer_key = c.customer_key
+    WHERE m.merchant_id = 'MID000100000' AND t.is_purchase AND k.is_account_closure_call
+    GROUP BY 1
+
+G10:
+  question: For card purchases made by customer 0001000025, which merchants were they at, and on which of the customer's accounts were they charged? Give the merchant name, the account's product name and the number of purchases.
+  compare: [merchant_name, product_name, purchases]
+  sql: |
+    SELECT m.merchant_name, a.product_name, COUNT(*) AS purchases
+    FROM `fennmoor-dw.dw_core.fct_card_transactions` t
+    JOIN `fennmoor-dw.dw_core.dim_customer` c ON c.customer_key = t.customer_key
+    JOIN `fennmoor-dw.dw_core.dim_merchant` m ON m.merchant_id = t.merchant_id
+    JOIN `fennmoor-dw.dw_core.dim_account` a ON a.account_key = t.account_key
+    WHERE c.cif_number = '0001000025' AND t.is_purchase
+    GROUP BY 1, 2

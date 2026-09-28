@@ -15,8 +15,21 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
-from qlsc import align, cluster, extract, hierarchy, load, navigate, parse, variables, virtualize
+from qlsc import (
+    align,
+    cluster,
+    computations,
+    extract,
+    hierarchy,
+    load,
+    navigate,
+    okf,
+    parse,
+    variables,
+    virtualize,
+)
 from qlsc.config import ConfigError
 from qlsc.config import load as load_settings
 
@@ -26,6 +39,7 @@ def build(s, a) -> None:
         ("parse", lambda: parse.run(s, a.sample)),
         ("load", lambda: load.run(s, reset_graph=True)),
         ("variables", lambda: variables.run(s)),
+        ("computations", lambda: computations.run(s)),
         ("cluster", lambda: cluster.run(s)),
         ("hierarchy", lambda: hierarchy.run(s)),
         ("align", lambda: align.run(s)),
@@ -61,6 +75,7 @@ def parser() -> argparse.ArgumentParser:
     for name, module, what in (
         ("variables", variables, "WCC over trusted joins -> Variables"),
         ("cluster", cluster, "Leiden over co-reads and lineage -> level-1 Semantic groups"),
+        ("computations", computations, "measures, dimensions and populations the log's queries compute"),
     ):
         p = sub.add_parser(name, help=what)
         p.add_argument("--no-names", action="store_true", help="skip the LLM naming")
@@ -76,6 +91,10 @@ def parser() -> argparse.ArgumentParser:
     p = sub.add_parser("virtualize", help="a Neo4j Virtual Graph model of the rows, from the semantic layer")
     p.add_argument("--no-views", action="store_true", help="write the model only; create no views")
     p.set_defaults(func=lambda s, a: virtualize.run(s, create_views=not a.no_views))
+
+    p = sub.add_parser("okf", help="the Computations as an Open Knowledge Format bundle")
+    p.add_argument("--out", type=Path, help="the bundle's directory (default: <work>/okf)")
+    p.set_defaults(func=lambda s, a: okf.run(s, a.out))
 
     p = sub.add_parser("ask", help="question -> semantic layer -> tables -> SQL")
     p.add_argument("question", nargs="+")

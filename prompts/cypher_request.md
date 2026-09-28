@@ -8,4 +8,4 @@ Relationships:
 {relationships}
 
 SQL the {kind} already runs against these tables:
-{examples}
+{examples}{definitions}

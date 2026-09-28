@@ -50,6 +50,25 @@ SQL_SCHEMA = {
     "properties": {"sql": {"type": "string"}, "explanation": {"type": "string"}},
 }
 
+DECOMPOSE_SCHEMA = {
+    "type": "object",
+    "required": ["measures", "groupings", "filters", "entities", "period"],
+    "properties": {
+        "measures": {"type": "array", "items": {"type": "string"}},
+        "groupings": {"type": "array", "items": {"type": "string"}},
+        "filters": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["subject", "value"],
+                "properties": {"subject": {"type": "string"}, "value": {"type": "string"}},
+            },
+        },
+        "entities": {"type": "array", "items": {"type": "string"}},
+        "period": {"type": "string"},
+    },
+}
+
 CYPHER_SCHEMA = {
     "type": "object",
     "required": ["answerable", "cypher", "explanation"],
@@ -144,6 +163,16 @@ RETURN t.id AS t
 
 ALL_TABLES = "MATCH (t:Table) RETURN t.id AS t"
 
+# The Computations closest to the question: what the business computes, as its queries define it.
+# Only trusted ones (no sandbox or frozen table), and never one computed only by an excluded shape.
+DEFINITIONS = """
+CALL db.index.vector.queryNodes('computation_embedding', $pool, $v) YIELD node AS c, score
+WHERE score >= $min AND c.trusted AND NOT c.health_check AND c.same_as IS NULL AND c.kind IN $kinds
+  AND EXISTS { MATCH (s:QueryShape)-[:COMPUTES]->(c) WHERE NOT s.id IN $exclude }
+RETURN c {.id, .name, .kind, .expression, .filters, .grain, .tables, .shapes, .production, .jobs} AS c, score
+ORDER BY score DESC LIMIT $k
+"""
+
 COLUMNS = """
 MATCH (t:Table)-[:HAS_COLUMN]->(c:Column) WHERE t.id IN $tables AND c.in_catalog
 RETURN t.id AS t, collect({name: c.name, type: coalesce(c.type, '')}) AS cols
@@ -157,6 +186,14 @@ WHERE t.id IN $tables AND f.values IS NOT NULL
 UNWIND f.values AS v
 WITH t, c, v, count(*) AS shapes ORDER BY shapes DESC, v
 RETURN t.id AS t, c.name AS c, collect(v)[..$n] AS vals
+"""
+
+# The columns the log's queries filter on a value, most-used first: a question's "affluent" leads to
+# the segment column that holds it, whatever the question calls the column.
+VALUE_COLUMNS = """
+MATCH (t:Table)-[:HAS_COLUMN]->(c:Column)<-[f:FILTERS]-(:QueryShape)
+WHERE any(x IN f.values WHERE toLower(toString(x)) = toLower($value))
+RETURN t.id AS t, c.name AS c, count(*) AS n ORDER BY n DESC, t LIMIT $k
 """
 
 # The tables `qlsc virtualize` made node labels.
@@ -220,6 +257,25 @@ def column_text(name: str, typ: str, values: list | None) -> str:
     """A column for the prompt: its name and type, and the values the log filters it on."""
     seen = f" (values seen: {', '.join(repr(v) for v in values)})" if values else ""
     return f"{name} {typ}".strip() + seen
+
+
+def definitions_text(definitions: list[dict], kind: str) -> str:
+    """The Computations for the prompt, after the examples; nothing at all when there are none, so a
+    request without them is the same text as before they existed."""
+    if not definitions:
+        return ""
+    lines = [
+        f"\n\nHow the {kind}'s queries compute some things near this question. Use one only if it computes "
+        "exactly what the question asks; otherwise ignore it and write your own:"
+    ]
+    for d in definitions:
+        with_ = f", with {' AND '.join(d['filters'])}" if d["filters"] else ""
+        who = "production" if d["production"] else "people"
+        lines.append(
+            f"- {d['name']} ({d['kind']}): {d['expression']}{with_}; on {', '.join(d['tables'])}; "
+            f"{d['shapes']} queries, {who}"
+        )
+    return "\n".join(lines)
 
 
 def example_sql(examples: list[dict]) -> str:
@@ -315,15 +371,96 @@ def similar(v: list[float], shapes: list[dict], vecs: list, distrusted: set[str]
     return out
 
 
+def decompose(s: Settings, question: str) -> dict:
+    """The question's parts: measures, groupings, filters (subject and value), entities, period."""
+    llm = LLM(prompt("decompose_system", **s.business), s)
+    return llm.call(question, DECOMPOSE_SCHEMA, "record_parts", max_tokens=800)
+
+
+def merge_cohorts(found: list[tuple[dict, dict, list[str]]], k: int) -> tuple[dict, dict, list[str]]:
+    """Several anchors' cohorts as one: groups and tables pooled, the top tables taken from each
+    anchor's list in turn, so every part of the question is represented."""
+    groups, tables, top = {}, {}, []
+    for g, t, _ in found:
+        for name, x in g.items():
+            groups.setdefault(name, x)
+        for tid, x in t.items():
+            tables.setdefault(tid, x)
+    queues = [list(t) for _, _, t in found]
+    while len(top) < k and any(queues):
+        for q in queues:
+            while q and q[0] in top:
+                q.pop(0)
+            if q and len(top) < k:
+                top.append(q.pop(0))
+    return groups, tables, top
+
+
 def trace(G: Graph, s: Settings, question: str, exclude: frozenset[str] = frozenset()) -> dict:
     """Steps 1-4, deterministic: the closest Semantic nodes, the groups opened, the cohort of tables,
     the log's queries closest to the question (and the tables they read), and the joins between them.
     `exclude` names query shapes never to offer as examples (an evaluation leaves out the query a
-    question was written from)."""
+    question was written from).
+
+    `anchors: parts` breaks the question into its parts first (an LLM call, prompts/decompose_system.md),
+    and navigates from each part: every entity, grouping, measure and filter subject opens its own
+    groups; every filter value finds the columns the log filters on it; every measure finds the measure
+    Computations closest to it."""
     p = s.params["navigate"]
     emb = Embedder(s)
     v = emb.embed([question])[0]
-    groups, tables, top = cohort(G, v, p)
+    parts, value_tables = None, []
+    kinds = ["measure", "dimension", "population"]
+    definitions = []
+    if p["anchors"] == "parts":
+        parts = decompose(s, question)
+        texts = (
+            parts["entities"]
+            + parts["groupings"]
+            + parts["measures"]
+            + [f["subject"] for f in parts["filters"]]
+        )
+        vecs = emb.embed(texts) if texts else []
+        small = {**p, "groups": p["anchor_groups"], "tables": p["anchor_tables"]}
+        found = [cohort(G, x, small) for x in vecs] or [cohort(G, v, p)]
+        groups, tables, top = merge_cohorts(found, p["tables"])
+        for f in parts["filters"]:
+            for r in G.rows(VALUE_COLUMNS, value=f["value"], k=p["anchor_values"]):
+                if r["t"] not in top + value_tables:
+                    value_tables.append(r["t"])
+        if p["computations"]:
+            per = [(m, "measure") for m in parts["measures"]] + [
+                (f["subject"] + " " + f["value"], "population") for f in parts["filters"]
+            ]
+            pvecs = emb.embed([t for t, _ in per]) if per else []
+            for (_, kind), x in zip(per, pvecs):
+                for r in G.rows(
+                    DEFINITIONS,
+                    pool=50,
+                    k=p["anchor_computations"],
+                    v=x,
+                    kinds=[kind],
+                    exclude=sorted(exclude),
+                    min=p["computation_min_similarity"],
+                ):
+                    if r["c"]["id"] not in {d["id"] for d in definitions}:
+                        definitions.append(r["c"] | {"similarity": r["score"]})
+            definitions = definitions[: p["computations"]]
+    else:
+        groups, tables, top = cohort(G, v, p)
+        if p["computations"]:
+            definitions = [
+                r["c"] | {"similarity": r["score"]}
+                for r in G.rows(
+                    DEFINITIONS,
+                    pool=p["computations"] * 10,
+                    k=p["computations"],
+                    v=v,
+                    kinds=kinds,
+                    exclude=sorted(exclude),
+                    min=p["computation_min_similarity"],
+                )
+            ]
     if p["examples_by"] == "similarity":
         shapes = [x for x in G.rows(SHAPES, statements=p["example_statements"]) if x["id"] not in exclude]
         vecs = emb.embed([shape_text(x["sql"], p["example_chars"]) for x in shapes])
@@ -332,11 +469,18 @@ def trace(G: Graph, s: Settings, question: str, exclude: frozenset[str] = frozen
         examples = similar(v, shapes, vecs, distrusted, p["examples"])
     else:
         examples = G.rows(QUERIES, tables=top, n=p["examples"])
-    added = []
+    added = list(value_tables)
     if p["example_tables"]:
-        added = list(dict.fromkeys(t for e in examples for t in e.get("tables", []) if t not in top))
+        added += [
+            t for t in dict.fromkeys(t for e in examples for t in e.get("tables", [])) if t not in top + added
+        ]
+    if p["computation_tables"]:
+        added += [
+            t for t in dict.fromkeys(t for d in definitions for t in d["tables"]) if t not in top + added
+        ]
     return {
         "question": question,
+        "parts": parts,
         "hits": G.rows(HITS, hits=p["hits"], v=v),
         "groups": groups,
         "tables": tables,
@@ -345,6 +489,7 @@ def trace(G: Graph, s: Settings, question: str, exclude: frozenset[str] = frozen
         "top": top + added,
         "joins": G.rows(JOINS, tables=top + added),
         "examples": examples,
+        "definitions": definitions,
     }
 
 
@@ -373,6 +518,7 @@ def answer_sql(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int
         tables=tables,
         joins=joins_txt,
         examples=example_sql(tr["examples"]),
+        definitions=definitions_text(tr.get("definitions", []), s.business["kind"]),
         today=calendar(today(s)),
         **s.business,
     )
@@ -426,6 +572,7 @@ def answer_cypher(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: 
         nodes=node_txt,
         relationships=rel_txt or "(none)",
         examples=example_sql(tr["examples"]),
+        definitions=definitions_text(tr.get("definitions", []), s.business["kind"]),
         today=calendar(today(s)),  # Virtual Graph has no date(): relative periods need literals
         **s.business,
     )

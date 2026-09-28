@@ -63,6 +63,7 @@ parser could not place are a `QueryShape.unresolved` list.
 | | What | Built by |
 |---|---|---|
 | `Variable` | The real-world thing a set of joined columns holds; `(:Column)-[:IS]->(:Variable)`. Columns never joined are `:Unjoined` | `qlsc variables` |
+| `Computation {kind}` | What the business computes from its columns, again and again: a `measure` (an aggregate, with the filters that come with it), a derived `dimension` (a CASE bucket, a date truncation), a `population` (filters applied together). `(:QueryShape)-[:COMPUTES]->(:Computation)-[:READS]->(:Column)`. Flags: `production`, `trusted`, `health_check` (every query computing it returns one ungrouped row of aggregates) | `qlsc computations` |
 | `Semantic {level}` | A business area. Level 1 groups Variables and Unjoined columns; each level above groups the one below. `-[:IN_SEMANTIC]->` | `qlsc cluster`, `qlsc hierarchy` |
 | `K_SIM` | The similarity links a level was grouped from | `qlsc hierarchy` |
 | `Concept` | A catalog glossary term, or an ontology class (`:Resource:Class`, `subClassOf`, from rdflib-neo4j) | `qlsc align` |
@@ -103,7 +104,19 @@ single, suspect, self), `identity`, `production`, `people`, `confidence_reason`.
    day to the next.
    In both routes each text column carries the values the log's queries filter it on, so code values
    are spelled as the business spells them, not guessed.
-5. **Align.** Catalog bindings are exact; embedding matches are `status: 'proposed'`. The diff lists
+5. **Computations and OKF.** The parser's extractor (`qlsc_parse/computations.py`) reads every
+   successful shape: in each scope over physical tables, the measures, derived dimensions and
+   populations, written over base columns (`fct_card_transactions.amount`) so the same computation in
+   two queries is one Computation. A comparison with a date literal or today is the question's period,
+   not the definition, and is left out. The LLM names each from its expression and the names queries
+   give it. `qlsc okf` writes them as an Open Knowledge Format v0.2 bundle: each Computation an
+   `Attested Computation` concept filed under its top business area, the tables it reads as `BigQuery
+   Table` concepts, provenance (`sources`, with each query's runs and who ran it) and lifecycle
+   (`status`: stable if production computes it, draft if only people do, deprecated on a sandbox or
+   frozen table) from the log. Unverified, as inferred definitions are. Offering the closest
+   Computations to the query writer (`navigate.computations`) is off by default: in a quick test it
+   didn't help (see the accuracy plan).
+6. **Align.** Catalog bindings are exact; embedding matches are `status: 'proposed'`. The diff lists
    agreement, conflicts (the catalog equating what production keeps apart, or contradicting itself),
    what is designed but unused, and what is used but undesigned.
 
@@ -129,6 +142,8 @@ any. `tests/test_config.py` fails if one is not read by the code. Sensitivity on
 | `align.floor_term`, `floor_class` | 0.52, 0.40 (raw cosine) | Where the best matches turn wrong on inspection | |
 | `navigate.examples`, `examples_by`, `example_tables` | 3, similarity, true | The most-run queries over the cohort held a question's defining logic for 4 of 10 gold questions; the 3 closest by embedding, for 9. Their tables found what navigation missed | SQL route, Sonnet 5: 4 of 10 with the most-run examples, 4 with the closest, 6 with the closest and their tables |
 | `llm.query_model` | claude-sonnet-5 | Writing SQL needs a stronger model than naming | Given the answer key's own tables, Haiku 4.5 answered 1 of 10 gold questions, Sonnet 5 answered 4 |
+| `navigate.anchors` | question | `parts` breaks the question into measures, groupings, filters and entities, and navigates from each; in a quick test it was about even (gold 7 of 10 both, a log sample 23 of 30 against 22), so the single embedding stays the default | see the accuracy plan, 2026-09-27 |
+| `navigate.computations`, `computation_min_similarity` | 0, 0.8 | As first built, the closest Computations misled more than they helped: a close look-alike displaced what a question needed. With a similarity floor, equivalents merged and parameters left out of definitions, they help a little. Off until confirmed on the full set | gold 7, log sample 22 without; 7 and 24 with 5 definitions after the fixes (6 and 21 to 23 before) |
 | `navigate.today` | null (the real date); the Fennmoor estate pins 2026-07-01 | Relative periods need a day. An estate whose data stops pins it, so "last quarter" has rows and a new day doesn't rewrite every query | Unpinned, a new day missed the LLM cache and changed three gold Cypher verdicts |
 | `navigate.filter_values` | 8 | Enough for a code list (segments, families, statuses); more adds noise from free-text filters | Q12 and Q14 went from guessed values to the data's |
 | `navigate.maximum_bytes_billed`, `rows_shown` | 1 GB, 20 | `ask --run`: the gold questions run so far each bill under 100 MiB at the example's scale; a query over it fails rather than runs | |

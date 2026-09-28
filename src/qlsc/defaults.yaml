@@ -27,6 +27,16 @@ parameters:
     # keeps apart) and self joins stay in the graph as evidence and build nothing.
     joins: [production, corroborated, single]
 
+  computations:                       # qlsc computations: measures, derived dimensions and populations from the log
+    batch: 25                         # computations named per LLM call (short evidence each)
+    merge_similarity: 0.95            # vector score (cosine 0.9) above which two of one kind are candidates to merge; the LLM confirms
+    merge_neighbours: 6               # nearest neighbours looked at per computation
+    merge_batch: 10                   # candidate sets per LLM call
+
+  okf:                                # qlsc okf: the Computations as an Open Knowledge Format bundle
+    sources: 5                        # query shapes listed as a computation's sources (most run first)
+    joins: 8                          # joins listed on a table's concept (most used first)
+
   cluster:                            # level 1: Leiden over what queries read together
     gamma: 4.0                        # resolution; above 1 gives more, smaller groups
     lineage: true                     # column lineage (FLOWS) counts as usage, alongside co-reads
@@ -64,4 +74,12 @@ parameters:
     example_statements: [SELECT, CREATE_TABLE_AS_SELECT, MERGE, CREATE_VIEW]   # statements that compute something
     example_chars: 3000               # of each query's SQL, comments removed, that is embedded
     today: null                       # the date questions are asked on (YYYY-MM-DD), for "last quarter" and the like: both routes get its calendar and write literal dates. null: the real date. An estate whose data stops (a synthetic one) pins it, which also keeps answers reproducible from day to day
+    anchors: question                 # question: one embedding of the whole question | parts: the question broken into measures, groupings, filters and entities (an LLM call), each navigated from
+    anchor_groups: 2                  # parts: level-1 groups each part opens
+    anchor_tables: 3                  # parts: tables each part contributes to the cohort
+    anchor_values: 2                  # parts: columns the log filters on a filter's value, whose tables join the cohort
+    anchor_computations: 2            # parts: Computations each measure (or filter) finds
+    computations: 0                   # Computations (qlsc computations) closest to the question, given to the query writer as definitions; 0: none
+    computation_min_similarity: 0.8   # vector score below which a Computation isn't offered: a distant one misleads more than it helps
+    computation_tables: true          # the tables those Computations read join the cohort
     filter_values: 8                  # values the log filters a text column on, shown with it to the LLM (spelled as the data has them)
