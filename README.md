@@ -6,6 +6,10 @@ Columns joined to each other become one Variable; communities of what is read to
 areas, level above level; an LLM names them. A question in plain English then walks down from those
 areas to the tables and columns that answer it.
 
+It also finds what the business **computes**: every measure, derived dimension and population the log's
+queries compute, as Computation nodes, named and linked to the columns they read. Those publish as an
+**Open Knowledge Format** bundle (OKF v0.2), for any agent or catalog to read.
+
 The semantic layer also writes a **Neo4j Virtual Graph** model of the warehouse, so the warehouse's
 rows can be queried as a graph without copying them. Its nodes and relationships come from the log's
 trusted joins, and the joins the log shows to be suspect are left out. A **composite database** puts
@@ -22,6 +26,9 @@ flowchart TD
     P --> B["bottom layer (Neo4j)<br/>Project, Dataset, Table, Column,<br/>Principal, QueryShape, JoinKey"]
     B --> V["Variables<br/>WCC over trusted joins"]
     V --> S1["Semantic level 1<br/>Leiden over co-reads + lineage"]
+    B --> CP["Computations<br/>measures, dimensions, populations"]
+    CP --> OKF["okf: an Open Knowledge Format bundle"]
+    CP --> Q
     S1 --> SH["Semantic levels 2..n<br/>embed, K_SIM kNN, Leiden per level"]
     SH --> A["align: catalog + ontology<br/>Concept, MEANS, the diff"]
     SH --> Q["ask: question -> vector search -><br/>walk down -> tables -> SQL or Cypher -> answer"]
@@ -59,15 +66,68 @@ export and an ontology. Then:
 
 ```bash
 uv run qlsc extract                   # the aggregated log and the catalog snapshot, from the warehouse
-uv run qlsc build                     # parse, load, variables, cluster, hierarchy, align
+uv run qlsc build                     # parse, load, variables, computations, cluster, hierarchy, align
 uv run qlsc ask "How many customers use the mobile app each week?"
 uv run qlsc ask --run "..."           # and run it: the answer, billed up to a cap
 uv run qlsc ask --cypher --run "..."  # Cypher over the virtual graph instead of SQL (below)
+uv run qlsc okf                       # the Computations as an OKF bundle, in <work>/okf
 ```
 
 Each stage also runs on its own (`uv run qlsc --help`). A full LLM naming pass costs under $0.50 with
 Claude Haiku 4.5, and every call is cached by its request, so rebuilds are free and reproduce the graph
 exactly.
+
+## How well `ask` answers
+
+Three answer keys in the Fennmoor example, each scored on the answer's rows, not on the SQL:
+
+| Answer key | SQL route | Cypher route (virtual graph) |
+|---|---|---|
+| 10 gold questions, hand-written references | 7 | 3 (it declines 6 whose data isn't in the virtual graph) |
+| 176 questions written from the log's own queries, each with its query as the reference | 130 (74%) | 41 on the previous data, of which 39 are among the 69 the virtual graph can cover |
+| 10 graph-shaped questions: neighbourhoods, several hops, shared neighbours | 5 | 7 |
+
+- **Aggregate questions:** SQL is ahead, and Cypher over the virtual graph adds a second translation
+  step and no reach.
+- **Relationship questions:** Cypher is ahead, because the virtual graph's relationships are the trusted
+  joins.
+- **How the Cypher route is checked:**
+  - Virtual Graph's subset is linted before `EXPLAIN`.
+  - Relationship directions and every label, type and property are checked against the model.
+  - The writer declines rather than guess.
+  - Answers are streamed and capped.
+
+The evaluations, and what moved each number, are in
+[plans/2026-09-26-accuracy.md](plans/2026-09-26-accuracy.md).
+
+## What the business computes: Computations and OKF
+
+`qlsc computations` reads every successful query in the log with the parser, and in each query scope
+over physical tables finds three kinds of Computation:
+- **measures**, aggregates with the filters that come with them: card purchase spend is
+  `SUM(amount)` over `is_purchase`;
+- **derived dimensions**, such as a week from a call date, or a tenure band from months;
+- **populations**, filters the business applies together, such as affluent and private customers.
+
+Each is written over base columns, so the same computation in two queries is one Computation. A filter
+whose value changes from run to run is a question's parameter, not part of the definition, and is left
+out. Haiku names each from its expression and the names queries give it. Health checks (one ungrouped
+row of aggregates) are flagged, and equivalents over the same tables are merged.
+
+On the Fennmoor example this finds 1,182 Computations, of which 614 are business ones.
+
+`qlsc okf` writes them as an [Open Knowledge Format](https://github.com/GoogleCloudPlatform/open-knowledge-format)
+bundle:
+- each Computation is an `Attested Computation` concept, filed under its business area, with an
+  `index.md` per area;
+- each table it reads is a `BigQuery Table` concept, with its schema, joins and Computations;
+- provenance (the queries that compute it, their runs, who ran them) and lifecycle (`stable` if
+  production computes it, `draft` if only people do) come from the log.
+
+`qlsc ask` can give the closest Computations to the query writer as the business's definitions
+(`navigate.computations`). It can also break a question into its measures, groupings, filters and
+entities and navigate from each (`navigate.anchors: parts`). Both are off by default while they're
+being measured ([plans/2026-09-26-accuracy.md](plans/2026-09-26-accuracy.md)).
 
 ## The warehouse as a graph: Virtual Graph and the composite database
 
@@ -103,11 +163,12 @@ CALL () {                                   // the warehouse: live rows, through
 RETURN business_area, variable, column, site, closure_calls ORDER BY closure_calls DESC
 ```
 
-On the Fennmoor example this returns three rows in about 2 seconds, one per site, each showing:
+On the Fennmoor example this returns three rows in about 3 seconds, one per site, each showing:
 - the business area (Contact Center Call Operations);
 - the Variable (Contact Center Site);
 - the column the relationship comes from (`fct_calls.site_id`);
-- that site's closure calls, counted in BigQuery (986 at Tulsa, 848 at Manila, 614 at Spokane).
+- that site's closure calls since the Genesys cutover (October 2025), counted in BigQuery (3,005 at
+  Tulsa, 2,548 at Manila, 1,838 at Spokane).
 
 ```bash
 uv run qlsc virtualize                          # the model, the views, and MODEL.md, in the work directory

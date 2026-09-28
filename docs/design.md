@@ -93,10 +93,14 @@ single, suspect, self), `identity`, `production`, `people`, `confidence_reason`.
    and those queries go to the LLM (`llm.query_model`), which writes one query; the warehouse dry-runs it, and with `--run` runs it, billing at most
    `navigate.maximum_bytes_billed`. With `--cypher` the query is Cypher over the virtual graph
    instead. The LLM gets the cohort's tables that are labels there, plus one hop of relationships
-   around them. Before `EXPLAIN`, every label, relationship type and property the query names is
-   checked against that part of the model: Virtual Graph runs a pattern over a label it doesn't have
+   around them. Before `EXPLAIN`, the query is linted against Virtual Graph's subset (`OPTIONAL MATCH`,
+   variable-length paths, `CALL`, `EXISTS`, `UNION`, a `MATCH` after `WITH`, `date()`), each
+   relationship's direction is checked against the model, and every label, relationship type and
+   property the query names is checked against that part of the model: Virtual Graph runs a pattern over a label it doesn't have
    and returns no rows, so a hallucinated label would otherwise come back as a silently empty answer.
-   `EXPLAIN` is then the check, and shows the SQL Virtual Graph sends. When the graph given can't answer
+   `EXPLAIN` is then the check, and shows the SQL Virtual Graph sends. Its answer is streamed back and
+   capped (`navigate.cypher_max_rows`); the instance caps each transaction's memory and time, so one
+   large query fails on its own rather than taking the instance down. When the graph given can't answer
    the question, the writer declines rather than writing a stand-in over the wrong label.
    Both routes get the calendar of the day questions are asked on (`navigate.today`, pinned by an
    estate whose data stops, else the real date) and write periods as literal dates. Virtual Graph
@@ -143,7 +147,7 @@ any. `tests/test_config.py` fails if one is not read by the code. Sensitivity on
 | `navigate.examples`, `examples_by`, `example_tables` | 3, similarity, true | The most-run queries over the cohort held a question's defining logic for 4 of 10 gold questions; the 3 closest by embedding, for 9. Their tables found what navigation missed | SQL route, Sonnet 5: 4 of 10 with the most-run examples, 4 with the closest, 6 with the closest and their tables |
 | `llm.query_model` | claude-sonnet-5 | Writing SQL needs a stronger model than naming | Given the answer key's own tables, Haiku 4.5 answered 1 of 10 gold questions, Sonnet 5 answered 4 |
 | `navigate.anchors` | question | `parts` breaks the question into measures, groupings, filters and entities, and navigates from each; in a quick test it was about even (gold 7 of 10 both, a log sample 23 of 30 against 22), so the single embedding stays the default | see the accuracy plan, 2026-09-27 |
-| `navigate.computations`, `computation_min_similarity` | 0, 0.8 | As first built, the closest Computations misled more than they helped: a close look-alike displaced what a question needed. With a similarity floor, equivalents merged and parameters left out of definitions, they help a little. Off until confirmed on the full set | gold 7, log sample 22 without; 7 and 24 with 5 definitions after the fixes (6 and 21 to 23 before) |
+| `navigate.computations`, `computation_min_similarity` | 0, 0.8 | As first built, the closest Computations misled more than they helped: a close look-alike displaced what a question needed. With a similarity floor, equivalents merged and parameters left out of definitions, they were a wash on the full set: a close definition still gets over-applied. Off | all 176 log questions: 129 without, 130 with 5 definitions (4 gained, 3 lost); gold 7 either way |
 | `navigate.today` | null (the real date); the Fennmoor estate pins 2026-07-01 | Relative periods need a day. An estate whose data stops pins it, so "last quarter" has rows and a new day doesn't rewrite every query | Unpinned, a new day missed the LLM cache and changed three gold Cypher verdicts |
 | `navigate.filter_values` | 8 | Enough for a code list (segments, families, statuses); more adds noise from free-text filters | Q12 and Q14 went from guessed values to the data's |
 | `navigate.maximum_bytes_billed`, `rows_shown` | 1 GB, 20 | `ask --run`: the gold questions run so far each bill under 100 MiB at the example's scale; a query over it fails rather than runs | |

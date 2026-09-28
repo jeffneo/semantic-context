@@ -137,7 +137,13 @@ services:
       NEO4J_ACCEPT_LICENSE_AGREEMENT: "eval"
       NEO4J_internal_virtual__graph_enabled: "true"
       NEO4J_internal_virtual__graph_home: /nvg_home
-      NEO4J_server_memory_heap_max__size: ${NEO4J_VG_HEAP:-2G}
+      # Virtual Graph builds each answer in the heap: 2G ran out on 2026-09-27 under three concurrent runs.
+      NEO4J_server_memory_heap_max__size: ${NEO4J_VG_HEAP:-5G}
+      # One query can't take the instance down: a transaction over 2G of tracked memory, or 3 minutes,
+      # fails on its own (and ask --cypher streams at most navigate.cypher_max_rows rows back).
+      NEO4J_db_memory_transaction_max: 2g
+      NEO4J_dbms_memory_transaction_total_max: 3g
+      NEO4J_db_transaction_timeout: 180s
       GOOGLE_APPLICATION_CREDENTIALS: /nvg_home/credentials.json
       # A local keystore, for the credentials of the remote aliases a composite database uses (see
       # docker/nvg/README.md).

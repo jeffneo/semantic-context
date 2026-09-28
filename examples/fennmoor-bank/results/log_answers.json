@@ -31,7 +31,7 @@
  },
  "L0a171fb1": {
   "verdict": "kept",
-  "rows": 12,
+  "rows": 36,
   "question": "For each site and month, what were the total contacts, the number of closure calls, the total expense, and the cost per contact, along with whether the site is outsourced?"
  },
  "L0a42f6cf": {
@@ -201,7 +201,7 @@
  },
  "L41064b12": {
   "verdict": "kept",
-  "rows": 98,
+  "rows": 280,
   "question": "For voice calls handled at the MNL site between 2025-07-01 and 2026-06-30, broken down by week (week starting Monday) and IVR intent, what was the average handle time, the number of account closure calls, and the total number of calls?"
  },
  "L4115df4b": {
@@ -221,7 +221,7 @@
  },
  "L42c41a99": {
   "verdict": "kept",
-  "rows": 56,
+  "rows": 76,
   "question": "For voice calls with a conversation date on or after 2026-02-26, what is the average handle time (in seconds), broken down by week and by site?"
  },
  "L42fc491a": {
@@ -271,7 +271,7 @@
  },
  "L4e0f44e9": {
   "verdict": "kept",
-  "rows": 6,
+  "rows": 7,
   "question": "For account closure calls handled at the SPK site between 2026-05-31 and 2026-06-30, what is the abandonment rate for each wrap-up code, broken down by week (week starting Monday)?"
  },
  "L4f929b5b": {
@@ -351,7 +351,7 @@
  },
  "L5ed9db67": {
   "verdict": "kept",
-  "rows": 30,
+  "rows": 33,
   "question": "List the customers (CIF number and full name) who had an account closure call on 2026-05-21, along with the conversation date and wrap-up code name for each call."
  },
  "L5f5e344a": {
@@ -415,8 +415,8 @@
   "question": "What is the total card purchase spend by merchant category group and by month, for transactions posted on or after 2026-02-03?"
  },
  "L6dac6b62": {
-  "verdict": "too many rows (21,918)",
-  "rows": 21918,
+  "verdict": "too many rows (23,517)",
+  "rows": 23517,
   "question": "For each customer, since 2026-02-10, how many contact center calls have they had, how many of those were account closure calls, and what is their average call handle time (in seconds)?"
  },
  "L6e2cd931": {
@@ -551,7 +551,7 @@
  },
  "L8bc8a936": {
   "verdict": "kept",
-  "rows": 50,
+  "rows": 60,
   "question": "For calls on 2026-05-27 where the customer's NPS survey response was a detractor, list each conversation's ID, the handling agent's user ID, the NPS score given, and the call's wrap-up code name."
  },
  "L8ee70d9a": {
@@ -561,7 +561,7 @@
  },
  "L8f767484": {
   "verdict": "kept",
-  "rows": 32,
+  "rows": 28,
   "question": "For account closure calls handled at the SPK site during the week of 2026-06-23 to 2026-06-29, what is, for each agent, week, and site: the average handle time, the number of closure calls, and the total number of calls?"
  },
  "L8f9a7871": {
@@ -641,7 +641,7 @@
  },
  "La7769de1": {
   "verdict": "kept",
-  "rows": 36,
+  "rows": 60,
   "question": "For each month from 2025-02-01 onward, broken down by site and source system, how many total contacts were there and how many of them were account closure calls?"
  },
  "Laae51758": {
@@ -671,7 +671,7 @@
  },
  "Lb680ccfe": {
   "verdict": "kept",
-  "rows": 2683,
+  "rows": 2656,
   "question": "For each agent, site outsourcing status (outsourced vs in-house), and media type, what was the call abandonment rate, average handle time, and number of transferred calls for contacts with a conversation date from 2026-05-31 to 2026-06-29?"
  },
  "Lb79256f9": {
@@ -801,7 +801,7 @@
  },
  "Ld63381a3": {
   "verdict": "kept",
-  "rows": 9,
+  "rows": 24,
   "question": "For each site and month from 2025-11-01 onward, what was the number of contacts and the total expense?"
  },
  "Ld9c8c1f0": {
@@ -846,7 +846,7 @@
  },
  "Le166be49": {
   "verdict": "kept",
-  "rows": 12,
+  "rows": 32,
   "question": "For each site and month from 2025-11-01 onward, what were the total contacts, the number of closure calls, and the average handle time in minutes (rounded to 1 decimal place)?"
  },
  "Le50954e7": {
@@ -891,7 +891,7 @@
  },
  "Leb26b397": {
   "verdict": "kept",
-  "rows": 14,
+  "rows": 17,
   "question": "For each week starting on or after 2026-03-12, what was the average CSAT score and average NPS score from customer conversations, broken down by week?"
  },
  "Lecec1d54": {

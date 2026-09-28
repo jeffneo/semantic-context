@@ -42,6 +42,21 @@ class Graph:
         records = self.run(query, **params).records
         return records[0][0] if records else None
 
+    def capped(self, query: str, limit: int, **params) -> tuple[list[str], list[dict], bool]:
+        """At most `limit` rows, read as they stream, never the whole result into memory: (columns,
+        rows, whether there were more)."""
+        with self.driver.session(database=self.db) as s:
+            result = s.run(query, **params)
+            rows, more = [], False
+            for r in result:
+                if len(rows) == limit:
+                    more = True
+                    break
+                rows.append(r.data())
+            keys = list(result.keys())
+            result.consume()
+            return keys, rows, more
+
     def auto(self, query: str, **params) -> list[dict]:
         """An auto-commit transaction (needed for CALL ... IN TRANSACTIONS)."""
         with self.driver.session(database=self.db) as s:

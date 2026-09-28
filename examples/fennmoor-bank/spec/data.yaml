@@ -33,7 +33,12 @@ slices:
     title: Gold questions
     # every table spec/questions.yaml names, as expected, acceptable or to avoid: the traps get rows
     # too, so a wrong answer returns plausible wrong rows rather than nothing (plans/2026-09-26-fill-slice-2.md)
-    targets: [ACCT_DLY_BAL, ACCT_MSTR, attrition_propensity_2025, aud_high_value_churn_risk,
+    # and the Looker PDTs behind the dashboards (Q02's answer read one while it was still empty)
+    targets: [LR_3M6N9B2V5C8X1_digital_funnel_daily, LR_5T7Y9U1I3O5P7_card_spend_by_mcc,
+              LR_6H0IZB3PQ4C6N_customer_facts, LR_7F2G5H8J1K4L6_delinquency_trend,
+              LR_8B3N0C5D2X7Z1_churn_explore, LR_9P2O5I8U1Y4T7_branch_scorecard,
+              LR_Q1Z7T4V9N2M5A_site_monthly_kpis,
+              ACCT_DLY_BAL, ACCT_MSTR, attrition_propensity_2025, aud_high_value_churn_risk,
               campain_results_2025, card_spend_by_segment, CC_ACCT_MSTR, CC_AGENT_DLY, CC_CALL_VOL_DLY,
               cc_cost_per_call_fy25, CC_EXPENSE_SUMMARY, CC_EXPNS_MTHLY, CC_TXN_HIST, CHURN_MDL_SCR,
               churn_score_v2, churn_score_v3, consumer_attributes_monthly, CUST_MSTR, CUST_MSTR_BKP_20250211,
@@ -367,6 +372,8 @@ tables:
       description: {derive: title, of: name}
 
   genesys_cloud.conversation:
+    window: [2025-10-01, 2026-06-29]  # from the Avaya cutover (2025-09-30): Q01's last year needs Q4 2025
+    rows: 238700                      # the log window's 79,000 over 90 days, kept at that rate for 272 days
     columns:
       conversation_start: {in_window: 1.0, business_hours: true}
       conversation_end: {after_seconds: conversation_start, seconds: [90, 2400]}

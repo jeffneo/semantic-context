@@ -13,20 +13,20 @@
   "rows": [
    {
     "site_name": "Tulsa Contact Center",
-    "closure_contacts": "3,564",
-    "contacts": "51,737",
+    "closure_contacts": "4,589",
+    "contacts": "76,223",
     "expense_2025": "71876887.16"
    },
    {
     "site_name": "Spokane Contact Center",
-    "closure_contacts": "1,861",
-    "contacts": "26,214",
+    "closure_contacts": "2,496",
+    "contacts": "41,365",
     "expense_2025": "71486853.56"
    },
    {
     "site_name": "Manila BPO",
-    "closure_contacts": "1,532",
-    "contacts": "21,049",
+    "closure_contacts": "2,385",
+    "contacts": "42,196",
     "expense_2025": "70736205.57"
    }
   ]
@@ -41,7 +41,7 @@
    "high_risk"
   ],
   "total": 5,
-  "bytes_billed": 0,
+  "bytes_billed": 10485760,
   "rows": [
    {
     "segment": "mass",
@@ -398,81 +398,81 @@
    "logged_in_share"
   ],
   "total": 15,
-  "bytes_billed": 0,
+  "bytes_billed": 20971520,
   "rows": [
    {
     "landing_page": "https://www.fennmoor.example/",
-    "sessions_before_a_call": "866",
+    "sessions_before_a_call": "929",
     "logged_in_share": "0.852"
    },
    {
     "landing_page": "https://www.fennmoor.example/login",
-    "sessions_before_a_call": "611",
+    "sessions_before_a_call": "701",
     "logged_in_share": "0.852"
    },
    {
     "landing_page": "https://www.fennmoor.example/accounts",
-    "sessions_before_a_call": "574",
+    "sessions_before_a_call": "680",
     "logged_in_share": "0.852"
    },
    {
     "landing_page": "https://www.fennmoor.example/credit-cards",
-    "sessions_before_a_call": "263",
+    "sessions_before_a_call": "317",
     "logged_in_share": "0.852"
    },
    {
     "landing_page": "https://www.fennmoor.example/checking",
-    "sessions_before_a_call": "257",
+    "sessions_before_a_call": "295",
     "logged_in_share": "0.852"
    },
    {
     "landing_page": "https://www.fennmoor.example/help",
-    "sessions_before_a_call": "229",
-    "logged_in_share": "0.852"
-   },
-   {
-    "landing_page": "https://www.fennmoor.example/savings",
-    "sessions_before_a_call": "227",
+    "sessions_before_a_call": "254",
     "logged_in_share": "0.852"
    },
    {
     "landing_page": "https://www.fennmoor.example/branch-locator",
-    "sessions_before_a_call": "217",
+    "sessions_before_a_call": "232",
     "logged_in_share": "0.852"
    },
    {
     "landing_page": "https://www.fennmoor.example/contact",
-    "sessions_before_a_call": "190",
+    "sessions_before_a_call": "212",
+    "logged_in_share": "0.852"
+   },
+   {
+    "landing_page": "https://www.fennmoor.example/savings",
+    "sessions_before_a_call": "198",
     "logged_in_share": "0.852"
    },
    {
     "landing_page": "https://www.fennmoor.example/credit-cards/apply",
-    "sessions_before_a_call": "162",
+    "sessions_before_a_call": "189",
     "logged_in_share": "0.852"
    },
    {
     "landing_page": "https://www.fennmoor.example/loans/heloc",
-    "sessions_before_a_call": "149",
-    "logged_in_share": "0.852"
-   },
-   {
-    "landing_page": "https://www.fennmoor.example/help/lost-card",
-    "sessions_before_a_call": "145",
+    "sessions_before_a_call": "151",
     "logged_in_share": "0.852"
    },
    {
     "landing_page": "https://www.fennmoor.example/rates",
-    "sessions_before_a_call": "117",
+    "sessions_before_a_call": "148",
     "logged_in_share": "0.852"
    },
    {
     "landing_page": "https://www.fennmoor.example/help/dispute-a-charge",
-    "sessions_before_a_call": "116",
+    "sessions_before_a_call": "146",
+    "logged_in_share": "0.852"
+   },
+   {
+    "landing_page": "https://www.fennmoor.example/help/lost-card",
+    "sessions_before_a_call": "143",
     "logged_in_share": "0.852"
    },
    {
     "landing_page": "https://www.fennmoor.example/help/close-account",
-    "sessions_before_a_call": "96",
+    "sessions_before_a_call": "79",
     "logged_in_share": "0.852"
    }
   ]
@@ -952,7 +952,7 @@
    "card_applications"
   ],
   "total": 5200,
-  "bytes_billed": 20971520,
+  "bytes_billed": 0,
   "rows": [
    {
     "campaign_id": "95bb449d-c3fe-8906-0ae6-0a312c378c38",
@@ -1218,7 +1218,7 @@
    "delinquency_rate"
   ],
   "total": 683,
-  "bytes_billed": 31457280,
+  "bytes_billed": 0,
   "rows": [
    {
     "product_code": "MTG-30F",
@@ -1631,27 +1631,27 @@
    "avg_csat"
   ],
   "total": 4,
-  "bytes_billed": 0,
+  "bytes_billed": 20971520,
   "rows": [
    {
     "tenure": "1 to 3 years",
-    "surveys": "962",
-    "avg_csat": "2.99"
+    "surveys": "2,944",
+    "avg_csat": "3.00"
    },
    {
     "tenure": "3 years or more",
-    "surveys": "4,374",
+    "surveys": "13,236",
     "avg_csat": "3.00"
    },
    {
     "tenure": "BPO (no hire date)",
-    "surveys": "2,953",
+    "surveys": "8,850",
     "avg_csat": "2.99"
    },
    {
     "tenure": "under 1 year",
-    "surveys": "437",
-    "avg_csat": "2.86"
+    "surveys": "1,301",
+    "avg_csat": "2.93"
    }
   ]
  },
@@ -1733,7 +1733,7 @@
    "segment"
   ],
   "total": 1566,
-  "bytes_billed": 0,
+  "bytes_billed": 20971520,
   "rows": [
    {
     "cif_number": "0001000020",

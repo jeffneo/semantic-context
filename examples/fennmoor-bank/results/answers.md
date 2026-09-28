@@ -6,9 +6,9 @@ Each gold question's hand-written reference query (`eval/reference/`), run again
 
 | site_name | closure_contacts | contacts | expense_2025 |
 |---|---|---|---|
-| Tulsa Contact Center | 3,564 | 51,737 | 71876887.16 |
-| Spokane Contact Center | 1,861 | 26,214 | 71486853.56 |
-| Manila BPO | 1,532 | 21,049 | 70736205.57 |
+| Tulsa Contact Center | 4,589 | 76,223 | 71876887.16 |
+| Spokane Contact Center | 2,496 | 41,365 | 71486853.56 |
+| Manila BPO | 2,385 | 42,196 | 70736205.57 |
 
 3 rows; 40 MiB billed.
 
@@ -22,7 +22,7 @@ Each gold question's hand-written reference query (`eval/reference/`), run again
 | small_business | 41 | 0.354 | 3 |
 | private | 14 | 0.38 | 1 |
 
-5 rows; 0 MiB billed.
+5 rows; 10 MiB billed.
 
 ## Q02, also accepted (Q02.alt)
 
@@ -85,23 +85,23 @@ Each gold question's hand-written reference query (`eval/reference/`), run again
 
 | landing_page | sessions_before_a_call | logged_in_share |
 |---|---|---|
-| https://www.fennmoor.example/ | 866 | 0.852 |
-| https://www.fennmoor.example/login | 611 | 0.852 |
-| https://www.fennmoor.example/accounts | 574 | 0.852 |
-| https://www.fennmoor.example/credit-cards | 263 | 0.852 |
-| https://www.fennmoor.example/checking | 257 | 0.852 |
-| https://www.fennmoor.example/help | 229 | 0.852 |
-| https://www.fennmoor.example/savings | 227 | 0.852 |
-| https://www.fennmoor.example/branch-locator | 217 | 0.852 |
-| https://www.fennmoor.example/contact | 190 | 0.852 |
-| https://www.fennmoor.example/credit-cards/apply | 162 | 0.852 |
-| https://www.fennmoor.example/loans/heloc | 149 | 0.852 |
-| https://www.fennmoor.example/help/lost-card | 145 | 0.852 |
-| https://www.fennmoor.example/rates | 117 | 0.852 |
-| https://www.fennmoor.example/help/dispute-a-charge | 116 | 0.852 |
-| https://www.fennmoor.example/help/close-account | 96 | 0.852 |
+| https://www.fennmoor.example/ | 929 | 0.852 |
+| https://www.fennmoor.example/login | 701 | 0.852 |
+| https://www.fennmoor.example/accounts | 680 | 0.852 |
+| https://www.fennmoor.example/credit-cards | 317 | 0.852 |
+| https://www.fennmoor.example/checking | 295 | 0.852 |
+| https://www.fennmoor.example/help | 254 | 0.852 |
+| https://www.fennmoor.example/branch-locator | 232 | 0.852 |
+| https://www.fennmoor.example/contact | 212 | 0.852 |
+| https://www.fennmoor.example/savings | 198 | 0.852 |
+| https://www.fennmoor.example/credit-cards/apply | 189 | 0.852 |
+| https://www.fennmoor.example/loans/heloc | 151 | 0.852 |
+| https://www.fennmoor.example/rates | 148 | 0.852 |
+| https://www.fennmoor.example/help/dispute-a-charge | 146 | 0.852 |
+| https://www.fennmoor.example/help/lost-card | 143 | 0.852 |
+| https://www.fennmoor.example/help/close-account | 79 | 0.852 |
 
-15 rows; 0 MiB billed.
+15 rows; 20 MiB billed.
 
 ## Q04. Card spend by merchant category and customer segment, last quarter.
 
@@ -258,7 +258,7 @@ Each gold question's hand-written reference query (`eval/reference/`), run again
 | d65d9234-6c9c-9fa6-db70-6af77955b255 | HELOC Rate Drop 64 | 72 |
 | 20cbc958-1cfa-0614-d3c3-72a6b60f6575 | Spring Cash Back 53 | 72 |
 
-5,200 rows, the first 50 shown; 20 MiB billed.
+5,200 rows, the first 50 shown; 0 MiB billed.
 
 ## Q09. Loan delinquency rate by product and branch.
 
@@ -315,18 +315,18 @@ Each gold question's hand-written reference query (`eval/reference/`), run again
 | MTG-30F | 152 | Fennmoor Oklahoma City #152 | 17 | 2 | 0.1176 |
 | HELOC-STD | 167 | Fennmoor Lincoln #167 | 17 | 0 | 0 |
 
-683 rows, the first 50 shown; 30 MiB billed.
+683 rows, the first 50 shown; 0 MiB billed.
 
 ## Q10. Does customer satisfaction vary with agent tenure?
 
 | tenure | surveys | avg_csat |
 |---|---|---|
-| 1 to 3 years | 962 | 2.99 |
-| 3 years or more | 4,374 | 3.00 |
-| BPO (no hire date) | 2,953 | 2.99 |
-| under 1 year | 437 | 2.86 |
+| 1 to 3 years | 2,944 | 3.00 |
+| 3 years or more | 13,236 | 3.00 |
+| BPO (no hire date) | 8,850 | 2.99 |
+| under 1 year | 1,301 | 2.93 |
 
-4 rows; 0 MiB billed.
+4 rows; 20 MiB billed.
 
 ## Q11. How many customers use the mobile app each week?
 
@@ -404,7 +404,7 @@ Each gold question's hand-written reference query (`eval/reference/`), run again
 | 0001000696 | James Kim | sarah.martinez1342@example.com | affluent |
 | 0001000698 | Mei Lewis | maria.thomas1347@example.com | affluent |
 
-1,566 rows, the first 50 shown; 0 MiB billed.
+1,566 rows, the first 50 shown; 20 MiB billed.
 
 ## Q12, also accepted (Q12.alt)
 

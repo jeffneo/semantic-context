@@ -107,11 +107,13 @@ MATCH (s:QueryShape)-[f:FILTERS]->(c:Column) WHERE size(coalesce(f.values, [])) 
 RETURN s.id AS s, collect(DISTINCT c.id) AS cols
 """
 
-# Candidates to merge: business Computations of one kind whose embeddings are nearly the same.
+# Candidates to merge: business Computations of one kind, over the same tables, whose embeddings are
+# nearly the same. Over different tables they aren't the same computation (a copy, a stale score).
 NEAR = """
 MATCH (c:Computation) WHERE NOT c.health_check AND c.embedding IS NOT NULL
 CALL db.index.vector.queryNodes('computation_embedding', $k, c.embedding) YIELD node AS d, score
-WITH c, d, score WHERE d.id > c.id AND d.kind = c.kind AND NOT d.health_check AND score >= $min
+WITH c, d, score WHERE d.id > c.id AND d.kind = c.kind AND d.tables = c.tables AND NOT d.health_check
+  AND score >= $min
 RETURN c.id AS a, d.id AS b
 """
 

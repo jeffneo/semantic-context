@@ -28,7 +28,7 @@
   "sql": {
    "verdict": "wrong",
    "why": "no column holds closure_contacts (2 of 3 match)",
-   "query": "WITH closure_calls AS (\n  SELECT\n    site_id,\n    COUNT(*) AS cancellation_calls\n  FROM `fennmoor-dw.dw_contact_center.fct_calls`\n  WHERE is_account_closure_call\n  GROUP BY site_id\n),\nsite_cost_last_year AS (\n  SELECT\n    site_id,\n    SUM(total_expense) AS total_expense_last_year\n  FROM `fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly`\n  WHERE month_start >= '2025-01-01' AND month_start <= '2025-12-01'\n  GROUP BY site_id\n)\nSELECT\n  s.site_id,\n  s.site_name,\n  s.operator,\n  s.is_outsourced,\n  cc.cancellation_calls,\n  c.total_expense_last_year\nFROM closure_calls cc\nJOIN `fennmoor-dw.dw_contact_center.dim_cc_site` s\n  ON cc.site_id = s.site_id\nLEFT JOIN site_cost_last_year c\n  ON s.site_id = c.site_id\nORDER BY cc.cancellation_calls DESC;\n"
+   "query": "WITH closure_calls AS (\n  SELECT\n    site_id,\n    COUNT(DISTINCT conversation_id) AS closure_call_count\n  FROM `fennmoor-dw.dw_contact_center.fct_calls`\n  WHERE is_account_closure_call\n    AND conversation_date BETWEEN '2025-01-01' AND '2025-12-31'\n  GROUP BY site_id\n),\nsite_costs AS (\n  SELECT\n    site_id,\n    SUM(total_expense) AS total_expense_last_year\n  FROM `fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly`\n  WHERE month_start BETWEEN '2025-01-01' AND '2025-12-31'\n  GROUP BY site_id\n)\nSELECT\n  d.site_id,\n  d.site_name,\n  d.operator,\n  d.is_outsourced,\n  c.closure_call_count,\n  s.total_expense_last_year\nFROM closure_calls c\nJOIN `fennmoor-dw.dw_contact_center.dim_cc_site` d ON c.site_id = d.site_id\nLEFT JOIN site_costs s ON d.site_id = s.site_id\nORDER BY c.closure_call_count DESC\n"
   },
   "cypher": {
    "verdict": "declined",
@@ -159,8 +159,8 @@
   ],
   "sql": {
    "verdict": "correct",
-   "why": "matches on month=month_start, product_line, month_end_balance",
-   "query": "WITH eom AS (\n  SELECT\n    account_key,\n    product_code,\n    DATE_TRUNC(balance_date, MONTH) AS month_start,\n    ARRAY_AGG(ledger_balance ORDER BY balance_date DESC LIMIT 1)[OFFSET(0)] AS eom_balance\n  FROM `fennmoor-dw.dw_core.fct_daily_account_balances`\n  GROUP BY 1, 2, 3\n)\nSELECT\n  eom.month_start,\n  p.product_line,\n  SUM(eom.eom_balance) AS month_end_balance\nFROM eom\nJOIN `fennmoor-dw.dw_core.dim_product` p USING (product_code)\nGROUP BY 1, 2\nORDER BY 1, 2"
+   "why": "matches on month=month_end, product_line, month_end_balance=balance",
+   "query": "WITH eom AS (\n  SELECT\n    account_key,\n    product_code,\n    DATE_TRUNC(balance_date, MONTH) AS m,\n    ARRAY_AGG(ledger_balance ORDER BY balance_date DESC LIMIT 1)[OFFSET(0)] AS eom_balance\n  FROM `fennmoor-dw.dw_core.fct_daily_account_balances`\n  GROUP BY 1, 2, 3\n)\nSELECT\n  eom.m AS month_end,\n  p.product_line,\n  SUM(eom.eom_balance) AS balance\nFROM eom\nJOIN `fennmoor-dw.dw_core.dim_product` p\n  USING (product_code)\nGROUP BY 1, 2\nORDER BY 1, 2\n"
   },
   "cypher": {
    "verdict": "declined",
@@ -287,7 +287,7 @@
   "sql": {
    "verdict": "wrong",
    "why": "no column holds delinquency_rate (2 of 3 match)",
-   "query": "WITH OPEN_LOANS AS (\n  SELECT\n    PRODUCT_CODE,\n    BRANCH_ID,\n    COUNT(*) AS N\n  FROM `fennmoor-dw.dw_core.dim_account`\n  WHERE ACCOUNT_FAMILY = 'LOAN'\n    AND IS_OPEN\n  GROUP BY 1, 2\n),\nDLQ AS (\n  SELECT\n    A.PRODUCT_CODE,\n    A.BRANCH_ID,\n    COUNT(*) AS D\n  FROM `fennmoor-dw.dw_risk.fct_delinquency_daily` DD\n  JOIN `fennmoor-dw.dw_core.dim_account` A USING (ACCOUNT_KEY)\n  WHERE DD.SNAPSHOT_DATE = (SELECT MAX(SNAPSHOT_DATE) FROM `fennmoor-dw.dw_risk.fct_delinquency_daily`)\n    AND DD.DPD >= 30\n  GROUP BY 1, 2\n)\nSELECT\n  O.PRODUCT_CODE,\n  B.BRANCH_NAME,\n  O.N AS OPEN_LOANS,\n  COALESCE(DLQ.D, 0) AS DELINQUENT_LOANS,\n  SAFE_DIVIDE(DLQ.D, O.N) AS DELINQUENCY_RATE\nFROM OPEN_LOANS O\nLEFT JOIN DLQ USING (PRODUCT_CODE, BRANCH_ID)\nLEFT JOIN `fennmoor-dw.dw_core.dim_branch` B ON B.BRANCH_ID = O.BRANCH_ID\nORDER BY DELINQUENCY_RATE DESC\n"
+   "query": "WITH OPEN_LOANS AS (\n  SELECT\n    PRODUCT_CODE,\n    BRANCH_ID,\n    COUNT(*) AS N\n  FROM `fennmoor-dw.dw_core.dim_account`\n  WHERE ACCOUNT_FAMILY = 'LOAN'\n    AND IS_OPEN\n  GROUP BY 1, 2\n),\nDLQ AS (\n  SELECT\n    A.PRODUCT_CODE,\n    A.BRANCH_ID,\n    COUNT(*) AS D\n  FROM `fennmoor-dw.dw_risk.fct_delinquency_daily` DD\n  JOIN `fennmoor-dw.dw_core.dim_account` A USING (ACCOUNT_KEY)\n  WHERE DD.SNAPSHOT_DATE = (SELECT MAX(SNAPSHOT_DATE) FROM `fennmoor-dw.dw_risk.fct_delinquency_daily`)\n    AND DD.DPD >= 30\n  GROUP BY 1, 2\n)\nSELECT\n  O.PRODUCT_CODE,\n  B.BRANCH_NAME,\n  O.N AS OPEN_LOANS,\n  COALESCE(DLQ.D, 0) AS DELINQUENT_LOANS,\n  SAFE_DIVIDE(COALESCE(DLQ.D, 0), O.N) AS DELINQUENCY_RATE\nFROM OPEN_LOANS O\nLEFT JOIN DLQ USING (PRODUCT_CODE, BRANCH_ID)\nLEFT JOIN `fennmoor-dw.dw_core.dim_branch` B ON B.BRANCH_ID = O.BRANCH_ID\nORDER BY DELINQUENCY_RATE DESC\n"
   },
   "cypher": {
    "verdict": "declined",
@@ -312,7 +312,7 @@
   "sql": {
    "verdict": "not scored",
    "why": "3 rows",
-   "query": "WITH agent_tenure_band AS (\n  SELECT\n    agent_user_id,\n    CASE\n      WHEN tenure_months < 12 THEN '0-1y'\n      WHEN tenure_months < 60 THEN '1-5y'\n      ELSE '5y+'\n    END AS agent_tenure_band\n  FROM `fennmoor-dw.dw_contact_center.dim_agent`\n)\nSELECT\n  atb.agent_tenure_band,\n  COUNT(DISTINCT c.agent_user_id) AS agent_count,\n  COUNT(c.survey_id) AS survey_count,\n  AVG(c.csat_score) AS avg_csat_score,\n  AVG(c.nps_score) AS avg_nps_score\nFROM `fennmoor-dw.dw_contact_center.fct_csat` c\nJOIN agent_tenure_band atb\n  ON c.agent_user_id = atb.agent_user_id\nGROUP BY atb.agent_tenure_band\nORDER BY atb.agent_tenure_band;\n"
+   "query": "WITH agent_tenure AS (\n  SELECT\n    agent_user_id,\n    CASE\n      WHEN tenure_months < 12 THEN '0-1y'\n      WHEN tenure_months < 60 THEN '1-5y'\n      ELSE '5y+'\n    END AS agent_tenure_band\n  FROM `fennmoor-dw.dw_contact_center.dim_agent`\n)\nSELECT\n  at.agent_tenure_band,\n  COUNT(DISTINCT c.conversation_id) AS survey_count,\n  AVG(c.csat_score) AS avg_csat,\n  AVG(c.nps_score) AS avg_nps\nFROM `fennmoor-dw.dw_contact_center.fct_csat` c\nJOIN agent_tenure at\n  ON c.agent_user_id = at.agent_user_id\nGROUP BY at.agent_tenure_band\nORDER BY at.agent_tenure_band\n"
   },
   "cypher": {
    "verdict": "declined",

@@ -1,6 +1,6 @@
 # Reference answers for the log's questions
 
-194 questions written from the log (`eval/log_questions.yaml`); 176 kept, with one to 20,000 rows and every compared column in the query's output. Billed this run: 0.00 GiB.
+194 questions written from the log (`eval/log_questions.yaml`); 176 kept, with one to 20,000 rows and every compared column in the query's output. Billed this run: 1.03 GiB.
 
 | question | verdict | rows |
 |---|---|---|
@@ -10,7 +10,7 @@
 | L05fc9f83. Since April 9, 2026, how many calls were handled where the agent's site was different from the call's queue site, broken down by queue site and agent site? | kept | 6 |
 | L0726bed6. For the period from 2026-05-07 to 2026-05-17, how many distinct sessions did each marketing campaign (with a named campaign) generate, ranked from the highest number of sessions to the lowest? | empty | 0 |
 | L09cde242. Since 2025-12-01, how many account closures were there each week, broken down by account family and closure reason? | kept | 178 |
-| L0a171fb1. For each site and month, what were the total contacts, the number of closure calls, the total expense, and the cost per contact, along with whether the site is outsourced? | kept | 12 |
+| L0a171fb1. For each site and month, what were the total contacts, the number of closure calls, the total expense, and the cost per contact, along with whether the site is outsourced? | kept | 36 |
 | L0a42f6cf. For card transactions posted from 2026-05-31 to 2026-06-30, broken down by whether the transaction was foreign, merchant name, and transaction type, what is the number of distinct cardholders, the total interchange, and the number of distinct transactions (settlements)? | kept | 126 |
 | L0b88eeab. For each card product, how many currently open accounts are there? | kept | 3 |
 | L0c593d42. For each day from 2026-04-22 onward, broken down by device category, how many web sessions were there, what was the average engaged time in seconds, and what share of sessions were logged in? | kept | 28 |
@@ -44,11 +44,11 @@
 | L3cb32f46. For each merchant name, calendar month of posting, and transaction type, how many distinct cardholders made card transactions and how many distinct settled transactions were there? | kept | 189 |
 | L3d84d777. For each contact center site and week (weeks starting Monday), what was the call abandonment rate (share of calls that were abandoned) between 2026-04-01 and 2026-06-30? Show the 500 site-week combinations with the highest abandonment rate. | kept | 56 |
 | L3e70fccd. For active accounts, how many accounts are there and what is the average overdraft limit amount, broken down by product code, ordered from the highest to lowest account count? | kept | 8 |
-| L41064b12. For voice calls handled at the MNL site between 2025-07-01 and 2026-06-30, broken down by week (week starting Monday) and IVR intent, what was the average handle time, the number of account closure calls, and the total number of calls? | kept | 98 |
+| L41064b12. For voice calls handled at the MNL site between 2025-07-01 and 2026-06-30, broken down by week (week starting Monday) and IVR intent, what was the average handle time, the number of account closure calls, and the total number of calls? | kept | 280 |
 | L4115df4b. For each month starting 2026-05-02 onward, how many distinct customers received an ACH credit deposit transaction? | kept | 2 |
 | L41fd18a8. For screen-view events from 2026-05-10 to 2026-05-12, what is the number of views for each screen name, ordered from most to least viewed? | kept | 9 |
 | L42795751. For each preferred branch (identified by branch name and region), how many customers have that branch as their preferred branch, and what is the total deposit balance across those customers? List results ordered from the most customers to the fewest. | kept | 1 |
-| L42c41a99. For voice calls with a conversation date on or after 2026-02-26, what is the average handle time (in seconds), broken down by week and by site? | kept | 56 |
+| L42c41a99. For voice calls with a conversation date on or after 2026-02-26, what is the average handle time (in seconds), broken down by week and by site? | kept | 76 |
 | L42fc491a. For each customer, from 2026-02-25 to 2026-05-12, how many purchase transactions did they make, what was their total spend, how many distinct merchant categories (MCCs) did they purchase from, and how many of their transactions were foreign transactions? | kept | 10,929 |
 | L435dac23. For voluntary account closures between 2025-12-11 and 2026-06-03, what are the tenure (in days) quartile breakpoints and the average tenure at closure, broken down by account family? | kept | 2 |
 | L4379b829. For each conversation date and contact center site, what was the average call handle time (in seconds) and the number of transferred calls, for calls from 2026-05-31 to 2026-06-29? | kept | 120 |
@@ -58,7 +58,7 @@
 | L4b4d230a. For calls handled between 2026-05-31 and 2026-06-30, break down by agent name, queue, and wrap-up code: how many distinct conversations were handled and how many of those calls were transferred? Show the top 500 combinations ranked by number of conversations, highest first. | kept | 500 |
 | L4cc2c24f. For each customer (identified by CIF number), how many app sessions did they have and how many total screens were viewed, from 2026-03-24 onward? | kept | 15,608 |
 | L4dee27ab. Since 2026-05-26, for each landing page where customers visited help/support, how many distinct customers visited that page, and among those, how many also contacted us in the last 90 days? Show the top 50 landing pages ranked by number of customers. | kept | 15 |
-| L4e0f44e9. For account closure calls handled at the SPK site between 2026-05-31 and 2026-06-30, what is the abandonment rate for each wrap-up code, broken down by week (week starting Monday)? | kept | 6 |
+| L4e0f44e9. For account closure calls handled at the SPK site between 2026-05-31 and 2026-06-30, what is the abandonment rate for each wrap-up code, broken down by week (week starting Monday)? | kept | 7 |
 | L4f929b5b. For each conversation date, the week it falls in (weeks starting Monday), and IVR intent, between 2026-04-01 and 2026-06-29, how many distinct calls were there and how many of those calls were transferred? Show the top 500 rows ranked by call count. | kept | 500 |
 | L5330bf47. For account closure calls handled between 2025-06-30 and 2026-06-30, what is the call abandon rate for each contact center site, listing all sites ordered from highest to lowest abandon rate? | kept | 4 |
 | L5515d30a. For campaigns that led to a checking account being opened on or after 2026-03-09, how many conversions did each campaign generate and what was the average number of hours between the campaign send and the conversion, broken down by campaign name, ordered from the most to fewest conversions? | kept | 5,200 |
@@ -74,7 +74,7 @@
 | L5e47c60f. For overdraft (OD) and non-sufficient funds (NSF) fees assessed on or after 2026-04-27, what is the total number of fees and the total net fee amount for each fee type? | kept | 2 |
 | L5e63b8a9. For marketing campaign emails with an event date between 2026-04-05 and 2026-06-03, what were the open rate (opened as a share of delivered) and click rate (clicked as a share of delivered), broken down by customer segment? | kept | 5 |
 | L5eadc021. What is the total accrued interest across all accounts, by month, for balances dated 2026-03-27 onward? | kept | 3 |
-| L5ed9db67. List the customers (CIF number and full name) who had an account closure call on 2026-05-21, along with the conversation date and wrap-up code name for each call. | kept | 30 |
+| L5ed9db67. List the customers (CIF number and full name) who had an account closure call on 2026-05-21, along with the conversation date and wrap-up code name for each call. | kept | 33 |
 | L5f5e344a. For voice calls handled from 2026-06-23 to 2026-06-29, what were the abandonment rate, average handle time, and number of distinct conversations by queue, ranked from highest to lowest abandonment rate? | kept | 87 |
 | L62fdbc12. For each marketing campaign and each event date between 2026-04-01 and 2026-06-30, what was the number of clicks, the number of messages delivered, and the open rate (opens divided by delivered)? Show the 5000 rows with the highest click counts first. | kept | 5,000 |
 | L6505b2e4. For credit applications submitted on or after 2026-03-17 that were ultimately approved, what are the average approved amount, the average approved APR, and the number of applications, broken down by product line? | kept | 5 |
@@ -87,7 +87,7 @@
 | L6ce6e9c3. For card transactions of type purchase (PURCH) made by affluent or private segment customers, with a post date from 2025-07-01 to 2026-06-30, show for each combination of whether the transaction was foreign and the transaction type: the total interchange, the total spend on purchase transactions, and the count of distinct settlements. | kept | 2 |
 | L6d29ff82. For each contact center site and month since October 2025, what is the total site cost, combining general ledger expenses with vendor invoice amounts? | kept | 27 |
 | L6d2aee92. What is the total card purchase spend by merchant category group and by month, for transactions posted on or after 2026-02-03? | kept | 27 |
-| L6dac6b62. For each customer, since 2026-02-10, how many contact center calls have they had, how many of those were account closure calls, and what is their average call handle time (in seconds)? | too many rows (21,918) | 21,918 |
+| L6dac6b62. For each customer, since 2026-02-10, how many contact center calls have they had, how many of those were account closure calls, and what is their average call handle time (in seconds)? | too many rows (23,517) | 23,517 |
 | L6e2cd931. For voice calls with a conversation date from 2025-07-01 to 2026-06-30, broken down by whether the call center site is outsourced and by call wrap-up code, what was the abandonment rate and the number of transferred calls? Show the 500 combinations with the highest abandonment rate. | kept | 174 |
 | L6f55e765. For each marketing campaign, how many messages were delivered, opened, and clicked, and what was the open rate (opens divided by delivered), for engagement events dated from 2026-05-31 to 2026-06-29, showing the 100 campaigns with the most delivered messages ranked highest first? | kept | 100 |
 | L6fe9ce4c. For conversations that took place on or after 2026-05-07, what is the average CSAT score and the number of surveys, broken down by customer segment? | kept | 5 |
@@ -114,9 +114,9 @@
 | L8634c1ea. For each month, how many distinct cardholders made card transactions, and what was the total purchase spend, ordered from the highest number of cardholders to the lowest (showing up to the top 500 months)? | kept | 3 |
 | L873d32ca. For all contacts that took place in the month of May (across all years), what is the total number of contacts, broken down by year and site? | kept | 13 |
 | L87ee24ce. For each day from 2026-05-02 onward, how many deposit transactions were posted for each transaction type? | kept | 649 |
-| L8bc8a936. For calls on 2026-05-27 where the customer's NPS survey response was a detractor, list each conversation's ID, the handling agent's user ID, the NPS score given, and the call's wrap-up code name. | kept | 50 |
+| L8bc8a936. For calls on 2026-05-27 where the customer's NPS survey response was a detractor, list each conversation's ID, the handling agent's user ID, the NPS score given, and the call's wrap-up code name. | kept | 60 |
 | L8ee70d9a. For the SPK contact center site, what was the call abandon rate (the share of calls that were abandoned) for the week from 2026-06-23 to 2026-06-29? | kept | 1 |
-| L8f767484. For account closure calls handled at the SPK site during the week of 2026-06-23 to 2026-06-29, what is, for each agent, week, and site: the average handle time, the number of closure calls, and the total number of calls? | kept | 32 |
+| L8f767484. For account closure calls handled at the SPK site during the week of 2026-06-23 to 2026-06-29, what is, for each agent, week, and site: the average handle time, the number of closure calls, and the total number of calls? | kept | 28 |
 | L8f9a7871. For each campaign, since 2026-04-09, how many engagement events were delivered, opened, and clicked, and what is the click-through rate (clicks divided by delivered), ordered from most to fewest delivered? | kept | 5,200 |
 | L9732be23. For accounts that had a delinquency bucket as of 2026-03-15, show how many moved to each delinquency bucket as of 2026-04-12 (or became 'CURED' if no longer delinquent), broken down by starting bucket and ending bucket, with the count of accounts for each starting-to-ending bucket combination. | empty | 0 |
 | L97338912. For voice calls about account closures with a conversation date from 2026-05-31 to 2026-06-29, what is the abandon rate broken down by whether the site is outsourced, the IVR intent, and the media type? Show the top 500 combinations ordered by abandon rate, highest first. | kept | 3 |
@@ -132,13 +132,13 @@
 | La5545641. For calls in the month of June (any year), what is the number of calls by call month and site code? | kept | 9 |
 | La622ca35. For loan/account application forms, between 2026-04-25 and 2026-05-06, how many distinct users reached each application step, listing the steps from the one with the most users to the one with the fewest? | empty | 0 |
 | La6c932d6. Since 2026-03-14 (inclusive), how many distinct customers have called in and how many total calls have there been, broken down by customer segment? | kept | 5 |
-| La7769de1. For each month from 2025-02-01 onward, broken down by site and source system, how many total contacts were there and how many of them were account closure calls? | kept | 36 |
+| La7769de1. For each month from 2025-02-01 onward, broken down by site and source system, how many total contacts were there and how many of them were account closure calls? | kept | 60 |
 | Laae51758. For voice calls with a conversation date from 2026-04-01 to 2026-06-29, what were the abandonment rate, average handle time, and number of transferred calls for each queue, ordered from highest to lowest abandonment rate? | kept | 87 |
 | Laedcf94e. How many account closures were there for each account family and close reason, sorted by account family and then by number of closures from highest to lowest? | kept | 12 |
 | Laf86f8c8. For each contact center site and month from 2025-10-01 onward, what was the total expense, payroll expense, and vendor expense? | kept | 27 |
 | Lb012a03c. For each day since 2026-04-14, what share of voice calls were abandoned (i.e., the number of abandoned voice calls divided by the total number of voice calls), broken down by conversation date? | kept | 77 |
 | Lb04a395e. Since 2026-06-01, how many app sessions have there been for each combination of app version and platform, ranked from the most sessions to the fewest? | kept | 6 |
-| Lb680ccfe. For each agent, site outsourcing status (outsourced vs in-house), and media type, what was the call abandonment rate, average handle time, and number of transferred calls for contacts with a conversation date from 2026-05-31 to 2026-06-29? | kept | 2,683 |
+| Lb680ccfe. For each agent, site outsourcing status (outsourced vs in-house), and media type, what was the call abandonment rate, average handle time, and number of transferred calls for contacts with a conversation date from 2026-05-31 to 2026-06-29? | kept | 2,656 |
 | Lb79256f9. Since 2026-04-06, for each online banking user, how many failed login attempts have they had, how many distinct devices have they logged in from, and how many distinct countries have they logged in from? Include only users with at least 10 failed attempts or logins from more than 1 country, and return the top 500 ordered by failed attempts (highest first). | kept | 500 |
 | Lb7adf6c4. As of 2026-04-28, what is the total ledger balance and the number of distinct accounts, broken down by product family, ordered from the highest total balance to the lowest? | kept | 4 |
 | Lb8a36f12. Since 2026-04-07, how many distinct customers used the mobile app by platform, and what was the average number of screens viewed per session for each platform? | kept | 2 |
@@ -164,7 +164,7 @@
 | Ld349ea7a. For each customer, how many purchase transactions did they make in each merchant category group, counting all card purchase transactions posted on or after 2026-03-08? | too many rows (94,024) | 94,024 |
 | Ld49d2be4. Since 2026-04-15, how many customers received each possible number of campaign sends? For each count of sends per customer, show how many customers received that many sends. | kept | 312 |
 | Ld5366f8d. How many distinct accounts do not have a primary holder assigned? | kept | 1 |
-| Ld63381a3. For each site and month from 2025-11-01 onward, what was the number of contacts and the total expense? | kept | 9 |
+| Ld63381a3. For each site and month from 2025-11-01 onward, what was the number of contacts and the total expense? | kept | 24 |
 | Ld9c8c1f0. Since 2026-04-01, how many login attempts have there been by channel and country, ranked from highest to lowest count? | kept | 36 |
 | Ldb7eb3ce. What is the correlation between customers' churn scores from the version 2 model as of 2026-05-14 and their churn probabilities from the version 3 model as of 2026-05-15, and how many customers had scores from both models on those dates? | kept | 1 |
 | Ldc0a459b. Which affluent or private-segment customers have opted in to email and have an email address on file? List their customer ID (CIF number), full name, and primary email address. | kept | 1,566 |
@@ -173,7 +173,7 @@
 | Ldf5bcf3a. For each site, how many total contact center calls were there and how many of those were account closure calls, for calls with a conversation date between 2026-03-11 and 2026-04-01? | kept | 4 |
 | Ldf622140. For card purchase transactions posted from 2026-05-31 to 2026-06-29, broken down by whether the transaction was foreign, merchant category group, and customer segment (affluent and private customers only), what was the total spend? | kept | 36 |
 | Ldfe49bfa. For fees assessed between 2026-03-04 and 2026-06-11, what were the total net fee amount, total gross fee amount, and count of waived fees, broken down by customer segment and fee type? | kept | 35 |
-| Le166be49. For each site and month from 2025-11-01 onward, what were the total contacts, the number of closure calls, and the average handle time in minutes (rounded to 1 decimal place)? | kept | 12 |
+| Le166be49. For each site and month from 2025-11-01 onward, what were the total contacts, the number of closure calls, and the average handle time in minutes (rounded to 1 decimal place)? | kept | 32 |
 | Le50954e7. For calls with a conversation date from 2026-06-23 to 2026-06-29, how many distinct account closure calls were there for each contact center site type (outsourced vs. not outsourced)? | kept | 3 |
 | Le5559ed6. Since 2026-03-16, how many conversions have there been, broken down by send channel and conversion behavior? | kept | 16 |
 | Le59b2970. For affluent and private segment customers, from 2026-04-01 to 2026-06-30, how many distinct card purchase transactions (settlements) were there for each combination of foreign transaction flag, transaction month, and transaction type? | kept | 6 |
@@ -182,7 +182,7 @@
 | Le8c70805. For each combination of digital enrollment status and whether a customer had any web sessions in the last 30 days, how many customers are there and what is their average total deposit balance? | kept | 3 |
 | Lea0a11f5. For each week starting 2026-02-06 onward, how many unsubscribes and how many bounces occurred among campaign engagement events? | kept | 14 |
 | Lea731b4b. For deposit transactions posted from 2025-10-01 onward, what is the total transaction amount by month and transaction type, for wire transfers and ACH debits? | kept | 6 |
-| Leb26b397. For each week starting on or after 2026-03-12, what was the average CSAT score and average NPS score from customer conversations, broken down by week? | kept | 14 |
+| Leb26b397. For each week starting on or after 2026-03-12, what was the average CSAT score and average NPS score from customer conversations, broken down by week? | kept | 17 |
 | Lecec1d54. For voluntary account closures since 2026-02-01, how many closures were there each week, broken down by account family and close reason? Please group the results by week, account family, and close reason, and within each week order results by closure count from highest to lowest. | kept | 77 |
 | Led874c20. For affluent and private segment customers, for card transactions posted from 2026-05-31 to 2026-06-29, what is the total interchange and total spend (spend on purchase transactions only), broken down by whether the transaction was foreign, the merchant category group, and the transaction type? | kept | 115 |
 | Ledff3723. For each conversation date from 2026-05-31 to 2026-06-29, how many distinct calls were handled and what was the average handle time (in seconds), ranked from the highest call count to the lowest? | kept | 30 |

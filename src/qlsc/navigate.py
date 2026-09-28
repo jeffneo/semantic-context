@@ -594,13 +594,13 @@ def answer_cypher(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: 
             answer |= {"cypher": out["cypher"], "explanation": out["explanation"], "check": check}
             if execute and "error" not in check:
                 t0 = time.time()
-                result = V.run(out["cypher"])
-                data = [r.data() for r in result.records]
+                columns, data, more = V.capped(out["cypher"], p["cypher_max_rows"])
                 answer["result"] = {
                     "ok": True,
-                    "columns": list(result.keys),
+                    "columns": columns,
                     "rows": data[: rows or p["rows_shown"]],
                     "total": len(data),
+                    "truncated": more,
                     "seconds": time.time() - t0,
                 }
     except ServiceUnavailable:
@@ -729,9 +729,74 @@ def unknown_names(cypher: str, nodes: list[dict], rels: list[dict]) -> list[str]
     )
 
 
+# What Virtual Graph's Cypher subset rejects, found before EXPLAIN so the retry gets a precise reason.
+SUBSET = [
+    (
+        re.compile(r"\bOPTIONAL\s+MATCH\b", re.I),
+        "OPTIONAL MATCH is not supported: use MATCH, or group by the pointing column's property on the start node",
+    ),
+    (
+        re.compile(r"\[[^\]]*\*[^\]]*\]"),
+        "variable-length relationships (*) are not supported: write each hop out",
+    ),
+    (re.compile(r"\bCALL\s*(\(|\{)", re.I), "CALL subqueries are not supported"),
+    (re.compile(r"\bEXISTS\s*\{", re.I), "EXISTS subqueries are not supported: MATCH the pattern instead"),
+    (re.compile(r"\bUNION\b", re.I), "UNION is not supported"),
+    (
+        re.compile(r"\b(date|datetime|localdatetime|duration)\s*\(\s*\)", re.I),
+        "date() and the like have no current date here: use a literal date('YYYY-MM-DD') from the calendar",
+    ),
+]
+
+
+def subset_errors(cypher: str) -> list[str]:
+    """Constructs Virtual Graph's subset rejects: the table above, and a MATCH after the first WITH."""
+    text = re.sub(r"'[^']*'|\"[^\"]*\"|//[^\n]*", "''", cypher)  # never match inside a literal or a comment
+    out = [msg for pattern, msg in SUBSET if pattern.search(text)]
+    clauses = re.split(r"\b(?=(?:MATCH|WITH|RETURN|WHERE|ORDER\s+BY|UNWIND)\b)", text, flags=re.I)
+    seen_with = False
+    for c in clauses:
+        head = c.strip().split(None, 1)[0].upper() if c.strip() else ""
+        if head == "WITH":
+            seen_with = True  # an aggregating WITH is left to EXPLAIN: Virtual Graph runs some forms of it
+        elif head == "MATCH" and seen_with:
+            out.append("every MATCH must come before the first WITH")
+    return list(dict.fromkeys(out))
+
+
+def wrong_directions(cypher: str, nodes: list[dict], rels: list[dict]) -> list[str]:
+    """Relationships a query walks against the direction the model gives them. Virtual Graph finds no
+    rows for a reversed pattern, so the answer would be silently empty."""
+    labels = {n["label"] for n in nodes}
+    bound = {v: label for v, label in re.findall(r"\((\w+)\s*:\s*(\w+)", cypher) if label in labels}
+    ends = {r["label"]: (r["start"]["targetEntity"], r["end"]["targetEntity"]) for r in rels}
+    node = r"\(\s*(\w*)\s*(?::\s*(\w+))?[^()]*\)"
+    hop = re.compile(node + r"\s*(<?)-\[\s*\w*\s*:\s*(\w+)[^\]]*\]-(>?)\s*(?=" + node + ")")
+    out = []
+    for m in hop.finditer(cypher):
+        v1, l1, left, rel, right = m.group(1), m.group(2), m.group(3), m.group(4), m.group(5)
+        m2 = re.match(node, cypher[m.end() :])
+        v2, l2 = m2.group(1), m2.group(2)
+        a, b = l1 or bound.get(v1), l2 or bound.get(v2)
+        if rel not in ends or not a or not b or bool(left) == bool(right):
+            continue
+        start, end = (a, b) if right else (b, a)
+        if (start, end) != ends[rel] and (end, start) == ends[rel]:
+            out.append(f"{rel} goes ({ends[rel][0]})-[:{rel}]->({ends[rel][1]}), not the other way")
+    return list(dict.fromkeys(out))
+
+
 def explain(V: Graph, cypher: str, nodes: list[dict] | None = None, rels: list[dict] | None = None) -> dict:
-    """Virtual Graph's verdict on a query without running it: {sql: [...]} | {error}. With the model's
-    nodes and relationships, a label, relationship type or property the graph lacks is an error too."""
+    """Virtual Graph's verdict on a query without running it: {sql: [...]} | {error}. Checked first,
+    without a round trip: the constructs its subset rejects; and, with the model's nodes and
+    relationships, a label, relationship type or property the graph lacks, and a relationship walked
+    against its direction."""
+    unsupported = subset_errors(cypher)
+    if unsupported:
+        return {"error": "not supported by Virtual Graph: " + "; ".join(unsupported)}
+    reversed_ = wrong_directions(cypher, nodes or [], rels or [])
+    if reversed_:
+        return {"error": "relationship direction: " + "; ".join(reversed_)}
     missing = unknown_names(cypher, nodes, rels or []) if nodes else []
     if missing:
         return {"error": "not in the graph given: " + "; ".join(missing)}

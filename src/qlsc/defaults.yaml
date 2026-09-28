@@ -29,7 +29,7 @@ parameters:
 
   computations:                       # qlsc computations: measures, derived dimensions and populations from the log
     batch: 25                         # computations named per LLM call (short evidence each)
-    merge_similarity: 0.95            # vector score (cosine 0.9) above which two of one kind are candidates to merge; the LLM confirms
+    merge_similarity: 0.92            # vector score (cosine 0.84) above which two of one kind, over the same tables, are candidates to merge; the LLM confirms (0.95 missed duplicates such as two Average Call Handle Times)
     merge_neighbours: 6               # nearest neighbours looked at per computation
     merge_batch: 10                   # candidate sets per LLM call
 
@@ -67,6 +67,7 @@ parameters:
     mode: combined                    # traversal (through the hierarchy) | flat (level 1 only) | combined
     rank: round_robin                 # round_robin (each group in turn) | usage (most-queried first)
     maximum_bytes_billed: 1000000000  # ask --run: the most one answer may bill (1 GB); a bigger query fails rather than runs
+    cypher_max_rows: 100000           # ask --cypher --run: rows read from Virtual Graph, streamed; more is reported as truncated, not held in memory
     rows_shown: 20                    # ask --run: rows of the answer printed
     examples: 3                       # queries from the log shown to the query writer
     examples_by: similarity           # similarity: closest to the question, none reading a sandbox or frozen table | runs: most-run over the cohort

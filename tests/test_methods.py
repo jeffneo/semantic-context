@@ -14,8 +14,10 @@ from qlsc.navigate import (
     round_robin,
     shape_text,
     similar,
+    subset_errors,
     unknown_names,
     unknown_properties,
+    wrong_directions,
 )
 from qlsc_parse.catalog import Catalog
 
@@ -133,6 +135,28 @@ def test_unknown_labels_and_types_are_caught():
         "label DailyBalance",
         "relationship type BALANCE_OF",
     ]
+
+
+def test_virtual_graph_subset_is_linted():
+    ok = "MATCH (c:Call) WHERE c.note = 'OPTIONAL MATCH' WITH c.site_id AS s, count(*) AS n RETURN s, n"
+    assert subset_errors(ok) == []  # inside a literal, and an aggregating WITH, are left alone
+    bad = "MATCH (a:Account) OPTIONAL MATCH (a)-[:OWNED_BY*1..2]->(c) WITH a MATCH (b) RETURN date()"
+    assert [e.split(":")[0] for e in subset_errors(bad)] == [
+        "OPTIONAL MATCH is not supported",
+        "variable-length relationships (*) are not supported",
+        "date() and the like have no current date here",
+        "every MATCH must come before the first WITH",
+    ]
+
+
+def test_reversed_relationships_are_caught():
+    nodes = [{"label": "Account"}, {"label": "Customer"}]
+    rels = [{"label": "OWNED_BY", "start": {"targetEntity": "Account"}, "end": {"targetEntity": "Customer"}}]
+    assert wrong_directions("MATCH (a:Account)-[:OWNED_BY]->(c:Customer) RETURN c", nodes, rels) == []
+    assert wrong_directions("MATCH (c:Customer)<-[:OWNED_BY]-(a:Account) RETURN c", nodes, rels) == []
+    assert wrong_directions(
+        "MATCH (a:Account) MATCH (c:Customer)-[:OWNED_BY]->(a) RETURN c", nodes, rels
+    ) == ["OWNED_BY goes (Account)-[:OWNED_BY]->(Customer), not the other way"]
 
 
 def test_similar_examples_skip_distrusted_tables():
