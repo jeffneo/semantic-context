@@ -628,6 +628,7 @@ def compiled_request(G: Graph, s: Settings, tr: dict) -> tuple[dict, compiler.Ca
             [r["sql"] for r in G.rows(WEEK_TEXTS, table=t, column=col)], col
         )
         found += compiler.weeks(request, cat, usage, tr["question"])
+        found += compiler.open_period(request, today(s).isoformat(), tr["question"])
     return request, cat, found
 
 
@@ -704,7 +705,42 @@ def answer_free(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: in
     return answer
 
 
-def answer_cypher(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int | None = None) -> dict:
+def answered(a: dict) -> bool:
+    """Whether a route gave an answer: not declined or skipped, and its query checked (and ran)."""
+    if any(k in a for k in ("skipped", "declined", "error")) or "error" in a.get("check", {}):
+        return False
+    return (a.get("result") or {}).get("ok", True) is not False and bool(a.get("sql") or a.get("cypher"))
+
+
+def pick(sql: dict, cypher: dict | None) -> str:
+    """The router's rule (plans/2026-09-26-router.md, as revised): the compiled SQL when the question
+    compiles, since compiled Cypher is the same plan with less (no outer join's null group, no HAVING
+    pushed down); otherwise free Cypher when it answers, which reaches the neighbourhoods and paths a
+    request can't express; otherwise free SQL. -> 'sql' | 'cypher'"""
+    if sql.get("writer") == "compiled":
+        return "sql"
+    return "cypher" if cypher is not None and answered(cypher) else "sql"
+
+
+def answer_routed(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int | None = None) -> dict:
+    """Step 6 by the router (`pick`), running only what it needs: the compiled SQL; failing that, free
+    Cypher; failing that, free SQL. -> the chosen route's answer, with `route`."""
+    if s.params["navigate"]["writer"] == "compiled":
+        a = answer_compiled(G, s, tr, execute, rows)
+        if "sql" in a:
+            return a | {"route": "sql"}
+        fallback = {"fallback": a["fallback"], "request": a.get("request")}
+    else:
+        fallback = {}
+    c = answer_cypher(G, s, tr, execute, rows, writer="free")
+    if pick({}, c) == "cypher":
+        return c | fallback | {"route": "cypher"}
+    return answer_free(G, s, tr, execute, rows) | {"writer": "free", "route": "sql"} | fallback
+
+
+def answer_cypher(
+    G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int | None = None, writer: str | None = None
+) -> dict:
     """Step 6 over the virtual graph, by the writer configured (navigate.writer): the compiler, falling
     back to free Cypher when the question doesn't compile; or free Cypher, from the cohort's labels.
     Checked with Virtual Graph's EXPLAIN; step 7, the answer, with `execute`.
@@ -720,7 +756,7 @@ def answer_cypher(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: 
         return {"skipped": "none of the cohort's tables is in the virtual graph"}
     model = json.loads(path.read_text())
     fallback = {}
-    if p["writer"] == "compiled":
+    if (writer or p["writer"]) == "compiled":
         out = cypher_compiled(G, s, tr, labels, model["entities"], instance, execute, rows)
         if "fallback" not in out:
             return out
@@ -1059,11 +1095,25 @@ def explain(V: Graph, cypher: str, nodes: list[dict] | None = None, rels: list[d
         return {"error": (e.message or str(e)).split("\n")[0]}
 
 
-def run(s: Settings, question: str, sql: bool = True, cypher: bool = False, execute: bool = False) -> None:
+def run(
+    s: Settings,
+    question: str,
+    sql: bool = True,
+    cypher: bool = False,
+    execute: bool = False,
+    routed: bool = False,
+) -> None:
     with Graph(s) as G:
         tr = trace(G, s, question)
         print_trace(tr)
-        if sql and cypher:
+        if routed:
+            a = answer_routed(G, s, tr, execute)
+            print(
+                f"\nrouted to {a['route'].upper()} ({a.get('writer')})"
+                + (f"; the request didn't compile: {a['fallback']}" if a.get("fallback") else "")
+            )
+            (print_cypher if a["route"] == "cypher" else print_sql)(a)
+        elif sql and cypher:
             print_cypher(answer_cypher(G, s, tr, execute))
         elif sql:
             print_sql(answer_sql(G, s, tr, execute))

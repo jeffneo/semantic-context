@@ -3,8 +3,9 @@
 Every prompt lives in prompts/ at the repository root, one file each, with {placeholders} filled by
 prompt(name, **values). Code never holds prompt text.
 
-LLM: Anthropic (config `llm.model`), one forced tool per call so the answer is structured, cached by
-the full request in <work>/llm_cache/. Embeddings: Azure OpenAI (config `embeddings`), cached by text
+LLM: Anthropic (config `llm.model`), one forced tool per call so the answer is structured; a model that
+takes no forced tool (Sonnet 5.5) gets the same schema as a structured output instead. Cached by the full
+request in <work>/llm_cache/. Embeddings: Azure OpenAI (config `embeddings`), cached by text
 in <work>/emb_cache.json. A rebuild over unchanged evidence calls neither.
 """
 
@@ -29,9 +30,25 @@ def prompt(name: str, **values) -> str:
     return (PROMPTS / f"{name}.md").read_text().format(**values)
 
 
+def strict(schema):
+    """A schema as structured outputs take it: every object closed (additionalProperties false)."""
+    if isinstance(schema, dict):
+        out = {k: strict(v) for k, v in schema.items()}
+        if out.get("type") == "object":
+            out["additionalProperties"] = False
+        return out
+    if isinstance(schema, list):
+        return [strict(v) for v in schema]
+    return schema
+
+
 class LLM:
+    no_forced_tool: set[str] = set()  # models that reject tool_choice "tool", found on the first call
+
     def __init__(self, system: str, settings: Settings, model: str | None = None):
         self.model = model or settings["llm"]["model"]
+        llm = settings["llm"]
+        self.thinking = llm["query_thinking"] if self.model == llm["query_model"] else None
         self.workers = settings["llm"]["concurrency"]
         self.system = system
         self.client = anthropic.Anthropic(api_key=secret("ANTHROPIC_API_KEY"))
@@ -46,25 +63,34 @@ class LLM:
         if path.exists():
             self.cached += 1
             return json.loads(path.read_text())
+        out = None
         for attempt in range(5):
             try:
-                resp = self.client.messages.create(
-                    model=self.model,
-                    max_tokens=max_tokens,
-                    system=self.system,
-                    tools=[{"name": tool, "description": "Record the results.", "input_schema": schema}],
-                    tool_choice={"type": "tool", "name": tool},
-                    messages=[{"role": "user", "content": user}],
-                )
-                break
+                resp = self._create(user, schema, tool, max_tokens)
+            except anthropic.BadRequestError as e:
+                if "tool_choice" not in str(e) or self.model in LLM.no_forced_tool:
+                    raise
+                LLM.no_forced_tool.add(self.model)  # and ask again, as a structured output
+                continue
             except (anthropic.RateLimitError, anthropic.APIConnectionError, anthropic.InternalServerError):
                 time.sleep(2**attempt * 3)
-        else:
-            raise RuntimeError("LLM unavailable")
-        self.calls += 1
-        self.tokens["in"] += resp.usage.input_tokens
-        self.tokens["out"] += resp.usage.output_tokens
-        out = next(b.input for b in resp.content if b.type == "tool_use")
+                continue
+            self.calls += 1
+            self.tokens["in"] += resp.usage.input_tokens
+            self.tokens["out"] += resp.usage.output_tokens
+            if resp.stop_reason == "max_tokens":  # cut off: a structured output's JSON is left unterminated
+                max_tokens *= 2
+                continue
+            try:
+                if self.model in LLM.no_forced_tool:
+                    out = json.loads(next(b.text for b in resp.content if b.type == "text"))
+                else:
+                    out = next(b.input for b in resp.content if b.type == "tool_use")
+                break
+            except (StopIteration, ValueError):
+                continue
+        if out is None:
+            raise RuntimeError(f"LLM {self.model}: no structured answer after 5 attempts")
         for k, v in list(out.items()):  # a nested array sometimes arrives as a JSON string
             if isinstance(v, str) and v.lstrip().startswith(("[", "{")):
                 try:
@@ -73,6 +99,27 @@ class LLM:
                     pass
         path.write_text(json.dumps(out))
         return out
+
+    def _create(self, user: str, schema: dict, tool: str, max_tokens: int):
+        extra = {"thinking": {"type": self.thinking}} if self.thinking else {}
+        if self.model in LLM.no_forced_tool:
+            return self.client.messages.create(
+                model=self.model,
+                max_tokens=max_tokens,
+                system=self.system,
+                messages=[{"role": "user", "content": user}],
+                extra_body={"output_config": {"format": {"type": "json_schema", "schema": strict(schema)}}},
+                **extra,
+            )
+        return self.client.messages.create(
+            model=self.model,
+            max_tokens=max_tokens,
+            system=self.system,
+            tools=[{"name": tool, "description": "Record the results.", "input_schema": schema}],
+            tool_choice={"type": "tool", "name": tool},
+            messages=[{"role": "user", "content": user}],
+            **extra,
+        )
 
     def cost(self) -> float:
         """Haiku 4.5 list price: $1 / $5 per million input / output tokens."""

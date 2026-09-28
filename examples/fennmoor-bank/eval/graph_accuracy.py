@@ -20,7 +20,7 @@ from execution import MAXIMUM_BYTES_BILLED, ROUTES, ROWS
 from log_accuracy import verdict_of
 
 from qlsc.graph import Graph
-from qlsc.navigate import answer_cypher, answer_sql, trace
+from qlsc.navigate import answer_cypher, answer_sql, pick, trace
 from qlsc.warehouse import connect
 
 QUESTIONS = Path(__file__).resolve().parent / "graph_questions.yaml"
@@ -42,8 +42,9 @@ def main() -> int:
             items = [[c] for c in q["compare"]]
             tr = trace(G, s, q["question"])
             out = {"question": q["question"], "reference_rows": ref.get("total"), "cohort": tr["top"]}
+            answers = {}
             for route, answer in (("sql", answer_sql), ("cypher", answer_cypher)):
-                a = answer(G, s, tr, execute=True, rows=ROWS)
+                a = answers[route] = answer(G, s, tr, execute=True, rows=ROWS)
                 v, why = verdict_of(a, ref, items) if ref["ok"] else ("no reference", ref["error"][:100])
                 out[route] = {
                     "verdict": v,
@@ -53,6 +54,8 @@ def main() -> int:
                     "fallback": a.get("fallback"),
                 }
                 print(f"{i}/{len(wanted)} {qid} {route:6} {v:12} {why[:90]}", flush=True)
+            chosen = pick(answers["sql"], answers["cypher"])
+            out["routed"] = {"route": chosen, "verdict": out[chosen]["verdict"]}
             res[qid] = out
     n = lambda route, v: sum(1 for r in res.values() if r[route]["verdict"] == v)
     L = ["# Graph-shaped questions", ""]
@@ -70,6 +73,7 @@ def main() -> int:
             f"| {route} | {n(route, 'correct')} | {n(route, 'wrong')} | {n(route, 'empty')} | "
             f"{n(route, 'failed')} | {n(route, 'declined')} | {n(route, 'not covered')} |"
         )
+    L.append(f"| routed | {sum(r['routed']['verdict'] == 'correct' for r in res.values())} | | | | | |")
     L += ["", "| question | sql | cypher |", "|---|---|---|"]
     cell = lambda x: f"{x['verdict']}: {x['why']}".replace("|", "/")[:140]
     L += [f"| {q}. {r['question']} | {cell(r['sql'])} | {cell(r['cypher'])} |" for q, r in res.items()]

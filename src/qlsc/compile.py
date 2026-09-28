@@ -490,6 +490,18 @@ def weeks(request: dict, cat: Catalogue, usage, question: str) -> list[str]:
     return out
 
 
+def open_period(request: dict, today: str, question: str) -> list[str]:
+    """A period that ends today, in a question that names no end ("on or after April 22"), is open:
+    the data may run past today, and the question asked for all of it. Changes the request; returns
+    what changed."""
+    period = request.get("period") or {}
+    end = str(period.get("to") or "").strip()
+    if end != today or today in question:
+        return []
+    period["to"] = ""
+    return [f"period: the end {today} is today, which the question doesn't name: left open"]
+
+
 # ---- the plan
 
 

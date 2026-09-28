@@ -70,6 +70,7 @@ uv run qlsc build                     # parse, load, variables, computations, cl
 uv run qlsc ask "How many customers use the mobile app each week?"
 uv run qlsc ask --run "..."           # and run it: the answer, billed up to a cap
 uv run qlsc ask --cypher --run "..."  # Cypher over the virtual graph instead of SQL (below)
+uv run qlsc ask --route --run "..."   # the router's choice: compiled SQL, else free Cypher, else free SQL
 uv run qlsc okf                       # the Computations as an OKF bundle, in <work>/okf
 ```
 
@@ -79,13 +80,21 @@ exactly.
 
 ## How well `ask` answers
 
-Three answer keys in the Fennmoor example, each scored on the answer's rows, not on the SQL:
+Three answer keys in the Fennmoor example, each scored on the answer's rows, not on the SQL. With the
+compiler (`navigate.writer: compiled`) and Sonnet 5.5 writing the requests (2026-09-28):
 
-| Answer key | SQL route | Cypher route (virtual graph) |
-|---|---|---|
-| 10 gold questions, hand-written references | 7 | 3 (it declines 6 whose data isn't in the virtual graph) |
-| 176 questions written from the log's own queries, each with its query as the reference | 130 (74%) | 41 on the previous data, of which 39 are among the 69 the virtual graph can cover |
-| 10 graph-shaped questions: neighbourhoods, several hops, shared neighbours | 5 | 7 |
+| Answer key | SQL route | Cypher route (virtual graph) | Routed (`ask --route`) |
+|---|---|---|---|
+| 10 gold questions, hand-written references | 6 | 3 (it declines 6 whose data isn't in the virtual graph) | 6 |
+| 176 questions written from the log's own queries, each with its query as the reference | 133 (76%) | 38 | 133 |
+| 10 graph-shaped questions: neighbourhoods, several hops, shared neighbours | 5 | 8 | 8 |
+
+The free writer with Sonnet 5, before the compiler: 7, 129 and 5 on the SQL route; 3, 41 and 7 on
+Cypher.
+- **The compiler** writes 88% of the SQL answers deterministically (154 of 176), 79% of them right. The
+  LLM fills a typed request; code writes the joins and the definitions.
+- **The router** takes compiled SQL when the question compiles, otherwise free Cypher when it answers,
+  otherwise free SQL. It scores the better route on each answer key.
 
 - **Aggregate questions:** SQL is ahead, and Cypher over the virtual graph adds a second translation
   step and no reach.
@@ -98,7 +107,8 @@ Three answer keys in the Fennmoor example, each scored on the answer's rows, not
   - Answers are streamed and capped.
 
 The evaluations, and what moved each number, are in
-[plans/2026-09-26-accuracy.md](plans/2026-09-26-accuracy.md).
+[plans/2026-09-26-accuracy.md](plans/2026-09-26-accuracy.md), [the compiler plan](plans/2026-09-28-compiler.md)
+and [its second step](plans/2026-09-28-compiler-2.md).
 
 ## What the business computes: Computations and OKF
 

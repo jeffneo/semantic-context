@@ -36,16 +36,16 @@ qlsc infers a semantic layer for a data warehouse from its query log, in Neo4j. 
 uv sync
 uv run qlsc --help                       # extract, build, one command per stage, ask
 QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc build
-QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc ask "question"
+QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc ask "question"   # --run, --cypher, --route
 QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc computations   # then: qlsc okf (the OKF bundle, <work>/okf)
 uv run pytest                            # needs Neo4j up for the demo-query tests
 uv run ruff check . && uv run ruff format .
 uv run --no-project --with 'sqlglot[c]==30.19.0' --with pytest pytest parser/tests -q
 uv run examples/fennmoor-bank/eval/{bottom_layer,navigation,robustness,seeds}.py   # -> results/
 uv run examples/fennmoor-bank/eval/answers.py         # the gold questions' reference answers, from the filled data
-uv run examples/fennmoor-bank/eval/execution.py       # ask's answers to the gold questions, by SQL and by Cypher
+uv run examples/fennmoor-bank/eval/execution.py [param=value ...]  # ask's answers to the gold questions, by SQL, Cypher and the router
 uv run examples/fennmoor-bank/eval/log_questions.py write|run   # 176 questions written from the log's own queries
-uv run examples/fennmoor-bank/eval/log_accuracy.py    # ask's answers to them (about an hour, about $6 of LLM calls)
+uv run examples/fennmoor-bank/eval/log_accuracy.py [param=value ...]  # ask's answers to them (about an hour, about $6 of LLM calls)
 uv run examples/fennmoor-bank/eval/qdd.py <name> [--route=cypher] [param=value ...]   # a quick A/B of one setting: 40 questions, minutes
 uv run examples/fennmoor-bank/eval/graph_accuracy.py [param=value ...]  # ten graph-shaped questions, both routes
 uv run examples/fennmoor-bank/generate/fill.py --slice 2   # fill BigQuery with rows (plans/2026-09-26-fill-*.md)

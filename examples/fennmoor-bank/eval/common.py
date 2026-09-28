@@ -80,3 +80,17 @@ def ari(a: dict, b: dict) -> float:
     expected = ea * eb / n if n else 0
     top = (ea + eb) / 2
     return (index - expected) / (top - expected) if top != expected else 1.0
+
+
+def overrides(s, argv: list[str]) -> tuple[list[str], str]:
+    """`param=value` arguments set navigation parameters (writer=compiled); the rest are returned. The
+    suffix names the result file after them, so a run with overrides never writes over the baseline."""
+    import re
+
+    import yaml
+
+    sets = [a for a in argv if "=" in a and not a.startswith("--")]
+    for a in sets:
+        k, v = a.split("=", 1)
+        s.params["navigate"][k] = yaml.safe_load(v)
+    return [a for a in argv if a not in sets], "".join(f"_{re.sub(r'\W+', '_', a)}" for a in sets)

@@ -5,8 +5,12 @@
 
 llm:
   model: claude-haiku-4-5-20251001    # names variables and groups: hundreds of short calls; ANTHROPIC_API_KEY
-  query_model: claude-sonnet-5       # writes ask's SQL and Cypher, without extended thinking. Haiku got 1 of 10
-                                     # gold questions right given the answer key's own tables; Sonnet 5 got 4
+  query_model: claude-sonnet-5-5     # writes ask's SQL and Cypher, and the compiler's requests. Haiku got 1 of 10
+                                     # gold questions right given the answer key's own tables; Sonnet 5 got 4.
+                                     # Sonnet 5.5 (2026-09-28) takes no forced tool: its answers come as structured outputs
+  query_thinking: between_tools      # the thinking setting sent with the query model's calls (null: none sent). Sonnet 5.5
+                                     # can't turn thinking off; between_tools is its lowest, no thinking before a single
+                                     # answer, as the query model ran on Sonnet 5
   concurrency: 6
 
 embeddings:                           # Azure OpenAI: AZURE_OPENAI_API_KEY, _ENDPOINT, _API_VERSION
@@ -78,7 +82,7 @@ parameters:
     writer: free                      # both routes' writer: free (the LLM writes SQL or Cypher) | compiled (the LLM fills one typed request, qlsc/compile.py compiles it to SQL or to Cypher over the Virtual Graph; free writing when it doesn't fit)
     compile_computations: 12          # compiled: Computations offered as the request's options, closest to the question first
     compile_hops: 2                   # compiled: the longest join path from the fact table
-    compile_checks: true              # compiled: check the request against the question (a Computation's restriction it doesn't state, a value it states that the request leaves out) and ask once more with what was found; a week grain follows the log's truncation of that column
+    compile_checks: true              # compiled: check the request against the question (a Computation's restriction it doesn't state, a value it states that the request leaves out) and ask once more with what was found; a week grain follows the log's truncation of that column; a period ending today that the question doesn't end is left open
     compile_check_chars: 4            # compiled: the shortest value checked; shorter codes ('A', 'Y') match words by accident
     anchors: question                 # question: one embedding of the whole question | parts: the question broken into measures, groupings, filters and entities (an LLM call), each navigated from
     anchor_groups: 2                  # parts: level-1 groups each part opens

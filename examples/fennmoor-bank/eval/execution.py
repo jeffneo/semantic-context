@@ -27,10 +27,10 @@ from decimal import Decimal
 from pathlib import Path
 
 import yaml
-from common import SPEC, settings, write_result
+from common import SPEC, overrides, settings, write_result
 
 from qlsc.graph import Graph
-from qlsc.navigate import answer_cypher, answer_sql, trace
+from qlsc.navigate import answer_cypher, answer_sql, pick, trace
 from qlsc.warehouse import connect
 
 REFERENCE = Path(__file__).resolve().parent / "reference"
@@ -254,8 +254,9 @@ def judge(refs: list[dict], got: dict) -> tuple[str, str]:
 
 def main() -> int:
     questions = yaml.safe_load((SPEC / "questions.yaml").read_text())["questions"]
-    wanted = sys.argv[1:] or sorted(questions)
     s = settings()
+    argv, suffix = overrides(s, sys.argv[1:])
+    wanted = argv or sorted(questions)
     wh = connect(s)
     res = {}
     with Graph(s) as G:
@@ -264,8 +265,9 @@ def main() -> int:
             columns = refs[0]["items"]
             tr = trace(G, s, questions[qid]["question"])
             out = {"question": questions[qid]["question"], "compare": columns, "cohort": tr["top"]}
+            answers = {}
             for route, answer in (("sql", answer_sql), ("cypher", answer_cypher)):
-                a = answer(G, s, tr, execute=True, rows=ROWS)
+                a = answers[route] = answer(G, s, tr, execute=True, rows=ROWS)
                 got = a.get("result")
                 if "skipped" in a:
                     verdict, why = "not covered", a["skipped"]
@@ -279,8 +281,15 @@ def main() -> int:
                     verdict, why = "not scored", f"{got['total']:,} rows"
                 else:
                     verdict, why = judge(refs, got)
-                out[route] = {"verdict": verdict, "why": why, "query": a.get("sql") or a.get("cypher")}
-                print(f"{qid} {route:6} {verdict:12} {why[:110]}")
+                out[route] = {
+                    "verdict": verdict,
+                    "why": why,
+                    "query": a.get("sql") or a.get("cypher"),
+                    "writer": a.get("writer"),
+                }
+                print(f"{qid} {route:6} {verdict:12} {(a.get('writer') or '')[:8]:8} {why[:100]}", flush=True)
+            chosen = pick(answers["sql"], answers["cypher"])
+            out["routed"] = {"route": chosen, "verdict": out[chosen]["verdict"]}
             res[qid] = out
     L = ["# Execution accuracy", ""]
     L.append(
@@ -305,7 +314,13 @@ def main() -> int:
     for q, r in res.items():
         cell = lambda x: f"{x['verdict']}: {x['why']}".replace("|", "/")
         L.append(f"| {q}. {r['question']} | {cell(r['sql'])} | {cell(r['cypher'])} |")
-    print(f"-> {write_result('execution', L, res)}")
+    routed = [res[q]["routed"] for q in scored]
+    L += [
+        "",
+        f"Routed (compiled SQL, else free Cypher when it answers, else free SQL): "
+        f"{sum(r['verdict'] == 'correct' for r in routed)} of {len(scored)} correct.",
+    ]
+    print(f"-> {write_result('execution' + suffix, L, res)}")
     return 0
 
 

@@ -12,7 +12,8 @@ tables the reference reads).
 The answers are compared with the reference on its `compare` columns, by execution.py's matcher.
 
 Writes results/log_accuracy.md and .json.
-Usage: uv run examples/fennmoor-bank/eval/log_accuracy.py [N]   (N: only the first N questions)
+Usage: uv run examples/fennmoor-bank/eval/log_accuracy.py [N] [param=value ...]   (N: only the first N questions;
+       param=value: a navigation override, e.g. writer=compiled, written to log_accuracy_<overrides>.*)
        uv run examples/fennmoor-bank/eval/log_accuracy.py --report   (the last run, over the questions kept now)
 """
 
@@ -23,13 +24,14 @@ import sys
 from collections import Counter
 
 import yaml
-from common import RESULTS, settings, write_result
+from common import RESULTS, overrides, settings, write_result
 from execution import ROUTES, ROWS, compare
 from log_questions import QUESTIONS, answers_dir
 
 from qlsc import llm
 from qlsc.graph import Graph
-from qlsc.navigate import answer_cypher, answer_sql, trace
+from qlsc.navigate import answer_cypher, answer_sql, pick, trace
+from qlsc.warehouse import connect
 
 VIRTUAL = "MATCH (t:Table) WHERE t.graph_label IS NOT NULL RETURN t.id AS t"
 TOKENS = lambda s: s.work / "log_accuracy_tokens.json"  # the query writer's tokens, from the last full run
@@ -59,16 +61,20 @@ def verdict_of(a: dict, ref: dict, items: list[list[str]]) -> tuple[str, str]:
 def main() -> int:
     llm.LLM.__init__ = counted(llm.LLM.__init__)
     s = settings()
+    argv, suffix = overrides(s, sys.argv[1:])
     qs = yaml.safe_load(QUESTIONS.read_text())
     answers = json.loads((RESULTS / "log_answers.json").read_text())
     kept = {q for q, r in answers.items() if r["verdict"] == "kept"}
-    if sys.argv[1:] == ["--report"]:  # the last run's answers, over the questions kept now
-        res = {q: r for q, r in json.loads((RESULTS / "log_accuracy.json").read_text()).items() if q in kept}
-        return report(s, res, json.loads(TOKENS(s).read_text()))
-    wanted = [q for q in qs if q in kept][: int(sys.argv[1]) if len(sys.argv) > 1 else None]
+    name = "log_accuracy" + suffix
+    if argv == ["--report"]:  # the last run's answers, over the questions kept now
+        res = {q: r for q, r in json.loads((RESULTS / f"{name}.json").read_text()).items() if q in kept}
+        return report(s, res, json.loads(TOKENS(s).read_text()), name)
+    wanted = [q for q in qs if q in kept][: int(argv[0]) if argv else None]
+    if (probe := connect(s).dry_run("SELECT 1"))["ok"] is not True:  # fail now, not after an hour of failures
+        raise SystemExit(f"the warehouse isn't reachable: {probe.get('error')}")
     res = {}
     with Graph(s) as G:
-        for qid in wanted:
+        for i, qid in enumerate(wanted, 1):
             q = qs[qid]
             ref = json.loads((answers_dir(s) / f"{qid}.json").read_text())
             items = [[c] for c in q["compare"]]
@@ -81,20 +87,37 @@ def main() -> int:
                 "found": sorted(set(q["tables"]) & set(tr["top"])),
                 "sibling": sibling,
             }
+            answers = {}
             for route, answer in (("sql", answer_sql), ("cypher", answer_cypher)):
-                a = answer(G, s, tr, execute=True, rows=ROWS)
+                a = answers[route] = answer(G, s, tr, execute=True, rows=ROWS)
                 v, why = verdict_of(a, ref, items)
-                out[route] = {"verdict": v, "why": why, "query": a.get("sql") or a.get("cypher")}
-                print(f"{qid} {route:6} {v:12} {why[:100]}")
+                out[route] = {
+                    "verdict": v,
+                    "why": why,
+                    "query": a.get("sql") or a.get("cypher"),
+                    "writer": a.get("writer"),
+                    "fallback": a.get("fallback"),
+                }
+                print(
+                    f"{i}/{len(wanted)} {qid} {route:6} {v:12} {(a.get('writer') or '')[:8]:8} {why[:90]}",
+                    flush=True,
+                )
+                if "fresh login" in why:  # the credentials expired mid-run: every answer from here would fail
+                    raise SystemExit(f"stopped at {qid}: {why}")
+            chosen = pick(answers["sql"], answers["cypher"])
+            out["routed"] = {"route": chosen, "verdict": out[chosen]["verdict"]}
             res[qid] = out
+            if i % 10 == 0:  # partial results, so a stopped run still shows where it got to
+                (RESULTS / f"{name}.partial.json").write_text(json.dumps(res, indent=1, default=str))
     tokens = Counter()
     for c in MADE:
         tokens.update(c.tokens)
     TOKENS(s).write_text(json.dumps(tokens))
-    return report(s, res, tokens)
+    (RESULTS / f"{name}.partial.json").unlink(missing_ok=True)
+    return report(s, res, tokens, name)
 
 
-def report(s, res: dict, tokens: dict) -> int:
+def report(s, res: dict, tokens: dict, name: str = "log_accuracy") -> int:
     with Graph(s) as G:
         virtual = {r["t"] for r in G.rows(VIRTUAL)}
     L = ["# Execution accuracy over the log's questions", ""]
@@ -114,6 +137,22 @@ def report(s, res: dict, tokens: dict) -> int:
             f"| {route} | {n(route, 'correct')} | {n(route, 'wrong')} | {n(route, 'empty')} | "
             f"{n(route, 'failed')} | {n(route, 'declined')} | {n(route, 'not covered')} | {len(res)} |"
         )
+    routed = [r["routed"] for r in res.values() if "routed" in r]
+    if routed:
+        L.append(
+            f"| routed | {sum(r['verdict'] == 'correct' for r in routed)} | "
+            f"{sum(r['verdict'] == 'wrong' for r in routed)} | {sum(r['verdict'] == 'empty' for r in routed)} | "
+            f"{sum(r['verdict'] == 'failed' for r in routed)} | | | {len(routed)} |"
+        )
+        compiled = [r for r in res.values() if r["sql"].get("writer") == "compiled"]
+        L += [
+            "",
+            f"Routed: SQL for {sum(r['route'] == 'sql' for r in routed)}, Cypher for "
+            f"{sum(r['route'] == 'cypher' for r in routed)} (compiled SQL when the question compiles, else "
+            "free Cypher when it answers, else free SQL).",
+            f"The SQL compiled for {len(compiled)} of {len(res)}: "
+            f"{sum(r['sql']['verdict'] == 'correct' for r in compiled)} correct.",
+        ]
     either = sum(1 for r in res.values() if "correct" in (r["sql"]["verdict"], r["cypher"]["verdict"]))
     all_found = [q for q, r in res.items() if set(r["found"]) == set(r["tables"])]
     L += [
@@ -144,7 +183,7 @@ def report(s, res: dict, tokens: dict) -> int:
     L += ["", "| question | sql | cypher |", "|---|---|---|"]
     cell = lambda x: f"{x['verdict']}: {x['why']}".replace("|", "/")
     L += [f"| {q}. {r['question']} | {cell(r['sql'])} | {cell(r['cypher'])} |" for q, r in res.items()]
-    print(f"-> {write_result('log_accuracy', L, res)}")
+    print(f"-> {write_result(name, L, res)}")
     return 0
 
 

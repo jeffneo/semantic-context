@@ -4,7 +4,17 @@ from __future__ import annotations
 
 import pytest
 
-from qlsc.compile import Catalogue, Unfit, check, compile_cypher, compile_sql, week_usage, weeks, within
+from qlsc.compile import (
+    Catalogue,
+    Unfit,
+    check,
+    compile_cypher,
+    compile_sql,
+    open_period,
+    week_usage,
+    weeks,
+    within,
+)
 
 TABLES = {
     "p.dw.fct_txn": {
@@ -508,3 +518,13 @@ def test_a_week_grain_follows_the_log():
     assert weeks(request, CAT, usage, "Spend by week") and request["dimensions"][0]["grain"] == "week"
     request["dimensions"][0]["grain"] = "week_monday"
     assert weeks(request, CAT, usage, "Spend by week starting Monday") == []
+
+
+def test_a_period_ending_today_that_the_question_doesnt_end_is_open():
+    request = req(period={"column": "dw.fct_txn.post_date", "from": "2026-04-22", "to": "2026-07-01"})
+    assert (
+        open_period(request, "2026-07-01", "Decisions on or after 2026-04-22")
+        and request["period"]["to"] == ""
+    )
+    request = req(period={"column": "dw.fct_txn.post_date", "from": "2026-04-22", "to": "2026-07-01"})
+    assert open_period(request, "2026-07-01", "Decisions from 2026-04-22 to 2026-07-01") == []
