@@ -81,6 +81,7 @@ parameters:
     anchor_values: 2                  # parts: columns the log filters on a filter's value, whose tables join the cohort
     anchor_computations: 2            # parts: Computations each measure (or filter) finds
     computations: 0                   # Computations (qlsc computations) closest to the question, given to the query writer as definitions; 0: none
+    concepts: 0                       # experiment: designed-model terms (catalog glossary, ontology) linked to the cohort, given to the query writer; 0: none (designed models are aligned, not inputs)
     computation_min_similarity: 0.8   # vector score below which a Computation isn't offered: a distant one misleads more than it helps
     computation_tables: true          # the tables those Computations read join the cohort
     filter_values: 8                  # values the log filters a text column on, shown with it to the LLM (spelled as the data has them)

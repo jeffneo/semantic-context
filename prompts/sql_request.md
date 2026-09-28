@@ -8,4 +8,4 @@ Joins the {kind}'s queries use:
 {joins}
 
 SQL the {kind} already runs against these tables:
-{examples}{definitions}
+{examples}{definitions}{glossary}

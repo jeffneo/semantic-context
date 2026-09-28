@@ -173,6 +173,22 @@ RETURN c {.id, .name, .kind, .expression, .filters, .grain, .tables, .shapes, .p
 ORDER BY score DESC LIMIT $k
 """
 
+# The designed models' terms linked to the cohort (qlsc align): catalog glossary terms its columns are
+# bound to, and ontology classes its Variables or groups were matched to, closest to the question first.
+# An experiment (navigate.concepts): designed models are aligned afterwards, not inputs to the method.
+GLOSSARY = """
+MATCH (t:Table)-[:HAS_COLUMN]->(col:Column) WHERE t.id IN $tables
+OPTIONAL MATCH (col)-[:IS]->(v:Variable)
+WITH collect(DISTINCT col) + [x IN collect(DISTINCT v) WHERE x IS NOT NULL]
+     + COLLECT { MATCH (g:Semantic {level: 1}) WHERE g.name IN $groups RETURN g } AS xs
+UNWIND xs AS x
+MATCH (x)-[:MEANS]->(c:Concept) WHERE c.definition IS NOT NULL
+WITH c, collect(DISTINCT CASE WHEN x:Column THEN x.id END)[..4] AS columns
+RETURN c.name AS name, c.definition AS definition, c.source AS source, columns,
+       vector.similarity.cosine(c.embedding, $v) AS sim
+ORDER BY sim DESC, name LIMIT $k
+"""
+
 COLUMNS = """
 MATCH (t:Table)-[:HAS_COLUMN]->(c:Column) WHERE t.id IN $tables AND c.in_catalog
 RETURN t.id AS t, collect({name: c.name, type: coalesce(c.type, '')}) AS cols
@@ -275,6 +291,21 @@ def definitions_text(definitions: list[dict], kind: str) -> str:
             f"- {d['name']} ({d['kind']}): {d['expression']}{with_}; on {', '.join(d['tables'])}; "
             f"{d['shapes']} queries, {who}"
         )
+    return "\n".join(lines)
+
+
+def glossary_text(terms: list[dict]) -> str:
+    """The designed models' terms for the prompt; nothing at all when there are none."""
+    if not terms:
+        return ""
+    lines = ["\n\nBusiness terms from the catalog and the ontology, for what the words in the question mean:"]
+    for t in terms:
+        cols = (
+            f" (columns: {', '.join(short(c.rsplit('.', 1)[0]) + '.' + c.rsplit('.', 1)[1] for c in t['columns'])})"
+            if t["columns"]
+            else ""
+        )
+        lines.append(f"- {t['name']}: {t['definition']}{cols}")
     return "\n".join(lines)
 
 
@@ -478,8 +509,12 @@ def trace(G: Graph, s: Settings, question: str, exclude: frozenset[str] = frozen
         added += [
             t for t in dict.fromkeys(t for d in definitions for t in d["tables"]) if t not in top + added
         ]
+    glossary = []
+    if p["concepts"]:
+        glossary = G.rows(GLOSSARY, tables=top + added, groups=list(groups), v=v, k=p["concepts"])
     return {
         "question": question,
+        "glossary": glossary,
         "parts": parts,
         "hits": G.rows(HITS, hits=p["hits"], v=v),
         "groups": groups,
@@ -519,6 +554,7 @@ def answer_sql(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int
         joins=joins_txt,
         examples=example_sql(tr["examples"]),
         definitions=definitions_text(tr.get("definitions", []), s.business["kind"]),
+        glossary=glossary_text(tr.get("glossary", [])),
         today=calendar(today(s)),
         **s.business,
     )
@@ -573,6 +609,7 @@ def answer_cypher(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: 
         relationships=rel_txt or "(none)",
         examples=example_sql(tr["examples"]),
         definitions=definitions_text(tr.get("definitions", []), s.business["kind"]),
+        glossary=glossary_text(tr.get("glossary", [])),
         today=calendar(today(s)),  # Virtual Graph has no date(): relative periods need literals
         **s.business,
     )
