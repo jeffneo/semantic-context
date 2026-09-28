@@ -5,8 +5,9 @@ as in log_accuracy.py), answered with the navigation parameters as configured pl
 Run it twice, once per setting, and compare the two result files.
 
 Writes results/qdd_<name>.md and .json. Prints a line per question as it goes.
-Usage: uv run examples/fennmoor-bank/eval/qdd.py <name> [--all | --offset=N] [param=value ...]
-  (--all: every log question; --offset: which of each STEP questions to take, for a second sample)
+Usage: uv run examples/fennmoor-bank/eval/qdd.py <name> [--all | --offset=N] [--route=cypher] [param=value ...]
+  (--all: every log question; --offset: which of each STEP questions to take, for a second sample;
+   --route=cypher: the Cypher route over the Virtual Graph instead of SQL)
   e.g. qdd.py base computations=0     qdd.py definitions computations=5
 """
 
@@ -23,7 +24,7 @@ from log_accuracy import verdict_of
 from log_questions import QUESTIONS, answers_dir
 
 from qlsc.graph import Graph
-from qlsc.navigate import answer_sql, trace
+from qlsc.navigate import answer_cypher, answer_sql, trace
 from qlsc.warehouse import connect
 
 STEP = 6  # every sixth log question: about 30
@@ -32,7 +33,9 @@ STEP = 6  # every sixth log question: about 30
 def main() -> int:
     every = "--all" in sys.argv
     offset = next((int(a.split("=")[1]) for a in sys.argv if a.startswith("--offset=")), 0)
-    args = [a for a in sys.argv[1:] if a != "--all" and not a.startswith("--offset=")]
+    route = next((a.split("=")[1] for a in sys.argv if a.startswith("--route=")), "sql")
+    answer = {"sql": answer_sql, "cypher": answer_cypher}[route]
+    args = [a for a in sys.argv[1:] if a != "--all" and not a.startswith(("--offset=", "--route="))]
     name, overrides = args[0], dict(a.split("=", 1) for a in args[1:])
     step = 1 if every else STEP
     s = settings()
@@ -58,18 +61,21 @@ def main() -> int:
                 q = logq[qid]
                 ref = json.loads((answers_dir(s) / f"{qid}.json").read_text())
                 tr = trace(G, s, q["question"], exclude=frozenset({q["shape"]}))
-            a = answer_sql(G, s, tr, execute=True, rows=ROWS)
-            if src == "gold":
+            a = answer(G, s, tr, execute=True, rows=ROWS)
+            if src == "gold" and ("skipped" in a or "declined" in a):
+                v, why = ("not covered", a["skipped"]) if "skipped" in a else ("declined", a["declined"])
+            elif src == "gold":
                 got = a.get("result")
                 ok = got is not None and got.get("ok", True)
-                v, why = judge(refs, got) if ok else ("failed", str((got or {}).get("error"))[:100])
+                failure = (got or {}).get("error") or a.get("error") or a.get("check", {}).get("error")
+                v, why = judge(refs, got) if ok else ("failed", str(failure)[:100])
             else:
                 v, why = verdict_of(a, ref, [[c] for c in q["compare"]])
             res[qid] = {
                 "source": src,
                 "verdict": v,
                 "why": why,
-                "sql": a.get("sql"),
+                "sql": a.get("sql") or a.get("cypher"),
                 "definitions": [d["name"] for d in tr.get("definitions", [])],
                 "writer": a.get("writer"),
                 "fallback": a.get("fallback"),
@@ -82,14 +88,19 @@ def main() -> int:
         sum(1 for r in res.values() if r["source"] == src),
     )
     (g, gn), (lg, ln) = n("gold"), n("log")
-    L = [f"# Quick A/B: {name}", "", f"Overrides: {overrides or 'none'}. SQL route.", ""]
+    L = [
+        f"# Quick A/B: {name}",
+        "",
+        f"Overrides: {overrides or 'none'}. {route.upper() if route == 'sql' else 'Cypher'} route.",
+        "",
+    ]
     which = "all" if every else f"every {STEP}th"
     L += [f"Gold questions: {g} of {gn} correct. Log questions ({which}): {lg} of {ln}.", ""]
     writers = Counter(r["writer"] for r in res.values())
     if writers.get("compiled"):
         fits = sum(1 for r in res.values() if r["writer"] == "compiled" and r["verdict"] == "correct")
         L += [
-            f"Compiled {writers['compiled']} of {len(res)} ({fits} correct); fell back to free SQL for {writers.get('free', 0)}.",
+            f"Compiled {writers['compiled']} of {len(res)} ({fits} correct); fell back to free writing for {writers.get('free', 0)}.",
             "",
         ]
     L += ["| question | verdict |", "|---|---|"]

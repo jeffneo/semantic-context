@@ -10,6 +10,7 @@ Usage: uv run examples/fennmoor-bank/eval/graph_accuracy.py [G01 ...] [param=val
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -27,7 +28,8 @@ QUESTIONS = Path(__file__).resolve().parent / "graph_questions.yaml"
 
 def main() -> int:
     s = settings()
-    for a in [a for a in sys.argv[1:] if "=" in a]:  # navigate overrides: writer=compiled
+    overrides = [a for a in sys.argv[1:] if "=" in a]
+    for a in overrides:  # navigate overrides: writer=compiled
         k, v = a.split("=", 1)
         s.params["navigate"][k] = yaml.safe_load(v)
     qs = yaml.safe_load(QUESTIONS.read_text())
@@ -43,7 +45,13 @@ def main() -> int:
             for route, answer in (("sql", answer_sql), ("cypher", answer_cypher)):
                 a = answer(G, s, tr, execute=True, rows=ROWS)
                 v, why = verdict_of(a, ref, items) if ref["ok"] else ("no reference", ref["error"][:100])
-                out[route] = {"verdict": v, "why": why, "query": a.get("sql") or a.get("cypher")}
+                out[route] = {
+                    "verdict": v,
+                    "why": why,
+                    "query": a.get("sql") or a.get("cypher"),
+                    "writer": a.get("writer"),
+                    "fallback": a.get("fallback"),
+                }
                 print(f"{i}/{len(wanted)} {qid} {route:6} {v:12} {why[:90]}", flush=True)
             res[qid] = out
     n = lambda route, v: sum(1 for r in res.values() if r[route]["verdict"] == v)
@@ -65,7 +73,8 @@ def main() -> int:
     L += ["", "| question | sql | cypher |", "|---|---|---|"]
     cell = lambda x: f"{x['verdict']}: {x['why']}".replace("|", "/")[:140]
     L += [f"| {q}. {r['question']} | {cell(r['sql'])} | {cell(r['cypher'])} |" for q, r in res.items()]
-    print(f"-> {write_result('graph_accuracy', L, res)}")
+    out = "_".join(["graph_accuracy", *(re.sub(r"\W+", "_", a) for a in overrides)])  # one file per setting
+    print(f"-> {write_result(out, L, res)}")
     return 0
 
 

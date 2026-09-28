@@ -46,8 +46,8 @@ uv run examples/fennmoor-bank/eval/answers.py         # the gold questions' refe
 uv run examples/fennmoor-bank/eval/execution.py       # ask's answers to the gold questions, by SQL and by Cypher
 uv run examples/fennmoor-bank/eval/log_questions.py write|run   # 176 questions written from the log's own queries
 uv run examples/fennmoor-bank/eval/log_accuracy.py    # ask's answers to them (about an hour, about $6 of LLM calls)
-uv run examples/fennmoor-bank/eval/qdd.py <name> [param=value ...]   # a quick A/B of one setting: 40 questions, SQL, minutes
-uv run examples/fennmoor-bank/eval/graph_accuracy.py  # ten graph-shaped questions, both routes
+uv run examples/fennmoor-bank/eval/qdd.py <name> [--route=cypher] [param=value ...]   # a quick A/B of one setting: 40 questions, minutes
+uv run examples/fennmoor-bank/eval/graph_accuracy.py [param=value ...]  # ten graph-shaped questions, both routes
 uv run examples/fennmoor-bank/generate/fill.py --slice 2   # fill BigQuery with rows (plans/2026-09-26-fill-*.md)
 ```
 

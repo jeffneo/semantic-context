@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from qlsc.compile import Catalogue, Unfit, compile_sql, within
+from qlsc.compile import Catalogue, Unfit, compile_cypher, compile_sql, within
 
 TABLES = {
     "p.dw.fct_txn": {
@@ -206,3 +206,262 @@ def test_conditions_inside_a_measure_stay_inside_it():
         "COUNT(IF(fct_txn.is_purchase IS TRUE, 1, NULL)) AS clicks" in sql and "WHERE" not in sql
     )  # zeros stay
     assert within("COUNT(DISTINCT t.x)", ["t.a"]) == "COUNT(DISTINCT IF(t.a, t.x, NULL))"
+
+
+# ---- the wider request, and Cypher from the same plan (plans/2026-09-28-compiler-2.md)
+
+WIDE = TABLES | {
+    "p.dw.fct_costs": {"branch_id": "INT64", "month_start": "DATE", "cost": "NUMERIC"},
+    "p.dw.fct_balance": {
+        "account_key": "INT64",
+        "customer_key": "INT64",
+        "as_of": "DATE",
+        "balance": "NUMERIC",
+    },
+    "p.lk.LR_{id}_facts": {"customer_key": "INT64", "score": "FLOAT64"},
+}
+WIDE_JOINS = [
+    *JOINS,
+    {"a": "p.dw.dim_branch", "ac": "branch_id", "b": "p.dw.fct_costs", "bc": "branch_id"},
+    {"a": "p.dw.dim_customer", "ac": "customer_key", "b": "p.dw.fct_balance", "bc": "customer_key"},
+    {"a": "p.dw.dim_customer", "ac": "customer_key", "b": "p.lk.LR_{id}_facts", "bc": "customer_key"},
+]
+LATEST_BAL = {
+    "id": "c3",
+    "kind": "measure",
+    "name": "Latest Balance",
+    "expression": "ARRAY_AGG(fct_balance.balance ORDER BY fct_balance.as_of DESC LIMIT 1)[SAFE_OFFSET(0)]",
+    "filters": [],
+    "grain": ["fct_balance.account_key"],
+    "tables": ["p.dw.fct_balance"],
+}
+SCORE = {
+    "id": "c4",
+    "kind": "measure",
+    "name": "Mean Score",
+    "expression": "AVG(`LR_{id}_facts`.score)",
+    "filters": [],
+    "tables": ["p.lk.LR_{id}_facts"],
+}
+WIDE_CAT = Catalogue(WIDE, WIDE_JOINS, {"c1": SPEND, "c2": AFFLUENT, "c3": LATEST_BAL, "c4": SCORE})
+WIDE_UNIQUE = UNIQUE | {("p.lk.LR_{id}_facts", "customer_key")}
+wide_unique = lambda t, c: (t, c) in WIDE_UNIQUE
+
+
+def test_two_facts_are_two_blocks_joined_on_the_dimensions():
+    request = req(
+        measures=[
+            {"alias": "spend", "computation": "c1"},
+            {"alias": "cost", "aggregate": "SUM", "column": "dw.fct_costs.cost"},
+            {"alias": "spend_per_cost", "ratio_of": ["spend", "cost"]},
+        ],
+        dimensions=[{"alias": "branch", "column": "dw.fct_costs.branch_id"}],
+        filters=[{"column": "dw.dim_customer.segment", "op": "=", "values": ["affluent"]}],
+    )
+    with pytest.raises(Unfit, match="filter|multiply"):  # the segment filter can't apply to costs
+        compile_sql(request, WIDE_CAT, wide_unique)
+    sql = flat(compile_sql(request | {"filters": []}, WIDE_CAT, wide_unique))
+    assert "WITH fct_txn_1 AS" in sql and "fct_costs_2 AS" in sql
+    assert "fct_costs.branch_id AS branch" in sql  # the costs' own column
+    assert "dim_branch.branch_id AS branch" in sql  # the column a join equates it to
+    assert "FULL JOIN fct_costs_2 USING (branch)" in sql and "SAFE_DIVIDE(spend, cost)" in sql
+
+
+def test_a_distinct_count_moves_the_fact_to_the_finer_table():
+    sql = flat(
+        compile_sql(
+            req(
+                measures=[
+                    {"alias": "n", "aggregate": "COUNT_DISTINCT", "column": "dw.dim_customer.customer_key"}
+                ],
+                dimensions=[{"alias": "m", "column": "dw.fct_txn.post_date", "grain": "month"}],
+            ),
+            WIDE_CAT,
+            wide_unique,
+        )
+    )
+    assert "FROM `p.dw.fct_txn` AS fct_txn" in sql and "COUNT(DISTINCT dim_customer.customer_key)" in sql
+    with pytest.raises(Unfit):  # a SUM over the customers would be multiplied by their transactions
+        compile_sql(
+            req(
+                measures=[{"alias": "n", "aggregate": "SUM", "column": "dw.dim_customer.branch_id"}],
+                dimensions=[{"alias": "m", "column": "dw.fct_txn.post_date", "grain": "month"}],
+            ),
+            WIDE_CAT,
+            wide_unique,
+        )
+
+
+def test_a_latest_value_is_summed_per_entity_in_two_steps():
+    sql = flat(
+        compile_sql(
+            req(
+                measures=[{"alias": "balance", "computation": "c3"}],
+                dimensions=[{"alias": "segment", "column": "dw.dim_customer.segment"}],
+            ),
+            WIDE_CAT,
+            wide_unique,
+        )
+    )
+    assert "per_fct_balance_account_key" in sql and "GROUP BY 1, 2" in sql
+    assert "SUM(balance) AS balance" in sql and sql.count("GROUP BY") == 2
+
+
+def test_having_difference_list_and_pdt_alias():
+    sql = flat(
+        compile_sql(
+            req(
+                measures=[
+                    {
+                        "alias": "q1",
+                        "aggregate": "SUM",
+                        "column": "dw.fct_txn.amount",
+                        "where": [{"column": "dw.fct_txn.post_date", "op": "<", "values": ["2026-04-01"]}],
+                    },
+                    {
+                        "alias": "q2",
+                        "aggregate": "SUM",
+                        "column": "dw.fct_txn.amount",
+                        "where": [{"column": "dw.fct_txn.post_date", "op": ">=", "values": ["2026-04-01"]}],
+                    },
+                    {"alias": "change", "difference_of": ["q2", "q1"]},
+                ],
+                dimensions=[{"alias": "cust", "column": "dw.fct_txn.customer_key"}],
+                having=[{"alias": "q2", "op": ">", "value": 5000}],
+            ),
+            WIDE_CAT,
+            wide_unique,
+        )
+    )
+    assert ") - (" in sql and "HAVING" in sql and "> 5000" in sql
+    sql = flat(
+        compile_sql(
+            req(
+                dimensions=[{"alias": "k", "column": "dw.dim_customer.customer_key"}],
+                filters=[{"computation": "c2"}],
+                order=[{"alias": "k", "desc": False}],
+                limit=5,
+            ),
+            WIDE_CAT,
+            wide_unique,
+        )
+    )
+    assert sql.startswith("SELECT DISTINCT dim_customer.customer_key AS k") and "LIMIT 5" in sql
+    sql = flat(compile_sql(req(measures=[{"alias": "s", "computation": "c4"}]), WIDE_CAT, wide_unique))
+    assert "AVG(LR_id_facts.score)" in sql and "AS LR_id_facts" in sql
+
+
+# The Virtual Graph model over the first catalogue: transactions -> customers -> branches.
+LABELS = {"p.dw.fct_txn": "Txn", "p.dw.dim_customer": "Customer", "p.dw.dim_branch": "Branch"}
+node = lambda label, table, cols: {
+    "label": label,
+    "table": table,
+    "key": [{"column": cols[0]}],
+    "properties": [{"name": c, "column": c, "type": t} for c, t in TABLES[f"p.dw.{table}"].items()],
+}
+MODEL = {
+    "nodes": [
+        node("Txn", "fct_txn", ["txn_id"]),
+        node("Customer", "dim_customer", ["customer_key"]),
+        node("Branch", "dim_branch", ["branch_id"]),
+    ],
+    "relationships": [
+        {
+            "label": "MADE_BY",
+            "table": "fct_txn",
+            "start": {
+                "targetEntity": "Txn",
+                "keys": [{"nodeColumn": "txn_id", "relationshipColumn": "txn_id"}],
+            },
+            "end": {
+                "targetEntity": "Customer",
+                "keys": [{"nodeColumn": "customer_key", "relationshipColumn": "customer_key"}],
+            },
+        },
+        {
+            "label": "PREFERS",
+            "table": "dim_customer",
+            "start": {
+                "targetEntity": "Customer",
+                "keys": [{"nodeColumn": "customer_key", "relationshipColumn": "customer_key"}],
+            },
+            "end": {
+                "targetEntity": "Branch",
+                "keys": [{"nodeColumn": "branch_id", "relationshipColumn": "branch_id"}],
+            },
+        },
+    ],
+}
+
+
+def test_cypher_from_the_same_request():
+    cypher = flat(
+        compile_cypher(
+            req(
+                measures=[
+                    {"alias": "spend", "computation": "c1"},
+                    {"alias": "txns", "aggregate": "COUNT"},
+                    {"alias": "share", "ratio_of": ["spend", "txns"]},
+                ],
+                dimensions=[
+                    {"alias": "region", "column": "dw.dim_branch.region"},
+                    {"alias": "month", "column": "dw.fct_txn.post_date", "grain": "week_monday"},
+                ],
+                filters=[{"computation": "c2"}],
+                period={"column": "dw.fct_txn.posted_at", "from": "2026-04-01", "to": "2026-06-30"},
+                order=[{"alias": "spend", "desc": True}],
+                limit=3,
+            ),
+            CAT,
+            unique,
+            LABELS,
+            MODEL,
+        )
+    )
+    assert cypher.startswith("MATCH (fct_txn:Txn) MATCH (fct_txn)-[:MADE_BY]->(dim_customer:Customer)")
+    assert "MATCH (dim_customer)-[:PREFERS]->(dim_branch:Branch)" in cypher
+    assert "sum(CASE WHEN fct_txn.is_purchase THEN fct_txn.amount ELSE null END) AS spend" in cypher
+    assert "date.truncate('week', fct_txn.post_date) AS month" in cypher
+    assert "fct_txn.posted_at >= datetime('2026-04-01T00:00:00Z')" in cypher
+    assert "fct_txn.posted_at < datetime('2026-07-01T00:00:00Z')" in cypher
+    assert "CASE WHEN txns = 0 THEN null ELSE toFloat(spend) / txns END AS share" in cypher
+    assert cypher.endswith("ORDER BY spend DESC LIMIT 3")
+
+
+def test_cypher_what_the_graph_cant_express():
+    with pytest.raises(Unfit, match="not in the virtual graph"):
+        compile_cypher(
+            req(measures=[{"alias": "n", "aggregate": "COUNT", "column": "dw.fct_calls.call_id"}]),
+            CAT,
+            unique,
+            LABELS,
+            MODEL,
+        )
+    with pytest.raises(Unfit, match="truncation"):  # BigQuery's weeks start on Sunday, Cypher's on Monday
+        compile_cypher(
+            req(
+                measures=[{"alias": "n", "aggregate": "COUNT", "column": "dw.fct_txn.txn_id"}],
+                dimensions=[{"alias": "w", "column": "dw.fct_txn.post_date", "grain": "week"}],
+            ),
+            CAT,
+            unique,
+            LABELS,
+            MODEL,
+        )
+
+
+def test_cypher_reads_an_outer_joins_key_on_the_fact():
+    cat = Catalogue(TABLES, [j | {"type": "LEFT"} for j in JOINS], {})
+    cypher = flat(
+        compile_cypher(
+            req(
+                measures=[{"alias": "n", "aggregate": "COUNT", "column": "dw.fct_txn.txn_id"}],
+                dimensions=[{"alias": "c", "column": "dw.dim_customer.customer_key"}],
+            ),
+            cat,
+            unique,
+            LABELS,
+            MODEL,
+        )
+    )
+    assert cypher == "MATCH (fct_txn:Txn) RETURN fct_txn.customer_key AS c, count(fct_txn.txn_id) AS n"

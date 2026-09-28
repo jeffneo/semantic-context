@@ -573,11 +573,11 @@ def unique_check(s: Settings):
     return unique
 
 
-def answer_compiled(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int | None = None) -> dict:
-    """The compiler (qlsc/compile.py): the LLM fills a typed request from the layer's options, code
-    compiles it. -> {writer: compiled, request, sql, ...} | {fallback: why, request?}"""
+def compiled_request(G: Graph, s: Settings, tr: dict) -> tuple[dict, compiler.Catalogue]:
+    """The typed request for a question (qlsc/compile.py), the LLM choosing from the layer's options:
+    the cohort's tables, the closest Computations and the tables they read, the trusted joins. One LLM
+    call, cached, whichever route it is compiled for."""
     p = s.params["navigate"]
-    wh = connect(s)
     v = Embedder(s).embed([tr["question"]])[0]
     offered = {
         r["c"]["id"]: r["c"]
@@ -612,6 +612,15 @@ def answer_compiled(G: Graph, s: Settings, tr: dict, execute: bool = False, rows
         "record_request",
         max_tokens=3000,
     )
+    return request, cat
+
+
+def answer_compiled(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int | None = None) -> dict:
+    """The compiler (qlsc/compile.py): the LLM fills a typed request from the layer's options, code
+    compiles it. -> {writer: compiled, request, sql, ...} | {fallback: why, request?}"""
+    p = s.params["navigate"]
+    wh = connect(s)
+    request, cat = compiled_request(G, s, tr)
     try:
         sql = compiler.compile_sql(request, cat, unique_check(s), dialect=wh.dialect, hops=p["compile_hops"])
     except compiler.Unfit as e:
@@ -679,9 +688,11 @@ def answer_free(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: in
 
 
 def answer_cypher(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int | None = None) -> dict:
-    """Step 6 over the virtual graph: the cohort's labels -> one Cypher query, checked with Virtual
-    Graph's EXPLAIN; step 7, the answer, with `execute`.
-    -> {start, around, cypher, explanation, check, result?} | {skipped: why} | {start, around, declined: why}"""
+    """Step 6 over the virtual graph, by the writer configured (navigate.writer): the compiler, falling
+    back to free Cypher when the question doesn't compile; or free Cypher, from the cohort's labels.
+    Checked with Virtual Graph's EXPLAIN; step 7, the answer, with `execute`.
+    -> {writer, start, around, cypher, explanation, check, result?} | {skipped: why}
+       | {start, around, declined: why}"""
     p, instance = s.params["navigate"], s.get("virtualize", {}).get("neo4j")
     labels = {r["table"]: r["label"] for r in G.rows(LABELS)}
     path = s.work / "virtual" / "schema.json"
@@ -690,7 +701,92 @@ def answer_cypher(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: 
     start = [labels[t] for t in tr["top"] if t in labels]
     if not start:
         return {"skipped": "none of the cohort's tables is in the virtual graph"}
-    nodes, rels = model_slice(json.loads(path.read_text()), start)
+    model = json.loads(path.read_text())
+    fallback = {}
+    if p["writer"] == "compiled":
+        out = cypher_compiled(G, s, tr, labels, model["entities"], instance, execute, rows)
+        if "fallback" not in out:
+            return out
+        fallback = {"fallback": out["fallback"], "request": out.get("request")}
+    return (
+        cypher_free(G, s, tr, labels, model, start, instance, execute, rows) | {"writer": "free"} | fallback
+    )
+
+
+def cypher_compiled(
+    G: Graph,
+    s: Settings,
+    tr: dict,
+    labels: dict,
+    model: dict,
+    instance: dict,
+    execute: bool,
+    rows: int | None,
+) -> dict:
+    """The compiler's Cypher: the same request as the SQL route's, over the Virtual Graph model.
+    -> {writer: compiled, request, cypher, check, result?} | {fallback: why, request?}"""
+    p = s.params["navigate"]
+    request, cat = compiled_request(G, s, tr)
+    try:
+        cypher = compiler.compile_cypher(request, cat, unique_check(s), labels, model, hops=p["compile_hops"])
+    except compiler.Unfit as e:
+        return {"fallback": str(e), "request": request}
+    named = re.findall(r"\(\w+:(\w+)\)", cypher)
+    table = {label: t for t, label in labels.items()}
+    answer = {
+        "writer": "compiled",
+        "warehouse": connect(s).name,
+        "request": request,
+        "start": [(x, table[x]) for x in dict.fromkeys(named)],
+        "around": [],
+        "cypher": cypher,
+        "explanation": request.get("reason", ""),
+    }
+    try:
+        with Graph(s, instance) as V:
+            check = explain(V, cypher, model["nodes"], model["relationships"])
+            if "error" in check:
+                return {
+                    "fallback": f"the compiled Cypher failed its check: {check['error'][:200]}",
+                    "request": request,
+                }
+            answer["check"] = check
+            if execute:
+                answer["result"] = capped_result(V, cypher, p, rows)
+    except ServiceUnavailable:
+        answer["error"] = f"the Virtual Graph instance is not running at {instance['uri']}"
+    except Neo4jError as e:
+        answer["error"] = e.message
+    return answer
+
+
+def capped_result(V: Graph, cypher: str, p: dict, rows: int | None) -> dict:
+    t0 = time.time()
+    columns, data, more = V.capped(cypher, p["cypher_max_rows"])
+    return {
+        "ok": True,
+        "columns": columns,
+        "rows": data[: rows or p["rows_shown"]],
+        "total": len(data),
+        "truncated": more,
+        "seconds": time.time() - t0,
+    }
+
+
+def cypher_free(
+    G: Graph,
+    s: Settings,
+    tr: dict,
+    labels: dict,
+    model: dict,
+    start: list[str],
+    instance: dict,
+    execute: bool,
+    rows: int | None,
+) -> dict:
+    """The LLM writes Cypher from the cohort's labels and one hop around them."""
+    p = s.params["navigate"]
+    nodes, rels = model_slice(model, start)
     table = {label: t for t, label in labels.items()}
     values = filter_values(G, [table[n["label"]] for n in nodes if n["label"] in table], p["filter_values"])
     node_txt = "\n".join(
@@ -736,16 +832,7 @@ def answer_cypher(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: 
                 check = explain(V, out["cypher"], nodes, rels)
             answer |= {"cypher": out["cypher"], "explanation": out["explanation"], "check": check}
             if execute and "error" not in check:
-                t0 = time.time()
-                columns, data, more = V.capped(out["cypher"], p["cypher_max_rows"])
-                answer["result"] = {
-                    "ok": True,
-                    "columns": columns,
-                    "rows": data[: rows or p["rows_shown"]],
-                    "total": len(data),
-                    "truncated": more,
-                    "seconds": time.time() - t0,
-                }
+                answer["result"] = capped_result(V, out["cypher"], p, rows)
     except ServiceUnavailable:
         answer["error"] = f"the Virtual Graph instance is not running at {instance['uri']}"
     except Neo4jError as e:
