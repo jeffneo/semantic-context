@@ -344,6 +344,152 @@ def same_grain(c: dict, request: dict, cat: Catalogue) -> bool:
     return all(aliased(g, c["tables"]).lower() in grouped for g in c.get("grain") or [])
 
 
+# ---- checks on the request, before it is compiled
+
+
+def said(value: str, question: str) -> bool:
+    """Whether the question says a value: its words start words of the question ('PURCH' in
+    'purchases', 'ACCT_MAINT' in 'ACCT_MAINT')."""
+    norm = lambda x: re.sub(r"[^a-z0-9]+", " ", str(x).lower()).strip()
+    v = norm(value)
+    return bool(v) and f" {v}" in f" {norm(question)} "
+
+
+def literals(sql: str) -> list[str]:
+    try:
+        tree = sqlglot.parse_one(sql, read="bigquery")
+    except sqlglot.errors.ParseError:
+        return []
+    return [x.name for x in tree.find_all(exp.Literal) if x.is_string]
+
+
+def request_tables(request: dict, cat: Catalogue) -> set[str]:
+    """The tables a request names, directly or through its Computations."""
+    refs = [d.get("column") for d in request.get("dimensions") or []]
+    refs += [f.get("column") for f in request.get("filters") or []]
+    refs += [(request.get("period") or {}).get("column")]
+    out = set()
+    for m in request.get("measures") or []:
+        refs += [m.get("column"), *(w.get("column") for w in m.get("where") or [])]
+    for x in [
+        *(request.get("measures") or []),
+        *(request.get("dimensions") or []),
+        *(request.get("filters") or []),
+    ]:
+        out |= set((cat.computations.get(x.get("computation") or "") or {}).get("tables") or [])
+    for ref in refs:
+        if ref:
+            try:
+                out.add(cat.column(ref)[0])
+            except Unfit:
+                pass
+    return out
+
+
+def check(request: dict, cat: Catalogue, question: str, values: dict, chars: int) -> list[str]:
+    """What the request does that the question doesn't say, and what the question says that the
+    request leaves out, as notes for the LLM to reconsider. Checked:
+      - a Computation's filter on a value the question doesn't say ('voice' in Voice Call Transfers,
+        for a question about all calls): a definition brought from someone else's query
+      - a value the log filters a column on that the question says ("voice calls") on a column the
+        request neither filters nor groups by
+    Values shorter than `chars` are not checked: codes like 'A' match too much."""
+    notes = []
+    for m in request.get("measures") or []:
+        c = cat.computations.get(m.get("computation") or "")
+        for f in (c or {}).get("filters") or []:
+            unsaid = [v for v in literals(f) if len(v) >= chars and not said(v, question)]
+            if unsaid:
+                notes.append(
+                    f"measure {m.get('alias')!r} uses {c['name']!r}, which keeps only rows where {f}; the "
+                    f"question doesn't say {unsaid[0]!r}. Keep it only if the question means that restriction."
+                )
+    grouped, filtered = set(), set()  # the answer's groupings, and what restricts the whole answer
+    for d in request.get("dimensions") or []:
+        grouped |= {x for x in [d.get("column"), *(d.get("other_columns") or [])] if x}
+    for f in request.get("filters") or []:
+        c = cat.computations.get(f.get("computation") or "")
+        filtered |= {f.get("column") or "", (c or {}).get("expression") or ""}
+    each = []  # what restricts each measure
+    for m in request.get("measures") or []:
+        if m.get("ratio_of") or m.get("difference_of"):
+            continue
+        c = cat.computations.get(m.get("computation") or "") or {}
+        own = {w.get("column") or "" for w in m.get("where") or []} | set(c.get("filters") or [])
+        each.append(" ".join(own).lower())
+    has = lambda texts, col: re.search(rf"\b{re.escape(col.lower())}\b", " ".join(texts).lower()) is not None
+    reads = request_tables(request, cat)
+    # A word the request's own tables and columns name ("card" in fct_card_transactions, "purchase" in
+    # is_purchase) is accounted for by them, not a value to filter on.
+    words = {
+        w
+        for t in reads
+        for x in [t.rsplit(".", 1)[-1], *cat.tables[t]]
+        for w in re.split(r"[^a-z0-9]+", x.lower())
+        if w
+    }
+    norm = lambda v: re.sub(r"[^a-z0-9]+", " ", v.lower()).strip()
+    for (t, col), vals in sorted(values.items()):
+        if t not in reads:
+            continue
+        stated = [
+            v
+            for v in vals
+            if isinstance(v, str)
+            and len(v) >= chars
+            and "%" not in v
+            and said(v, question)
+            and not any(w.startswith(norm(v)) for w in words)
+        ]
+        if not stated or has(filtered, col) or (each and all(has([x], col) for x in each)):
+            continue
+        if has(grouped, col) and len(stated) > 1:
+            continue  # "voice and chat calls, by media type": the grouping shows each
+        notes.append(
+            f"the question says {stated[0]!r}, a value of {short(t)}.{col}, but the request doesn't "
+            f"filter the answer on {col}" + (" (it only groups by it)." if has(grouped, col) else ".")
+        )
+    return notes
+
+
+WEEK_TRUNC = (
+    r"DATE_TRUNC\s*\(\s*(?:DATE\s*\(\s*)?[\w.`]*\b{col}\b[^,]*,\s*(ISOWEEK|WEEK\s*\(\s*(\w+)\s*\)|WEEK)\b"
+)
+
+
+def week_usage(texts: list[str], column: str) -> str:
+    """How the log's queries truncate a column to weeks: 'week' (BigQuery's, from Sunday),
+    'week_monday', or '' when they don't, or split evenly."""
+    rx = re.compile(WEEK_TRUNC.format(col=re.escape(column)), re.I)
+    monday = sunday = 0
+    for text in texts:
+        for unit, day in rx.findall(text or ""):
+            if unit.upper() == "ISOWEEK" or day.upper() == "MONDAY":
+                monday += 1
+            elif not day or day.upper() == "SUNDAY":
+                sunday += 1
+    return "week_monday" if monday > sunday else "week" if sunday > monday else ""
+
+
+def weeks(request: dict, cat: Catalogue, usage, question: str) -> list[str]:
+    """A week grain as the log's queries truncate that column (usage(table, column) -> week_usage),
+    unless the question names the day weeks start on. Changes the request; returns what changed."""
+    if re.search(r"\b(monday|sunday|iso)\b", question, re.I):
+        return []
+    out = []
+    for d in request.get("dimensions") or []:
+        if d.get("grain") in ("week", "week_monday") and d.get("column"):
+            try:
+                t, col, _ = cat.column(d["column"])
+            except Unfit:
+                continue
+            logged = usage(t, col)
+            if logged and logged != d["grain"]:
+                out.append(f"{d['alias']}: {d['grain']} -> {logged}, as the log truncates {short(t)}.{col}")
+                d["grain"] = logged
+    return out
+
+
 # ---- the plan
 
 

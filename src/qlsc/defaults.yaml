@@ -78,6 +78,8 @@ parameters:
     writer: free                      # both routes' writer: free (the LLM writes SQL or Cypher) | compiled (the LLM fills one typed request, qlsc/compile.py compiles it to SQL or to Cypher over the Virtual Graph; free writing when it doesn't fit)
     compile_computations: 12          # compiled: Computations offered as the request's options, closest to the question first
     compile_hops: 2                   # compiled: the longest join path from the fact table
+    compile_checks: true              # compiled: check the request against the question (a Computation's restriction it doesn't state, a value it states that the request leaves out) and ask once more with what was found; a week grain follows the log's truncation of that column
+    compile_check_chars: 4            # compiled: the shortest value checked; shorter codes ('A', 'Y') match words by accident
     anchors: question                 # question: one embedding of the whole question | parts: the question broken into measures, groupings, filters and entities (an LLM call), each navigated from
     anchor_groups: 2                  # parts: level-1 groups each part opens
     anchor_tables: 3                  # parts: tables each part contributes to the cohort

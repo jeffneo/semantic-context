@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from qlsc.compile import Catalogue, Unfit, compile_cypher, compile_sql, within
+from qlsc.compile import Catalogue, Unfit, check, compile_cypher, compile_sql, week_usage, weeks, within
 
 TABLES = {
     "p.dw.fct_txn": {
@@ -465,3 +465,46 @@ def test_cypher_reads_an_outer_joins_key_on_the_fact():
         )
     )
     assert cypher == "MATCH (fct_txn:Txn) RETURN fct_txn.customer_key AS c, count(fct_txn.txn_id) AS n"
+
+
+# ---- checks on the request (plans/2026-09-28-compiler-2.md, next)
+
+
+def test_checks_find_an_unstated_restriction_and_a_stated_value_left_out():
+    voice = {
+        "id": "v1",
+        "kind": "measure",
+        "name": "Voice Call Transfers",
+        "expression": "COUNTIF(fct_calls.was_transferred)",
+        "filters": ["fct_calls.media_type = 'voice'"],
+        "tables": ["p.dw.fct_calls"],
+    }
+    tables = TABLES | {
+        "p.dw.fct_calls": TABLES["p.dw.fct_calls"] | {"media_type": "STRING", "was_transferred": "BOOL"}
+    }
+    cat = Catalogue(tables, JOINS, {"v1": voice})
+    values = {("p.dw.fct_calls", "media_type"): ["voice", "chat"]}
+    transfers = req(measures=[{"alias": "t", "computation": "v1"}])
+    notes = check(transfers, cat, "How many calls were transferred, by media type?", values, 4)
+    assert len(notes) == 1 and "doesn't say 'voice'" in notes[0]
+    assert check(transfers, cat, "How many voice calls were transferred?", values, 4) == []
+    count = req(measures=[{"alias": "n", "aggregate": "COUNT_DISTINCT", "column": "dw.fct_calls.call_id"}])
+    notes = check(count, cat, "How many voice calls did we take?", values, 4)
+    assert len(notes) == 1 and "says 'voice'" in notes[0]
+    grouped = count | {"dimensions": [{"alias": "m", "column": "dw.fct_calls.media_type"}]}
+    assert check(grouped, cat, "Voice and chat calls by media type", values, 4) == []
+
+
+def test_a_week_grain_follows_the_log():
+    texts = [
+        "select date_trunc(post_date, week) as wk, count(*) from t group by 1",
+        "SELECT DATE_TRUNC(t.post_date, WEEK) FROM t",
+        "select date_trunc(post_date, week(monday)) from t",
+    ]
+    assert week_usage(texts, "post_date") == "week" and week_usage(texts, "other") == ""
+    assert week_usage(["select date_trunc(date(ts), isoweek) from t"], "ts") == "week_monday"
+    request = req(dimensions=[{"alias": "w", "column": "dw.fct_txn.post_date", "grain": "week_monday"}])
+    usage = lambda t, c: week_usage(texts, c)
+    assert weeks(request, CAT, usage, "Spend by week") and request["dimensions"][0]["grain"] == "week"
+    request["dimensions"][0]["grain"] = "week_monday"
+    assert weeks(request, CAT, usage, "Spend by week starting Monday") == []

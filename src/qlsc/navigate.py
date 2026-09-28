@@ -213,6 +213,13 @@ WHERE any(x IN f.values WHERE toLower(toString(x)) = toLower($value))
 RETURN t.id AS t, c.name AS c, count(*) AS n ORDER BY n DESC, t LIMIT $k
 """
 
+# The log's texts that truncate a column to weeks, for the week its queries mean (Sunday or Monday).
+WEEK_TEXTS = """
+MATCH (t:Table {id: $table})-[:HAS_COLUMN]->(c:Column {name: $column})<-[:READS]-(q:QueryShape)
+WHERE toLower(q.sample_sql) CONTAINS 'week'
+RETURN q.sample_sql AS sql
+"""
+
 # The trusted joins between some tables: identity-preserving, of a confidence that builds Variables,
 # each with the join type most of the log's queries use for it. The compiler's paths run only along these.
 TRUSTED_JOINS = """
@@ -573,10 +580,12 @@ def unique_check(s: Settings):
     return unique
 
 
-def compiled_request(G: Graph, s: Settings, tr: dict) -> tuple[dict, compiler.Catalogue]:
+def compiled_request(G: Graph, s: Settings, tr: dict) -> tuple[dict, compiler.Catalogue, list[str]]:
     """The typed request for a question (qlsc/compile.py), the LLM choosing from the layer's options:
     the cohort's tables, the closest Computations and the tables they read, the trusted joins. One LLM
-    call, cached, whichever route it is compiled for."""
+    call, cached, whichever route it is compiled for; with navigate.compile_checks, a second when the
+    checks find something, and a week grain set as the log truncates the column.
+    -> (request, catalogue, what the checks found and changed)"""
     p = s.params["navigate"]
     v = Embedder(s).embed([tr["question"]])[0]
     offered = {
@@ -597,22 +606,29 @@ def compiled_request(G: Graph, s: Settings, tr: dict) -> tuple[dict, compiler.Ca
     joins = G.rows(TRUSTED_JOINS, tables=list(tables), usable=s.params["variables"]["joins"])
     cat = compiler.Catalogue(tables, joins, offered)
     llm = LLM(prompt("compile_system", **s.business), s, s["llm"]["query_model"])
-    request = llm.call(
-        prompt(
-            "compile_request",
-            question=tr["question"],
-            today=calendar(today(s)),
-            tables=compiler.options_text(cat, filter_values(G, list(tables), p["filter_values"])),
-            joins=compiler.joins_text(joins),
-            computations=compiler.computations_text(cat),
-            examples=example_sql(tr["examples"]),
-            **s.business,
-        ),
-        compiler.SCHEMA,
-        "record_request",
-        max_tokens=3000,
+    values = filter_values(G, list(tables), p["filter_values"])
+    text = prompt(
+        "compile_request",
+        question=tr["question"],
+        today=calendar(today(s)),
+        tables=compiler.options_text(cat, values),
+        joins=compiler.joins_text(joins),
+        computations=compiler.computations_text(cat),
+        examples=example_sql(tr["examples"]),
+        **s.business,
     )
-    return request, cat
+    request = llm.call(text, compiler.SCHEMA, "record_request", max_tokens=3000)
+    found: list[str] = []
+    if p["compile_checks"]:
+        found = compiler.check(request, cat, tr["question"], values, p["compile_check_chars"])
+        if found:
+            retry = prompt("compile_check", notes="\n".join(f"- {n}" for n in found))
+            request = llm.call(text + "\n\n" + retry, compiler.SCHEMA, "record_request", max_tokens=3000)
+        usage = lambda t, col: compiler.week_usage(
+            [r["sql"] for r in G.rows(WEEK_TEXTS, table=t, column=col)], col
+        )
+        found += compiler.weeks(request, cat, usage, tr["question"])
+    return request, cat, found
 
 
 def answer_compiled(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int | None = None) -> dict:
@@ -620,11 +636,11 @@ def answer_compiled(G: Graph, s: Settings, tr: dict, execute: bool = False, rows
     compiles it. -> {writer: compiled, request, sql, ...} | {fallback: why, request?}"""
     p = s.params["navigate"]
     wh = connect(s)
-    request, cat = compiled_request(G, s, tr)
+    request, cat, found = compiled_request(G, s, tr)
     try:
         sql = compiler.compile_sql(request, cat, unique_check(s), dialect=wh.dialect, hops=p["compile_hops"])
     except compiler.Unfit as e:
-        return {"fallback": str(e), "request": request}
+        return {"fallback": str(e), "request": request, "checks": found}
     res = wh.dry_run(sql)
     if res["ok"] is False:
         return {"fallback": f"the compiled SQL failed its dry run: {res['error'][:200]}", "request": request}
@@ -634,6 +650,7 @@ def answer_compiled(G: Graph, s: Settings, tr: dict, execute: bool = False, rows
         "request": request,
         "sql": sql,
         "explanation": request.get("reason", ""),
+        "checks": found,
         "dry_run": res,
     }
     if execute and res["ok"]:
@@ -726,7 +743,7 @@ def cypher_compiled(
     """The compiler's Cypher: the same request as the SQL route's, over the Virtual Graph model.
     -> {writer: compiled, request, cypher, check, result?} | {fallback: why, request?}"""
     p = s.params["navigate"]
-    request, cat = compiled_request(G, s, tr)
+    request, cat, found = compiled_request(G, s, tr)
     try:
         cypher = compiler.compile_cypher(request, cat, unique_check(s), labels, model, hops=p["compile_hops"])
     except compiler.Unfit as e:
@@ -741,6 +758,7 @@ def cypher_compiled(
         "around": [],
         "cypher": cypher,
         "explanation": request.get("reason", ""),
+        "checks": found,
     }
     try:
         with Graph(s, instance) as V:

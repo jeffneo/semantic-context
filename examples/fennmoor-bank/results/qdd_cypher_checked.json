@@ -1,0 +1,362 @@
+{
+ "Q01": {
+  "source": "gold",
+  "verdict": "declined",
+  "why": "The graph has ContactCenterSite with cost_center_id/cost_center_name but no cost or expense figures, and Call data only lets us count account-closure calls, not actual operating cost. There is no fact table or property in the given graph (e.g., cost amounts from dw_finance) linking sites to a \"cost to run\" for a period, so the cost portion of the question cannot be answered with the provided schema.",
+  "sql": null,
+  "definitions": [],
+  "writer": "free",
+  "fallback": "several fact tables: Virtual Graph has no CALL subquery to combine them"
+ },
+ "Q02": {
+  "source": "gold",
+  "verdict": "declined",
+  "why": "The graph exposes only Customer, Account, Branch, Call, CardTransaction and DepositTransaction with no churn scoring information (no churn_probability, churn_score, or risk_band field, and no ml_scores/churn_score tables or customer_facts view). It also has no balance field on Account or Customer to define \"high-balance\" customers. Since neither the churn risk metric nor a balance measure exists in the given graph, this question cannot be answered with it.",
+  "sql": null,
+  "definitions": [],
+  "writer": "free",
+  "fallback": "looker_scratch.LR_{id}_customer_facts is not in the virtual graph"
+ },
+ "Q04": {
+  "source": "gold",
+  "verdict": "correct",
+  "why": "matches on segment, mcc_category_group, spend=card_spend",
+  "sql": "MATCH (fct_card_transactions:CardTransaction)\nMATCH (fct_card_transactions)-[:MADE_BY]->(dim_customer:Customer)\nWHERE (fct_card_transactions.is_purchase)\n  AND (fct_card_transactions.post_date >= date('2026-04-01'))\n  AND (fct_card_transactions.post_date <= date('2026-06-30'))\nRETURN fct_card_transactions.mcc_category_group AS mcc_category_group, dim_customer.segment AS segment, sum(fct_card_transactions.amount) AS card_spend",
+  "definitions": [],
+  "writer": "compiled",
+  "fallback": null
+ },
+ "Q05": {
+  "source": "gold",
+  "verdict": "declined",
+  "why": "The question needs month-end ledger/account balances (e.g., fct_daily_account_balances / EOM_BAL_SNAP with ledger_balance per balance_date), but no such balance table or property is exposed in the given graph (only DepositTransaction amounts and CardTransaction amounts are available, which are transaction flows, not account balances). Without a balance fact node, month-end deposit balances by product line cannot be computed.",
+  "sql": null,
+  "definitions": [],
+  "writer": "free",
+  "fallback": "dw_core.fct_daily_account_balances is not in the virtual graph"
+ },
+ "Q07": {
+  "source": "gold",
+  "verdict": "not covered",
+  "why": "none of the cohort's tables is in the virtual graph",
+  "sql": null,
+  "definitions": [],
+  "writer": null,
+  "fallback": null
+ },
+ "Q08": {
+  "source": "gold",
+  "verdict": "declined",
+  "why": "The graph exposes no marketing campaign or attribution data (no dim_campaign / fct_campaign_attribution tables, nor any campaign-related node/relationship), and no credit card application table (fct_credit_applications) is included either. The provided labels (Customer, DepositTransaction, Account, Product, Branch, Call, CardTransaction) have no relationship to campaigns or credit applications, so this question cannot be answered from the given schema.",
+  "sql": null,
+  "definitions": [],
+  "writer": "free",
+  "fallback": "dw_marketing.fct_campaign_attribution is not in the virtual graph"
+ },
+ "Q09": {
+  "source": "gold",
+  "verdict": "declined",
+  "why": "The delinquency rate requires the fct_delinquency_daily table (with DPD/snapshot_date/bucket fields) which is not part of the provided graph \u2014 only Account, Product, Branch, Customer and transaction fact tables are exposed. Without a delinquency fact node/relationship, delinquency status per loan account cannot be determined, so this question cannot be answered from the given graph.",
+  "sql": null,
+  "definitions": [],
+  "writer": "free",
+  "fallback": "no join from dw_core.dim_account to dw_risk.fct_delinquency_daily for measure 'delinquent_loans' that doesn't multiply its rows"
+ },
+ "Q11": {
+  "source": "gold",
+  "verdict": "declined",
+  "why": "The graph exposes no node/label for mobile app sessions (the underlying table dw_digital.fct_app_sessions used in the sample SQL isn't part of the provided graph). None of the given labels (Customer, DepositTransaction, Account, Branch, Call, CardTransaction) capture app usage, so weekly mobile app usage cannot be computed from this graph.",
+  "sql": null,
+  "definitions": [],
+  "writer": "free",
+  "fallback": "dw_digital.fct_app_sessions is not in the virtual graph"
+ },
+ "Q12": {
+  "source": "gold",
+  "verdict": "correct",
+  "why": "matches on cif_number (as Q12.alt)",
+  "sql": "MATCH (c:Customer)\nWHERE c.segment = 'affluent'\n  AND c.email_opt_in = true\n  AND c.primary_email IS NOT NULL\nRETURN c.cif_number AS cif_number, c.full_name AS full_name, c.primary_email AS primary_email",
+  "definitions": [],
+  "writer": "free",
+  "fallback": "dw_customer.customer_360 is not in the virtual graph"
+ },
+ "Q14": {
+  "source": "gold",
+  "verdict": "correct",
+  "why": "matches on account_family, closures=n",
+  "sql": "MATCH (a:Account)\nWHERE a.close_date IS NOT NULL AND a.account_family IN ['DEPOSIT', 'CARD']\nRETURN a.account_family AS account_family, a.close_reason AS close_reason, count(*) AS n\nORDER BY account_family, n DESC",
+  "definitions": [],
+  "writer": "free",
+  "fallback": "dw_intermediate.int_account_closures is not in the virtual graph"
+ },
+ "L000c43e2": {
+  "source": "log",
+  "verdict": "wrong",
+  "why": "3 rows, not 4",
+  "sql": "MATCH (fct_calls:Call)\nMATCH (fct_calls)-[:SERVICED_AT]->(dim_cc_site:ContactCenterSite)\nWHERE (fct_calls.wrapup_code_name = 'ACCT_MAINT')\n  AND (fct_calls.conversation_date >= date('2026-04-15'))\n  AND (fct_calls.conversation_date <= date('2026-07-01'))\nRETURN dim_cc_site.site_name AS site_name, count(DISTINCT fct_calls.conversation_id) AS call_count\nORDER BY call_count DESC\nLIMIT 500",
+  "definitions": [],
+  "writer": "compiled",
+  "fallback": null
+ },
+ "L0a42f6cf": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on fct_card_transactions_is_foreign=is_foreign, fct_card_transactions_merchant_name=merchant_name, fct_card_transactions_txn_type=txn_type, fct_card_transactions_cardholders=cardholders, fct_card_transactions_interchange=total_interchange, fct_card_transactions_txn_count=txn_count",
+  "sql": "MATCH (fct_card_transactions:CardTransaction)\nWHERE (fct_card_transactions.post_date >= date('2026-05-31'))\n  AND (fct_card_transactions.post_date <= date('2026-06-30'))\nRETURN fct_card_transactions.is_foreign AS is_foreign, fct_card_transactions.merchant_name AS merchant_name, fct_card_transactions.txn_type AS txn_type, count(DISTINCT fct_card_transactions.customer_key) AS cardholders, coalesce(sum(fct_card_transactions.interchange), 0) AS total_interchange, count(DISTINCT fct_card_transactions.settlement_id) AS txn_count",
+  "definitions": [],
+  "writer": "compiled",
+  "fallback": null
+ },
+ "L15e6e25c": {
+  "source": "log",
+  "verdict": "not covered",
+  "why": "none of the cohort's tables is in the virtual graph",
+  "sql": null,
+  "definitions": [],
+  "writer": null,
+  "fallback": null
+ },
+ "L21259f73": {
+  "source": "log",
+  "verdict": "wrong",
+  "why": "11 rows, not 10",
+  "sql": "MATCH (d:DepositTransaction)\nWHERE d.transaction_type = 'ACH_CR' AND d.posted_date >= date('2026-04-26')\nWITH date.truncate('week', d.posted_date) AS weekStart, d.customer_key AS customer_key\nRETURN weekStart, count(DISTINCT customer_key) AS distinct_customers\nORDER BY weekStart",
+  "definitions": [],
+  "writer": "free",
+  "fallback": "no Cypher truncation to WEEK"
+ },
+ "L31b89126": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on fct_card_transactions_post_month=month, fct_card_transactions_segment=segment, fct_card_transactions_cardholders=cardholders, fct_card_transactions_txn_count=transaction_count",
+  "sql": "MATCH (fct_card_transactions:CardTransaction)\nMATCH (fct_card_transactions)-[:MADE_BY]->(dim_customer:Customer)\nWHERE (dim_customer.segment IN ['affluent', 'private'])\nRETURN date.truncate('month', fct_card_transactions.post_date) AS month, dim_customer.segment AS segment, count(DISTINCT fct_card_transactions.customer_key) AS cardholders, count(DISTINCT fct_card_transactions.settlement_id) AS transaction_count",
+  "definitions": [],
+  "writer": "compiled",
+  "fallback": null
+ },
+ "L3b82445b": {
+  "source": "log",
+  "verdict": "declined",
+  "why": "The graph provided has no node/relationship for fee data (the fct_fees table referenced in the SQL example, with FEE_TYPE 'OD'/'NSF' and ASSESSED_DATE) nor an account-closure event table (fct_account_closures) linking a closure date separate from Account.close_date. Since none of the given labels (Account, Customer, Product, CardTransaction, Branch, Call, DepositTransaction, Merchant) expose fee assessments, we cannot identify customers hit with OD/NSF fees, so the question cannot be answered with this graph.",
+  "sql": null,
+  "definitions": [],
+  "writer": "free",
+  "fallback": "This requires first identifying a cohort of customers by an aggregate condition (count of OD/NSF fees >= 3 since 2025-11-09), then counting how many of those specific customers had a later account closure (on or after 2025-11-26) - a filter based on group membership derived from one aggregate, then applying another condition across a different fact table. This is a multi-step 'customers with N fees, then how many closed an account' pattern that isn't expressible as a single measure/filter/having combination - it requires two sequential aggregations with the second dependent on the entity list from the first (a semi-join on a derived population), which the available structure (single fact table with filters/having) cannot express."
+ },
+ "L4115df4b": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on period=month, customers_with_ach_credit",
+  "sql": "MATCH (fct_deposit_transactions:DepositTransaction)\nWHERE (fct_deposit_transactions.transaction_type = 'ACH_CR')\n  AND (fct_deposit_transactions.posted_date >= date('2026-05-02'))\n  AND (fct_deposit_transactions.posted_date <= date('2026-07-01'))\nRETURN date.truncate('month', fct_deposit_transactions.posted_date) AS month, count(DISTINCT fct_deposit_transactions.customer_key) AS customers_with_ach_credit",
+  "definitions": [],
+  "writer": "compiled",
+  "fallback": null
+ },
+ "L4379b829": {
+  "source": "log",
+  "verdict": "wrong",
+  "why": "90 rows, not 120",
+  "sql": "MATCH (fct_calls:Call)\nMATCH (fct_calls)-[:SERVICED_AT]->(dim_cc_site:ContactCenterSite)\nWHERE (fct_calls.conversation_date >= date('2026-05-31'))\n  AND (fct_calls.conversation_date <= date('2026-06-29'))\nRETURN date.truncate('day', fct_calls.conversation_date) AS conversation_date, dim_cc_site.site_name AS site_name, avg(fct_calls.handle_sec) AS avg_handle_time_sec, count(CASE WHEN fct_calls.was_transferred THEN 1 END) AS transferred_calls",
+  "definitions": [],
+  "writer": "compiled",
+  "fallback": null
+ },
+ "L4dee27ab": {
+  "source": "log",
+  "verdict": "declined",
+  "why": "The graph provided has no node label or relationship representing web sessions, landing pages, or page_view events (the fct_web_sessions / analytics events tables referenced in the sample SQL are not part of the given graph). Without a way to identify landing pages or \"visited help/support\" flags per customer, this question cannot be answered from the given labels/relationships.",
+  "sql": null,
+  "definitions": [],
+  "writer": "free",
+  "fallback": "The 'also contacted us in the last 90 days' condition requires joining web session customers to a contacts/customer 360 table's contacts_90d field, but there's no clean way to compute 'distinct customers who visited AND had contacts_90d>0' as a single measure per landing page grouping without a proper join key restriction; more importantly, the available tables don't provide a per-customer 'contacted in last 90 days' fact tied to session data - customer_360 tables have contacts_90d as a snapshot metric, not filterable by session date, and there's no join path given between fct_web_sessions and customer_360_final tables. This mixes a session-level dimension with a customer-level attribute from an unjoined table, which the schema doesn't support."
+ },
+ "L56b51129": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on fct_calls_media_type=media_type, fct_calls_wrapup=wrapup_code, fct_calls_transfers=transferred_calls",
+  "sql": "MATCH (fct_calls:Call)\nWHERE (fct_calls.conversation_date >= date('2026-04-01'))\n  AND (fct_calls.conversation_date <= date('2026-06-30'))\nRETURN fct_calls.media_type AS media_type, fct_calls.wrapup_code_name AS wrapup_code, count(CASE WHEN fct_calls.was_transferred = true THEN 1 ELSE null END) AS transferred_calls",
+  "definitions": [],
+  "writer": "compiled",
+  "fallback": null
+ },
+ "L5e47c60f": {
+  "source": "log",
+  "verdict": "declined",
+  "why": "The provided graph schema does not include a Fee/fct_fees node label or relationship, even though the reference SQL queries against fct_fees show it exists in the warehouse. Without a Fee label (with fee_type, assessed_date, net_fee properties) exposed in the virtual graph, this question cannot be answered using the given schema.",
+  "sql": null,
+  "definitions": [],
+  "writer": "free",
+  "fallback": "dw_core.fct_fees is not in the virtual graph"
+ },
+ "L6505b2e4": {
+  "source": "log",
+  "verdict": "declined",
+  "why": "The provided graph schema does not include the fct_credit_applications table (or a corresponding node label) which holds credit application data such as submitted_date, final_outcome, approved_amount, approved_apr, and product line/code. Without a node label mapping to this table, the question cannot be answered using the given graph.",
+  "sql": null,
+  "definitions": [],
+  "writer": "free",
+  "fallback": "dw_risk.fct_credit_applications is not in the virtual graph"
+ },
+ "L6b9d5aa5": {
+  "source": "log",
+  "verdict": "wrong",
+  "why": "4445 rows, not 629",
+  "sql": "MATCH (fct_card_transactions:CardTransaction)\nMATCH (fct_card_transactions)-[:CHARGED_TO]->(dim_account:Account)\nWHERE (fct_card_transactions.post_date >= date('2026-05-18'))\n  AND (fct_card_transactions.post_date >= date('2026-05-18'))\n  AND (fct_card_transactions.post_date <= date('2026-07-01'))\nWITH fct_card_transactions.account_key AS account_key, dim_account.status_code AS status_code, sum(fct_card_transactions.amount) AS total_spend\nWHERE total_spend > 5000\nRETURN account_key, status_code, total_spend AS total_spend",
+  "definitions": [],
+  "writer": "compiled",
+  "fallback": null
+ },
+ "L6fe9ce4c": {
+  "source": "log",
+  "verdict": "declined",
+  "why": "The graph provided doesn't include a CSAT survey node/table (the SQL examples reference `fct_csat` with csat_score, conversation_date, etc.), and there's no relationship exposed linking such surveys to Customer segment. Only Call, Agent, Queue, ContactCenterSite and other unrelated tables are given\u2014none carry csat_score. Without a CSAT/survey label and its link to Customer, this question cannot be answered from the given graph.",
+  "sql": null,
+  "definitions": [],
+  "writer": "free",
+  "fallback": "dw_contact_center.fct_csat is not in the virtual graph"
+ },
+ "L771678fa": {
+  "source": "log",
+  "verdict": "not covered",
+  "why": "none of the cohort's tables is in the virtual graph",
+  "sql": null,
+  "definitions": [],
+  "writer": null,
+  "fallback": null
+ },
+ "L7ccb76ec": {
+  "source": "log",
+  "verdict": "not covered",
+  "why": "none of the cohort's tables is in the virtual graph",
+  "sql": null,
+  "definitions": [],
+  "writer": null,
+  "fallback": null
+ },
+ "L83fe5e7b": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on fct_card_transactions_is_foreign=is_foreign, fct_card_transactions_mcc_category_group=mcc_category_group, fct_card_transactions_cardholders=cardholders, fct_card_transactions_interchange=interchange",
+  "sql": "MATCH (fct_card_transactions:CardTransaction)\nRETURN fct_card_transactions.is_foreign AS is_foreign, fct_card_transactions.mcc_category_group AS mcc_category_group, count(DISTINCT fct_card_transactions.customer_key) AS cardholders, coalesce(sum(fct_card_transactions.interchange), 0) AS interchange",
+  "definitions": [],
+  "writer": "compiled",
+  "fallback": null
+ },
+ "L8f767484": {
+  "source": "log",
+  "verdict": "wrong",
+  "why": "26 rows, not 28",
+  "sql": "MATCH (c:Call)-[:HANDLED_BY]->(a:Agent)\nMATCH (c)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE s.site_id = 'SPK'\n  AND c.is_account_closure_call = true\n  AND c.conversation_date >= date('2026-06-23')\n  AND c.conversation_date <= date('2026-06-29')\nRETURN a.agent_user_id AS agent_user_id,\n       '2026-06-23_2026-06-29' AS week,\n       s.site_id AS site_id,\n       avg(c.handle_sec) AS avg_handle_sec,\n       count(c.conversation_id) AS closure_calls,\n       count(c.conversation_id) AS total_calls\nORDER BY agent_user_id",
+  "definitions": [],
+  "writer": "free",
+  "fallback": "no Cypher truncation to WEEK"
+ },
+ "L9bedbbe0": {
+  "source": "log",
+  "verdict": "declined",
+  "why": "The provided graph schema has no node label or relationship representing the ml_scores.churn_score_v2 table (churn_score, score_date, customer_key), which the reference SQL relies on. Without a Customer-to-churn-score relationship, this question cannot be answered from the given graph.",
+  "sql": null,
+  "definitions": [],
+  "writer": "free",
+  "fallback": "= on score_date needs one value"
+ },
+ "La6c932d6": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on segment, callers=distinct_customers, contacts=total_calls",
+  "sql": "MATCH (fct_calls:Call)\nMATCH (fct_calls)-[:RECEIVED_FROM]->(dim_customer:Customer)\nWHERE (fct_calls.conversation_date >= date('2026-03-14'))\n  AND (fct_calls.conversation_date <= date('2026-07-01'))\nRETURN dim_customer.segment AS segment, count(DISTINCT fct_calls.customer_key) AS distinct_customers, count(*) AS total_calls",
+  "definitions": [],
+  "writer": "compiled",
+  "fallback": null
+ },
+ "Lb04a395e": {
+  "source": "log",
+  "verdict": "not covered",
+  "why": "none of the cohort's tables is in the virtual graph",
+  "sql": null,
+  "definitions": [],
+  "writer": null,
+  "fallback": null
+ },
+ "Lb94b1361": {
+  "source": "log",
+  "verdict": "declined",
+  "why": "The graph exposes only raw call, agent, site, customer, and queue data \u2014 there is no cost or expense field anywhere (e.g., total_expense used in the bank's rpt_site_cost_per_contact / site_monthly_kpis SQL). Without a cost/expense metric linked to Call or ContactCenterSite, \"cost per contact\" cannot be computed from this graph, so the query cannot be answered.",
+  "sql": null,
+  "definitions": [],
+  "writer": "free",
+  "fallback": "no join from looker_scratch.LR_{id}_site_monthly_kpis to dimension 'site_name' that doesn't multiply its rows"
+ },
+ "Lc38c81cf": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on fct_card_transactions_is_foreign=is_foreign, fct_card_transactions_mcc_category_group=merchant_category_group, fct_card_transactions_post_date=post_date, fct_card_transactions_cardholders=cardholders",
+  "sql": "MATCH (fct_card_transactions:CardTransaction)\nMATCH (fct_card_transactions)-[:MADE_BY]->(dim_customer:Customer)\nWHERE (dim_customer.segment IN ['affluent', 'private'])\n  AND (fct_card_transactions.txn_type = 'PURCH')\n  AND (fct_card_transactions.post_date >= date('2026-06-23'))\n  AND (fct_card_transactions.post_date <= date('2026-06-29'))\nRETURN date.truncate('day', fct_card_transactions.post_date) AS post_date, fct_card_transactions.is_foreign AS is_foreign, fct_card_transactions.mcc_category_group AS merchant_category_group, count(DISTINCT fct_card_transactions.customer_key) AS cardholders",
+  "definitions": [],
+  "writer": "compiled",
+  "fallback": null
+ },
+ "Lcf63b774": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on fct_card_transactions_segment=segment, fct_card_transactions_cardholders=cardholders",
+  "sql": "MATCH (fct_card_transactions:CardTransaction)\nMATCH (fct_card_transactions)-[:MADE_BY]->(dim_customer:Customer)\nRETURN dim_customer.segment AS segment, count(DISTINCT fct_card_transactions.customer_key) AS cardholders",
+  "definitions": [],
+  "writer": "compiled",
+  "fallback": null
+ },
+ "Ld9c8c1f0": {
+  "source": "log",
+  "verdict": "not covered",
+  "why": "none of the cohort's tables is in the virtual graph",
+  "sql": null,
+  "definitions": [],
+  "writer": null,
+  "fallback": null
+ },
+ "Ldf622140": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on fct_card_transactions_is_foreign=is_foreign, fct_card_transactions_mcc_category_group=mcc_category_group, fct_card_transactions_segment=segment, fct_card_transactions_total_spend=total_spend",
+  "sql": "MATCH (fct_card_transactions:CardTransaction)\nMATCH (fct_card_transactions)-[:MADE_BY]->(dim_customer:Customer)\nWHERE (dim_customer.segment IN ['affluent', 'private'])\n  AND (fct_card_transactions.post_date >= date('2026-05-31'))\n  AND (fct_card_transactions.post_date <= date('2026-06-29'))\nRETURN fct_card_transactions.is_foreign AS is_foreign, fct_card_transactions.mcc_category_group AS mcc_category_group, dim_customer.segment AS segment, coalesce(sum(CASE WHEN fct_card_transactions.is_purchase THEN fct_card_transactions.amount ELSE null END), 0) AS total_spend",
+  "definitions": [],
+  "writer": "compiled",
+  "fallback": null
+ },
+ "Le6d5789b": {
+  "source": "log",
+  "verdict": "declined",
+  "why": "The graph has no entity or property representing account closure events with a closure date or a voluntary-closure flag \u2014 Customer has no closure-related fields, and Call only indicates whether the call itself was about a closure (is_account_closure_call), not the account's actual closure date or voluntariness. Without a closure date per customer, we cannot define the 30-day pre-closure window or filter for closures on/after 2026-02-05, so the question cannot be answered from this graph.",
+  "sql": null,
+  "definitions": [],
+  "writer": "free",
+  "fallback": "no join from dw_contact_center.fct_calls to dw_core.fct_account_closures for a filter that doesn't multiply its rows"
+ },
+ "Lecec1d54": {
+  "source": "log",
+  "verdict": "declined",
+  "why": "The example SQL queries against a fct_account_closures table with an is_voluntary flag and close_reason, but the provided graph only exposes Account with close_date and close_reason properties (no is_voluntary flag, and no fct_account_closures table/label). Since there is no way to identify which closures are voluntary using the given schema, this question cannot be answered with the graph as provided.",
+  "sql": null,
+  "definitions": [],
+  "writer": "free",
+  "fallback": "dw_core.fct_account_closures is not in the virtual graph"
+ },
+ "Lef98f427": {
+  "source": "log",
+  "verdict": "declined",
+  "why": "The provided graph only exposes ContactCenterSite and Call nodes; there is no node/relationship for the monthly cost/expense table (fct_cc_site_cost_monthly) or the GL/vendor invoice data referenced in the sample SQL. Without expense, payroll_expense, or vendor_expense data available in the graph, this question cannot be answered.",
+  "sql": null,
+  "definitions": [],
+  "writer": "free",
+  "fallback": "dw_contact_center.fct_cc_site_cost_monthly is not in the virtual graph"
+ },
+ "Lfba52c1e": {
+  "source": "log",
+  "verdict": "not covered",
+  "why": "none of the cohort's tables is in the virtual graph",
+  "sql": null,
+  "definitions": [],
+  "writer": null,
+  "fallback": null
+ }
+}
