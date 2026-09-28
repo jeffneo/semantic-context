@@ -41,6 +41,8 @@ def main() -> int:
         q for q, r in json.loads((RESULTS / "log_answers.json").read_text()).items() if r["verdict"] == "kept"
     ]
     wh, res = connect(s), {}
+    if (probe := wh.dry_run("SELECT 1"))["ok"] is not True:  # fail now, not after an hour of failed queries
+        raise SystemExit(f"the warehouse isn't reachable: {probe.get('error')}")
     todo = [("gold", q) for q in sorted(gold)] + [("log", q) for q in kept[::step]]
     with Graph(s) as G:
         for i, (src, qid) in enumerate(todo, 1):
@@ -68,6 +70,8 @@ def main() -> int:
                 "definitions": [d["name"] for d in tr.get("definitions", [])],
             }
             print(f"{i}/{len(todo)} {qid} {v:10} {why[:90]}", flush=True)
+            if "fresh login" in why:  # the credentials expired mid-run: every answer from here would fail
+                raise SystemExit(f"stopped at {qid}: {why}")
     n = lambda src: (
         sum(1 for r in res.values() if r["source"] == src and r["verdict"] == "correct"),
         sum(1 for r in res.values() if r["source"] == src),
