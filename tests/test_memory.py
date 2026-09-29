@@ -151,3 +151,23 @@ def test_the_computations_a_request_used():
         "blocks": [{"filters": [{"computation": "c2"}]}],
     }
     assert computation_ids(request) == ["c1", "c2"]
+
+
+def test_the_memory_route_guards_every_node_and_relationship():
+    """Phase 5: the compiler's Cypher, run on memory, carries memory's conditions: its source, facts that
+    still hold, and a row-policied node only if the reader's own step read it."""
+    import dataclasses
+
+    import sqlglot
+
+    m = dataclasses.replace(M, reader="p@x", policied={"Customer"})
+    g = memory.Guard(m)
+    assert g.node("c", "Customer")[-1] == (
+        "EXISTS { (:Step {owner: $by})-[seen:READ]->(c) WHERE seen.holds_until > $now }"
+    )
+    assert len(g.node("t", "Txn")) == 2 and g.relationship("r0") == [
+        "(r0.holds_until IS NULL OR r0.holds_until > $now)"
+    ]
+    value = lambda sql: memory.literal_value(sqlglot.parse_one(sql, read="bigquery").expression)
+    assert value("x.k = -9222608688654483010") == "-9222608688654483010"
+    assert value("x.d >= DATE '2026-04-01'") == "2026-04-01" and value("x.s = 'KS'") == "KS"

@@ -921,9 +921,11 @@ def compile_cypher(
     return render_cypher(plan(request, cat, unique, hops), labels, model)
 
 
-def render_cypher(p: Plan, labels: dict[str, str], model: dict) -> str:
+def render_cypher(p: Plan, labels: dict[str, str], model: dict, guard=None) -> str:
     """The plan over the Virtual Graph: each table a label (`labels`: table id -> label), each join a
-    relationship, each column a property. Raises Unfit for what the graph can't express."""
+    relationship, each column a property. Raises Unfit for what the graph can't express. `guard`, for
+    another target of the same model (memory: qlsc/memory.py), adds its conditions on every node
+    (guard.node(variable, label)) and relationship (guard.relationship(variable)) the query matches."""
     if len(p.blocks) != 1:
         raise Unfit("several fact tables: Virtual Graph has no CALL subquery to combine them")
     b = p.blocks[0]
@@ -964,13 +966,28 @@ def render_cypher(p: Plan, labels: dict[str, str], model: dict) -> str:
         if alias(t) in needed:
             needed.add(alias(a))
     lines = [f"MATCH ({alias(b.fact)}:{labels[b.fact]})"]
-    lines += [
-        f"MATCH {relationship(a, ac, t, tc, labels, model)}"
-        for a, ac, t, tc, _ in b.joins
-        if alias(t) in needed
-    ]
+    walked = [(a, ac, t, tc, outer) for a, ac, t, tc, outer in b.joins if alias(t) in needed]
+    rels = [f"r{i}" if guard else "" for i in range(len(walked))]
+    # With a guard the target is a standard database (memory), which has OPTIONAL MATCH: an outer join that
+    # nothing filters on keeps its null group there, as the SQL's does, and its guard goes in its own WHERE.
+    optional: set[str] = set()
+    for a, _, t, _, outer in walked:
+        if guard and (alias(a) in optional or (outer and not any(f"{alias(t)}." in w for w in where))):
+            optional.add(alias(t))
+    inner = [(j, r) for j, r in zip(walked, rels) if alias(j[2]) not in optional]
+    lines += [f"MATCH {relationship(a, ac, t, tc, labels, model, r)}" for (a, ac, t, tc, _), r in inner]
+    if guard:
+        matched = [(alias(b.fact), labels[b.fact])] + [(alias(j[2]), labels[j[2]]) for j, _ in inner]
+        where += [g for v, lb in matched for g in guard.node(v, lb)] + [
+            g for _, r in inner for g in guard.relationship(r)
+        ]
     if where:
         lines.append("WHERE " + "\n  AND ".join(f"({w})" for w in where))
+    for (a, ac, t, tc, _), r in zip(walked, rels):
+        if alias(t) in optional:
+            conditions = guard.node(alias(t), labels[t]) + guard.relationship(r)
+            lines.append(f"OPTIONAL MATCH {relationship(a, ac, t, tc, labels, model, r)}")
+            lines.append("WHERE " + " AND ".join(f"({c})" for c in conditions))
     tail = []
     if p.order:
         tail.append("ORDER BY " + ", ".join(f"{name(a)}{' DESC' if desc else ''}" for a, desc in p.order))
@@ -1000,8 +1017,9 @@ def render_cypher(p: Plan, labels: dict[str, str], model: dict) -> str:
     return "\n".join(lines + tail)
 
 
-def relationship(a: str, ac: str, t: str, tc: str, labels: dict[str, str], model: dict) -> str:
-    """A join step as a relationship: forwards, from the pointing column to the key, or back."""
+def relationship(a: str, ac: str, t: str, tc: str, labels: dict[str, str], model: dict, var: str = "") -> str:
+    """A join step as a relationship: forwards, from the pointing column to the key, or back; `var` names
+    it."""
     step = lambda *x: tuple(str(v).lower() for v in x)
     for r in model["relationships"]:
         key = r["end"]["keys"][0]
@@ -1009,9 +1027,9 @@ def relationship(a: str, ac: str, t: str, tc: str, labels: dict[str, str], model
             r["start"]["targetEntity"], r["end"]["targetEntity"], key["relationshipColumn"], key["nodeColumn"]
         )
         if have == step(labels[a], labels[t], ac, tc):
-            return f"({alias(a)})-[:{r['label']}]->({alias(t)}:{labels[t]})"
+            return f"({alias(a)})-[{var}:{r['label']}]->({alias(t)}:{labels[t]})"
         if have == step(labels[t], labels[a], tc, ac):
-            return f"({alias(a)})<-[:{r['label']}]-({alias(t)}:{labels[t]})"
+            return f"({alias(a)})<-[{var}:{r['label']}]-({alias(t)}:{labels[t]})"
     raise Unfit(f"no relationship for the join {short(a)}.{ac} = {short(t)}.{tc}")
 
 

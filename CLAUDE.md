@@ -36,7 +36,7 @@ qlsc infers a semantic layer for a data warehouse from its query log, in Neo4j. 
 uv sync
 uv run qlsc --help                       # extract, build, one command per stage, ask
 QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc build
-QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc ask "question"   # the router's query; --run, --sql, --cypher, --as <principal>
+QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc ask "question"   # the router's query; --run, --sql, --cypher, --memory, --as <principal>
 QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc computations   # then: qlsc okf (the OKF bundle, <work>/okf)
 QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc recall Customer cif_number=0001000025   # a context, kept in memory; remember fetches again; --as <principal>
 uv run pytest                            # needs Neo4j up for the demo-query tests
@@ -54,6 +54,7 @@ uv run examples/fennmoor-bank/eval/memory.py            # remembered contexts ag
 uv run examples/fennmoor-bank/eval/memory_entitlements.py   # memory as each principal, with BigQuery as the oracle (minutes)
 uv run examples/fennmoor-bank/eval/converse.py          # the agent side: the example conversations recorded, then checked
 uv run examples/fennmoor-bank/eval/distill.py           # skills from simulated experience: distill, approve, offer, retire (~10 min)
+uv run examples/fennmoor-bank/eval/economics.py         # 50 questions, with and without memory: latency and bytes billed (~10 min)
 QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc distill   # then: qlsc skills [--approve ID --as PRINCIPAL]
 QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc converse examples/fennmoor-bank/conversations/marketing-1.yaml
 uv run examples/fennmoor-bank/entitlements/setup.py [--apply]   # the test principals' grants, tags and row policies in BigQuery (as the owner)

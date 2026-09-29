@@ -528,3 +528,34 @@ def test_a_period_ending_today_that_the_question_doesnt_end_is_open():
     )
     request = req(period={"column": "dw.fct_txn.post_date", "from": "2026-04-22", "to": "2026-07-01"})
     assert open_period(request, "2026-07-01", "Decisions from 2026-04-22 to 2026-07-01") == []
+
+
+def test_on_memory_an_outer_join_keeps_its_null_group():
+    """With a guard (memory: a standard database), an outer join nothing filters on is OPTIONAL MATCH, its
+    guard in its own WHERE; over the virtual graph (no OPTIONAL MATCH) it stays a MATCH."""
+    from qlsc.compile import Block, Plan, render_cypher
+
+    class Guard:
+        node = staticmethod(lambda v, label: [f"{v}.ok"])
+        relationship = staticmethod(lambda r: [f"{r}.ok"])
+
+    b = Block(fact="p.dw.acct", joins=[("p.dw.acct", "branch_id", "p.dw.branch", "branch_id", True)],
+              where=["acct.owner = 7"], dims=[("branch", "branch.name")], measures=[("n", "COUNT(acct.id)")])  # fmt: skip
+    p = Plan(
+        blocks=[b], dims=["branch"], outputs=["n"], derived={}, having=[], order=[], limit=0, listing=False
+    )
+    labels = {"p.dw.acct": "Account", "p.dw.branch": "Branch"}
+    prop = lambda *cs: [{"name": c, "column": c, "type": "STRING"} for c in cs]
+    model = {
+        "nodes": [{"label": "Account", "properties": prop("id", "owner", "branch_id")},
+                  {"label": "Branch", "properties": prop("branch_id", "name")}],
+        "relationships": [{"label": "AT", "start": {"targetEntity": "Account"},
+                           "end": {"targetEntity": "Branch", "keys": [{"relationshipColumn": "branch_id", "nodeColumn": "branch_id"}]}}],
+    }  # fmt: skip
+    virtual = render_cypher(p, labels, model)
+    assert "MATCH (acct)-[:AT]->(branch:Branch)" in virtual and "OPTIONAL" not in virtual
+    mem = render_cypher(p, labels, model, guard=Guard())
+    assert "OPTIONAL MATCH (acct)-[r0:AT]->(branch:Branch)\nWHERE (branch.ok) AND (r0.ok)" in mem
+    assert mem.index("(acct.ok)") < mem.index(
+        "OPTIONAL MATCH"
+    )  # the main WHERE before it, the fact's guard in it

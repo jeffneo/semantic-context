@@ -39,7 +39,7 @@ from decimal import Decimal
 from neo4j.exceptions import Neo4jError, ServiceUnavailable
 
 from qlsc import compile as compiler
-from qlsc import entitle
+from qlsc import entitle, memory
 from qlsc.config import Settings
 from qlsc.graph import Graph
 from qlsc.llm import LLM, Embedder, cosine, prompt
@@ -810,13 +810,67 @@ def pick(sql: dict, cypher: dict | None) -> str:
     return "cypher" if cypher is not None and answered(cypher) else "sql"
 
 
+def answer_memory(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int | None = None) -> dict:
+    """The memory route (plans/2026-09-27-agentic-memory.md, phase 5): the compiled request, when memory holds
+    its whole answer (qlsc/memory.py `answerable`: one entity, whose context the reader holds fresh), as the
+    compiler's Cypher over the virtual graph's model with memory's guard on every node and relationship, run
+    on memory. -> {writer: compiled, route: memory, request, cypher, anchor, result?} | {fallback: why}"""
+    p = s.params["navigate"]
+    request, cat, found = compiled_request(G, s, tr)
+    try:
+        plan = compiler.plan(request, cat, unique_check(s), p["compile_hops"])
+    except compiler.Unfit as e:
+        return {"fallback": str(e), "request": request}
+    if len(plan.blocks) != 1:
+        return {"fallback": "several fact tables: memory answers one block", "request": request}
+    allow = tr.get("allow")
+    m = memory.model(G, s, allow=allow)
+    labels = {r["table"]: r["label"] for r in G.rows(LABELS) if r["label"] in m.nodes}
+    schema = json.loads((s.work / "virtual" / "schema.json").read_text())["entities"]
+    entities = entitle.model(allow, schema, labels) if allow else schema
+    now = dt.datetime.now(dt.UTC)
+    route = memory.answerable(s, m, plan.blocks[0], labels, entities, now)
+    if not route["ok"]:
+        return {"fallback": route["why"], "request": request}
+    try:
+        cypher = compiler.render_cypher(plan, labels, entities, guard=memory.Guard(m))
+    except compiler.Unfit as e:
+        return {"fallback": str(e), "request": request}
+    answer = {
+        "writer": "compiled",
+        "route": "memory",
+        "request": request,
+        "cypher": cypher,
+        "anchor": f"{route['label']} {route['key']}",
+        "why": route["why"],
+        "explanation": request.get("reason", ""),
+        "checks": found,
+    }
+    if execute:
+        answer["result"] = memory.answer(
+            s, m, cypher, route["label"], route["key"], now, p["cypher_max_rows"]
+        )
+        answer["result"]["rows"] = answer["result"]["rows"][: rows or p["rows_shown"]]
+    return answer
+
+
 def answer_routed(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int | None = None) -> dict:
-    """Step 6 by the router (`pick`), running only what it needs: the compiled SQL; failing that, free
-    Cypher; failing that, free SQL. -> the chosen route's answer, with `route`."""
+    """Step 6 by the router (`pick`), running only what it needs: memory, when it holds the whole answer
+    (navigate.memory_route); the compiled SQL; failing that, free Cypher; failing that, free SQL.
+    -> the chosen route's answer, with `route`."""
     if s.params["navigate"]["writer"] == "compiled":
+        if s.params["navigate"]["memory_route"]:
+            a = answer_memory(G, s, tr, execute, rows)
+            if "cypher" in a:
+                return a
+            memory_why = a["fallback"]
         a = answer_compiled(G, s, tr, execute, rows)
         if "sql" in a:
-            return a | {"route": "sql"}
+            return (
+                a
+                | {"route": "sql"}
+                | ({"not_memory": memory_why} if s.params["navigate"]["memory_route"] else {})
+            )
         fallback = {"fallback": a["fallback"], "request": a.get("request")}
     else:
         fallback = {}
@@ -1056,6 +1110,22 @@ def print_sql(a: dict) -> None:
             print(f"   failed: {out['error']}")
 
 
+def print_memory(a: dict) -> None:
+    if "cypher" not in a:
+        print(f"\n5. memory can't answer this: {a.get('fallback')}")
+        return
+    print(f"\n5. memory holds the answer: {a['why']}")
+    print(
+        "\n6. the compiler's Cypher, over the virtual graph's model, run on memory (guarded: its source, facts"
+    )
+    print("   that still hold, and a row-policied node only if the reader's own recall read it)")
+    print(textwrap.indent(a["cypher"].strip(), "   "))
+    if "result" in a:
+        out = a["result"]
+        print("\n7. the answer (from memory)")
+        show(out["columns"], out["rows"], out["total"], f"{out['seconds']:.3f} s")
+
+
 def print_cypher(a: dict) -> None:
     print("\n5. the virtual graph: the cohort's tables that are labels there, and one hop around them")
     if "skipped" in a:
@@ -1225,7 +1295,11 @@ def run(
                 f"\nrouted to {a['route'].upper()} ({a.get('writer')})"
                 + (f"; the request didn't compile: {a['fallback']}" if a.get("fallback") else "")
             )
-            (print_cypher if a["route"] == "cypher" else print_sql)(a)
+            {"cypher": print_cypher, "memory": print_memory}.get(a["route"], print_sql)(a)
+            if a.get("not_memory"):
+                print(f"\n   (not from memory: {a['not_memory']})")
+        elif route == "memory":
+            print_memory(answer_memory(G, s, tr, execute))
         elif route == "cypher":
             print_cypher(answer_cypher(G, s, tr, execute))
         elif route == "sql":

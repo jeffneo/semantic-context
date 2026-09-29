@@ -3,7 +3,7 @@
   {
    "pattern": "A",
    "key": "-9222608688654483010",
-   "task": "b9d7378c-298e-4bea-afcf-bee576bb0554",
+   "task": "81128458-7394-4787-accb-0fdf044b9f0d",
    "offered": [],
    "followed": [],
    "ask_ok": true
@@ -11,7 +11,7 @@
   {
    "pattern": "A",
    "key": "-9222574476215892105",
-   "task": "8d6dcad9-91a3-478c-bd1d-346335679da0",
+   "task": "7e4a7389-6331-4496-93fb-ce5fd442c088",
    "offered": [],
    "followed": [],
    "ask_ok": true
@@ -19,7 +19,7 @@
   {
    "pattern": "A",
    "key": "-9221063171405116986",
-   "task": "b91d2968-e512-41ea-82b3-aa8fa3a60957",
+   "task": "8d945018-7e51-45f1-9d34-880c007145a0",
    "offered": [],
    "followed": [],
    "ask_ok": true
@@ -27,7 +27,7 @@
   {
    "pattern": "A",
    "key": "-9220075890278552624",
-   "task": "5634b34b-b464-425d-a031-dabfea48a4b6",
+   "task": "a2ddc9b7-6985-4a44-b775-ad07c865575f",
    "offered": [],
    "followed": [],
    "ask_ok": true
@@ -35,7 +35,7 @@
   {
    "pattern": "A",
    "key": "-9216038908868225893",
-   "task": "88eac92a-1dd9-4d06-9862-fbed0d5b930d",
+   "task": "c23c1457-1bd9-4d33-b60b-05ade840d61e",
    "offered": [],
    "followed": [],
    "ask_ok": true
@@ -43,7 +43,7 @@
   {
    "pattern": "B",
    "key": "-9216038908868225893",
-   "task": "058033f3-d99a-4f33-8409-008a0682bfed",
+   "task": "d1fb3dde-8050-4d41-b1ca-c1caf7824537",
    "offered": [],
    "followed": [],
    "ask_ok": true
@@ -51,7 +51,7 @@
   {
    "pattern": "B",
    "key": "-9212503573550955222",
-   "task": "16a0169d-7e90-49c2-9857-39942ba18671",
+   "task": "f86a07c3-6e17-4340-a874-bf70cb44c71a",
    "offered": [],
    "followed": [],
    "ask_ok": true
@@ -59,7 +59,7 @@
   {
    "pattern": "B",
    "key": "-9209958960023349720",
-   "task": "00f85ec6-43ab-4dff-ba38-e542d68934bc",
+   "task": "2cd35fcb-5732-41c2-ab04-baa78daaac15",
    "offered": [],
    "followed": [],
    "ask_ok": true
@@ -67,7 +67,7 @@
   {
    "pattern": "B",
    "key": "-9208516148041883104",
-   "task": "16e53222-4fb8-4e3a-add7-e1bc9e6f49aa",
+   "task": "248f064a-f18b-43b9-ba0e-8981844bff6a",
    "offered": [],
    "followed": [],
    "ask_ok": true
@@ -75,7 +75,7 @@
   {
    "pattern": "C",
    "key": "-9215880595133743573",
-   "task": "fce6dd23-00b1-44c0-acf1-fe0fef674902",
+   "task": "e4093a4b-ec33-44bf-85b5-c46ffab6b904",
    "offered": [],
    "followed": [],
    "ask_ok": true
@@ -83,7 +83,7 @@
   {
    "pattern": "C",
    "key": "-9211824707822917825",
-   "task": "26a3abca-6b3e-4df2-bd04-2228580fcf6f",
+   "task": "a083d6bd-8f9a-4512-944c-bd03168739f1",
    "offered": [],
    "followed": [],
    "ask_ok": true
@@ -91,7 +91,7 @@
   {
    "pattern": "C",
    "key": "-9210257275411290315",
-   "task": "ff9887bb-dd00-40e2-b1e3-ef0338900dd9",
+   "task": "62d66aec-3762-4575-8b3d-e52427c4437a",
    "offered": [],
    "followed": [],
    "ask_ok": true
@@ -99,7 +99,7 @@
   {
    "pattern": "branch",
    "key": "101",
-   "task": "46cb90a7-a914-4d80-9f21-bcd96373af58",
+   "task": "3a161f8e-4c53-410e-a3a6-646c048cdded",
    "offered": [],
    "followed": [],
    "ask_ok": true
@@ -107,7 +107,7 @@
   {
    "pattern": "risk-calls",
    "key": "-9201348598340979897",
-   "task": "58f1cf1d-c5f6-475a-9b91-d5f1f55ab59c",
+   "task": "f30e2f81-b9b0-49f6-9ae9-ba1a754d1c43",
    "offered": [],
    "followed": [],
    "ask_ok": true
@@ -115,48 +115,48 @@
   {
    "pattern": "A",
    "key": "-9210223701290079287",
-   "task": "16901805-e2c9-4667-bd4f-a455a91dcaef",
+   "task": "9c652be5-2986-49b9-9869-d5ab7b8006d3",
    "offered": [
-    "33e419a9-e9d3-429c-86be-e0750e947465"
+    "6967bf6e-4b5c-4760-8300-944e13d91b04"
    ],
    "followed": [
-    "33e419a9-e9d3-429c-86be-e0750e947465"
+    "6967bf6e-4b5c-4760-8300-944e13d91b04"
    ],
    "ask_ok": true
   },
   {
    "pattern": "A",
    "key": "-9209255889542210479",
-   "task": "441128b9-cc7f-4f20-ba04-169ca8a60441",
+   "task": "a2fdd4c2-d2a2-4a7e-b1f0-8d2aafac23b8",
    "offered": [
-    "33e419a9-e9d3-429c-86be-e0750e947465"
+    "6967bf6e-4b5c-4760-8300-944e13d91b04"
    ],
    "followed": [
-    "33e419a9-e9d3-429c-86be-e0750e947465"
+    "6967bf6e-4b5c-4760-8300-944e13d91b04"
    ],
    "ask_ok": true
   },
   {
    "pattern": "A",
    "key": "-9208265761706123971",
-   "task": "11f113fe-e958-4790-982d-5dfba331fec4",
+   "task": "2f313470-91c8-4257-b965-7c8345dd364d",
    "offered": [
-    "33e419a9-e9d3-429c-86be-e0750e947465"
+    "6967bf6e-4b5c-4760-8300-944e13d91b04"
    ],
    "followed": [
-    "33e419a9-e9d3-429c-86be-e0750e947465"
+    "6967bf6e-4b5c-4760-8300-944e13d91b04"
    ],
    "ask_ok": true
   },
   {
    "pattern": "A",
    "key": "-9207585647632785396",
-   "task": "5b333435-ac63-44f8-b1e4-83c5cdcf5f51",
+   "task": "ebd50607-eb32-44ab-bfb7-49e91d2ac203",
    "offered": [
-    "33e419a9-e9d3-429c-86be-e0750e947465"
+    "6967bf6e-4b5c-4760-8300-944e13d91b04"
    ],
    "followed": [
-    "33e419a9-e9d3-429c-86be-e0750e947465"
+    "6967bf6e-4b5c-4760-8300-944e13d91b04"
    ],
    "ask_ok": true
   }
@@ -203,7 +203,7 @@
    "ok": true,
    "offered": [
     {
-     "id": "33e419a9-e9d3-429c-86be-e0750e947465",
+     "id": "6967bf6e-4b5c-4760-8300-944e13d91b04",
      "name": "Review customer holdings and recent card spending",
      "procedure": [
       "recall the Customer's context",
@@ -268,7 +268,7 @@
  },
  "final": [
   {
-   "id": "33e419a9-e9d3-429c-86be-e0750e947465",
+   "id": "6967bf6e-4b5c-4760-8300-944e13d91b04",
    "key": "aa6892a27820cb50",
    "name": "Review customer holdings and recent card spending",
    "status": "retired",
@@ -295,7 +295,7 @@
    "evidence": 9
   },
   {
-   "id": "de9b6a85-69bf-4923-992b-6e745d6a0b53",
+   "id": "acd9b5bb-4500-48e6-95d2-d5aa351f24af",
    "key": "13ce42b30366c9d9",
    "name": "Review customer risk and deposit activity",
    "status": "proposed",

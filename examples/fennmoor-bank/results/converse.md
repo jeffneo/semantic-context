@@ -45,8 +45,8 @@ Before marketing-2:
 
 After marketing-2:
 
-    noted: interested in: a travel rewards card (since 2026-09-29)
     noted: prefers contact channel: phone, mornings (since 2026-09-29)
+    noted: interested in: a travel rewards card (since 2026-09-29)
     noted: Ana (person), daughter of
     decided: offer a travel rewards card, by email (on 2026-09-29; outcome: accepted; revisit: prefers contact channel: email, not phone is now phone, mornings)
     in 2 conversations, the last 2026-09-29: Travel card follow-up for customer 8322097816940277129

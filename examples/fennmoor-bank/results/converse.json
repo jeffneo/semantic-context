@@ -1,15 +1,15 @@
 {
  "conversations": {
   "marketing-1": {
-   "id": "3cf4fc9b-9877-413f-94b5-777c6e6d9aa8",
+   "id": "737309cb-de2b-45cb-ac1e-7eecae3f660f",
    "as": "qlsc-marketing@jeffdavis-bq-testproj.iam.gserviceaccount.com"
   },
   "marketing-2": {
-   "id": "cb64ab54-69a4-4fd9-8ae0-d0c78314f70a",
+   "id": "d7108eb5-0f7f-46d1-a69c-5b2245dde3fa",
    "as": "qlsc-marketing@jeffdavis-bq-testproj.iam.gserviceaccount.com"
   },
   "risk-1": {
-   "id": "c3aa45c5-dc90-4644-ac6d-6a793823ba43",
+   "id": "72e9efbd-c176-4cb4-bade-828136c8a5e6",
    "as": "qlsc-risk@jeffdavis-bq-testproj.iam.gserviceaccount.com"
   }
  },
@@ -129,8 +129,8 @@
   "changed: the new preference closes the old, and the decision based on it is to revisit": {
    "ok": true,
    "noted": [
-    "  noted: interested in: a travel rewards card (since 2026-09-29)",
     "  noted: prefers contact channel: phone, mornings (since 2026-09-29)",
+    "  noted: interested in: a travel rewards card (since 2026-09-29)",
     "  noted: Ana (person), daughter of",
     "  decided: offer a travel rewards card, by email (on 2026-09-29; outcome: accepted; revisit: prefers contact channel: email, not phone is now phone, mornings)",
     "  in 2 conversations, the last 2026-09-29: Travel card follow-up for customer 8322097816940277129"
@@ -177,13 +177,13 @@
    {
     "origin": "user",
     "predicate": "prefers contact channel",
-    "valid_from": "2026-09-29T12:25:37.685493000+00:00",
+    "valid_from": "2026-09-29T13:54:12.502859000+00:00",
     "value": "email, not phone"
    },
    {
     "origin": "user",
     "predicate": "interested in",
-    "valid_from": "2026-09-29T12:25:37.713706000+00:00",
+    "valid_from": "2026-09-29T13:54:12.538724000+00:00",
     "value": "a travel rewards card"
    }
   ],
@@ -199,14 +199,14 @@
     "choice": "offer a travel rewards card, by email",
     "outcomes": [],
     "revisit": [],
-    "valid_from": "2026-09-29T12:25:37.916274000+00:00"
+    "valid_from": "2026-09-29T13:54:12.863511000+00:00"
    }
   ],
   "conversations": [
    {
-    "id": "3cf4fc9b-9877-413f-94b5-777c6e6d9aa8",
+    "id": "737309cb-de2b-45cb-ac1e-7eecae3f660f",
     "title": "Card offer for customer 8322097816940277129",
-    "updated_at": "2026-09-29T12:25:37.823278000+00:00"
+    "updated_at": "2026-09-29T13:54:12.727985000+00:00"
    }
   ]
  }

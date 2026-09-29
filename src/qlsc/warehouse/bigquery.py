@@ -391,9 +391,9 @@ class BigQuery(Warehouse):
         except Exception as e:
             return {"ok": False, "error": self._message(e)}
 
-    def _run(self, sql: str, maximum_bytes_billed: int, rows: int) -> dict:
+    def _run(self, sql: str, maximum_bytes_billed: int, rows: int, cache: bool = True) -> dict:
         try:
-            config = bigquery.QueryJobConfig(maximum_bytes_billed=maximum_bytes_billed)
+            config = bigquery.QueryJobConfig(maximum_bytes_billed=maximum_bytes_billed, use_query_cache=cache)
             job = self.client.query(sql, job_config=config)
             result = job.result(max_results=rows)
             return {

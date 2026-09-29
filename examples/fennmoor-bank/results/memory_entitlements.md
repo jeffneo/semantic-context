@@ -6,13 +6,13 @@ Check 4 of plans/2026-09-27-agentic-memory.md (phase 2): memory never shows a re
 
 | principal | anchor | nodes | relationships | same as their fetch | verdict |
 |---|---|---|---|---|---|
-| marketing | Customer -9222608688654483010 | 185 | 275 | yes | ok |
+| marketing | Customer -9222608688654483010 | 187 | 278 | yes | ok |
 | marketing | Customer -9218325325162838369 | 1 | 0 | yes | ok |
 | marketing | Customer 4406449607907749601 | 658 | 1283 | yes | ok |
 | marketing | Customer 8322097816940277129 | 640 | 1250 | yes | ok |
 | marketing | Branch 101 | 931 | 1189 | yes | ok |
 | marketing | Agent 9143e7f7-8e11-6904-c98e-fb076ea611a1 |  |  |  | refused |
-| risk | Customer -9222608688654483010 | 185 | 275 | yes | ok |
+| risk | Customer -9222608688654483010 | 187 | 278 | yes | ok |
 | risk | Customer -9218325325162838369 | 1 | 0 | yes | ok |
 | risk | Customer 4406449607907749601 | 0 |  |  | nothing they may read |
 | risk | Customer 8322097816940277129 | 0 |  |  | nothing they may read |

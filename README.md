@@ -233,6 +233,15 @@ Over 20 customers (`eval/memory.py`), every context read back from memory was ex
 Six context questions gave the same rows on memory as on the virtual graph, 110 of 110, in milliseconds
 against a second. A stale fact is never read.
 
+**The router answers from memory** when memory holds the whole answer (`qlsc ask --memory` forces it):
+- the question is about one entity whose context the reader holds fresh;
+- everything it reads is in that context;
+- its period is inside the window.
+
+It runs the compiler's Cypher on memory, with memory's own conditions on every node and relationship. It's
+exact, including an outer join's null group: memory has `OPTIONAL MATCH`, which the virtual graph lacks. The
+economics are in `eval/economics.py`.
+
 The agent's side is the Context Memory model ([plan](plans/2026-09-29-context-memory-model.md)).
 `qlsc converse <conversation.yaml>` records a conversation:
 - **messages;**

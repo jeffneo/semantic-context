@@ -28,8 +28,8 @@
  "runs": {
   "marketing": {
    "Customer -9222608688654483010": {
-    "nodes": 185,
-    "edges": 275,
+    "nodes": 187,
+    "edges": 278,
     "same as their fetch": true,
     "differences": [],
     "incidents": [],
@@ -73,8 +73,8 @@
   },
   "risk": {
    "Customer -9222608688654483010": {
-    "nodes": 185,
-    "edges": 275,
+    "nodes": 187,
+    "edges": 278,
     "same as their fetch": true,
     "differences": [],
     "incidents": [],

@@ -6,7 +6,8 @@
   qlsc virtualize               a Neo4j Virtual Graph model of the rows, written from the semantic layer
   qlsc ask "question"           question -> semantic layer -> tables -> the router's query, dry-run:
                                 compiled SQL, else free Cypher when it answers, else free SQL
-    --sql | --cypher            ... -> that route only (Cypher over the virtual graph, checked with EXPLAIN)
+    --sql | --cypher | --memory ... -> that route only (Cypher over the virtual graph, checked with EXPLAIN;
+                                memory, when it holds the whole answer)
     --run                       ... -> and the answer
     --as PRINCIPAL              ... on a principal's behalf: only what the warehouse lets them read, run as them
   qlsc remember LABEL KEY       an entity's context, fetched from the virtual graph and kept in memory
@@ -114,6 +115,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--no-sql", action="store_true", help="stop at the cohort; no query, no dry run")
     p.add_argument("--sql", action="store_true", help="the SQL route only, instead of the router's choice")
     p.add_argument("--cypher", action="store_true", help="Cypher over the virtual graph only")
+    p.add_argument("--memory", action="store_true", help="from memory only: when it holds the whole answer")
     p.add_argument("--run", action="store_true", help="run the query and print the answer")
     p.add_argument(
         "--as",
@@ -122,7 +124,9 @@ def parser() -> argparse.ArgumentParser:
         help="on a principal's behalf (a name in entitlements.principals, or the warehouse's own): "
         "only what the warehouse lets them read, run as them",
     )
-    route = lambda a: "none" if a.no_sql else "cypher" if a.cypher else "sql" if a.sql else "auto"
+    route = lambda a: (
+        "none" if a.no_sql else "cypher" if a.cypher else "memory" if a.memory else "sql" if a.sql else "auto"
+    )
     p.set_defaults(
         func=lambda s, a: navigate.run(s, " ".join(a.question), route(a), execute=a.run, as_=a.as_)
     )

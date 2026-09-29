@@ -312,8 +312,9 @@ class Conversation:
         return a
 
     def read_tables(self, a: dict) -> list[str]:
-        """The layer's tables a query reads: named in the SQL, or labels in the Cypher."""
-        if a.get("route") == "cypher":
+        """The layer's tables a query reads: named in the SQL, or labels in the Cypher (the virtual graph's, or
+        memory's)."""
+        if a.get("route") in ("cypher", "memory"):
             labels = set(re.findall(r":`?([A-Z][A-Za-z0-9_]*)", a.get("cypher") or ""))
             return sorted(t["id"] for label, t in self.m.tables.items() if label in labels)
         sql = a.get("sql") or ""

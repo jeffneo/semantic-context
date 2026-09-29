@@ -832,3 +832,180 @@ def run(
     if ctx.nodes:
         print("\n".join(show_notes(notes(s, m, label, value, now))))
     return ctx
+
+
+# ---- the memory route (plans/2026-09-27-agentic-memory.md, phase 5): a compiled question about one entity
+# whose context the reader holds, answered from memory
+
+ASKED = """
+CREATE (s:Step {{id: $id, tool: 'ask', owner: $by, scope: 'private', at: $now, recorded_at: $now, status: 'ok',
+                 origin: 'memory', arguments: $arguments, fingerprint: $fingerprint}})
+WITH s
+MATCH (a:`{label}` {{source: $source, `{key}`: $key}})
+CREATE (s)-[:READ {{context: true}}]->(a)
+"""
+
+
+class Guard:
+    """Memory's conditions on a query over the virtual graph's model (compile.render_cypher's guard): its
+    source's nodes, facts that still hold at $now, and a row-policied node only if the reader's ($by) own
+    step read it and that read still holds. The same as memory's own reads (cypher())."""
+
+    def __init__(self, m: Model):
+        self.m = m
+
+    def node(self, v: str, label: str) -> list[str]:
+        out = [f"{v}.source = $source", f"({v}.holds_until IS NULL OR {v}.holds_until > $now)"]
+        if label in self.m.policied:
+            out.append(
+                f"EXISTS {{ (:Step {{owner: $by}})-[seen:READ]->({v}) WHERE seen.holds_until > $now }}"
+            )
+        return out
+
+    def relationship(self, r: str) -> list[str]:
+        return [f"({r}.holds_until IS NULL OR {r}.holds_until > $now)"]
+
+
+def literal_value(v) -> str | None:
+    """A literal's text, as the plan's SQL writes it: 42, -42, 'text', DATE '2026-04-01'; else None."""
+    from sqlglot import exp
+
+    if isinstance(v, exp.Literal):
+        return v.this
+    if isinstance(v, exp.Neg) and isinstance(v.this, exp.Literal):
+        return "-" + v.this.this
+    if isinstance(v, exp.Cast) and isinstance(v.this, exp.Literal):
+        return v.this.this
+    return None
+
+
+def answerable(
+    s: Settings, m: Model, block, labels: dict[str, str], entities: dict, now: dt.datetime
+) -> dict:
+    """Whether memory holds the whole answer to a compiled question (compile.Block), exactly:
+      - it is about one entity: a filter on a label's key, or on a fact's foreign key to one;
+      - the reader holds a fresh context of that entity (their own recall's step, their template);
+      - every table it reads is in that context: the entity, the facts that point at it (the many side,
+        which the context windows and caps), and their dimensions (to-one), as the template reads them;
+      - on a windowed fact, its period starts inside the window, and the read that fetched it wasn't capped.
+    -> {ok, why, label, key}"""
+    import sqlglot
+    from sqlglot import exp
+
+    from qlsc.compile import alias
+
+    tables = {alias(t): t for t in [block.fact] + [j[2] for j in block.joins]}
+    label_of = {v: labels.get(t) for v, t in tables.items()}
+    if not all(lb in m.nodes for lb in label_of.values()):
+        return {"ok": False, "why": "it reads a table memory doesn't hold for this reader"}
+    fk = {}  # (start label, its column) -> (type, end label)
+    for r in entities["relationships"]:
+        k = r["end"]["keys"][0]
+        fk[(r["start"]["targetEntity"], k["relationshipColumn"].lower())] = (
+            r["label"],
+            r["end"]["targetEntity"],
+        )
+    column_of = {lb: {p: p.lower() for p in n["readable"]} for lb, n in m.nodes.items()}
+    equal, lower = [], {}
+    for w in block.where:
+        e = sqlglot.parse_one(w, read="bigquery")
+        for node in e.find_all(exp.EQ, exp.GTE, exp.GT):
+            c, v = node.this, node.expression
+            if isinstance(v, exp.Column) and isinstance(c, exp.Literal | exp.Cast | exp.Neg):
+                c, v = v, c
+            if not isinstance(c, exp.Column):
+                continue
+            value = literal_value(v)
+            if value is None:
+                continue
+            if isinstance(node, exp.EQ):
+                equal.append((c.table, c.name.lower(), value))
+            else:
+                lower[(c.table, c.name.lower())] = value
+    anchors, via = set(), {}
+    for v, col, value in equal:
+        lb = label_of.get(v)
+        if lb is None:
+            continue
+        if column_of[lb].get(m.key(lb)) == col:
+            anchors.add((lb, value))
+            via[v] = None
+        elif (lb, col) in fk:
+            ty, end = fk[(lb, col)]
+            anchors.add((end, value))
+            via[v] = ty
+    if len(anchors) != 1:
+        return {"ok": False, "why": f"it isn't about one entity ({len(anchors)} filtered by key)"}
+    ((anchor, raw),) = anchors
+    key = typed(m, anchor, m.key(anchor), raw)
+    reads = template(m, anchor, s["memory"]["hops"])
+    by_name = {r.name: r for r in reads}
+    with memory_graph(s) as M:
+        try:
+            fresh = M.rows(FRESH.format(label=anchor, key=m.key(anchor)), key=key, source=m.source,
+                           template=digest(m, reads, s["memory"]), now=now, by=m.reader)  # fmt: skip
+        except DatabaseUnavailable:
+            fresh = []
+    if not fresh:
+        return {
+            "ok": False,
+            "why": f"no fresh context of {anchor} {key} for {m.reader} in memory",
+            "label": anchor,
+            "key": key,
+        }
+    capped = set(fresh[0]["capped"] or [])
+    covered: dict[str, Read | None] = {}
+    for v, ty in via.items():
+        lb = label_of[v]
+        if ty is None and lb == anchor:
+            covered[v] = None
+        elif (r := by_name.get(f"{anchor}<-{ty}-{lb}")) is not None:
+            covered[v] = r
+    since = window_start(s).isoformat()
+    for v, r in covered.items():
+        if r is None:
+            continue
+        if r.name in capped:
+            return {
+                "ok": False,
+                "why": f"{r.name} was capped in the context: memory holds only the most recent",
+            }
+        if r.window and not str(lower.get((v, r.window.lower()), "")) >= since:
+            return {
+                "ok": False,
+                "why": f"its period on {label_of[v]}.{r.window} doesn't start inside the window ({since})",
+            }
+    for a, ac, t, tc, _ in block.joins:
+        va, vt = alias(a), alias(t)
+        la, lt = label_of[va], label_of[vt]
+        out = fk.get((la, ac.lower()))
+        back = fk.get((lt, tc.lower()))
+        if va in covered and out and out[1] == lt and any(r.type == out[0] and r.via == la for r in reads):
+            covered.setdefault(vt, None)
+        elif (
+            vt in covered and back and back[1] == la and any(r.type == back[0] and r.via == lt for r in reads)
+        ):
+            covered.setdefault(va, None)
+        elif (
+            va in covered
+            and lt == anchor
+            and out
+            and out[1] == anchor
+            and by_name.get(f"{anchor}<-{out[0]}-{la}")
+        ):
+            covered.setdefault(vt, None)
+    missing = sorted(label_of[v] for v in tables if v not in covered)
+    if missing:
+        return {"ok": False, "why": f"it reads {', '.join(missing)} outside {anchor} {key}'s context"}
+    return {"ok": True, "why": f"{anchor} {key}'s context is fresh in memory", "label": anchor, "key": key}
+
+
+def answer(s: Settings, m: Model, cypher: str, label: str, key, now: dt.datetime, limit: int) -> dict:
+    """The guarded Cypher run on memory, as the reader; its read leaves a Step, as every read does."""
+    t0 = time.time()
+    with memory_graph(s) as M:
+        columns, rows, more = M.capped(cypher, limit, source=m.source, now=now, by=m.reader)
+        M.run(ASKED.format(label=label, key=m.key(label)), id=str(uuid.uuid4()), by=m.reader, now=now,
+              arguments=json.dumps({"cypher": cypher}), fingerprint="ask memory", source=m.source, key=key)  # fmt: skip
+    return {"ok": True, "columns": columns, "rows": rows, "total": len(rows), "truncated": more,
+            "seconds": time.time() - t0}  # fmt: skip

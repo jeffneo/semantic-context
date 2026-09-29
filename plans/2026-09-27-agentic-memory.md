@@ -499,4 +499,57 @@ In short:
 - **Phases 1 and 2 now use `READ` edges.** Their checks were rerun on them: `eval/memory.py` and
   `eval/memory_entitlements.py`.
 
-Phase 5 is next: the router's memory route and the economics check.
+Phase 5, the router's memory route and the economics check, followed the same day (below).
+
+## Phase 5, as built (2026-09-29)
+
+**The memory route** (`navigate.answer_memory`, `navigate.memory_route`, `qlsc ask --memory`):
+- **The router asks first whether memory holds the whole answer** (`memory.answerable`), from the compiled
+  plan alone:
+  1. **One entity.** The plan filters one entity by its key, or a fact by its foreign key to one.
+  2. **A fresh context.** The reader's own recall of that entity is fresh, with their template.
+  3. **Every table in that context.** Everything the plan reads is in the context: the entity, the facts
+     pointing at it (as the template reads them), and their dimensions.
+  4. **Inside the window.** A windowed fact's period starts inside the window.
+  5. **Nothing capped.** No read it relies on was capped.
+
+  If all five hold, the answer comes from memory; if not, it goes to the compiled SQL, as before. The
+  request is the same LLM call either way, and cached.
+- **The Cypher is the compiler's,** over the virtual graph's model, with memory's guard on every node and
+  relationship (`compile.render_cypher(guard=memory.Guard)`): its source, facts that still hold, and a
+  row-policied node only if the reader's own step read it.
+  - **Outer joins.** The virtual graph has no `OPTIONAL MATCH`, but memory does. So on memory an outer join
+    nothing filters on is `OPTIONAL MATCH`, its guard in its own `WHERE`, and it keeps its null group as
+    the SQL's `LEFT JOIN` does. The first economics run found this: 6 answers lost a null group (an
+    account without a branch, a call without a site).
+- **Every answer from memory leaves a Step,** as every read does.
+- **`memory.window_days` is now 92,** a full quarter. At 90 days the window began on 2 April, so "last
+  quarter" (from 1 April) could never be answered from memory. The phase 1, 2 and 3 checks were rerun
+  with it, and all pass.
+- **The connector's `run` takes `cache`,** so a measurement can run BigQuery with its result cache off.
+
+**Checked** (`eval/economics.py`, results/economics.md, check 2): a simulated session of 50 questions, 10
+about each of 5 customers, as the data source. The customers had no fetch in the day before, so no
+fetch job could be answered from BigQuery's result cache, and none was (0 of 142).
+
+| | without memory | with memory |
+|---|---|---|
+| questions answered | 49 by SQL (1 of 50 didn't compile) | 49 from memory, all 49 the same rows as the SQL |
+| latency per question (the query) | median 0.80 s, p95 1.37 s | median 0.027 s, p95 0.072 s |
+| the session's query time | 42.5 s | 29.6 s, the 5 context fetches included (3.7 to 8.5 s each) |
+| the session's bytes billed | 2,104 MiB | 2,934 MiB: the fetches, a median 606 MiB each |
+| compiling a question (the LLM; common to both) | median 7.7 s | the same |
+
+**What it says:**
+- **Memory answers exactly and 30 times faster,** once a context is fetched.
+- **It costs more bytes than it saves at ten questions per customer.** A fetch bills about what 14 of these
+  questions do in SQL, so memory pays in bytes only past that many questions per context while it holds,
+  or across sessions within a day.
+- **The session's time is the LLM's,** compiling the question: 7.7 s against 0.8 s for the SQL.
+
+**The fetch's bytes can come down.** BigQuery's job log shows where a fetch's bytes go: the second hop's
+reads, each rescanning the fact table's window (about 71 MiB each) only to follow a foreign key to a
+dimension.
+- **The fix:** the first hop's facts already hold those keys, so the second hop could read the
+  dimensions by key (about 10 MiB each, the minimum per table) and make the relationships from the keys.
+- **The cost:** it changes how a context is fetched, so it waits for a decision.

@@ -148,9 +148,10 @@ any. `tests/test_config.py` fails if one is not read by the code. Sensitivity on
 | `llm.query_model`, `query_thinking` | claude-sonnet-5-5, between_tools | Writing SQL needs a stronger model than naming. Sonnet 5.5 takes no forced tool (answers come as structured outputs) and can't turn thinking off; between_tools, its lowest, keeps a single answer unthought, as Sonnet 5 ran | Given the answer key's own tables, Haiku 4.5 answered 1 of 10 gold questions, Sonnet 5 answered 4. Full set, compiled: Sonnet 5.5 133 of 176 (the free writer on Sonnet 5, 129); not yet run free on 5.5, so the model's share is unmeasured |
 | `llm.query_effort` | null | With `query_thinking: adaptive`, how hard the query model reasons. High effort gained nothing on the free writer's quick test, for more latency and tokens | free writer, 69 questions: 55 without, 55 with high effort (5 moved); 3.1 s and 331 output tokens per question without, 3.8 s and 433 with |
 | `entitlements.allowlist_seconds`, `workers` | 900, 8 | A principal's allowlist (the tables, columns and row policies the warehouse reports for them) is reused for a session, well inside a policy change's reach; its checks run concurrently, one per table | building one over the layer's 177 tables: about 10 s |
-| `memory.hops`, `window_days`, `cap` | 2, 90, 200 | A context is an entity's relationships and their to-one dimensions (a call's agent, a purchase's merchant). The many side is windowed by its partition column (which also prunes the warehouse's partitions) and capped, so a context stays small; a capped read is flagged | a customer: 15 reads, 4 to 780 nodes; 7 of 20 customers hit the cap on card or deposit transactions (eval/memory.py) |
+| `memory.hops`, `window_days`, `cap` | 2, 92, 200 | A context is an entity's relationships and their to-one dimensions (a call's agent, a purchase's merchant). The many side is windowed by its partition column (which also prunes the warehouse's partitions) and capped, so a context stays small. 92 days is a full quarter, the period questions ask for most (90 missed a quarter's first day, so "last quarter" could never be answered from memory); a capped read is flagged | a customer: 15 reads, 4 to 780 nodes; 7 of 20 customers hit the cap on card or deposit transactions (eval/memory.py) |
 | `memory.properties` | used | The columns the log's queries read or filter on, with keys and partition columns: what anyone asks of these tables, not every column | Customer: 14 of 23 columns |
 | `memory.unknown_hold_days`, `workers` | 1, 6 | A table whose cadence the log doesn't show holds a day, the shortest cadence here; a hop's reads run concurrently | every table the virtual graph serves is written daily |
+| `navigate.memory_route` | true | The router answers from memory when memory holds the whole answer: one entity whose context the reader holds fresh, every table in it, the period inside the window, nothing capped. It changes nothing when no context is fresh | 50 questions about 5 customers: 49 from memory, all the same rows as the SQL, a median 0.027 s against 0.80 s; but each fetch bills about 14 questions' SQL (results/economics.md) |
 | `memory.tool_result_rows` | 20 | An ask's ToolCall keeps the first rows of its answer, enough for the agent to cite, with the total counted | the example's ask: 10 rows |
 | `distill.min_steps`, `min_support`, `min_success` | 2, 3, 0.7 | A procedure is two tool calls or more (one is just using a tool). A skill needs three tasks, most of them successful, as a Computation needs repeated use | the check's failing pattern (0 of 3 successful) and one-offs (1 each) yield no skill |
 | `distill.similarity`, `gamma`, `seed` | 0.5, 1.0, 42 | Tasks join when half of what they did and read is shared; seeded Leiden, as the build's. The same threshold decides which skill a task followed | the LLM compiles one kind of question slightly differently each time; half-overlap keeps the variants together |
@@ -287,6 +288,19 @@ clean grouping and barely move NMI against the spec (0.850 vs 0.853).
     4. **Measure.** Tasks that follow it are recorded with `FOLLOWED` and counted, and it's retired when
        they stop succeeding.
     5. **Keep evidence private.** Others see how many tasks a skill came from, not which.
+  - **The memory route** (`navigate.memory_route`, `qlsc ask --memory`): the router answers a compiled
+    question from memory when memory holds its whole answer (`memory.answerable`):
+    1. **One entity.** The plan filters one entity by its key, or a fact by its foreign key to one.
+    2. **A fresh context.** The reader's own recall of that entity is fresh.
+    3. **Every table in that context.** Everything the plan reads is in the context: the entity, the
+       facts pointing at it, and their dimensions.
+    4. **Inside the window.** A windowed fact's period starts inside the window.
+    5. **Nothing capped.** No read it relies on was capped.
+
+    The Cypher is the compiler's, over the virtual graph's model, with memory's guard on every node and
+    relationship (`compile.render_cypher(guard=memory.Guard)`): its source, facts that still hold, and a
+    row-policied node only if the reader's own step read it. Its read leaves a Step, as every read does.
+    Otherwise the question goes to the compiled SQL, as before.
   - **Reads and writes are two steps from Python,** not one composite statement. The second hop is
     keyed on the first's results (a correlated subquery into the virtual graph is Virtual Graph bug
     2), and each read is signed on its own.

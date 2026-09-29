@@ -144,7 +144,7 @@ class Warehouse(ABC):
 
     # ---- running queries (optional; qlsc ask --run)
 
-    def _run(self, sql: str, maximum_bytes_billed: int, rows: int) -> dict:
+    def _run(self, sql: str, maximum_bytes_billed: int, rows: int, cache: bool = True) -> dict:
         """Run SQL in physical names -> {ok: True, columns, rows: the first `rows` as dicts, total,
         bytes_billed} | {ok: False, error}."""
         raise NotImplementedError(f"{self.name}: cannot run queries")
@@ -157,13 +157,14 @@ class Warehouse(ABC):
             return {"ok": False, "error": str(e)[:300]}
         return self._dry_run(physical)
 
-    def run(self, sql: str, maximum_bytes_billed: int, rows: int) -> dict:
-        """Run SQL written in logical table names, billing at most `maximum_bytes_billed`."""
+    def run(self, sql: str, maximum_bytes_billed: int, rows: int, cache: bool = True) -> dict:
+        """Run SQL written in logical table names, billing at most `maximum_bytes_billed`; `cache`: the
+        warehouse may answer from its own cache of the same query (a measurement turns it off)."""
         try:
             physical = self.physical_sql(sql)
         except sqlglot.errors.ParseError as e:
             return {"ok": False, "error": str(e)[:300]}
-        return self._run(physical, maximum_bytes_billed, rows)
+        return self._run(physical, maximum_bytes_billed, rows, cache)
 
     def physical_sql(self, sql: str) -> str:
         """Logical table names (the log's, the graph's) -> the deployed tables, from the catalog snapshot."""
