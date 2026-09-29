@@ -52,6 +52,8 @@ uv run examples/fennmoor-bank/eval/graph_accuracy.py [param=value ...]  # ten gr
 uv run examples/fennmoor-bank/eval/entitlements.py [--controls-only]  # the gateway, with the warehouse as the oracle (about an hour)
 uv run examples/fennmoor-bank/eval/memory.py            # remembered contexts against the virtual graph; freshness (minutes)
 uv run examples/fennmoor-bank/eval/memory_entitlements.py   # memory as each principal, with BigQuery as the oracle (minutes)
+uv run examples/fennmoor-bank/eval/converse.py          # the agent side: the example conversations recorded, then checked
+QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc converse examples/fennmoor-bank/conversations/marketing-1.yaml
 uv run examples/fennmoor-bank/entitlements/setup.py [--apply]   # the test principals' grants, tags and row policies in BigQuery (as the owner)
 uv run examples/fennmoor-bank/generate/fill.py --slice 2   # fill BigQuery with rows (plans/2026-09-26-fill-*.md)
 ```

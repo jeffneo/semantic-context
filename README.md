@@ -51,7 +51,7 @@ three planted wrong catalog bindings surfaced by the alignment.
 
 Prerequisites: Docker; [uv](https://docs.astral.sh/uv/); access to the warehouse's query log and
 catalog (BigQuery today: `gcloud`); an Anthropic API key and an Azure OpenAI `text-embedding-3-large`
-deployment; Neo4j Enterprise and GDS license files (not included).
+deployment; Neo4j Enterprise Studio and GDS license files (not included).
 
 ```bash
 cp .env.example .env                  # passwords, keys, and QLSC_CONFIG: your estate's config file
@@ -82,14 +82,15 @@ exactly.
 Three answer keys in the Fennmoor example, each scored on the answer's rows, not on the SQL. With the
 compiler (`navigate.writer: compiled`) and Sonnet 5.5 writing the requests (2026-09-28):
 
-| Answer key | SQL route | Cypher route (virtual graph) | Routed (`ask`'s default) |
-|---|---|---|---|
-| 10 gold questions, hand-written references | 6 | 3 (it declines 6 whose data isn't in the virtual graph) | 6 |
-| 176 questions written from the log's own queries, each with its query as the reference | 133 (76%) | 38 | 133 |
-| 10 graph-shaped questions: neighbourhoods, several hops, shared neighbours | 5 | 8 | 8 |
+| Answer key                                                                             | SQL route | Cypher route (virtual graph)                            | Routed (`ask`'s default) |
+| -------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------- | ------------------------ |
+| 10 gold questions, hand-written references                                             | 6         | 3 (it declines 6 whose data isn't in the virtual graph) | 6                        |
+| 176 questions written from the log's own queries, each with its query as the reference | 133 (76%) | 38                                                      | 133                      |
+| 10 graph-shaped questions: neighbourhoods, several hops, shared neighbours             | 5         | 8                                                       | 8                        |
 
 The free writer with Sonnet 5, before the compiler: 7, 129 and 5 on the SQL route; 3, 41 and 7 on
 Cypher.
+
 - **The compiler** writes 88% of the SQL answers deterministically (154 of 176), 79% of them right. The
   LLM fills a typed request; code writes the joins and the definitions.
 - **The router** takes compiled SQL when the question compiles, otherwise free Cypher when it answers,
@@ -113,6 +114,7 @@ and [its second step](plans/2026-09-28-compiler-2.md).
 
 `qlsc computations` reads every successful query in the log with the parser, and in each query scope
 over physical tables finds three kinds of Computation:
+
 - **measures**, aggregates with the filters that come with them: card purchase spend is
   `SUM(amount)` over `is_purchase`;
 - **derived dimensions**, such as a week from a call date, or a tenure band from months;
@@ -127,6 +129,7 @@ On the Fennmoor example this finds 1,182 Computations, of which 614 are business
 
 `qlsc okf` writes them as an [Open Knowledge Format](https://github.com/GoogleCloudPlatform/open-knowledge-format)
 bundle:
+
 - each Computation is an `Attested Computation` concept, filed under its business area, with an
   `index.md` per area;
 - each table it reads is a `BigQuery Table` concept, with its schema, joins and Computations;
@@ -143,6 +146,7 @@ being measured ([plans/2026-09-26-accuracy.md](plans/2026-09-26-accuracy.md)).
 `qlsc virtualize` turns the semantic layer into a model for
 [Neo4j Virtual Graph](https://neo4j.com/docs/virtual-graph/) (preview). Virtual Graph answers Cypher by
 translating it to SQL for the warehouse, so there's no copy of the data to keep in sync.
+
 - **Nodes:** each is a table that a Variable's trusted joins converge on, or that production's pipelines
   MERGE on.
 - **Relationships:** each is a column holding another node's key.
@@ -151,6 +155,7 @@ translating it to SQL for the warehouse, so there's no copy of the data to keep 
   choice.
 
 A composite database, `fennmoor`, on the Virtual Graph instance has two constituents:
+
 - `fennmoor.semantic`: the semantic layer;
 - `fennmoor.rows`: the virtual graph.
 
@@ -173,6 +178,7 @@ RETURN business_area, variable, column, site, closure_calls ORDER BY closure_cal
 ```
 
 On the Fennmoor example this returns three rows in about 3 seconds, one per site, each showing:
+
 - the business area (Contact Center Call Operations);
 - the Variable (Contact Center Site);
 - the column the relationship comes from (`fct_calls.site_id`);
@@ -187,6 +193,7 @@ docker compose --profile vg up -d neo4j-vg      # Virtual Graph on bolt 7692, Br
 Setup, credentials and the composite's aliases: [docker/nvg/README.md](docker/nvg/README.md).
 
 Virtual Graph is in preview, and three limits apply today:
+
 - **Remote aliases only.** Both constituents are remote aliases, so both Neo4j instances serve bolt
   TLS ([docker/tls/README.md](docker/tls/README.md)). A local alias to the virtual graph fails silently.
 - **No values across constituents.** A subquery can't pass a value from the semantic layer into the
@@ -204,6 +211,7 @@ The findings are in [plans/2026-09-26-virtual-graph-spike.md](plans/2026-09-26-v
 `qlsc recall <label> <key>` returns an entity's context: the node, its relationships and their
 dimensions. It reads memory while the context holds, and fetches it from the virtual graph otherwise
 ([plan](plans/2026-09-27-agentic-memory.md)).
+
 - **Where memory lives:** a `memory` database beside the semantic layer, joined to the composite as
   `fennmoor.memory`. It uses the virtual graph's labels and keys, with a `source` on each node, so the
   same Cypher runs on either.
@@ -224,12 +232,31 @@ Over 20 customers (`eval/memory.py`), every context read back from memory was ex
 Six context questions gave the same rows on memory as on the virtual graph, 110 of 110, in 6 ms against
 1.4 s. A stale fact is never read.
 
+The agent's side is Neo4j Labs' agent-memory model. `qlsc converse <conversation.yaml>` records a
+conversation:
+- its messages, chained;
+- a reasoning trace per question, with a tool call per `recall` or `ask` (an ask keeps its query and
+  links to the tables and Computations it used);
+- what the agent learned: preferences, facts, and people and things outside the warehouse.
+
+A message mentions the warehouse's own `Customer` node, so the next session's recall finds it:
+
+```bash
+uv run qlsc converse examples/fennmoor-bank/conversations/marketing-1.yaml
+uv run qlsc recall --as marketing Customer 8322097816940277129
+#   noted: contact channel: email, not phone (since 2026-09-29) ...
+```
+
+A changed preference closes the old one rather than replacing it. Each principal sees only their own
+notes (`eval/converse.py`: 16 of 16 checks).
+
 ## Who may see what: the entitlement gateway
 
 `qlsc ask --as <principal>` answers on a principal's behalf, from only what the warehouse lets them read
 ([plan](plans/2026-09-27-entitlements.md)). The warehouse stays the rulebook: the gateway asks BigQuery, as
 the principal, which tables they may read, which columns their policy tags hide, and which tables filter
 rows per reader.
+
 - **Navigation shows only what they may read:**
   - the cohort and its columns;
   - joins and Computations;
@@ -237,6 +264,7 @@ rows per reader.
   - never a tagged column's values.
 
   A group they can only partly read is shown without its name.
+
 - **SQL runs as them,** so BigQuery enforces the tables, columns and rows itself.
 - **Cypher over the virtual graph runs as them too.** The gateway signs each query for its principal. A
   JDBC driver in Virtual Graph's JVM (`vg-passthrough/`, [plan](plans/2026-09-28-jdbc-passthrough.md))
@@ -251,19 +279,19 @@ Cypher answer ran as its principal, by BigQuery's job log.
 
 ## Repository
 
-| Path | What |
-|---|---|
-| `src/qlsc/` | The pipeline, one module per stage, and the `qlsc` command |
-| `src/qlsc/defaults.yaml` | Every model and method parameter, in one place |
-| `src/qlsc/warehouse/` | Warehouse connectors: the only code that talks to a warehouse (BigQuery) |
-| `parser/` | The SQL parse service (sqlglot, compiled), one image for docker-compose, Cloud Run or Lambda, with golden tests |
-| `prompts/` | Every LLM prompt, one file each ([prompts/README.md](prompts/README.md)) |
-| `docs/design.md` | The principle, the graph model, the method, the parameters and their sensitivity |
-| `examples/fennmoor-bank/` | The worked example: the bank's spec, its generators, designed models, evaluations, demo queries |
-| `tests/` | `uv run pytest`: the tool/example boundary, prompts, config, the method's pure parts, the demo queries |
-| `plans/` | Agreed plans for work in progress ([plans/README.md](plans/README.md)) |
-| `CLAUDE.md` | Standing context for AI coding agents: principles, conventions, commands, safety rules |
-| `vg-passthrough/` | The JDBC pass-through: Virtual Graph reads BigQuery as each query's principal (Java, JDK only; `build.sh`) |
+| Path                            | What                                                                                                                              |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `src/qlsc/`                     | The pipeline, one module per stage, and the `qlsc` command                                                                        |
+| `src/qlsc/defaults.yaml`        | Every model and method parameter, in one place                                                                                    |
+| `src/qlsc/warehouse/`           | Warehouse connectors: the only code that talks to a warehouse (BigQuery)                                                          |
+| `parser/`                       | The SQL parse service (sqlglot, compiled), one image for docker-compose, Cloud Run or Lambda, with golden tests                   |
+| `prompts/`                      | Every LLM prompt, one file each ([prompts/README.md](prompts/README.md))                                                          |
+| `docs/design.md`                | The principle, the graph model, the method, the parameters and their sensitivity                                                  |
+| `examples/fennmoor-bank/`       | The worked example: the bank's spec, its generators, designed models, evaluations, demo queries                                   |
+| `tests/`                        | `uv run pytest`: the tool/example boundary, prompts, config, the method's pure parts, the demo queries                            |
+| `plans/`                        | Agreed plans for work in progress ([plans/README.md](plans/README.md))                                                            |
+| `CLAUDE.md`                     | Standing context for AI coding agents: principles, conventions, commands, safety rules                                            |
+| `vg-passthrough/`               | The JDBC pass-through: Virtual Graph reads BigQuery as each query's principal (Java, JDK only; `build.sh`)                        |
 | `docker/`, `docker-compose.yml` | Neo4j Enterprise with GDS and APOC, the parse service, optionally Enterprise Studio and a Virtual Graph instance (`--profile vg`) |
 
 To add a warehouse, subclass `Warehouse` in `src/qlsc/warehouse/` and list it in `CONNECTORS`; the

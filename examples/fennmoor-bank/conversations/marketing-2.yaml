@@ -1,0 +1,12 @@
+# The same banker, the next session: what was noted is there, and a changed preference supersedes the old.
+title: Travel card follow-up for customer 8322097816940277129
+as: marketing
+messages:
+  - user: Back with customer 8322097816940277129. Where did we leave it?
+    tools:
+      - recall: Customer 8322097816940277129
+  - assistant: Last time they asked for email only, and were interested in a travel rewards card.
+  - user: They called in to say a phone call is fine after all, in the mornings.
+    learned:
+      - preference: {about: Customer 8322097816940277129, category: contact channel, preference: "phone, mornings"}
+  - assistant: "Noted: phone in the mornings, in place of email only."

@@ -17,11 +17,12 @@ from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 
 import google.auth.credentials
+from google.api_core import exceptions as api_exceptions
 from google.auth import impersonated_credentials
 from google.auth.transport.requests import AuthorizedSession
 from google.cloud import bigquery
 
-from qlsc.warehouse import Warehouse
+from qlsc.warehouse import Warehouse, WarehouseUnavailable
 
 
 class GcloudCredentials(google.auth.credentials.Credentials):
@@ -246,8 +247,13 @@ class BigQuery(Warehouse):
         return other
 
     def _each(self, items: list, f) -> list:
-        with ThreadPoolExecutor(self.settings["entitlements"]["workers"]) as pool:
-            return list(pool.map(f, items))
+        """f over items concurrently (the permission checks). A failed login is the warehouse unavailable,
+        raised, never read as a denial."""
+        try:
+            with ThreadPoolExecutor(self.settings["entitlements"]["workers"]) as pool:
+                return list(pool.map(f, items))
+        except subprocess.CalledProcessError as e:
+            raise WarehouseUnavailable(self._login_needed()["error"]) from e
 
     def _physical_ref(self, table: str) -> bigquery.TableReference | None:
         """A logical table's physical reference; a wildcard (shard family) by its first shard."""
@@ -272,8 +278,8 @@ class BigQuery(Warehouse):
                     path=f"/projects/{ref.project}/datasets/{ref.dataset_id}/tables/{ref.table_id}:testIamPermissions",
                     data={"permissions": ["bigquery.tables.getData"]},
                 )
-            except Exception:
-                return False  # no such table, or not even allowed to ask
+            except (api_exceptions.Forbidden, api_exceptions.NotFound):
+                return False  # no such table, or not even allowed to ask; any other failure is raised
             if "bigquery.tables.getData" not in got.get("permissions", []):
                 return False
             if kinds.get(t) != "VIEW":
@@ -314,6 +320,8 @@ class BigQuery(Warehouse):
                 f"https://datacatalog.googleapis.com/v1/{tag}:testIamPermissions",
                 json={"permissions": ["datacatalog.categories.fineGrainedGet"]},
             )
+            if r.status_code == 401:
+                raise WarehouseUnavailable(f"the warehouse couldn't be asked about {tag}: {r.status_code}")
             return r.ok and "datacatalog.categories.fineGrainedGet" in r.json().get("permissions", [])
 
         return {t for t, ok in zip(tags, self._each(tags, check)) if ok}
@@ -328,8 +336,9 @@ class BigQuery(Warehouse):
                     method="GET",
                     path=f"/projects/{ref.project}/datasets/{ref.dataset_id}/tables/{ref.table_id}/rowAccessPolicies",
                 )
-            except Exception:
-                return False
+            except api_exceptions.NotFound:
+                return False  # no such table. Any other failure is raised: "no policy" is never a guess
+
             return bool(got.get("rowAccessPolicies"))
 
         return {t for t, ok in zip(tables, self._each(tables, has)) if ok}

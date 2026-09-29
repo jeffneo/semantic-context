@@ -1,7 +1,7 @@
 # Agentic memory: a context compiler from the virtual graph into a persistent graph
 
 Status: agreed (2026-09-27), after the accuracy work; split into phases (2026-09-28, below). Phases 1 and
-2 built and checked (2026-09-28); see "Phase 1, as built" and "Phase 2, as built" at the end.
+2 built and checked (2026-09-28), phase 3 (2026-09-29); see each phase's "as built" at the end.
 
 ## Why
 
@@ -359,3 +359,126 @@ freshness.
   same restriction as the virtual graph (the model), and the marks in its `WHERE`.
 - **The stubs** (Table, Column) are names only, and anyone reading memory raw sees them. BigQuery shows
   column names to metadata readers too.
+
+## Phase 3, the design (2026-09-29)
+
+**The model is Neo4j Labs' agent-memory, as its source writes it** (`neo4j_agent_memory/graph/queries.py`):
+- **Short-term:** `(:Conversation)-[:HAS_MESSAGE]->(:Message)`, `-[:FIRST_MESSAGE]->` the first, and
+  `(:Message)-[:NEXT_MESSAGE]->` the next.
+- **Reasoning:**
+  - one `(:ReasoningTrace)` per user message that calls tools, `-[:INITIATED_BY]->` it, and
+    `(:Conversation)-[:HAS_TRACE]->` it;
+  - a step per tool call: `(:ReasoningTrace)-[:HAS_STEP {order}]->(:ReasoningStep)-[:USES_TOOL]->(:ToolCall)-[:INSTANCE_OF]->(:Tool)`,
+    and `(:ToolCall)-[:TRIGGERED_BY]->(message)`;
+  - `(:ReasoningStep)-[:TOUCHED]->` what the step read.
+- **Long-term:**
+  - the warehouse facts `remember` keeps, with their own labels: a message `-[:MENTIONS]->` them, and
+    a step `-[:TOUCHED]->` them;
+  - what the agent learns: `(:Preference {category, preference})` and `(:Fact {subject, predicate, object})`,
+    each `-[:ABOUT]->` a warehouse fact and `-[:EXTRACTED_FROM]->` the message. People and things
+    outside the warehouse are `(:Entity:<POLE+O type>)`, `-[:RELATED_TO {relation_type}]->` what they
+    relate to.
+
+**qlsc's tools** are `recall` (an entity's context; the step touches its anchor) and `ask` (a question).
+An ask's `ToolCall` records:
+- the route, the query and the first rows;
+- `-[:USED]->` the stubs of the Tables its query reads and the Computations its request used.
+
+**Validity (Graphiti's style, beyond agent-memory's):**
+- **Supersession.** A new preference in the same category, or a fact with the same predicate, about the
+  same thing closes the old one (`valid_until`) and `-[:SUPERSEDES]->` it. Nothing is deleted.
+- **Expired facts keep their conversations.** A warehouse fact that expires keeps its node (source, key),
+  so its conversations stay attached across refetches.
+
+**Entitlements:**
+- **Private to its principal.** Everything the agent side records carries `recorded_by`: the principal,
+  or the data source. It's read back only by them, because a conversation about a customer holds what
+  its principal could read.
+- **A mention or `ABOUT` needs a visible fact:** the warehouse fact must be in memory as that principal
+  fetched it.
+
+**`qlsc recall` shows what was noted:** the current preferences and facts about the anchor, and the
+conversations that mentioned it, the reader's own only.
+
+**`qlsc converse <conversation.yaml> [--as]`** records a conversation. The file gives its messages, the
+tools each message called (run as they're recorded) and what the agent learned. The same functions
+(`qlsc/converse.py`) are what an agent, or later an MCP server, calls directly.
+
+**No LLM in this phase.** A message mentions what its tools touched and what it names explicitly. Entity
+extraction from free text (agent-memory's extractors) comes later, if a demo needs it.
+
+**Collisions:**
+- `qlsc virtualize` renames a label that is one of agent-memory's labels, a POLE+O type label, or a
+  memory stub label (`Table`, `Column`, `Computation`), falling back to the table's own name.
+- None of today's labels collides, so the model doesn't change.
+
+**How it's checked** (`eval/converse.py`): two sessions, a day apart, of a banker with one customer, as
+marketing, and one of risk with another. It checks:
+- the chain and the traces;
+- each tool call's links;
+- mentions landing on the warehouse nodes themselves;
+- session 2 finding session 1's notes;
+- supersession;
+- what each principal sees of the others' conversations (nothing);
+- that a refetch leaves the conversations attached.
+
+## Phase 3, as built (2026-09-29)
+
+**As designed above** (`src/qlsc/converse.py`, `qlsc converse <file> [--as]`, and `qlsc recall` showing
+what was noted):
+- **The agent-memory model:** labels, relationship types and properties as agent-memory's own Cypher
+  writes them, so its tooling reads this memory.
+- **Beyond agent-memory:**
+  - `recorded_by`;
+  - `valid_from` and `valid_until` on Preference as well as Fact;
+  - `SUPERSEDES`;
+  - `USED` from an ask's ToolCall to the Table and Computation stubs.
+- **Three example conversations** in `examples/fennmoor-bank/conversations/`: marketing-1 and marketing-2
+  (a banker and customer 0001000025, a session apart), and risk-1 (a Kansas customer).
+
+**Checked** (`eval/converse.py`, results/converse.md): 16 of 16.
+
+| check | result |
+|---|---|
+| each conversation's chain: FIRST_MESSAGE, then NEXT_MESSAGE through every message in order | 3 of 3 |
+| each tool call: TRIGGERED_BY its user message, in a trace INITIATED_BY it, HAS_TRACE, INSTANCE_OF its Tool | 4 of 4 |
+| a recall's step TOUCHED the warehouse Customer | yes |
+| the ask (compiled SQL, 10 rows) USED `fct_card_transactions`, `dim_merchant` and one Computation | yes |
+| mentions are the warehouse's own Customer nodes (source, fetched_at, FROM a Table stub) | yes |
+| marketing-2's recall finds marketing-1's preference, fact, person and conversation | yes |
+| marketing-2's preference closes marketing-1's (valid_until, SUPERSEDES); only the new one is noted | yes |
+| the data source sees nothing of marketing's notes, and marketing nothing of risk's | yes |
+| risk can't note a customer outside its rows | refused |
+| remembering the customer again leaves one node and the same notes | yes |
+
+What `qlsc recall --as marketing Customer 8322097816940277129` shows after the two sessions:
+
+    noted: contact channel: phone, mornings (since 2026-09-29)
+    noted: interested in: a travel rewards card (since 2026-09-29)
+    noted: Ana (person), DAUGHTER_OF
+    in 2 conversations, the last 2026-09-29: Travel card follow-up for customer 8322097816940277129
+
+**Collisions:** `qlsc virtualize` renames a label memory reserves (`memory.RESERVED_LABELS`), falling back
+to the table's name, then with its dataset's (`dw_web.events` becomes `DwWebEvent`). Today's labels are
+unchanged.
+
+**Found on the way: the permission checks failed open.** The owner's gcloud login lapsed overnight, and
+every warehouse call failed.
+- **What happened:**
+  - the connector's permission checks read any error as "no";
+  - risk's allowlist was rebuilt with no tables (a misleading refusal);
+  - worse, the row-policy cache was rewritten as "no table has a row policy". For 15 minutes memory
+    would have treated customers as shared facts.
+- **No harm done.** Risk's empty allowlist refused its recall first, and nothing else read or wrote
+  memory in those minutes. The bad caches were deleted.
+- **The fix:**
+  - only a denial (403) or a missing table (404) now counts as "no";
+  - a failed login is `WarehouseUnavailable` (`qlsc/warehouse/__init__.py`): raised, never cached;
+  - the CLI shows it as `gcloud needs a fresh login (...)`.
+
+**Not in this phase:**
+- **Entity extraction from free text.** A message mentions what its tools touched and what it names.
+  agent-memory's extractors (an LLM, spaCy or GLiNER) could come later.
+- **Vector indexes** on messages and preferences, for semantic search over what was said: agent-memory
+  has them.
+- **An MCP server** exposing recall, ask and the learning calls: after phase 4.

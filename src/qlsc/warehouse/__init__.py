@@ -73,6 +73,10 @@ LOG_GROUP = [
 ]
 
 
+class WarehouseUnavailable(RuntimeError):
+    """The warehouse couldn't be asked (credentials, network): never read as a "no" to a permission check."""
+
+
 class Warehouse(ABC):
     name: str  # as people call it: "BigQuery"
     sql: str  # the SQL it runs, as the prompts say it: "BigQuery Standard SQL"

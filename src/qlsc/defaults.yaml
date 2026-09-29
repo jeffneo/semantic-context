@@ -27,6 +27,7 @@ memory:                               # qlsc remember / recall: an entity's cont
   properties: used                    # used: the columns the log's queries read or filter on, keys and partition columns | all
   unknown_hold_days: 1                # how long a fact holds when the log shows no cadence for its table (fewer than two write days)
   workers: 6                          # concurrent reads of the virtual graph, one per relationship of a hop
+  tool_result_rows: 20                # qlsc converse: the rows of an ask's answer its ToolCall keeps (the rest are counted)
 
 embeddings:                           # Azure OpenAI: AZURE_OPENAI_API_KEY, _ENDPOINT, _API_VERSION
   deployment: text-embedding-3-large

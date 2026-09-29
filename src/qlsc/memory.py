@@ -64,6 +64,13 @@ from qlsc.graph import Graph
 from qlsc.warehouse import connect
 
 IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+# Labels memory itself uses, which a virtual graph's labels must not take (qlsc virtualize renames one that
+# does): Neo4j Labs agent-memory's (qlsc/converse.py), its POLE+O entity types, and memory's stubs.
+RESERVED_LABELS = frozenset(
+    {"Conversation", "Message", "Entity", "Preference", "Fact", "ReasoningTrace", "ReasoningStep", "ToolCall",
+     "Tool", "Extractor", "Schema", "Person", "Organization", "Location", "Event", "Object", "Table", "Column",
+     "Computation"}
+)  # fmt: skip
 DATA_SOURCE = "data source"  # fetched_by when no principal is named: the estate's own read
 
 # The tables the virtual graph serves: its label, partition column and write days, and the columns memory
@@ -165,6 +172,18 @@ WHERE a.`{prop}` = $value AND a[$k_template] = $template AND a[$k_at] IS NOT NUL
 RETURN a.`{key}` AS key LIMIT 2
 """
 FIND = "MATCH (n:`{label}`) WHERE n.`{prop}` = $value RETURN n.`{key}` AS key LIMIT 2"
+# What the reader's agent noted about an anchor (qlsc/converse.py): the preferences and facts that still
+# hold, the people and things related to it, and the conversations that mentioned it.
+NOTES = """
+MATCH (a:`{label}` {{source: $source, `{key}`: $key}})
+RETURN [(p:Preference)-[:ABOUT]->(a) WHERE p.recorded_by = $by AND (p.valid_until IS NULL OR p.valid_until > $now)
+        | p {{.category, .preference, .valid_from}}] AS preferences,
+       [(f:Fact)-[:ABOUT]->(a) WHERE f.recorded_by = $by AND (f.valid_until IS NULL OR f.valid_until > $now)
+        | f {{.predicate, .object, .valid_from}}] AS facts,
+       [(e:Entity)-[r:RELATED_TO]->(a) WHERE e.recorded_by = $by | e {{.name, .type, relation: r.relation_type}}] AS entities,
+       [(c:Conversation)-[:HAS_MESSAGE]->(m:Message)-[:MENTIONS]->(a) WHERE m.recorded_by = $by
+        | c {{.id, .title, .updated_at}}] AS conversations
+"""
 
 
 DatabaseUnavailable = ClientError  # the memory database doesn't exist yet
@@ -715,6 +734,50 @@ def readable(m: Model, label: str) -> None:
         raise Unsupported(f"no label {label} in the virtual graph (labels: {', '.join(sorted(m.nodes))})")
 
 
+def resolve(s: Settings, m: Model, label: str, key, now: dt.datetime):
+    """A key as given (the label's key, or 'property=value' for the one node with it) as the key's value."""
+    if isinstance(key, str) and "=" in key:
+        prop, value = key.split("=", 1)
+        reads = template(m, label, s["memory"]["hops"])
+        return find(s, m, label, prop, typed(m, label, prop, value), now, digest(m, reads, s["memory"]))
+    return typed(m, label, m.key(label), key) if isinstance(key, str) else key
+
+
+def notes(s: Settings, m: Model, label: str, key, now: dt.datetime) -> dict:
+    """What the reader's agent noted about `label` `key` (qlsc converse): their own notes only."""
+    with memory_graph(s) as M:
+        try:
+            got = M.rows(
+                NOTES.format(label=label, key=m.key(label)), source=m.source, key=key, by=m.reader, now=now
+            )
+        except DatabaseUnavailable:
+            got = []
+    if not got:
+        return {}
+    out = got[0]
+    out["conversations"] = sorted(
+        {c["id"]: c for c in out["conversations"]}.values(), key=lambda c: c["updated_at"]
+    )
+    return out
+
+
+def show_notes(n: dict) -> list[str]:
+    day = lambda d: str(d)[:10]
+    lines = [
+        f"  noted: {p['category']}: {p['preference']} (since {day(p['valid_from'])})"
+        for p in n.get("preferences", [])
+    ]
+    lines += [
+        f"  noted: {f['predicate']}: {f['object']} (since {day(f['valid_from'])})" for f in n.get("facts", [])
+    ]
+    lines += [f"  noted: {e['name']} ({e['type'].lower()}), {e['relation']}" for e in n.get("entities", [])]
+    if cs := n.get("conversations"):
+        lines.append(
+            f"  in {len(cs)} conversation{'s' * (len(cs) > 1)}, the last {day(cs[-1]['updated_at'])}: {cs[-1]['title']}"
+        )
+    return lines
+
+
 def show(ctx: Context, m: Model, full: bool = False) -> str:
     """The context, for a person: where it came from, the anchor's properties, and a line per read."""
     if not ctx.nodes:
@@ -758,12 +821,9 @@ def run(
     now = dt.datetime.now(dt.UTC)
     m = reader_model(s, as_)
     readable(m, label)
-    if "=" in key:
-        prop, value = key.split("=", 1)
-        reads = template(m, label, s["memory"]["hops"])
-        value = find(s, m, label, prop, typed(m, label, prop, value), now, digest(m, reads, s["memory"]))
-    else:
-        value = typed(m, label, m.key(label), key)
+    value = resolve(s, m, label, key, now)
     ctx = recall(s, label, value, now=now, force=force, m=m)
     print(show(ctx, m, full))
+    if ctx.nodes:
+        print("\n".join(show_notes(notes(s, m, label, value, now))))
     return ctx

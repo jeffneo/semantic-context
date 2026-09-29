@@ -151,6 +151,7 @@ any. `tests/test_config.py` fails if one is not read by the code. Sensitivity on
 | `memory.hops`, `window_days`, `cap` | 2, 90, 200 | A context is an entity's relationships and their to-one dimensions (a call's agent, a purchase's merchant). The many side is windowed by its partition column (which also prunes the warehouse's partitions) and capped, so a context stays small; a capped read is flagged | a customer: 15 reads, 4 to 780 nodes; 7 of 20 customers hit the cap on card or deposit transactions (eval/memory.py) |
 | `memory.properties` | used | The columns the log's queries read or filter on, with keys and partition columns: what anyone asks of these tables, not every column | Customer: 14 of 23 columns |
 | `memory.unknown_hold_days`, `workers` | 1, 6 | A table whose cadence the log doesn't show holds a day, the shortest cadence here; a hop's reads run concurrently | every table the virtual graph serves is written daily |
+| `memory.tool_result_rows` | 20 | An ask's ToolCall keeps the first rows of its answer, enough for the agent to cite, with the total counted | the example's ask: 10 rows |
 | `entitlements.token_seconds` | 300 | How long a principal token signed for the JDBC pass-through holds: one question's queries, never a session's. Virtual Graph reads within seconds of signing | a Cypher answer takes about 3 to 30 s |
 | `navigate.anchors` | question | `parts` breaks the question into measures, groupings, filters and entities, and navigates from each; in a quick test it was about even (gold 7 of 10 both, a log sample 23 of 30 against 22), so the single embedding stays the default | see the accuracy plan, 2026-09-27 |
 | `navigate.computations`, `computation_min_similarity` | 0, 0.8 | As first built, the closest Computations misled more than they helped: a close look-alike displaced what a question needed. With a similarity floor, equivalents merged and parameters left out of definitions, they were a wash on the full set: a close definition still gets over-applied. Off | all 176 log questions: 129 without, 130 with 5 definitions (4 gained, 3 lost); gold 7 either way |
@@ -212,7 +213,7 @@ clean grouping and barely move NMI against the spec (0.850 vs 0.853).
     rerun as the principal, Cypher answers checked against BigQuery's job log (every job ran as the
     principal), canaries scanned in every response and prompt, the driver probed directly, and five
     broken gateways the checks must catch (`eval/entitlements.py`).
-- **Memory** (plans/2026-09-27-agentic-memory.md, phases 1 and 2): `qlsc remember` and `recall` keep an
+- **Memory** (plans/2026-09-27-agentic-memory.md, phases 1 to 3): `qlsc remember` and `recall` keep an
   entity's context, fetched from the virtual graph, in a `memory` database beside the semantic layer. A
   rebuild never touches it. `fennmoor.memory` joins it to the composite.
   - **What a context is** comes from the virtual graph's model, not per estate. It's the node; every
@@ -244,11 +245,29 @@ clean grouping and barely move NMI against the spec (0.850 vs 0.853).
     - **A context is recorded per principal** on its anchor. A recall reads memory only for the
       principal's own context, with their template as it is now: a table or column they lost changes it,
       so it is fetched again.
+  - **The agent's side** (`qlsc converse`, `src/qlsc/converse.py`) is Neo4j Labs' agent-memory model, as
+    its own Cypher writes it:
+    - conversations and messages;
+    - reasoning traces, with a step and a tool call per `recall` or `ask`;
+    - the preferences, facts and POLE+O entities the agent learns.
+
+    The warehouse facts are its long-term memory under their own labels: a message `MENTIONS` the
+    `Customer` itself, not an `Entity`.
+    - **Nothing is deleted.** A new preference in a category, or a fact with the same predicate, closes
+      the old one and `SUPERSEDES` it.
+    - **Private to its principal.** Everything is `recorded_by` its principal and read back only by
+      them. `qlsc recall` shows the reader's own notes.
+    - **Reserved labels.** A virtual graph label may not take a name memory uses:
+      `memory.RESERVED_LABELS`, which `qlsc virtualize` enforces.
   - **Reads and writes are two steps from Python,** not one composite statement. The second hop is
     keyed on the first's results (a correlated subquery into the virtual graph is Virtual Graph bug
     2), and each read is signed on its own.
 
 ## Known limits
+
+- A permission check that can't reach the warehouse (a lapsed login) is an error, never a "no"
+  (`WarehouseUnavailable`). The gateway's and memory's caches (the allowlists, the tables with row
+  policies) hold only answers the warehouse gave.
 
 - The example log uses about 150 distinct column-level join predicates and no SELECT has more than 3
   joins; a real log has a long tail of one-off joins and 6 to 10-join queries. Join recovery scores

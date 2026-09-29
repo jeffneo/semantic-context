@@ -113,3 +113,22 @@ def test_a_fact_that_depends_on_the_reader_needs_their_own_mark():
     assert memory.cypher(m, reads["Customer<-MADE_BY-Txn"]) == memory.cypher(
         M, reads["Customer<-MADE_BY-Txn"]
     )
+
+
+def test_a_virtual_graph_label_never_takes_one_memory_reserves():
+    from qlsc.virtualize import fallback_label
+
+    assert fallback_label("p.dw_web.fct_web_events") == "WebEvent"
+    assert fallback_label("p.dw_web.events") == "DwWebEvent"  # Event is agent-memory's (POLE+O)
+    assert fallback_label("p.dw_core.dim_customer") == "Customer"
+    assert "Message" in memory.RESERVED_LABELS and "Table" in memory.RESERVED_LABELS
+
+
+def test_the_computations_a_request_used():
+    from qlsc.converse import computation_ids
+
+    request = {
+        "measures": [{"computation": "c1"}, {"computation": ""}],
+        "blocks": [{"filters": [{"computation": "c2"}]}],
+    }
+    assert computation_ids(request) == ["c1", "c2"]

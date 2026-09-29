@@ -1,0 +1,12 @@
+# A risk analyst reviewing a customer inside risk's row policy (Kansas).
+title: Review of customer -9222608688654483010
+as: risk
+messages:
+  - user: Review customer -9222608688654483010 for me.
+    tools:
+      - recall: Customer -9222608688654483010
+  - assistant: A mass-affluent customer in Kansas, 30 months with the bank.
+  - user: Their address change is pending verification; hold any limit increase until it clears.
+    learned:
+      - fact: {about: Customer -9222608688654483010, predicate: review status, object: address change pending verification}
+  - assistant: "Noted, and flagged against the customer."

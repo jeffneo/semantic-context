@@ -13,7 +13,8 @@ rarely declare keys, so this stage writes the model from usage.
   relationships  a column of one node table that holds the same Variable as another node's key points
                  at it. Variables are built only from trusted, identity-preserving joins, so a suspect
                  join (one production contradicts) never becomes a relationship; those are listed.
-  names          the LLM names labels and types (prompts/virtual_model_*.md); unique, checked
+  names          the LLM names labels and types (prompts/virtual_model_*.md); unique, checked, and never one
+                 memory reserves (qlsc/memory.py RESERVED_LABELS: agent-memory's labels, POLE+O, stubs)
   views          one view per node table in a dataset of its own (Virtual Graph reads one dataset)
 
 Outputs, in <work>/virtual/: schema.json, datasource.json, secret.json (a path, never a secret),
@@ -30,6 +31,7 @@ from collections import defaultdict
 from qlsc.config import Settings
 from qlsc.graph import Graph
 from qlsc.llm import LLM, prompt
+from qlsc.memory import RESERVED_LABELS
 from qlsc.names import short
 from qlsc.warehouse import connect
 
@@ -235,9 +237,9 @@ def names(s: Settings, node: dict, rels: list[dict], areas: dict, var_names: dic
         if (
             not re.fullmatch(r"[A-Z][A-Za-z0-9]{1,40}", labels.get(t) or "")
             or list(labels.values()).count(labels[t]) > 1
+            or labels[t] in RESERVED_LABELS  # memory's own (qlsc/memory.py): agent-memory's, POLE+O, stubs
         ):
-            base = re.sub(r"^(dim|fct|int|agg|stg)_", "", t.rsplit(".", 1)[1])
-            labels[t] = "".join(w.capitalize() for w in re.sub(r"s$", "", base).split("_"))
+            labels[t] = fallback_label(t)
     request = prompt(
         "virtual_model_request",
         n_nodes=len(lines),
@@ -260,6 +262,15 @@ def names(s: Settings, node: dict, rels: list[dict], areas: dict, var_names: dic
         r = next(r for r in rels if r["id"] == i)
         types[i] = f"{labels[r['start']].upper()}_{r['column'].upper()}"
     return labels, types
+
+
+def fallback_label(table: str) -> str:
+    """A label from the table's name: without its prefix, singular (fct_web_events -> WebEvent); a reserved
+    one (qlsc/memory.py) with its dataset's name before it (dw_web.events -> DwWebEvent)."""
+    dataset, name = table.rsplit(".", 2)[-2:]
+    camel = lambda x: "".join(w.capitalize() for w in x.split("_") if w)
+    label = camel(re.sub(r"s$", "", re.sub(r"^(dim|fct|int|agg|stg)_", "", name)))
+    return camel(dataset) + label if label in RESERVED_LABELS else label
 
 
 def type_problems(types: dict, rels: list[dict]) -> dict[str, str]:

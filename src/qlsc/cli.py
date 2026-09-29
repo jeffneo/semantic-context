@@ -10,7 +10,9 @@
     --run                       ... -> and the answer
     --as PRINCIPAL              ... on a principal's behalf: only what the warehouse lets them read, run as them
   qlsc remember LABEL KEY       an entity's context, fetched from the virtual graph and kept in memory
-  qlsc recall LABEL KEY         the same context: from memory while it holds, else fetched again
+  qlsc recall LABEL KEY         the same context: from memory while it holds, else fetched again, with
+                                what your agent noted about it
+  qlsc converse FILE            record a conversation (YAML) in the agent-memory model, running its tools
                                 (KEY: the label's key, or property=value; --as PRINCIPAL, as for ask)
 
 Every command reads the estate's config from --config, or QLSC_CONFIG (environment or .env).
@@ -26,6 +28,7 @@ from qlsc import (
     align,
     cluster,
     computations,
+    converse,
     extract,
     hierarchy,
     load,
@@ -38,6 +41,7 @@ from qlsc import (
 )
 from qlsc.config import ConfigError
 from qlsc.config import load as load_settings
+from qlsc.warehouse import WarehouseUnavailable
 
 
 def build(s, a) -> None:
@@ -136,6 +140,12 @@ def parser() -> argparse.ArgumentParser:
         p.set_defaults(
             func=lambda s, a, force=force: memory.run(s, a.label, a.key, force=force, full=a.full, as_=a.as_)
         )
+    p = sub.add_parser("converse", help="record a conversation (a YAML file) in the agent-memory model")
+    p.add_argument("file", help="the conversation: title, messages, the tools each called, what was learned")
+    p.add_argument(
+        "--as", dest="as_", metavar="PRINCIPAL", help="on a principal's behalf (else the file's `as`)"
+    )
+    p.set_defaults(func=lambda s, a: converse.record(s, a.file, as_=a.as_))
     return ap
 
 
@@ -143,7 +153,7 @@ def main(argv: list[str] | None = None) -> int:
     a = parser().parse_args(argv)
     try:
         a.func(load_settings(a.config), a)
-    except (ConfigError, memory.Unsupported) as e:
+    except (ConfigError, memory.Unsupported, WarehouseUnavailable) as e:
         print(f"qlsc: {e}", file=sys.stderr)
         return 2
     return 0
