@@ -430,7 +430,9 @@ def test_cypher_from_the_same_request():
     )
     assert cypher.startswith("MATCH (fct_txn:Txn) MATCH (fct_txn)-[:MADE_BY]->(dim_customer:Customer)")
     assert "MATCH (dim_customer)-[:PREFERS]->(dim_branch:Branch)" in cypher
-    assert "sum(CASE WHEN fct_txn.is_purchase THEN fct_txn.amount ELSE null END) AS spend" in cypher
+    x = "CASE WHEN fct_txn.is_purchase THEN fct_txn.amount ELSE null END"
+    # SQL's SUM of no values is NULL, not Cypher's 0
+    assert f"CASE WHEN count({x}) = 0 THEN null ELSE sum({x}) END AS spend" in cypher
     assert "date.truncate('week', fct_txn.post_date) AS month" in cypher
     assert "fct_txn.posted_at >= datetime('2026-04-01T00:00:00Z')" in cypher
     assert "fct_txn.posted_at < datetime('2026-07-01T00:00:00Z')" in cypher

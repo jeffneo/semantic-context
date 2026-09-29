@@ -22,6 +22,12 @@ semantic layer it came from.
               the fact table or billing the far one (BigQuery bills a minimum per table a query references).
               The anchor's own read still gates the context: none, or none the reader may see, and the
               context is empty.
+  batch       many anchors' contexts fetched together (qlsc remember LABEL KEY...): each read keyed on
+              what all of them fetched, once. A warehouse bills the columns it scans, not the rows it returns,
+              so a batch costs about what one context does. Each anchor keeps its own context, exactly the one
+              it gets alone: its own rows, capped per anchor (a read into the anchors is paged: each page
+              ordered by anchor, the cap and one more per anchor), the dimensions its own facts name, and its
+              own recall step.
   properties  the columns the log's queries read or filter on (memory.properties: used), with each node's
               key and partition column; or every column (all)
   identity    the virtual graph's labels, relationship types and keys, with `source` (the virtual graph's
@@ -62,6 +68,7 @@ import hashlib
 import json
 import re
 import statistics
+import sys
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -434,7 +441,8 @@ def cypher(m: Model, r: Read, memory: bool = False) -> str:
     """A read's Cypher: over the virtual graph, or (memory) the same read over memory: only its source's
     nodes, only facts that still hold at $now, and a node of a row-policied table only if the reader's own
     step ($by) read it and that read still holds. On the virtual graph a read with a key column reads by it
-    (keyed): the same rows."""
+    (keyed): the same rows. A read into the anchors is ordered by anchor, then the most recent first, so a
+    batch's is read in pages (run_batch)."""
     n = m.nodes[r.label]
     src = " {source: $source}" if memory else ""
     fresh = lambda v: f"({v}.holds_until IS NULL OR {v}.holds_until > $now)"
@@ -442,11 +450,11 @@ def cypher(m: Model, r: Read, memory: bool = False) -> str:
     ret = ", ".join(f"n.`{p}` AS `{p}`" for p in sorted(n["props"]))
     if keyed(r, memory) and r.inward:
         where = [f"n.`{r.fk}` IN $keys"] + ([f"n.`{r.window}` >= $since"] if r.window else [])
-        order = f"n.`{r.window}` DESC, n.`{n['key']}`" if r.window else f"n.`{r.fk}`, n.`{n['key']}`"
+        recent = f"n.`{r.window}` DESC, " if r.window else ""
         return (
             f"MATCH (n:`{r.label}`)\nWHERE "
             + "\n  AND ".join(where)
-            + f"\nRETURN n.`{r.fk}` AS _via, {ret}\nORDER BY {order}\nLIMIT $limit"
+            + f"\nRETURN n.`{r.fk}` AS _via, {ret}\nORDER BY n.`{r.fk}`, {recent}n.`{n['key']}`\nLIMIT $limit"
         )
     if r.type is None or keyed(r, memory):
         where = [f"n.`{n['key']}` IN $keys"]
@@ -466,7 +474,8 @@ def cypher(m: Model, r: Read, memory: bool = False) -> str:
     if memory:
         where += [fresh("x"), fresh("n")]
         where += [seen("n")] * (r.label in m.policied) + [seen("v")] * (r.via in m.policied)
-    order = f"n.`{r.window}` DESC, n.`{n['key']}`" if r.window else f"v.`{vk}`, n.`{n['key']}`"
+    recent = f"n.`{r.window}` DESC, " if r.window and r.inward else ""
+    order = f"v.`{vk}`, {recent}n.`{n['key']}`"
     limit = "\nLIMIT $limit" if r.inward else ""
     return (
         f"{match}\nWHERE "
@@ -520,28 +529,91 @@ def window_start(s: Settings) -> dt.date:
 def run_reads(
     s: Settings, m: Model, reads: list[Read], anchor_key, target: Graph, memory: bool, now: dt.datetime
 ) -> Context:
-    """Every read of the template, a hop at a time (hop 0 with hop 1: both are keyed on the anchor), each
-    hop's reads concurrently; the rows become the context's nodes and relationships."""
+    """One anchor's context: a batch of one."""
+    return run_batch(s, m, reads, [anchor_key], target, memory, now)[anchor_key]
+
+
+def run_batch(
+    s: Settings, m: Model, reads: list[Read], anchor_keys: list, target: Graph, memory: bool, now: dt.datetime
+) -> dict:
+    """Every read of the template for every anchor at once, a hop at a time (hop 0 with hop 1: both are keyed
+    on the anchors), each hop's reads concurrently, each keyed on the union of what the anchors fetched. A
+    warehouse bills the columns it scans, not the rows it returns, so a read for many anchors costs about what
+    one does. Each anchor keeps its own context: its own rows (capped per anchor, the most recent), and the
+    dimensions its own facts name. An anchor with no node, or none the reader may see, has an empty context.
+    -> anchor key -> Context"""
     p = s["memory"]
     anchor = reads[0].label
-    ctx = Context(anchor, anchor_key, "memory" if memory else "virtual graph")
-    fetched: dict[str, set] = {anchor: {anchor_key}}
+    origin = "memory" if memory else "virtual graph"
+    ctxs = {a: Context(anchor, a, origin) for a in anchor_keys}
+    live = set(ctxs)  # the anchors found
+    fetched: dict = {a: {anchor: {a}} for a in anchor_keys}  # anchor -> label -> its context's keys
+    store: dict = {}  # (label, key) -> the row, whichever anchor's read fetched it
     base = {"since": window_start(s), "limit": p["cap"] + 1}
     if memory:
         base |= {"source": m.source, "now": now, "by": m.reader}
     t0 = time.time()
 
-    def one(r: Read) -> tuple[Read, str, list, list[dict], float]:
+    def one(r: Read) -> tuple[Read, str, dict, list[dict], float]:
         q = cypher(m, r, memory)
-        keys = sorted(fetched.get(r.via or anchor, set()), key=str)  # the nodes the read is keyed on
-        ask = keys
+        # what each anchor's read is keyed on: a copy, as the hop's other reads add to what was fetched
+        keys = {a: set(fetched[a].get(r.via or anchor, ())) for a in live}
+        ask = set().union(set(), *keys.values())
         if keyed(r, memory) and not r.inward:  # the dimensions those facts name, not fetched yet
-            named = {ctx.nodes[(r.via, k)].get(r.fk) for k in keys}
-            ask = sorted(named - {None} - fetched.get(r.label, set()), key=str)
+            ask = (
+                {store[(r.via, k)].get(r.fk) for k in ask} - {None} - {k for lb, k in store if lb == r.label}
+            )
+        ask = sorted(ask, key=str)
         sent, extra = (q, {}) if memory else entitle.signing(s, m.allow, q)
-        t = time.time()
-        rows = target.rows(sent, **base, keys=ask, **extra) if ask else []
+        t, rows = time.time(), []
+        if not r.inward:  # to-one: a row per key at most
+            for i in range(0, len(ask), p["keys_per_read"]):  # a warehouse limits a query's parameters
+                rows += target.rows(sent, **base, keys=ask[i : i + p["keys_per_read"]], **extra)
+            return r, q, keys, rows, time.time() - t
+        # into the anchors, in pages: a page is ordered by anchor, then the most recent first, and holds the
+        # cap and one more for each anchor it's keyed on. An anchor is done once the page shows it complete (a
+        # later anchor follows it) or past the cap; the rest are read again. So a page completes one anchor
+        # at least, and a batch of one is one read, as ever.
+        pending = ask
+        while pending:
+            chunk = pending[: p["keys_per_read"]]
+            limit = (p["cap"] + 1) * len(chunk)
+            page = target.rows(sent, **(base | {"limit": limit}), keys=chunk, **extra)
+            if len(page) < limit:
+                rows += page
+                pending = pending[len(chunk) :]
+                continue
+            count: dict = {}
+            for row in page:
+                count[row["_via"]] = count.get(row["_via"], 0) + 1
+            last = page[-1]["_via"]
+            done = {v for v, n in count.items() if v != last or n > p["cap"]}
+            rows += [row for row in page if row["_via"] in done]
+            pending = [k for k in pending if k not in done]
         return r, q, keys, rows, time.time() - t
+
+    def owned(r: Read, keys: dict, rows: list[dict]) -> dict:
+        """Each anchor's rows of a read, in the read's order, with the node each one was reached from."""
+        key, got = m.key(r.label), {a: [] for a in live}
+        if keyed(r, memory) and not r.inward:  # dimensions: those the anchor's own facts name
+            for row in rows:
+                store[(r.label, row[key])] = row
+            for a in live:
+                named = {store[(r.via, k)].get(r.fk) for k in keys[a]} - {None}
+                got[a] = [
+                    (store[(r.label, f)], None) for f in sorted(named, key=str) if (r.label, f) in store
+                ]
+            return got
+        owners: dict = {}
+        for a in live:
+            for v in keys[a]:
+                owners.setdefault(v, []).append(a)
+        for row in rows:
+            via = row.pop("_via", None)
+            row = store.setdefault((r.label, row[key]), row)
+            for a in owners.get(via if r.type else row[key], []):
+                got[a].append((row, via))
+        return got
 
     last = max(r.hop for r in reads)
     groups = [[r for r in reads if r.hop <= 1]] + [
@@ -550,39 +622,41 @@ def run_reads(
     for group in groups:
         with ThreadPoolExecutor(max_workers=p["workers"]) as pool:
             results = list(pool.map(one, group))
-        if group[0].hop == 0 and not results[0][3]:
-            ctx.seconds = time.time() - t0
-            return ctx  # no such node, or not one the reader may see: an empty context
+        if group[0].hop == 0:
+            live &= {row[m.key(anchor)] for row in results[0][3]}
         for r, q, keys, rows, seconds in results:
-            capped = r.inward and len(rows) > p["cap"]
-            rows = rows[: p["cap"]] if capped else rows
             key = m.key(r.label)
-            for row in rows:
-                via = row.pop("_via", None)
-                ctx.nodes[(r.label, row[key])] = row
-                ctx.fetched_with.setdefault((r.label, row[key]), q)
-                fetched.setdefault(r.label, set()).add(row[key])
-                if r.type and not (keyed(r, memory) and not r.inward):
-                    start, end = (row[key], via) if r.inward else (via, row[key])
-                    ctx.edges.add((r.type, r.start, start, r.end, end))
-            ctx.reads.append(
-                {
-                    "read": r.name,
-                    "cypher": q,
-                    "keys": keys,
-                    "rows": len(rows),
-                    "capped": capped,
-                    "seconds": seconds,
-                }
-            )
-        for r, _, keys, *_ in results:  # a keyed read's relationships: each fact it was keyed on to the
-            if r.type and keyed(r, memory) and not r.inward:  # dimension the fact names, if fetched
-                for k in keys:
-                    f = ctx.nodes[(r.via, k)].get(r.fk)
-                    if (r.label, f) in ctx.nodes:
-                        ctx.edges.add((r.type, r.start, k, r.end, f))
-    ctx.seconds = time.time() - t0
-    return ctx
+            for a, got in owned(r, keys, rows).items():
+                ctx = ctxs[a]
+                capped = r.inward and len(got) > p["cap"]
+                got = got[: p["cap"]] if capped else got
+                for row, via in got:
+                    ctx.nodes[(r.label, row[key])] = row
+                    ctx.fetched_with.setdefault((r.label, row[key]), q)
+                    fetched[a].setdefault(r.label, set()).add(row[key])
+                    if r.type and not (keyed(r, memory) and not r.inward):
+                        start, end = (row[key], via) if r.inward else (via, row[key])
+                        ctx.edges.add((r.type, r.start, start, r.end, end))
+                if r.type and keyed(r, memory) and not r.inward:  # each fact it was keyed on, to the one
+                    for v in keys[a]:  # it names
+                        f = store[(r.via, v)].get(r.fk)
+                        if (r.label, f) in ctx.nodes:
+                            ctx.edges.add((r.type, r.start, v, r.end, f))
+                ctx.reads.append(
+                    {
+                        "read": r.name,
+                        "cypher": q,
+                        "keys": sorted(keys[a], key=str),
+                        "rows": len(got),
+                        "capped": capped,
+                        "seconds": seconds,
+                    }
+                )
+        if not live:
+            break
+    for ctx in ctxs.values():
+        ctx.seconds = time.time() - t0
+    return ctxs
 
 
 def cadence_days(write_days: list | None) -> float | None:
@@ -766,6 +840,20 @@ def recall(
 ) -> Context:
     """`label` `key`'s context: from memory while it holds, else fetched from the virtual graph and
     remembered (read-through). `force` fetches regardless (remember)."""
+    return recall_batch(s, label, [key], now, force, m)[key]
+
+
+def recall_batch(
+    s: Settings,
+    label: str,
+    keys: list,
+    now: dt.datetime | None = None,
+    force: bool = False,
+    m: Model | None = None,
+) -> dict:
+    """Many `label`s' contexts: each read from memory while it holds (unless `force`), the rest fetched from
+    the virtual graph together, in one batch (run_batch), and each remembered as its own context, with its
+    own recall step. -> key -> Context"""
     now = now or dt.datetime.now(dt.UTC)
     if m is None:
         with Graph(s) as G:
@@ -773,20 +861,23 @@ def recall(
     readable(m, label)
     reads = template(m, label, s["memory"]["hops"])
     template_id = digest(m, reads, s["memory"])
+    out, missing = {}, list(dict.fromkeys(keys))
     if not force:
         with memory_graph(s) as M:
-            try:
-                fresh = M.rows(
-                    FRESH.format(label=label, key=m.key(label)),
-                    key=key,
-                    source=m.source,
-                    template=template_id,
-                    now=now,
-                    by=m.reader,
-                )
-            except DatabaseUnavailable:
-                fresh = []  # no memory database yet
-            if fresh:
+            for key in list(missing):
+                try:
+                    fresh = M.rows(
+                        FRESH.format(label=label, key=m.key(label)),
+                        key=key,
+                        source=m.source,
+                        template=template_id,
+                        now=now,
+                        by=m.reader,
+                    )
+                except DatabaseUnavailable:
+                    break  # no memory database yet
+                if not fresh:
+                    continue
                 ctx = run_reads(s, m, reads, key, M, memory=True, now=now)
                 ctx.fetched_at, ctx.holds_until = fresh[0]["at"], fresh[0]["until"]
                 for x in ctx.reads:
@@ -795,15 +886,22 @@ def recall(
                     ctx.step = str(uuid.uuid4())
                     with M.driver.session(database=M.db) as session:
                         session.execute_write(
-                            lambda t: record(t, m, ctx, template_id, now, ctx.step, "memory", None, None)
+                            lambda t, ctx=ctx: record(
+                                t, m, ctx, template_id, now, ctx.step, "memory", None, None
+                            )
                         )
-                return ctx
-    with virtual_graph(s) as V:
-        ctx = run_reads(s, m, reads, key, V, memory=False, now=now)
-    if ctx.nodes:
-        ensure(s, m)
-        ctx.seconds += write(s, m, ctx, reads, template_id, now)
-    return ctx
+                out[key] = ctx
+                missing.remove(key)
+    if missing:
+        with virtual_graph(s) as V:
+            fetched = run_batch(s, m, reads, missing, V, memory=False, now=now)
+        if any(ctx.nodes for ctx in fetched.values()):
+            ensure(s, m)
+        for key, ctx in fetched.items():
+            if ctx.nodes:
+                ctx.seconds += write(s, m, ctx, reads, template_id, now)
+            out[key] = ctx
+    return {key: out[key] for key in keys}
 
 
 def readable(m: Model, label: str) -> None:
@@ -894,18 +992,32 @@ def reader_model(s: Settings, as_: str | None) -> Model:
 
 
 def run(
-    s: Settings, label: str, key: str, force: bool = False, full: bool = False, as_: str | None = None
-) -> Context:
-    """qlsc remember | recall <label> <key | property=value> [--as principal]."""
+    s: Settings, label: str, keys: list[str], force: bool = False, full: bool = False, as_: str | None = None
+) -> dict:
+    """qlsc remember | recall <label> <key | property=value>... [--as principal]: one context, shown with what
+    the reader's agent noted; or many, fetched together, one line each. `-` reads keys from stdin."""
     now = dt.datetime.now(dt.UTC)
     m = reader_model(s, as_)
     readable(m, label)
-    value = resolve(s, m, label, key, now)
-    ctx = recall(s, label, value, now=now, force=force, m=m)
-    print(show(ctx, m, full))
-    if ctx.nodes:
-        print("\n".join(show_notes(notes(s, m, label, value, now))))
-    return ctx
+    keys = [k for x in keys for k in (sys.stdin.read().split() if x == "-" else [x])]
+    values = [resolve(s, m, label, k, now) for k in keys]
+    t0 = time.time()
+    ctxs = recall_batch(s, label, values, now=now, force=force, m=m)
+    if len(values) == 1:
+        ctx = ctxs[values[0]]
+        print(show(ctx, m, full))
+        if ctx.nodes:
+            print("\n".join(show_notes(notes(s, m, label, values[0], now))))
+        return ctxs
+    for v, ctx in ctxs.items():
+        what = f"{len(ctx.nodes)} nodes, {len(ctx.edges)} relationships" if ctx.nodes else "nothing"
+        capped = f"; capped: {', '.join(ctx.capped())}" if ctx.capped() else ""
+        print(f"{label} {v}: {what}, from {ctx.origin}{capped}")
+    fetched = sum(c.origin == "virtual graph" and bool(c.nodes) for c in ctxs.values())
+    print(
+        f"{len(ctxs)} contexts in {time.time() - t0:.1f} s: {fetched} fetched together, the rest from memory or empty"
+    )
+    return ctxs
 
 
 # ---- the memory route (plans/2026-09-27-agentic-memory.md, phase 5): a compiled question about one entity

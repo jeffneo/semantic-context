@@ -15,6 +15,9 @@ For 20 customers (the two the graph questions name, then 18 who called in the wi
      - a planted stale fact (a call whose relationship's holds_until has passed) is never read, and a
        refetch removes it;
      - a changed template (a 30-day window) is a different context, fetched again.
+  4. a batch: the 20 remembered together, in one batch (qlsc remember Customer KEY...), give each customer the
+     context it got alone (its nodes, properties, relationships, and each read's keys, rows and cap), and
+     read back from memory as that.
   Latency: fetch and recall per context, and each question on either target.
 
 Writes results/memory.md and .json. Prints a line per customer as it goes.
@@ -168,9 +171,10 @@ def main() -> int:
     }
 
     # 1. correctness and latency
+    alone = {}
     with memory.memory_graph(s) as M, memory.virtual_graph(s) as V:
         for i, key in enumerate(keys, 1):
-            fetched = memory.recall(s, "Customer", key, force=True, m=m)
+            fetched = alone[key] = memory.recall(s, "Customer", key, force=True, m=m)
             recalled = memory.recall(s, "Customer", key, m=m)
             diff = (
                 compare(fetched, recalled) if recalled.origin == "memory" else ["recall didn't read memory"]
@@ -248,6 +252,29 @@ def main() -> int:
         for name, x in f.items():
             print(f"freshness: {name}: {'ok' if x['ok'] else 'FAILED'} {x}", flush=True)
 
+    # 4. a batch
+    t0 = time.time()
+    batch = memory.recall_batch(s, "Customer", keys, force=True, m=m)
+    seconds = time.time() - t0
+    reads = lambda c: [(x["read"], x["keys"], x["rows"], x["capped"]) for x in c.reads]
+    diffs = {}
+    for key in keys:
+        d = compare(batch[key], alone[key]) + (
+            ["reads differ"] if reads(batch[key]) != reads(alone[key]) else []
+        )
+        back = memory.recall(s, "Customer", key, m=m)
+        d += ["not read back from memory"] if back.origin != "memory" else compare(back, batch[key])
+        if d:
+            diffs[str(key)] = d
+    res["batch"] = {
+        "customers": len(keys),
+        "seconds": round(seconds, 2),
+        "seconds one at a time": round(sum(c.seconds for c in alone.values()), 2),
+        "differences": diffs,
+        "ok": not diffs,
+    }
+    print(f"a batch: {res['batch']}", flush=True)
+
     fetch = [c["fetched"]["seconds"] for c in res["customers"].values()]
     recall = [c["recalled"]["seconds"] for c in res["customers"].values()]
     qs = [q for c in res["customers"].values() for q in c["questions"].values() if q["verdict"] != "capped"]
@@ -298,11 +325,25 @@ def report(res: dict) -> int:
         )
     L += ["", "## Freshness", "", "| check | result |", "|---|---|"]
     L += [f"| {name} | {'ok' if x['ok'] else '**FAILED**'} |" for name, x in res["freshness"].items()]
+    b = res["batch"]
+    L += [
+        "",
+        "## A batch",
+        "",
+        f"The {b['customers']} remembered together, in one batch: "
+        + (
+            "each got the context it got alone (nodes, properties, relationships, and each read's keys, rows "
+            "and cap), and read back from memory as that."
+            if b["ok"]
+            else f"**{len(b['differences'])} differ**: {b['differences']}"
+        )
+        + f" {b['seconds']} s together, against {b['seconds one at a time']} s one at a time.",
+    ]
     L += ["", "## Latency (seconds)", "", "| | median | p95 |", "|---|---|---|"]
     L += [f"| {name} | {x.get('median')} | {x.get('p95')} |" for name, x in res["latency"].items()]
     print(f"-> {write_result('memory', L, res)}")
     ok = same_ctx == len(cs) and not count("DIFFERENT") and res["idempotence"]["same"]
-    ok = ok and all(x["ok"] for x in res["freshness"].values())
+    ok = ok and all(x["ok"] for x in res["freshness"].values()) and res["batch"]["ok"]
     print("all checks passed" if ok else "SOME CHECKS FAILED")
     return 0 if ok else 1
 

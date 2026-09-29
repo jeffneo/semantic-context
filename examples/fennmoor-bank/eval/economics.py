@@ -3,9 +3,13 @@ of 50 questions, 10 about each of 5 customers, with and without memory.
 
   without  each question's compiled SQL runs in BigQuery, its cache off (a first-time query): latency and
            bytes billed
-  with     each customer's context is fetched once (`qlsc recall`: its latency, and the bytes Virtual Graph's
-           jobs billed, from BigQuery's own job log), then each question goes by the router's memory route
-           when memory holds its whole answer, and by the same SQL otherwise
+  with     the customers' contexts are fetched together, in one batch (`qlsc remember Customer KEY...`: its
+           latency, and the bytes Virtual Graph's jobs billed, from BigQuery's own job log), then each question
+           goes by the router's memory route when memory holds its whole answer, and by the same SQL otherwise
+What a fetch costs per customer, three ways, each on customers of its own (a fetch's queries for the same
+customers would be answered by BigQuery's result cache): one at a time (5 customers), in a batch of 5 (the
+session's), in a batch of 50. A warehouse bills the columns it scans, not the rows it returns, so a batch's
+reads cost about what one customer's do.
 Each fetch has the job log to itself: the next starts GAP seconds after it ends, and its jobs are those between
 its start and end, MARGIN seconds either side (BigQuery's clock against ours). BigQuery withholds the statistics
 of a job that reads a table with a row access policy (dim_customer): billed, but not reported. Such a job is
@@ -16,10 +20,11 @@ customers: such a job is counted at the minimum a first read bills, and the repo
 Both compile each question once, with the same LLM call (its time is common to both, and reported apart). Every
 answer memory gives is compared with the SQL's, row for row.
 
-The customers are the first five, by key, who called and made card purchases in the window, whose contexts
-aren't capped and weren't fetched in the last day; read as the data source.
+The customers are those, by key, who called and made card purchases in the window, whose contexts aren't
+capped (at most memory.cap card and deposit transactions in the window) and weren't fetched in the last day:
+the first 5 for the session, the next 5 one at a time, the next 50 in a batch. Read as the data source.
 
-Writes results/economics.md and .json. About 50 LLM calls (compiling the questions) and 100 BigQuery queries:
+Writes results/economics.md and .json. About 50 LLM calls (compiling the questions) and 120 BigQuery queries:
 about ten minutes.
 Usage: uv run examples/fennmoor-bank/eval/economics.py
 """
@@ -28,7 +33,6 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-import statistics
 import time
 
 from common import settings, write_result
@@ -77,6 +81,14 @@ MATCH (s:Step {tool: 'recall', owner: $by, origin: 'virtual graph'})-[:READ {con
 WHERE s.at > $since
 RETURN collect(DISTINCT c.customer_key) AS keys
 """
+# How many facts a customer has in the window, per relationship memory caps: an uncapped context is under the
+# cap on each.
+COUNTS = """
+MATCH (t:`{label}`) WHERE t.customer_key IN $keys AND t.`{date}` >= $since
+RETURN t.customer_key AS key, count(*) AS n
+"""
+CAPPED = {"CardTransaction": "post_date", "DepositTransaction": "posted_date"}
+SIZES = {"one at a time": 5, "a batch of 5 (the session's)": 5, "a batch of 50": 50}
 MIB = 2**20
 MINIMUM = 10 * MIB  # what BigQuery bills at least, per table a query references
 GAP, MARGIN = 5, 1  # seconds between fetches; and either side of one, for the job log's clock
@@ -115,32 +127,64 @@ def main() -> int:
     p = s.params["navigate"]
     with memory.virtual_graph(s) as V:
         q, e = entitle.signing(s, None, CANDIDATES)
-        candidates = [r["key"] for r in V.rows(q, since=since_window, n=100, **e)]
+        candidates = [r["key"] for r in V.rows(q, since=since_window, n=400, **e)]
     with memory.memory_graph(s) as M:
         day = dt.datetime.now(dt.UTC) - dt.timedelta(days=1)
         recent = set(M.rows(RECENT, by=m.reader, since=day)[0]["keys"])
     candidates = [k for k in candidates if k not in recent]
-    res: dict = {"customers": {}, "questions": []}
+    with memory.virtual_graph(s) as V:  # uncapped: so every question about them can go to memory
+        over = set()
+        for label, date in CAPPED.items():
+            q, e = entitle.signing(s, None, COUNTS.format(label=label, date=date))
+            rows = V.rows(q, keys=candidates, since=since_window, **e)
+            over |= {r["key"] for r in rows if r["n"] > s["memory"]["cap"]}
+    candidates = [k for k in candidates if k not in over]
+    need = sum(SIZES.values())
+    if len(candidates) < need:
+        raise SystemExit(f"{len(candidates)} customers to fetch, {need} needed")
+    res: dict = {"fetches": {}, "customers": {}, "questions": []}
 
-    customers = []
-    for key in candidates:  # the context's fetch, measured, as the session's first step for each customer
+    def fetch(keys: list) -> tuple[dict, dict]:
+        """The keys' contexts in one batch, with what its jobs billed: the job log trails the jobs, so read
+        afterwards (by `billed`)."""
         t0 = dt.datetime.now(dt.UTC)
-        ctx = memory.recall(s, "Customer", key, force=True, m=m)
+        ctxs = memory.recall_batch(s, "Customer", keys, force=True, m=m)
         t1 = dt.datetime.now(dt.UTC)
         time.sleep(GAP)  # the next fetch's jobs start after this one's window
-        if ctx.capped():
-            continue
-        customers.append(key)
-        res["customers"][str(key)] = {"fetch_seconds": round(ctx.seconds, 3), "reads": len(ctx.reads),
-                                      "since": t0, "until": t1}  # fmt: skip
-        print(f"context of {key}: {len(ctx.nodes)} nodes, {ctx.seconds:.2f} s", flush=True)
-        if len(customers) == 5:
-            break
-    for key in customers:  # the job log trails the jobs: read what each fetch billed afterwards
-        c = res["customers"][str(key)]
+        return ctxs, {"since": t0, "until": t1, "seconds": (t1 - t0).total_seconds()}
+
+    def billed(w: dict) -> dict:
         margin = dt.timedelta(seconds=MARGIN)
-        c |= vg_billed(c.pop("since") - margin, c.pop("until") + margin)
+        c = vg_billed(w["since"] - margin, w["until"] + margin)
         c["billed"] += c.pop("hidden_floor") + c.pop("cached_floor")
+        return c | {"seconds": round(w["seconds"], 3)}
+
+    customers, rest = candidates[:5], candidates[5:]
+    ctxs, session = fetch(customers)  # the session's first step: its customers' contexts
+    alone = [fetch([k]) for k in rest[:5]]
+    _, fifty = fetch(rest[5:55])
+    print(
+        f"fetched: the session's 5 in {session['seconds']:.1f} s, 5 alone, 50 in {fifty['seconds']:.1f} s",
+        flush=True,
+    )
+    for key in customers:
+        c = ctxs[key]
+        res["customers"][str(key)] = {"nodes": len(c.nodes), "reads": len(c.reads), "capped": c.capped()}
+    runs = {"one at a time": [billed(w) for _, w in alone], "a batch of 5 (the session's)": [billed(session)],
+            "a batch of 50": [billed(fifty)]}  # fmt: skip
+    for mode, ws in runs.items():
+        n = SIZES[mode]
+        res["fetches"][mode] = {
+            "customers": n,
+            "fetches": len(ws),
+            "seconds": round(sum(w["seconds"] for w in ws), 3),
+            "billed": sum(w["billed"] for w in ws),
+            "billed per customer": sum(w["billed"] for w in ws) / n,
+            "jobs": sum(w["jobs"] for w in ws),
+            "cached": sum(w["cached"] for w in ws),
+            "hidden": sum(w["hidden"] for w in ws),
+        }
+        print(f"{mode}: {res['fetches'][mode]}", flush=True)
 
     wh = entitle.warehouse(s, None)
     with Graph(s) as G:
@@ -187,14 +231,14 @@ def main() -> int:
 def summarize(res: dict) -> dict:
     qs = [q for q in res["questions"] if q["sql"].get("ok")]
     mem = [q for q in qs if q["memory"]["ok"]]
-    fetch = res["customers"].values()
+    session = res["fetches"]["a batch of 5 (the session's)"]
     without = {"seconds": sum(q["sql"]["seconds"] for q in qs), "billed": sum(q["sql"]["billed"] for q in qs)}
     with_ = {
-        "seconds": sum(c["fetch_seconds"] for c in fetch)
+        "seconds": session["seconds"]
         + sum(q["memory"]["seconds"] if q["memory"]["ok"] else q["sql"]["seconds"] for q in qs),
-        "billed": sum(c["billed"] for c in fetch)
-        + sum(0 if q["memory"]["ok"] else q["sql"]["billed"] for q in qs),
+        "billed": session["billed"] + sum(0 if q["memory"]["ok"] else q["sql"]["billed"] for q in qs),
     }
+    question = without["billed"] / len(qs) if qs else 0
     return {
         "questions": len(res["questions"]),
         "compiled": len(qs),
@@ -203,21 +247,15 @@ def summarize(res: dict) -> dict:
         "not memory": sorted({q["memory"]["why"] for q in qs if not q["memory"]["ok"]}),
         "sql latency": quantiles([q["sql"]["seconds"] for q in qs]),
         "memory latency": quantiles([q["memory"]["seconds"] for q in mem]),
-        "fetch latency": quantiles([c["fetch_seconds"] for c in fetch]),
         "compile latency": quantiles([q["compile_seconds"] for q in res["questions"]]),
         "without memory": without,
         "with memory": with_,
-        "fetch billed per customer": statistics.median([c["billed"] for c in fetch]) if fetch else 0,
-        "fetch jobs": sum(c["jobs"] for c in fetch),
-        "fetch jobs cached": sum(c["cached"] for c in fetch),
-        "fetch jobs hidden": sum(c["hidden"] for c in fetch),
         "sql jobs hidden": sum(q["sql"].get("hidden", False) for q in qs),
-        "question billed (mean)": without["billed"] / len(qs) if qs else 0,
-        "break-even questions": (
-            statistics.median([c["billed"] for c in fetch]) / (without["billed"] / len(qs))
-        )
-        if fetch and qs and without["billed"]
-        else None,
+        "question billed (mean)": question,
+        "break-even questions per customer": {
+            mode: f["billed per customer"] / question if question else None
+            for mode, f in res["fetches"].items()
+        },
     }
 
 
@@ -232,8 +270,9 @@ def report(res: dict) -> int:
         "",
         "- **Without memory,** each question's compiled SQL runs in BigQuery (its cache off, as a first-time "
         "query).",
-        "- **With memory,** each customer's context is fetched once. Each question then goes to memory when the "
-        "router's memory route finds memory holds its whole answer, and to the same SQL otherwise.",
+        "- **With memory,** the 5 customers' contexts are fetched together, in one batch. Each question then goes "
+        "to memory when the router's memory route finds memory holds its whole answer, and to the same SQL "
+        "otherwise.",
         "",
         "Compiling a question (the LLM's typed request) is common to both, so it's reported apart.",
         "",
@@ -242,18 +281,29 @@ def report(res: dict) -> int:
         f"- **Latency, from memory:** median {x['memory latency'].get('median')} s, p95 "
         f"{x['memory latency'].get('p95')} s. The SQL's: median {x['sql latency'].get('median')} s, p95 "
         f"{x['sql latency'].get('p95')} s.",
-        f"- **The session's query time:** {wo['seconds']:.1f} s without memory, {w['seconds']:.1f} s with it (5 context "
-        "fetches included).",
-        f"- **The session's bytes billed:** {wo['billed'] / MIB:,.0f} MiB without memory, {w['billed'] / MIB:,.0f} MiB with "
-        f"it (the fetches included, a median {x['fetch billed per customer'] / MIB:,.0f} MiB each; {x['fetch jobs']} "
-        f"jobs; {x['fetch jobs cached']} answered by BigQuery's result cache, counted at the minimum a first read "
-        "bills).",
-        f"- **Break-even:** a fetch bills what {x['break-even questions'] or 0:.1f} questions' SQL does (a question "
-        f"bills {x['question billed (mean)'] / MIB:,.0f} MiB on average).",
-        f"- **Bytes BigQuery didn't report:** {x['fetch jobs hidden']} of the fetches' jobs and {x['sql jobs hidden']} "
-        "of the questions' read a row-policied table, and are counted at BigQuery's minimum (10 MiB per table "
-        "referenced).",
+        f"- **The session's query time:** {wo['seconds']:.1f} s without memory, {w['seconds']:.1f} s with it (the "
+        "batch fetch included).",
+        f"- **The session's bytes billed:** {wo['billed'] / MIB:,.0f} MiB without memory, {w['billed'] / MIB:,.0f} MiB "
+        "with it (the batch fetch included).",
         f"- **Compiling a question** (common to both): median {x['compile latency'].get('median')} s.",
+        "",
+        f"## What a fetch costs, per customer (a question's SQL bills {x['question billed (mean)'] / MIB:,.0f} MiB "
+        "on average)",
+        "",
+        "| fetched | customers | seconds | MiB billed | MiB per customer | break-even: questions per customer | jobs | cached | not reported |",
+        "|---|---|---|---|---|---|---|---|---|",
+    ]
+    for mode, f in res["fetches"].items():
+        be = x["break-even questions per customer"][mode]
+        L.append(
+            f"| {mode} | {f['customers']} | {f['seconds']:.1f} | {f['billed'] / MIB:,.0f} | "
+            f"{f['billed per customer'] / MIB:,.0f} | {be:.1f} | {f['jobs']} | {f['cached']} | {f['hidden']} |"
+        )
+    L += [
+        "",
+        "A job BigQuery answered from its result cache (a dimension read whose keys recur), or whose bytes it "
+        "didn't report (it reads a row-policied table), is counted at the minimum a first read bills: 10 MiB per "
+        f"table it references. {x['sql jobs hidden']} of the questions' SQL jobs weren't reported.",
         "",
         "Why a question didn't go to memory:",
         "",

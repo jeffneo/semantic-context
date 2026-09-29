@@ -17,9 +17,9 @@
      "Customer<-OWNED_BY-Account": 17,
      "Customer-PREFERS->Branch": 0,
      "Customer<-RECEIVED_FROM-Call": 46,
-     "CardTransaction-CHARGED_TO->Account": 0,
+     "CardTransaction-CHARGED_TO->Account": 1,
      "Account-CONTAINS->Product": 7,
-     "DepositTransaction-CREDITED_TO->Account": 0,
+     "DepositTransaction-CREDITED_TO->Account": 15,
      "Call-HANDLED_BY->Agent": 31,
      "Account-MAINTAINED_AT->Branch": 15,
      "DepositTransaction-PROCESSED_AT->Branch": 14,
@@ -31,7 +31,7 @@
      "Customer<-INITIATED_BY-DepositTransaction",
      "Customer<-MADE_BY-CardTransaction"
     ],
-    "seconds": 3.372
+    "seconds": 4.558
    },
    "recalled": {
     "label": "Customer",
@@ -60,33 +60,33 @@
      "Customer<-INITIATED_BY-DepositTransaction",
      "Customer<-MADE_BY-CardTransaction"
     ],
-    "seconds": 0.084
+    "seconds": 0.214
    },
    "differences": [],
    "questions": {
     "accounts by product line": {
      "verdict": "same",
      "rows": 6,
-     "virtual_graph_seconds": 0.869,
-     "memory_seconds": 0.03
+     "virtual_graph_seconds": 1.01,
+     "memory_seconds": 0.011
     },
     "accounts by branch": {
      "verdict": "same",
      "rows": 15,
-     "virtual_graph_seconds": 0.891,
+     "virtual_graph_seconds": 0.671,
      "memory_seconds": 0.004
     },
     "calls by agent": {
      "verdict": "same",
      "rows": 31,
-     "virtual_graph_seconds": 0.92,
-     "memory_seconds": 0.004
+     "virtual_graph_seconds": 1.023,
+     "memory_seconds": 0.008
     },
     "calls by site and queue": {
      "verdict": "same",
      "rows": 37,
-     "virtual_graph_seconds": 1.348,
-     "memory_seconds": 0.01
+     "virtual_graph_seconds": 1.196,
+     "memory_seconds": 0.009
     },
     "card spend by merchant category": {
      "verdict": "capped"
@@ -110,9 +110,9 @@
      "Customer<-OWNED_BY-Account": 28,
      "Customer-PREFERS->Branch": 0,
      "Customer<-RECEIVED_FROM-Call": 54,
-     "CardTransaction-CHARGED_TO->Account": 0,
+     "CardTransaction-CHARGED_TO->Account": 1,
      "Account-CONTAINS->Product": 6,
-     "DepositTransaction-CREDITED_TO->Account": 0,
+     "DepositTransaction-CREDITED_TO->Account": 27,
      "Call-HANDLED_BY->Agent": 30,
      "Account-MAINTAINED_AT->Branch": 23,
      "DepositTransaction-PROCESSED_AT->Branch": 23,
@@ -124,7 +124,7 @@
      "Customer<-INITIATED_BY-DepositTransaction",
      "Customer<-MADE_BY-CardTransaction"
     ],
-    "seconds": 3.085
+    "seconds": 4.106
    },
    "recalled": {
     "label": "Customer",
@@ -153,33 +153,33 @@
      "Customer<-INITIATED_BY-DepositTransaction",
      "Customer<-MADE_BY-CardTransaction"
     ],
-    "seconds": 0.082
+    "seconds": 0.101
    },
    "differences": [],
    "questions": {
     "accounts by product line": {
      "verdict": "same",
      "rows": 3,
-     "virtual_graph_seconds": 0.764,
-     "memory_seconds": 0.011
+     "virtual_graph_seconds": 0.779,
+     "memory_seconds": 0.005
     },
     "accounts by branch": {
      "verdict": "same",
      "rows": 23,
-     "virtual_graph_seconds": 1.131,
-     "memory_seconds": 0.008
+     "virtual_graph_seconds": 1.226,
+     "memory_seconds": 0.004
     },
     "calls by agent": {
      "verdict": "same",
      "rows": 30,
-     "virtual_graph_seconds": 1.22,
-     "memory_seconds": 0.011
+     "virtual_graph_seconds": 1.04,
+     "memory_seconds": 0.005
     },
     "calls by site and queue": {
      "verdict": "same",
      "rows": 35,
-     "virtual_graph_seconds": 1.139,
-     "memory_seconds": 0.009
+     "virtual_graph_seconds": 1.008,
+     "memory_seconds": 0.005
     },
     "card spend by merchant category": {
      "verdict": "capped"
@@ -203,7 +203,7 @@
      "Customer<-OWNED_BY-Account": 1,
      "Customer-PREFERS->Branch": 0,
      "Customer<-RECEIVED_FROM-Call": 2,
-     "CardTransaction-CHARGED_TO->Account": 0,
+     "CardTransaction-CHARGED_TO->Account": 1,
      "Account-CONTAINS->Product": 1,
      "DepositTransaction-CREDITED_TO->Account": 0,
      "Call-HANDLED_BY->Agent": 2,
@@ -214,7 +214,7 @@
      "CardTransaction-TRANSACTED_AT->Merchant": 92
     },
     "capped": [],
-    "seconds": 2.137
+    "seconds": 5.299
    },
    "recalled": {
     "label": "Customer",
@@ -240,45 +240,45 @@
      "CardTransaction-TRANSACTED_AT->Merchant": 92
     },
     "capped": [],
-    "seconds": 0.035
+    "seconds": 0.034
    },
    "differences": [],
    "questions": {
     "accounts by product line": {
      "verdict": "same",
      "rows": 1,
-     "virtual_graph_seconds": 0.826,
-     "memory_seconds": 0.009
+     "virtual_graph_seconds": 0.844,
+     "memory_seconds": 0.005
     },
     "accounts by branch": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 0.932,
-     "memory_seconds": 0.006
+     "virtual_graph_seconds": 0.898,
+     "memory_seconds": 0.004
     },
     "calls by agent": {
      "verdict": "same",
      "rows": 2,
-     "virtual_graph_seconds": 1.204,
-     "memory_seconds": 0.007
+     "virtual_graph_seconds": 0.964,
+     "memory_seconds": 0.003
     },
     "calls by site and queue": {
      "verdict": "same",
      "rows": 2,
-     "virtual_graph_seconds": 1.092,
-     "memory_seconds": 0.009
+     "virtual_graph_seconds": 1.25,
+     "memory_seconds": 0.008
     },
     "card spend by merchant category": {
      "verdict": "same",
      "rows": 8,
-     "virtual_graph_seconds": 0.807,
-     "memory_seconds": 0.01
+     "virtual_graph_seconds": 0.935,
+     "memory_seconds": 0.006
     },
     "deposits by account product": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 0.919,
-     "memory_seconds": 0.006
+     "virtual_graph_seconds": 1.615,
+     "memory_seconds": 0.003
     }
    }
   },
@@ -296,9 +296,9 @@
      "Customer<-OWNED_BY-Account": 3,
      "Customer-PREFERS->Branch": 0,
      "Customer<-RECEIVED_FROM-Call": 3,
-     "CardTransaction-CHARGED_TO->Account": 0,
+     "CardTransaction-CHARGED_TO->Account": 1,
      "Account-CONTAINS->Product": 3,
-     "DepositTransaction-CREDITED_TO->Account": 0,
+     "DepositTransaction-CREDITED_TO->Account": 2,
      "Call-HANDLED_BY->Agent": 2,
      "Account-MAINTAINED_AT->Branch": 2,
      "DepositTransaction-PROCESSED_AT->Branch": 2,
@@ -307,7 +307,7 @@
      "CardTransaction-TRANSACTED_AT->Merchant": 86
     },
     "capped": [],
-    "seconds": 3.0
+    "seconds": 4.41
    },
    "recalled": {
     "label": "Customer",
@@ -333,45 +333,45 @@
      "CardTransaction-TRANSACTED_AT->Merchant": 86
     },
     "capped": [],
-    "seconds": 0.062
+    "seconds": 0.061
    },
    "differences": [],
    "questions": {
     "accounts by product line": {
      "verdict": "same",
      "rows": 3,
-     "virtual_graph_seconds": 0.616,
-     "memory_seconds": 0.005
+     "virtual_graph_seconds": 0.849,
+     "memory_seconds": 0.004
     },
     "accounts by branch": {
      "verdict": "same",
      "rows": 2,
-     "virtual_graph_seconds": 0.816,
-     "memory_seconds": 0.004
+     "virtual_graph_seconds": 0.792,
+     "memory_seconds": 0.005
     },
     "calls by agent": {
      "verdict": "same",
      "rows": 2,
-     "virtual_graph_seconds": 0.886,
-     "memory_seconds": 0.008
+     "virtual_graph_seconds": 1.936,
+     "memory_seconds": 0.004
     },
     "calls by site and queue": {
      "verdict": "same",
      "rows": 3,
-     "virtual_graph_seconds": 1.456,
-     "memory_seconds": 0.007
+     "virtual_graph_seconds": 1.339,
+     "memory_seconds": 0.003
     },
     "card spend by merchant category": {
      "verdict": "same",
      "rows": 7,
-     "virtual_graph_seconds": 0.914,
-     "memory_seconds": 0.007
+     "virtual_graph_seconds": 0.697,
+     "memory_seconds": 0.004
     },
     "deposits by account product": {
      "verdict": "same",
      "rows": 19,
-     "virtual_graph_seconds": 0.918,
-     "memory_seconds": 0.008
+     "virtual_graph_seconds": 0.821,
+     "memory_seconds": 0.006
     }
    }
   },
@@ -389,7 +389,7 @@
      "Customer<-OWNED_BY-Account": 1,
      "Customer-PREFERS->Branch": 0,
      "Customer<-RECEIVED_FROM-Call": 2,
-     "CardTransaction-CHARGED_TO->Account": 0,
+     "CardTransaction-CHARGED_TO->Account": 1,
      "Account-CONTAINS->Product": 1,
      "DepositTransaction-CREDITED_TO->Account": 0,
      "Call-HANDLED_BY->Agent": 2,
@@ -400,7 +400,7 @@
      "CardTransaction-TRANSACTED_AT->Merchant": 134
     },
     "capped": [],
-    "seconds": 2.257
+    "seconds": 4.163
    },
    "recalled": {
     "label": "Customer",
@@ -426,45 +426,45 @@
      "CardTransaction-TRANSACTED_AT->Merchant": 134
     },
     "capped": [],
-    "seconds": 0.035
+    "seconds": 0.046
    },
    "differences": [],
    "questions": {
     "accounts by product line": {
      "verdict": "same",
      "rows": 1,
-     "virtual_graph_seconds": 0.693,
-     "memory_seconds": 0.009
+     "virtual_graph_seconds": 0.813,
+     "memory_seconds": 0.004
     },
     "accounts by branch": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 0.908,
-     "memory_seconds": 0.007
+     "virtual_graph_seconds": 1.084,
+     "memory_seconds": 0.003
     },
     "calls by agent": {
      "verdict": "same",
      "rows": 2,
-     "virtual_graph_seconds": 1.221,
-     "memory_seconds": 0.009
+     "virtual_graph_seconds": 3.804,
+     "memory_seconds": 0.004
     },
     "calls by site and queue": {
      "verdict": "same",
      "rows": 2,
-     "virtual_graph_seconds": 1.01,
-     "memory_seconds": 0.003
+     "virtual_graph_seconds": 4.123,
+     "memory_seconds": 0.006
     },
     "card spend by merchant category": {
      "verdict": "same",
      "rows": 9,
-     "virtual_graph_seconds": 0.815,
-     "memory_seconds": 0.005
+     "virtual_graph_seconds": 1.025,
+     "memory_seconds": 0.004
     },
     "deposits by account product": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 1.089,
-     "memory_seconds": 0.006
+     "virtual_graph_seconds": 0.727,
+     "memory_seconds": 0.005
     }
    }
   },
@@ -484,7 +484,7 @@
      "Customer<-RECEIVED_FROM-Call": 7,
      "CardTransaction-CHARGED_TO->Account": 0,
      "Account-CONTAINS->Product": 1,
-     "DepositTransaction-CREDITED_TO->Account": 0,
+     "DepositTransaction-CREDITED_TO->Account": 1,
      "Call-HANDLED_BY->Agent": 2,
      "Account-MAINTAINED_AT->Branch": 1,
      "DepositTransaction-PROCESSED_AT->Branch": 1,
@@ -493,7 +493,7 @@
      "CardTransaction-TRANSACTED_AT->Merchant": 0
     },
     "capped": [],
-    "seconds": 2.204
+    "seconds": 3.721
    },
    "recalled": {
     "label": "Customer",
@@ -519,44 +519,44 @@
      "CardTransaction-TRANSACTED_AT->Merchant": 0
     },
     "capped": [],
-    "seconds": 0.026
+    "seconds": 0.034
    },
    "differences": [],
    "questions": {
     "accounts by product line": {
      "verdict": "same",
      "rows": 1,
-     "virtual_graph_seconds": 0.804,
-     "memory_seconds": 0.008
+     "virtual_graph_seconds": 0.646,
+     "memory_seconds": 0.003
     },
     "accounts by branch": {
      "verdict": "same",
      "rows": 1,
-     "virtual_graph_seconds": 0.807,
-     "memory_seconds": 0.006
+     "virtual_graph_seconds": 1.161,
+     "memory_seconds": 0.003
     },
     "calls by agent": {
      "verdict": "same",
      "rows": 2,
-     "virtual_graph_seconds": 1.1,
-     "memory_seconds": 0.009
+     "virtual_graph_seconds": 1.775,
+     "memory_seconds": 0.003
     },
     "calls by site and queue": {
      "verdict": "same",
      "rows": 2,
-     "virtual_graph_seconds": 0.996,
-     "memory_seconds": 0.007
+     "virtual_graph_seconds": 1.542,
+     "memory_seconds": 0.005
     },
     "card spend by merchant category": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 1.05,
-     "memory_seconds": 0.004
+     "virtual_graph_seconds": 0.957,
+     "memory_seconds": 0.005
     },
     "deposits by account product": {
      "verdict": "same",
      "rows": 10,
-     "virtual_graph_seconds": 0.907,
+     "virtual_graph_seconds": 0.774,
      "memory_seconds": 0.007
     }
    }
@@ -575,7 +575,7 @@
      "Customer<-OWNED_BY-Account": 2,
      "Customer-PREFERS->Branch": 0,
      "Customer<-RECEIVED_FROM-Call": 2,
-     "CardTransaction-CHARGED_TO->Account": 0,
+     "CardTransaction-CHARGED_TO->Account": 1,
      "Account-CONTAINS->Product": 2,
      "DepositTransaction-CREDITED_TO->Account": 0,
      "Call-HANDLED_BY->Agent": 1,
@@ -586,7 +586,7 @@
      "CardTransaction-TRANSACTED_AT->Merchant": 111
     },
     "capped": [],
-    "seconds": 2.646
+    "seconds": 3.588
    },
    "recalled": {
     "label": "Customer",
@@ -619,38 +619,38 @@
     "accounts by product line": {
      "verdict": "same",
      "rows": 2,
-     "virtual_graph_seconds": 0.694,
-     "memory_seconds": 0.009
+     "virtual_graph_seconds": 0.653,
+     "memory_seconds": 0.003
     },
     "accounts by branch": {
      "verdict": "same",
      "rows": 1,
-     "virtual_graph_seconds": 0.833,
-     "memory_seconds": 0.008
+     "virtual_graph_seconds": 0.601,
+     "memory_seconds": 0.003
     },
     "calls by agent": {
      "verdict": "same",
      "rows": 1,
-     "virtual_graph_seconds": 1.213,
-     "memory_seconds": 0.011
+     "virtual_graph_seconds": 1.175,
+     "memory_seconds": 0.003
     },
     "calls by site and queue": {
      "verdict": "same",
      "rows": 2,
-     "virtual_graph_seconds": 1.509,
-     "memory_seconds": 0.008
+     "virtual_graph_seconds": 1.161,
+     "memory_seconds": 0.003
     },
     "card spend by merchant category": {
      "verdict": "same",
      "rows": 9,
-     "virtual_graph_seconds": 0.965,
-     "memory_seconds": 0.005
+     "virtual_graph_seconds": 0.806,
+     "memory_seconds": 0.007
     },
     "deposits by account product": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 0.794,
-     "memory_seconds": 0.008
+     "virtual_graph_seconds": 1.286,
+     "memory_seconds": 0.005
     }
    }
   },
@@ -679,7 +679,7 @@
      "CardTransaction-TRANSACTED_AT->Merchant": 0
     },
     "capped": [],
-    "seconds": 2.119
+    "seconds": 1.995
    },
    "recalled": {
     "label": "Customer",
@@ -705,45 +705,45 @@
      "CardTransaction-TRANSACTED_AT->Merchant": 0
     },
     "capped": [],
-    "seconds": 0.017
+    "seconds": 0.023
    },
    "differences": [],
    "questions": {
     "accounts by product line": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 0.946,
-     "memory_seconds": 0.007
+     "virtual_graph_seconds": 0.785,
+     "memory_seconds": 0.005
     },
     "accounts by branch": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 0.789,
-     "memory_seconds": 0.003
+     "virtual_graph_seconds": 0.767,
+     "memory_seconds": 0.005
     },
     "calls by agent": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 1.644,
-     "memory_seconds": 0.01
+     "virtual_graph_seconds": 0.997,
+     "memory_seconds": 0.005
     },
     "calls by site and queue": {
      "verdict": "same",
      "rows": 1,
-     "virtual_graph_seconds": 1.109,
-     "memory_seconds": 0.005
+     "virtual_graph_seconds": 0.988,
+     "memory_seconds": 0.003
     },
     "card spend by merchant category": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 0.924,
-     "memory_seconds": 0.006
+     "virtual_graph_seconds": 0.73,
+     "memory_seconds": 0.003
     },
     "deposits by account product": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 0.914,
-     "memory_seconds": 0.009
+     "virtual_graph_seconds": 1.032,
+     "memory_seconds": 0.004
     }
    }
   },
@@ -763,7 +763,7 @@
      "Customer<-RECEIVED_FROM-Call": 2,
      "CardTransaction-CHARGED_TO->Account": 0,
      "Account-CONTAINS->Product": 1,
-     "DepositTransaction-CREDITED_TO->Account": 0,
+     "DepositTransaction-CREDITED_TO->Account": 1,
      "Call-HANDLED_BY->Agent": 1,
      "Account-MAINTAINED_AT->Branch": 1,
      "DepositTransaction-PROCESSED_AT->Branch": 1,
@@ -772,7 +772,7 @@
      "CardTransaction-TRANSACTED_AT->Merchant": 0
     },
     "capped": [],
-    "seconds": 2.346
+    "seconds": 2.584
    },
    "recalled": {
     "label": "Customer",
@@ -798,45 +798,45 @@
      "CardTransaction-TRANSACTED_AT->Merchant": 0
     },
     "capped": [],
-    "seconds": 0.028
+    "seconds": 0.031
    },
    "differences": [],
    "questions": {
     "accounts by product line": {
      "verdict": "same",
      "rows": 1,
-     "virtual_graph_seconds": 0.8,
-     "memory_seconds": 0.003
+     "virtual_graph_seconds": 0.837,
+     "memory_seconds": 0.005
     },
     "accounts by branch": {
      "verdict": "same",
      "rows": 1,
-     "virtual_graph_seconds": 1.219,
-     "memory_seconds": 0.009
+     "virtual_graph_seconds": 1.165,
+     "memory_seconds": 0.005
     },
     "calls by agent": {
      "verdict": "same",
      "rows": 1,
-     "virtual_graph_seconds": 1.53,
-     "memory_seconds": 0.004
+     "virtual_graph_seconds": 0.821,
+     "memory_seconds": 0.007
     },
     "calls by site and queue": {
      "verdict": "same",
      "rows": 1,
-     "virtual_graph_seconds": 1.289,
-     "memory_seconds": 0.008
+     "virtual_graph_seconds": 0.965,
+     "memory_seconds": 0.007
     },
     "card spend by merchant category": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 0.958,
-     "memory_seconds": 0.006
+     "virtual_graph_seconds": 0.861,
+     "memory_seconds": 0.005
     },
     "deposits by account product": {
      "verdict": "same",
      "rows": 10,
-     "virtual_graph_seconds": 0.784,
-     "memory_seconds": 0.007
+     "virtual_graph_seconds": 1.064,
+     "memory_seconds": 0.005
     }
    }
   },
@@ -856,7 +856,7 @@
      "Customer<-RECEIVED_FROM-Call": 1,
      "CardTransaction-CHARGED_TO->Account": 0,
      "Account-CONTAINS->Product": 3,
-     "DepositTransaction-CREDITED_TO->Account": 0,
+     "DepositTransaction-CREDITED_TO->Account": 3,
      "Call-HANDLED_BY->Agent": 0,
      "Account-MAINTAINED_AT->Branch": 3,
      "DepositTransaction-PROCESSED_AT->Branch": 3,
@@ -867,7 +867,7 @@
     "capped": [
      "Customer<-INITIATED_BY-DepositTransaction"
     ],
-    "seconds": 2.271
+    "seconds": 2.363
    },
    "recalled": {
     "label": "Customer",
@@ -895,39 +895,39 @@
     "capped": [
      "Customer<-INITIATED_BY-DepositTransaction"
     ],
-    "seconds": 0.044
+    "seconds": 0.047
    },
    "differences": [],
    "questions": {
     "accounts by product line": {
      "verdict": "same",
      "rows": 3,
-     "virtual_graph_seconds": 0.684,
-     "memory_seconds": 0.009
+     "virtual_graph_seconds": 0.736,
+     "memory_seconds": 0.005
     },
     "accounts by branch": {
      "verdict": "same",
      "rows": 3,
-     "virtual_graph_seconds": 0.781,
-     "memory_seconds": 0.007
+     "virtual_graph_seconds": 0.96,
+     "memory_seconds": 0.004
     },
     "calls by agent": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 1.283,
-     "memory_seconds": 0.01
+     "virtual_graph_seconds": 1.185,
+     "memory_seconds": 0.005
     },
     "calls by site and queue": {
      "verdict": "same",
      "rows": 1,
-     "virtual_graph_seconds": 1.188,
-     "memory_seconds": 0.008
+     "virtual_graph_seconds": 1.014,
+     "memory_seconds": 0.005
     },
     "card spend by merchant category": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 1.119,
-     "memory_seconds": 0.005
+     "virtual_graph_seconds": 1.491,
+     "memory_seconds": 0.006
     },
     "deposits by account product": {
      "verdict": "capped"
@@ -948,9 +948,9 @@
      "Customer<-OWNED_BY-Account": 6,
      "Customer-PREFERS->Branch": 0,
      "Customer<-RECEIVED_FROM-Call": 15,
-     "CardTransaction-CHARGED_TO->Account": 0,
+     "CardTransaction-CHARGED_TO->Account": 1,
      "Account-CONTAINS->Product": 5,
-     "DepositTransaction-CREDITED_TO->Account": 0,
+     "DepositTransaction-CREDITED_TO->Account": 5,
      "Call-HANDLED_BY->Agent": 8,
      "Account-MAINTAINED_AT->Branch": 5,
      "DepositTransaction-PROCESSED_AT->Branch": 5,
@@ -962,7 +962,7 @@
      "Customer<-INITIATED_BY-DepositTransaction",
      "Customer<-MADE_BY-CardTransaction"
     ],
-    "seconds": 2.535
+    "seconds": 2.534
    },
    "recalled": {
     "label": "Customer",
@@ -991,33 +991,33 @@
      "Customer<-INITIATED_BY-DepositTransaction",
      "Customer<-MADE_BY-CardTransaction"
     ],
-    "seconds": 0.073
+    "seconds": 0.11
    },
    "differences": [],
    "questions": {
     "accounts by product line": {
      "verdict": "same",
      "rows": 4,
-     "virtual_graph_seconds": 0.883,
-     "memory_seconds": 0.007
+     "virtual_graph_seconds": 0.703,
+     "memory_seconds": 0.005
     },
     "accounts by branch": {
      "verdict": "same",
      "rows": 5,
-     "virtual_graph_seconds": 0.649,
-     "memory_seconds": 0.01
+     "virtual_graph_seconds": 0.802,
+     "memory_seconds": 0.007
     },
     "calls by agent": {
      "verdict": "same",
      "rows": 8,
-     "virtual_graph_seconds": 0.946,
-     "memory_seconds": 0.009
+     "virtual_graph_seconds": 1.142,
+     "memory_seconds": 0.004
     },
     "calls by site and queue": {
      "verdict": "same",
      "rows": 12,
-     "virtual_graph_seconds": 0.942,
-     "memory_seconds": 0.007
+     "virtual_graph_seconds": 0.976,
+     "memory_seconds": 0.006
     },
     "card spend by merchant category": {
      "verdict": "capped"
@@ -1041,7 +1041,7 @@
      "Customer<-OWNED_BY-Account": 1,
      "Customer-PREFERS->Branch": 0,
      "Customer<-RECEIVED_FROM-Call": 4,
-     "CardTransaction-CHARGED_TO->Account": 0,
+     "CardTransaction-CHARGED_TO->Account": 1,
      "Account-CONTAINS->Product": 1,
      "DepositTransaction-CREDITED_TO->Account": 0,
      "Call-HANDLED_BY->Agent": 3,
@@ -1052,7 +1052,7 @@
      "CardTransaction-TRANSACTED_AT->Merchant": 105
     },
     "capped": [],
-    "seconds": 2.729
+    "seconds": 1.955
    },
    "recalled": {
     "label": "Customer",
@@ -1078,45 +1078,45 @@
      "CardTransaction-TRANSACTED_AT->Merchant": 105
     },
     "capped": [],
-    "seconds": 0.038
+    "seconds": 0.037
    },
    "differences": [],
    "questions": {
     "accounts by product line": {
      "verdict": "same",
      "rows": 1,
-     "virtual_graph_seconds": 0.795,
-     "memory_seconds": 0.008
+     "virtual_graph_seconds": 0.892,
+     "memory_seconds": 0.003
     },
     "accounts by branch": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 0.771,
-     "memory_seconds": 0.008
+     "virtual_graph_seconds": 0.679,
+     "memory_seconds": 0.003
     },
     "calls by agent": {
      "verdict": "same",
      "rows": 3,
-     "virtual_graph_seconds": 1.041,
-     "memory_seconds": 0.011
+     "virtual_graph_seconds": 0.82,
+     "memory_seconds": 0.006
     },
     "calls by site and queue": {
      "verdict": "same",
      "rows": 3,
-     "virtual_graph_seconds": 1.201,
-     "memory_seconds": 0.004
+     "virtual_graph_seconds": 1.159,
+     "memory_seconds": 0.006
     },
     "card spend by merchant category": {
      "verdict": "same",
      "rows": 9,
-     "virtual_graph_seconds": 0.978,
-     "memory_seconds": 0.007
+     "virtual_graph_seconds": 1.107,
+     "memory_seconds": 0.006
     },
     "deposits by account product": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 0.819,
-     "memory_seconds": 0.008
+     "virtual_graph_seconds": 1.331,
+     "memory_seconds": 0.003
     }
    }
   },
@@ -1136,7 +1136,7 @@
      "Customer<-RECEIVED_FROM-Call": 3,
      "CardTransaction-CHARGED_TO->Account": 0,
      "Account-CONTAINS->Product": 3,
-     "DepositTransaction-CREDITED_TO->Account": 0,
+     "DepositTransaction-CREDITED_TO->Account": 2,
      "Call-HANDLED_BY->Agent": 1,
      "Account-MAINTAINED_AT->Branch": 3,
      "DepositTransaction-PROCESSED_AT->Branch": 2,
@@ -1145,7 +1145,7 @@
      "CardTransaction-TRANSACTED_AT->Merchant": 0
     },
     "capped": [],
-    "seconds": 2.664
+    "seconds": 2.103
    },
    "recalled": {
     "label": "Customer",
@@ -1171,45 +1171,45 @@
      "CardTransaction-TRANSACTED_AT->Merchant": 0
     },
     "capped": [],
-    "seconds": 0.038
+    "seconds": 0.039
    },
    "differences": [],
    "questions": {
     "accounts by product line": {
      "verdict": "same",
      "rows": 2,
-     "virtual_graph_seconds": 1.077,
-     "memory_seconds": 0.007
+     "virtual_graph_seconds": 0.687,
+     "memory_seconds": 0.005
     },
     "accounts by branch": {
      "verdict": "same",
      "rows": 3,
-     "virtual_graph_seconds": 0.908,
-     "memory_seconds": 0.004
+     "virtual_graph_seconds": 0.777,
+     "memory_seconds": 0.005
     },
     "calls by agent": {
      "verdict": "same",
      "rows": 1,
-     "virtual_graph_seconds": 1.13,
-     "memory_seconds": 0.007
+     "virtual_graph_seconds": 0.894,
+     "memory_seconds": 0.003
     },
     "calls by site and queue": {
      "verdict": "same",
      "rows": 1,
-     "virtual_graph_seconds": 1.251,
-     "memory_seconds": 0.008
+     "virtual_graph_seconds": 1.007,
+     "memory_seconds": 0.005
     },
     "card spend by merchant category": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 0.885,
+     "virtual_graph_seconds": 0.805,
      "memory_seconds": 0.005
     },
     "deposits by account product": {
      "verdict": "same",
      "rows": 22,
-     "virtual_graph_seconds": 0.854,
-     "memory_seconds": 0.006
+     "virtual_graph_seconds": 0.806,
+     "memory_seconds": 0.005
     }
    }
   },
@@ -1229,7 +1229,7 @@
      "Customer<-RECEIVED_FROM-Call": 7,
      "CardTransaction-CHARGED_TO->Account": 0,
      "Account-CONTAINS->Product": 2,
-     "DepositTransaction-CREDITED_TO->Account": 0,
+     "DepositTransaction-CREDITED_TO->Account": 4,
      "Call-HANDLED_BY->Agent": 2,
      "Account-MAINTAINED_AT->Branch": 4,
      "DepositTransaction-PROCESSED_AT->Branch": 4,
@@ -1240,7 +1240,7 @@
     "capped": [
      "Customer<-INITIATED_BY-DepositTransaction"
     ],
-    "seconds": 2.572
+    "seconds": 3.263
    },
    "recalled": {
     "label": "Customer",
@@ -1268,39 +1268,39 @@
     "capped": [
      "Customer<-INITIATED_BY-DepositTransaction"
     ],
-    "seconds": 0.046
+    "seconds": 0.052
    },
    "differences": [],
    "questions": {
     "accounts by product line": {
      "verdict": "same",
      "rows": 2,
-     "virtual_graph_seconds": 0.731,
-     "memory_seconds": 0.009
+     "virtual_graph_seconds": 1.028,
+     "memory_seconds": 0.006
     },
     "accounts by branch": {
      "verdict": "same",
      "rows": 4,
-     "virtual_graph_seconds": 0.849,
-     "memory_seconds": 0.008
+     "virtual_graph_seconds": 1.012,
+     "memory_seconds": 0.003
     },
     "calls by agent": {
      "verdict": "same",
      "rows": 2,
-     "virtual_graph_seconds": 1.081,
-     "memory_seconds": 0.007
+     "virtual_graph_seconds": 0.914,
+     "memory_seconds": 0.003
     },
     "calls by site and queue": {
      "verdict": "same",
      "rows": 4,
-     "virtual_graph_seconds": 1.221,
-     "memory_seconds": 0.009
+     "virtual_graph_seconds": 0.952,
+     "memory_seconds": 0.008
     },
     "card spend by merchant category": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 1.013,
-     "memory_seconds": 0.008
+     "virtual_graph_seconds": 0.93,
+     "memory_seconds": 0.003
     },
     "deposits by account product": {
      "verdict": "capped"
@@ -1323,7 +1323,7 @@
      "Customer<-RECEIVED_FROM-Call": 17,
      "CardTransaction-CHARGED_TO->Account": 0,
      "Account-CONTAINS->Product": 5,
-     "DepositTransaction-CREDITED_TO->Account": 0,
+     "DepositTransaction-CREDITED_TO->Account": 7,
      "Call-HANDLED_BY->Agent": 5,
      "Account-MAINTAINED_AT->Branch": 7,
      "DepositTransaction-PROCESSED_AT->Branch": 7,
@@ -1334,7 +1334,7 @@
     "capped": [
      "Customer<-INITIATED_BY-DepositTransaction"
     ],
-    "seconds": 2.259
+    "seconds": 2.285
    },
    "recalled": {
     "label": "Customer",
@@ -1362,39 +1362,39 @@
     "capped": [
      "Customer<-INITIATED_BY-DepositTransaction"
     ],
-    "seconds": 0.044
+    "seconds": 0.054
    },
    "differences": [],
    "questions": {
     "accounts by product line": {
      "verdict": "same",
      "rows": 3,
-     "virtual_graph_seconds": 0.722,
-     "memory_seconds": 0.003
+     "virtual_graph_seconds": 0.796,
+     "memory_seconds": 0.008
     },
     "accounts by branch": {
      "verdict": "same",
      "rows": 7,
-     "virtual_graph_seconds": 0.634,
+     "virtual_graph_seconds": 0.872,
      "memory_seconds": 0.005
     },
     "calls by agent": {
      "verdict": "same",
      "rows": 5,
-     "virtual_graph_seconds": 1.051,
-     "memory_seconds": 0.007
+     "virtual_graph_seconds": 0.839,
+     "memory_seconds": 0.006
     },
     "calls by site and queue": {
      "verdict": "same",
      "rows": 10,
-     "virtual_graph_seconds": 1.008,
-     "memory_seconds": 0.01
+     "virtual_graph_seconds": 0.884,
+     "memory_seconds": 0.006
     },
     "card spend by merchant category": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 0.917,
-     "memory_seconds": 0.007
+     "virtual_graph_seconds": 0.985,
+     "memory_seconds": 0.01
     },
     "deposits by account product": {
      "verdict": "capped"
@@ -1415,7 +1415,7 @@
      "Customer<-OWNED_BY-Account": 1,
      "Customer-PREFERS->Branch": 0,
      "Customer<-RECEIVED_FROM-Call": 2,
-     "CardTransaction-CHARGED_TO->Account": 0,
+     "CardTransaction-CHARGED_TO->Account": 1,
      "Account-CONTAINS->Product": 1,
      "DepositTransaction-CREDITED_TO->Account": 0,
      "Call-HANDLED_BY->Agent": 1,
@@ -1426,7 +1426,7 @@
      "CardTransaction-TRANSACTED_AT->Merchant": 95
     },
     "capped": [],
-    "seconds": 3.302
+    "seconds": 2.563
    },
    "recalled": {
     "label": "Customer",
@@ -1452,45 +1452,45 @@
      "CardTransaction-TRANSACTED_AT->Merchant": 95
     },
     "capped": [],
-    "seconds": 0.042
+    "seconds": 0.035
    },
    "differences": [],
    "questions": {
     "accounts by product line": {
      "verdict": "same",
      "rows": 1,
-     "virtual_graph_seconds": 0.857,
-     "memory_seconds": 0.008
+     "virtual_graph_seconds": 0.795,
+     "memory_seconds": 0.004
     },
     "accounts by branch": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 0.771,
-     "memory_seconds": 0.004
+     "virtual_graph_seconds": 0.773,
+     "memory_seconds": 0.003
     },
     "calls by agent": {
      "verdict": "same",
      "rows": 1,
-     "virtual_graph_seconds": 0.995,
-     "memory_seconds": 0.005
+     "virtual_graph_seconds": 0.862,
+     "memory_seconds": 0.003
     },
     "calls by site and queue": {
      "verdict": "same",
      "rows": 1,
-     "virtual_graph_seconds": 1.082,
-     "memory_seconds": 0.008
+     "virtual_graph_seconds": 0.937,
+     "memory_seconds": 0.005
     },
     "card spend by merchant category": {
      "verdict": "same",
      "rows": 9,
-     "virtual_graph_seconds": 0.888,
-     "memory_seconds": 0.004
+     "virtual_graph_seconds": 0.741,
+     "memory_seconds": 0.007
     },
     "deposits by account product": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 1.84,
-     "memory_seconds": 0.008
+     "virtual_graph_seconds": 0.745,
+     "memory_seconds": 0.005
     }
    }
   },
@@ -1519,7 +1519,7 @@
      "CardTransaction-TRANSACTED_AT->Merchant": 0
     },
     "capped": [],
-    "seconds": 3.535
+    "seconds": 4.394
    },
    "recalled": {
     "label": "Customer",
@@ -1545,45 +1545,45 @@
      "CardTransaction-TRANSACTED_AT->Merchant": 0
     },
     "capped": [],
-    "seconds": 0.015
+    "seconds": 0.019
    },
    "differences": [],
    "questions": {
     "accounts by product line": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 0.801,
-     "memory_seconds": 0.008
+     "virtual_graph_seconds": 0.906,
+     "memory_seconds": 0.005
     },
     "accounts by branch": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 0.831,
-     "memory_seconds": 0.006
+     "virtual_graph_seconds": 0.904,
+     "memory_seconds": 0.004
     },
     "calls by agent": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 1.091,
-     "memory_seconds": 0.009
+     "virtual_graph_seconds": 0.983,
+     "memory_seconds": 0.006
     },
     "calls by site and queue": {
      "verdict": "same",
      "rows": 1,
-     "virtual_graph_seconds": 1.051,
-     "memory_seconds": 0.007
+     "virtual_graph_seconds": 0.861,
+     "memory_seconds": 0.003
     },
     "card spend by merchant category": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 0.982,
-     "memory_seconds": 0.007
+     "virtual_graph_seconds": 0.692,
+     "memory_seconds": 0.003
     },
     "deposits by account product": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 0.806,
-     "memory_seconds": 0.003
+     "virtual_graph_seconds": 1.277,
+     "memory_seconds": 0.005
     }
    }
   },
@@ -1601,7 +1601,7 @@
      "Customer<-OWNED_BY-Account": 2,
      "Customer-PREFERS->Branch": 0,
      "Customer<-RECEIVED_FROM-Call": 3,
-     "CardTransaction-CHARGED_TO->Account": 0,
+     "CardTransaction-CHARGED_TO->Account": 1,
      "Account-CONTAINS->Product": 2,
      "DepositTransaction-CREDITED_TO->Account": 0,
      "Call-HANDLED_BY->Agent": 1,
@@ -1612,7 +1612,7 @@
      "CardTransaction-TRANSACTED_AT->Merchant": 81
     },
     "capped": [],
-    "seconds": 2.861
+    "seconds": 2.116
    },
    "recalled": {
     "label": "Customer",
@@ -1638,45 +1638,45 @@
      "CardTransaction-TRANSACTED_AT->Merchant": 81
     },
     "capped": [],
-    "seconds": 0.032
+    "seconds": 0.031
    },
    "differences": [],
    "questions": {
     "accounts by product line": {
      "verdict": "same",
      "rows": 2,
-     "virtual_graph_seconds": 0.773,
-     "memory_seconds": 0.01
+     "virtual_graph_seconds": 0.756,
+     "memory_seconds": 0.007
     },
     "accounts by branch": {
      "verdict": "same",
      "rows": 1,
-     "virtual_graph_seconds": 0.97,
-     "memory_seconds": 0.005
+     "virtual_graph_seconds": 0.818,
+     "memory_seconds": 0.004
     },
     "calls by agent": {
      "verdict": "same",
      "rows": 1,
-     "virtual_graph_seconds": 0.885,
-     "memory_seconds": 0.007
+     "virtual_graph_seconds": 0.913,
+     "memory_seconds": 0.006
     },
     "calls by site and queue": {
      "verdict": "same",
      "rows": 1,
-     "virtual_graph_seconds": 1.315,
-     "memory_seconds": 0.005
+     "virtual_graph_seconds": 1.033,
+     "memory_seconds": 0.004
     },
     "card spend by merchant category": {
      "verdict": "same",
      "rows": 8,
-     "virtual_graph_seconds": 0.808,
-     "memory_seconds": 0.009
+     "virtual_graph_seconds": 0.76,
+     "memory_seconds": 0.007
     },
     "deposits by account product": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 0.821,
-     "memory_seconds": 0.009
+     "virtual_graph_seconds": 0.858,
+     "memory_seconds": 0.003
     }
    }
   },
@@ -1694,9 +1694,9 @@
      "Customer<-OWNED_BY-Account": 4,
      "Customer-PREFERS->Branch": 0,
      "Customer<-RECEIVED_FROM-Call": 4,
-     "CardTransaction-CHARGED_TO->Account": 0,
+     "CardTransaction-CHARGED_TO->Account": 1,
      "Account-CONTAINS->Product": 4,
-     "DepositTransaction-CREDITED_TO->Account": 0,
+     "DepositTransaction-CREDITED_TO->Account": 3,
      "Call-HANDLED_BY->Agent": 1,
      "Account-MAINTAINED_AT->Branch": 3,
      "DepositTransaction-PROCESSED_AT->Branch": 3,
@@ -1707,7 +1707,7 @@
     "capped": [
      "Customer<-INITIATED_BY-DepositTransaction"
     ],
-    "seconds": 2.699
+    "seconds": 3.528
    },
    "recalled": {
     "label": "Customer",
@@ -1735,39 +1735,39 @@
     "capped": [
      "Customer<-INITIATED_BY-DepositTransaction"
     ],
-    "seconds": 0.077
+    "seconds": 0.075
    },
    "differences": [],
    "questions": {
     "accounts by product line": {
      "verdict": "same",
      "rows": 3,
-     "virtual_graph_seconds": 0.823,
-     "memory_seconds": 0.007
+     "virtual_graph_seconds": 0.736,
+     "memory_seconds": 0.006
     },
     "accounts by branch": {
      "verdict": "same",
      "rows": 3,
-     "virtual_graph_seconds": 0.717,
-     "memory_seconds": 0.006
+     "virtual_graph_seconds": 0.655,
+     "memory_seconds": 0.004
     },
     "calls by agent": {
      "verdict": "same",
      "rows": 1,
-     "virtual_graph_seconds": 1.355,
-     "memory_seconds": 0.008
+     "virtual_graph_seconds": 1.314,
+     "memory_seconds": 0.005
     },
     "calls by site and queue": {
      "verdict": "same",
      "rows": 3,
-     "virtual_graph_seconds": 1.095,
-     "memory_seconds": 0.009
+     "virtual_graph_seconds": 1.125,
+     "memory_seconds": 0.004
     },
     "card spend by merchant category": {
      "verdict": "same",
      "rows": 9,
-     "virtual_graph_seconds": 0.827,
-     "memory_seconds": 0.01
+     "virtual_graph_seconds": 0.786,
+     "memory_seconds": 0.007
     },
     "deposits by account product": {
      "verdict": "capped"
@@ -1790,7 +1790,7 @@
      "Customer<-RECEIVED_FROM-Call": 1,
      "CardTransaction-CHARGED_TO->Account": 0,
      "Account-CONTAINS->Product": 1,
-     "DepositTransaction-CREDITED_TO->Account": 0,
+     "DepositTransaction-CREDITED_TO->Account": 1,
      "Call-HANDLED_BY->Agent": 0,
      "Account-MAINTAINED_AT->Branch": 1,
      "DepositTransaction-PROCESSED_AT->Branch": 1,
@@ -1799,7 +1799,7 @@
      "CardTransaction-TRANSACTED_AT->Merchant": 0
     },
     "capped": [],
-    "seconds": 2.938
+    "seconds": 4.349
    },
    "recalled": {
     "label": "Customer",
@@ -1825,45 +1825,45 @@
      "CardTransaction-TRANSACTED_AT->Merchant": 0
     },
     "capped": [],
-    "seconds": 0.027
+    "seconds": 0.032
    },
    "differences": [],
    "questions": {
     "accounts by product line": {
      "verdict": "same",
      "rows": 1,
-     "virtual_graph_seconds": 0.618,
-     "memory_seconds": 0.011
+     "virtual_graph_seconds": 0.745,
+     "memory_seconds": 0.003
     },
     "accounts by branch": {
      "verdict": "same",
      "rows": 1,
-     "virtual_graph_seconds": 0.809,
-     "memory_seconds": 0.007
+     "virtual_graph_seconds": 0.667,
+     "memory_seconds": 0.003
     },
     "calls by agent": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 0.868,
-     "memory_seconds": 0.007
+     "virtual_graph_seconds": 1.037,
+     "memory_seconds": 0.005
     },
     "calls by site and queue": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 0.945,
-     "memory_seconds": 0.003
+     "virtual_graph_seconds": 0.905,
+     "memory_seconds": 0.004
     },
     "card spend by merchant category": {
      "verdict": "same",
      "rows": 0,
-     "virtual_graph_seconds": 1.042,
-     "memory_seconds": 0.006
+     "virtual_graph_seconds": 0.74,
+     "memory_seconds": 0.004
     },
     "deposits by account product": {
      "verdict": "same",
      "rows": 8,
-     "virtual_graph_seconds": 0.803,
-     "memory_seconds": 0.007
+     "virtual_graph_seconds": 2.231,
+     "memory_seconds": 0.006
     }
    }
   }
@@ -1893,31 +1893,38 @@
  },
  "idempotence": {
   "before": {
-   "nodes": 11738,
-   "relationships": 34400
+   "nodes": 37937,
+   "relationships": 113080
   },
   "after": {
-   "nodes": 11738,
-   "relationships": 34400
+   "nodes": 37937,
+   "relationships": 113080
   },
   "same": true
  },
+ "batch": {
+  "customers": 20,
+  "seconds": 9.97,
+  "seconds one at a time": 65.88,
+  "differences": {},
+  "ok": true
+ },
  "latency": {
   "fetch": {
-   "median": 2.655,
-   "p95": 3.372
+   "median": 3.396,
+   "p95": 4.558
   },
   "recall": {
    "median": 0.038,
-   "p95": 0.082
+   "p95": 0.11
   },
   "question on the virtual graph": {
-   "median": 0.919,
-   "p95": 1.355
+   "median": 0.905,
+   "p95": 1.615
   },
   "question on memory": {
-   "median": 0.007,
-   "p95": 0.011
+   "median": 0.005,
+   "p95": 0.008
   }
  }
 }

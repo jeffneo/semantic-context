@@ -38,7 +38,7 @@ uv run qlsc --help                       # extract, build, one command per stage
 QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc build
 QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc ask "question"   # the router's query; --run, --sql, --cypher, --memory, --as <principal>
 QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc computations   # then: qlsc okf (the OKF bundle, <work>/okf)
-QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc recall Customer cif_number=0001000025   # a context, kept in memory; remember fetches again; --as <principal>
+QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc recall Customer cif_number=0001000025   # a context, kept in memory; remember fetches again (KEY... in one batch); --as <principal>
 uv run pytest                            # needs Neo4j up for the demo-query tests
 uv run ruff check . && uv run ruff format .
 uv run --no-project --with 'sqlglot[c]==30.19.0' --with pytest pytest parser/tests -q

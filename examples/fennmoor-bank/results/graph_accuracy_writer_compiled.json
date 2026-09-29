@@ -258,7 +258,7 @@
   "cypher": {
    "verdict": "correct",
    "why": "matches on product_line, total_amount",
-   "query": "MATCH (fct_deposit_transactions:DepositTransaction)\nMATCH (fct_deposit_transactions)-[:INITIATED_BY]->(dim_customer:Customer)\nMATCH (fct_deposit_transactions)-[:CREDITED_TO]->(dim_account:Account)\nMATCH (dim_account)-[:CONTAINS]->(dim_product:Product)\nWHERE (dim_customer.segment = 'affluent')\nRETURN dim_product.product_line AS product_line, sum(fct_deposit_transactions.amount) AS total_amount",
+   "query": "MATCH (fct_deposit_transactions:DepositTransaction)\nMATCH (fct_deposit_transactions)-[:INITIATED_BY]->(dim_customer:Customer)\nMATCH (fct_deposit_transactions)-[:CREDITED_TO]->(dim_account:Account)\nMATCH (dim_account)-[:CONTAINS]->(dim_product:Product)\nWHERE (dim_customer.segment = 'affluent')\nRETURN dim_product.product_line AS product_line, CASE WHEN count(fct_deposit_transactions.amount) = 0 THEN null ELSE sum(fct_deposit_transactions.amount) END AS total_amount",
    "writer": "compiled",
    "fallback": null
   },

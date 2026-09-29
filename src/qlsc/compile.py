@@ -1063,6 +1063,10 @@ def cypher_expr(e: exp.Expression, column) -> str:
         if isinstance(arg, exp.Distinct):
             return f"count(DISTINCT {', '.join(c(x) for x in arg.expressions)})"
         return f"count({c(arg)})"
+    if isinstance(e, exp.Sum) and not isinstance(e.this, exp.Distinct):
+        # SQL's SUM of no values is NULL, Cypher's sum() 0: a group whose values are all null keeps SQL's NULL
+        x = c(e.this)
+        return f"CASE WHEN count({x}) = 0 THEN null ELSE sum({x}) END"
     if type(e) in CYPHER_AGG and not isinstance(e.this, exp.Distinct):
         return f"{CYPHER_AGG[type(e)]}({c(e.this)})"
     if isinstance(e, exp.CountIf):

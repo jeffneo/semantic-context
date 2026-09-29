@@ -83,6 +83,12 @@ def test_on_the_virtual_graph_a_relationship_is_read_by_its_key_column():
     assert "-[x:`CHARGED_TO`]->" in memory.cypher(m, reads["Txn-CHARGED_TO->Account"])
 
 
+def test_a_read_into_the_anchors_is_ordered_by_anchor_then_the_most_recent():
+    r = memory.template(M, "Customer", hops=2)[1]
+    for q in (memory.cypher(M, r), memory.cypher(M, r, memory=True)):  # so a batch's is read in pages
+        assert q.endswith("ORDER BY v.`customer_key`, n.`post_date` DESC, n.`txn_id`\nLIMIT $limit")
+
+
 def test_a_key_column_is_one_of_the_start_nodes_own_table():
     nodes = {
         "Txn": {"key": "txn_id", "columns": {"txn_id": "txn_id", "cust": "customer_key"}, "readable": {"txn_id": 1, "cust": 1}},

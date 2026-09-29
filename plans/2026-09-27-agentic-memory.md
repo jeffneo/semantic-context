@@ -587,5 +587,38 @@ What's left of a fetch is mostly the first hop's facts at full width (card and d
 about 225 MiB each). Here, only a narrower fetch or a batch of entities in one fetch brings that down:
 the scan costs the same for one customer or many. In a warehouse with years of history and large
 clustered partitions, a customer's reads would prune to a few blocks, both sides would sit near the
-per-table minimum, and a fetch's cost would be its count of table references. The next step, batching
-many entities per fetch, waits for a decision.
+per-table minimum, and a fetch's cost would be its count of table references.
+
+**Batches** (2026-09-29; `qlsc remember LABEL KEY...`, `memory.recall_batch`, `memory.run_batch`). Many
+anchors' contexts are fetched together, each read keyed on what all of them fetched, once.
+- **Each anchor keeps its own context,** exactly the one it gets alone: its own rows, the dimensions its own
+  facts name, its own recall step and READs. A single recall is a batch of one.
+- **The cap stays per anchor.** A read into the anchors is ordered by anchor, then the most recent first, and
+  read in pages of (cap + 1) × anchors rows. An anchor is complete once a later anchor follows it in a page,
+  or once it passes the cap; the rest are read again. So a page completes at least one anchor, and a batch
+  of one is one read, as before. (A first version had no LIMIT in a batch: a branch's read returned every
+  account and deposit in the window, and a batch of branches took 3.5 times as long as one at a time.)
+- **`memory.keys_per_read`** (1000) splits a read keyed on more nodes: each key is one of the SQL's
+  parameters, and BigQuery takes 10,000 at most.
+- **Checked:** 20 customers remembered together give each the context it got alone, and read back from
+  memory as that (eval/memory.py); as marketing and risk, the same, and the oracle agrees
+  (eval/memory_entitlements.py); a batch of branches, as the data source and risk, the same.
+- **Fixed on the way:** each read's keys are now a copy of what its anchor had fetched. They were the live
+  set, so a node fetched by another read of the same hop leaked into them (a branch's accounts from its
+  deposits got their customers read too, and memory didn't give them back).
+
+| fetched (eval/economics.py) | customers | seconds | MiB billed | MiB per customer | break-even, questions per customer |
+|---|---|---|---|---|---|
+| one at a time | 5 | 15.0 | 2,800 | 560 | 13.2 |
+| a batch of 5 (the session's) | 5 | 4.7 | 620 | 124 | 2.9 |
+| a batch of 50 | 50 | 15.0 | 633 | 13 | 0.3 |
+
+The session, fetched in one batch: 620 MiB with memory against 2,078 without, and 7.7 s of query time
+against 42.6 s. 48 of 48 answers from memory gave the SQL's rows. So memory pays in bytes from the first
+question once contexts are fetched in batches: prefetch the entities likely to be asked about (a
+relationship manager's book, today's call queue) in one pass.
+
+**The compiler's SUM, on the way.** The economics check found one answer from memory that differed from the
+SQL: a transaction type whose amounts were all null summed to 0 in Cypher and NULL in SQL (Cypher's `sum()`
+of no values is 0). The compiler now writes a SUM as `CASE WHEN count(x) = 0 THEN null ELSE sum(x) END`,
+on either target: the virtual graph's Cypher route gives SQL's NULL too.

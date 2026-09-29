@@ -10,8 +10,9 @@
                                 memory, when it holds the whole answer)
     --run                       ... -> and the answer
     --as PRINCIPAL              ... on a principal's behalf: only what the warehouse lets them read, run as them
-  qlsc remember LABEL KEY       an entity's context, fetched from the virtual graph and kept in memory
-  qlsc recall LABEL KEY         the same context: from memory while it holds, else fetched again, with
+  qlsc remember LABEL KEY...    an entity's context, fetched from the virtual graph and kept in memory;
+                                many entities' contexts fetched together, in one batch (KEY - : from stdin)
+  qlsc recall LABEL KEY...      the same context: from memory while it holds, else fetched again, with
                                 what your agent noted about it
   qlsc converse FILE            record a conversation (YAML) in the Context Memory model, running its tools
   qlsc distill                  skills from the agents' experience in memory: proposed, for a person to approve
@@ -136,7 +137,13 @@ def parser() -> argparse.ArgumentParser:
     ):
         p = sub.add_parser(name, help=what)
         p.add_argument("label", help="a label of the virtual graph")
-        p.add_argument("key", help="its key, or property=value (another property that identifies one)")
+        p.add_argument(
+            "keys",
+            nargs="+",
+            metavar="key",
+            help="its key, or property=value (another property that identifies one); several are fetched "
+            "together, in one batch; - reads them from stdin",
+        )
         p.add_argument("--full", action="store_true", help="every node of the context, not only the counts")
         p.add_argument(
             "--as",
@@ -145,7 +152,7 @@ def parser() -> argparse.ArgumentParser:
             help="on a principal's behalf: fetched as them, and only what they fetched and may read now",
         )
         p.set_defaults(
-            func=lambda s, a, force=force: memory.run(s, a.label, a.key, force=force, full=a.full, as_=a.as_)
+            func=lambda s, a, force=force: memory.run(s, a.label, a.keys, force=force, full=a.full, as_=a.as_)
         )
     sub.add_parser("distill", help="skills from the agents' experience in memory, proposed").set_defaults(
         func=lambda s, a: distill.run(s, distill_now=True)

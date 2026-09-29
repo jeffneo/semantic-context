@@ -19,6 +19,9 @@ read back from memory:
   3. isolation: a customer the principal can't read, remembered by others, is not in their read of memory,
      and recall fetches it (as nothing) instead of serving it; an anchor whose table they can't read is
      refused.
+  4. a batch: the customers remembered together, as the principal (qlsc remember Customer KEY... --as), give
+     each the context the principal's own fetch of it gave (nothing, for one they can't read), and read
+     back from memory the oracle agrees with.
 Negative controls: deliberately broken reads of memory the oracle must catch.
   - reads ignored: a row-policied node shown though the reader's own steps never read it;
   - columns unrestricted: the full model's properties;
@@ -162,7 +165,9 @@ def main() -> int:
         q, e = sign(AGENT)
         agent = V.rows(q, since=memory.window_start(s), **e)[0]["key"]
     anchors = [("Customer", k) for k in inside + named] + [("Branch", BRANCH), ("Agent", agent)]
-    res: dict = {"anchors": [[a, str(k)] for a, k in anchors], "runs": {}, "isolation": {}, "controls": {}}
+    res: dict = {"anchors": [[a, str(k)] for a, k in anchors], "runs": {}, "isolation": {}, "batch": {},
+                 "controls": {}}  # fmt: skip
+    alone = {}  # (principal, label, key) -> their own fetch
 
     for label, key in anchors:  # the data source first: memory holds every row
         ctx = memory.recall(s, label, key, force=True, m=ds)
@@ -194,7 +199,7 @@ def main() -> int:
                         pass
                     print(f"{name}: {label} {key}: {entry['verdict']}", flush=True)
                     continue
-                fetched = memory.recall(s, label, key, force=True, m=m)
+                fetched = alone[(name, label, key)] = memory.recall(s, label, key, force=True, m=m)
                 recalled = memory.recall(s, label, key, m=m)
                 if not fetched.nodes:
                     entry |= {"verdict": "nothing they may read", "origin": recalled.origin, "nodes": 0}
@@ -217,6 +222,35 @@ def main() -> int:
                 print(f"{name}: {label} {key}: {len(recalled.nodes)} nodes, {len(recalled.edges)} relationships; "
                       f"{diff or 'same as their fetch'}; "
                       f"{'INCIDENTS: ' + '; '.join(incidents) if incidents else 'the oracle agrees'}", flush=True)  # fmt: skip
+
+        # 4. a batch, as each principal who may read customers
+        customers = [k for label, k in anchors if label == "Customer"]
+        for name, m in models.items():
+            if "Customer" in m.unreadable:
+                continue
+            batch = memory.recall_batch(s, "Customer", customers, force=True, m=m)
+            diffs, incidents = {}, []
+            for key in customers:
+                own = alone[(name, "Customer", key)]
+                d = compare(batch[key], own) if own.nodes or batch[key].nodes else []
+                back = memory.recall(s, "Customer", key, m=m)
+                if back.nodes:
+                    d += (
+                        compare(back, batch[key])
+                        if back.origin == "memory"
+                        else ["recall didn't read memory"]
+                    )
+                    incidents += audit(oracles[name], book, back, *allow[name])
+                if d:
+                    diffs[str(key)] = d
+            res["batch"][name] = {
+                "customers": len(customers),
+                "with a context": sum(bool(c.nodes) for c in batch.values()),
+                "differences": diffs,
+                "incidents": incidents,
+                "ok": not diffs and not incidents,
+            }
+            print(f"batch: {name}: {res['batch'][name]}", flush=True)
 
         # 3. isolation: a customer risk can't read, remembered by the data source and marketing
         risk = models["risk"]
@@ -283,6 +317,16 @@ def report(res: dict) -> int:
         L.append(f"| {p} | {a} | {x.get('nodes', '')} | {x.get('edges', '')} | {same} | {x['verdict']} |")
     L += ["", "## Isolation", "", "| check | result |", "|---|---|"]
     L += [f"| {k} | {'ok' if v['ok'] else '**FAILED**'} |" for k, v in res["isolation"].items()]
+    L += ["", "## A batch", "", "The customers remembered together, as each principal who may read them.", ""]
+    L += [
+        "| principal | customers | with a context | same as their own fetches | the oracle |",
+        "|---|---|---|---|---|",
+    ]
+    L += [
+        f"| {k} | {v['customers']} | {v['with a context']} | {'yes' if not v['differences'] else '**no**'} "
+        f"| {'agrees' if not v['incidents'] else '**' + str(len(v['incidents'])) + ' incidents**'} |"
+        for k, v in res["batch"].items()
+    ]
     L += [
         "",
         "## Negative controls: broken reads of memory the oracle must catch",
@@ -296,7 +340,11 @@ def report(res: dict) -> int:
     ]
     print(f"-> {write_result('memory_entitlements', L, res)}")
     ok = not incidents and not different and all(v["ok"] for v in res["isolation"].values())
-    ok = ok and all(v["caught"] for v in res["controls"].values())
+    ok = (
+        ok
+        and all(v["caught"] for v in res["controls"].values())
+        and all(v["ok"] for v in res["batch"].values())
+    )
     ok = ok and not any(x["verdict"] == "NOT REFUSED" for _, _, x in rows)
     print("all checks passed" if ok else "SOME CHECKS FAILED")
     return 0 if ok else 1

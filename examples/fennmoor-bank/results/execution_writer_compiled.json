@@ -149,7 +149,7 @@
   "cypher": {
    "verdict": "correct",
    "why": "matches on segment=customer_segment, mcc_category_group=merchant_category_group, spend=card_purchase_spend",
-   "query": "MATCH (fct_card_transactions:CardTransaction)\nMATCH (fct_card_transactions)-[:MADE_BY]->(dim_customer:Customer)\nWHERE (fct_card_transactions.is_purchase)\n  AND (fct_card_transactions.post_date >= date('2026-04-01'))\n  AND (fct_card_transactions.post_date <= date('2026-06-30'))\nRETURN fct_card_transactions.mcc_category_group AS merchant_category_group, dim_customer.segment AS customer_segment, sum(fct_card_transactions.amount) AS card_purchase_spend",
+   "query": "MATCH (fct_card_transactions:CardTransaction)\nMATCH (fct_card_transactions)-[:MADE_BY]->(dim_customer:Customer)\nWHERE (fct_card_transactions.is_purchase)\n  AND (fct_card_transactions.post_date >= date('2026-04-01'))\n  AND (fct_card_transactions.post_date <= date('2026-06-30'))\nRETURN fct_card_transactions.mcc_category_group AS merchant_category_group, dim_customer.segment AS customer_segment, CASE WHEN count(fct_card_transactions.amount) = 0 THEN null ELSE sum(fct_card_transactions.amount) END AS card_purchase_spend",
    "writer": "compiled"
   },
   "routed": {

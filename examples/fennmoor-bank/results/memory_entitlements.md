@@ -33,6 +33,15 @@ Check 4 of plans/2026-09-27-agentic-memory.md (phase 2): memory never shows a re
 | risk's recall of it | ok |
 | contact-center's recall of a customer | ok |
 
+## A batch
+
+The customers remembered together, as each principal who may read them.
+
+| principal | customers | with a context | same as their own fetches | the oracle |
+|---|---|---|---|---|
+| marketing | 4 | 4 | yes | agrees |
+| risk | 4 | 2 | yes | agrees |
+
 ## Negative controls: broken reads of memory the oracle must catch
 
 | broken read | caught | by |

@@ -150,6 +150,22 @@
    "ok": true
   }
  },
+ "batch": {
+  "marketing": {
+   "customers": 4,
+   "with a context": 4,
+   "differences": {},
+   "incidents": [],
+   "ok": true
+  },
+  "risk": {
+   "customers": 4,
+   "with a context": 2,
+   "differences": {},
+   "incidents": [],
+   "ok": true
+  }
+ },
  "controls": {
   "reads ignored (risk sees rows its steps never read)": {
    "caught": true,
