@@ -9,6 +9,9 @@
     --sql | --cypher            ... -> that route only (Cypher over the virtual graph, checked with EXPLAIN)
     --run                       ... -> and the answer
     --as PRINCIPAL              ... on a principal's behalf: only what the warehouse lets them read, run as them
+  qlsc remember LABEL KEY       an entity's context, fetched from the virtual graph and kept in memory
+  qlsc recall LABEL KEY         the same context: from memory while it holds, else fetched again
+                                (KEY: the label's key, or property=value)
 
 Every command reads the estate's config from --config, or QLSC_CONFIG (environment or .env).
 """
@@ -26,6 +29,7 @@ from qlsc import (
     extract,
     hierarchy,
     load,
+    memory,
     navigate,
     okf,
     parse,
@@ -115,6 +119,15 @@ def parser() -> argparse.ArgumentParser:
     p.set_defaults(
         func=lambda s, a: navigate.run(s, " ".join(a.question), route(a), execute=a.run, as_=a.as_)
     )
+    for name, what, force in (
+        ("remember", "an entity's context, fetched from the virtual graph and kept in memory", True),
+        ("recall", "an entity's context: from memory while it holds, else fetched and kept", False),
+    ):
+        p = sub.add_parser(name, help=what)
+        p.add_argument("label", help="a label of the virtual graph")
+        p.add_argument("key", help="its key, or property=value (another property that identifies one)")
+        p.add_argument("--full", action="store_true", help="every node of the context, not only the counts")
+        p.set_defaults(func=lambda s, a, force=force: memory.run(s, a.label, a.key, force=force, full=a.full))
     return ap
 
 

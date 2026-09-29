@@ -199,6 +199,26 @@ plus one hop around them.
 
 The findings are in [plans/2026-09-26-virtual-graph-spike.md](plans/2026-09-26-virtual-graph-spike.md).
 
+## What an agent looked up, kept: memory
+
+`qlsc recall <label> <key>` returns an entity's context: the node, its relationships and their
+dimensions. It reads memory while the context holds, and fetches it from the virtual graph otherwise
+([plan](plans/2026-09-27-agentic-memory.md)).
+- **Where memory lives:** a `memory` database beside the semantic layer, joined to the composite as
+  `fennmoor.memory`. It uses the virtual graph's labels and keys, with a `source` on each node, so the
+  same Cypher runs on either.
+- **Provenance:** every fact records when it was fetched, until when it holds (its table's write
+  cadence in the log), by whom, with which read, and a link to a stub of the layer's Table.
+
+```bash
+uv run qlsc recall Customer cif_number=0001000025    # first time: 15 reads from BigQuery, ~4 s
+uv run qlsc recall Customer cif_number=0001000025    # again: from memory, ~0.05 s
+```
+
+Over 20 customers (`eval/memory.py`), every context read back from memory was exactly the one fetched.
+Six context questions gave the same rows on memory as on the virtual graph, 110 of 110, in 6 ms against
+1.4 s. A stale fact is never read.
+
 ## Who may see what: the entitlement gateway
 
 `qlsc ask --as <principal>` answers on a principal's behalf, from only what the warehouse lets them read

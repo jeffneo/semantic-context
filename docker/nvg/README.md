@@ -26,7 +26,11 @@ Graph bug. On `neo4j-vg`'s system database, with the password as `$pw`:
 CREATE COMPOSITE DATABASE fennmoor;
 CREATE ALIAS fennmoor.semantic FOR DATABASE bigquery AT 'neo4j+ssc://neo4j:7687' USER neo4j PASSWORD $pw;
 CREATE ALIAS fennmoor.rows FOR DATABASE neo4j AT 'neo4j+ssc://localhost:7687' USER neo4j PASSWORD $pw;
+CREATE ALIAS fennmoor.memory FOR DATABASE memory AT 'neo4j+ssc://neo4j:7687' USER neo4j PASSWORD $pw;
 ```
+
+`fennmoor.memory` is the `memory` database `qlsc remember` makes on the semantic layer's instance
+(plans/2026-09-27-agentic-memory.md); make the alias after the first `qlsc remember`.
 
 A subquery into `fennmoor.rows` can't import variables yet (`CALL (x) { USE fennmoor.rows ... }` is
 rejected); pass values as parameters on a second query instead.

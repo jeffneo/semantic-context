@@ -19,6 +19,15 @@ entitlements:                         # qlsc ask --as: the gateway (plans/2026-0
   workers: 8                          # concurrent permission checks when an allowlist is built (one per table)
   token_seconds: 300                  # how long a signed principal token for the JDBC pass-through holds: one question's queries, not a session's
 
+memory:                               # qlsc remember / recall: an entity's context from the virtual graph, kept (plans/2026-09-27-agentic-memory.md)
+  database: memory                    # on the semantic layer's instance (config neo4j), beside it: a rebuild never touches it
+  hops: 2                             # the entity's relationships, then their to-one dimensions (a call's agent, a purchase's merchant)
+  window_days: 90                     # facts (the many side of a relationship) from the last N days, by their table's partition column
+  cap: 200                            # at most this many facts per relationship, the most recent; a capped read is flagged on the context
+  properties: used                    # used: the columns the log's queries read or filter on, keys and partition columns | all
+  unknown_hold_days: 1                # how long a fact holds when the log shows no cadence for its table (fewer than two write days)
+  workers: 6                          # concurrent reads of the virtual graph, one per relationship of a hop
+
 embeddings:                           # Azure OpenAI: AZURE_OPENAI_API_KEY, _ENDPOINT, _API_VERSION
   deployment: text-embedding-3-large
   dimensions: 512

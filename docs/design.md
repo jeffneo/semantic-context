@@ -148,6 +148,9 @@ any. `tests/test_config.py` fails if one is not read by the code. Sensitivity on
 | `llm.query_model`, `query_thinking` | claude-sonnet-5-5, between_tools | Writing SQL needs a stronger model than naming. Sonnet 5.5 takes no forced tool (answers come as structured outputs) and can't turn thinking off; between_tools, its lowest, keeps a single answer unthought, as Sonnet 5 ran | Given the answer key's own tables, Haiku 4.5 answered 1 of 10 gold questions, Sonnet 5 answered 4. Full set, compiled: Sonnet 5.5 133 of 176 (the free writer on Sonnet 5, 129); not yet run free on 5.5, so the model's share is unmeasured |
 | `llm.query_effort` | null | With `query_thinking: adaptive`, how hard the query model reasons. High effort gained nothing on the free writer's quick test, for more latency and tokens | free writer, 69 questions: 55 without, 55 with high effort (5 moved); 3.1 s and 331 output tokens per question without, 3.8 s and 433 with |
 | `entitlements.allowlist_seconds`, `workers` | 900, 8 | A principal's allowlist (the tables, columns and row policies the warehouse reports for them) is reused for a session, well inside a policy change's reach; its checks run concurrently, one per table | building one over the layer's 177 tables: about 10 s |
+| `memory.hops`, `window_days`, `cap` | 2, 90, 200 | A context is an entity's relationships and their to-one dimensions (a call's agent, a purchase's merchant). The many side is windowed by its partition column (which also prunes the warehouse's partitions) and capped, so a context stays small; a capped read is flagged | a customer: 15 reads, 4 to 780 nodes; 7 of 20 customers hit the cap on card or deposit transactions (eval/memory.py) |
+| `memory.properties` | used | The columns the log's queries read or filter on, with keys and partition columns: what anyone asks of these tables, not every column | Customer: 14 of 23 columns |
+| `memory.unknown_hold_days`, `workers` | 1, 6 | A table whose cadence the log doesn't show holds a day, the shortest cadence here; a hop's reads run concurrently | every table the virtual graph serves is written daily |
 | `entitlements.token_seconds` | 300 | How long a principal token signed for the JDBC pass-through holds: one question's queries, never a session's. Virtual Graph reads within seconds of signing | a Cypher answer takes about 3 to 30 s |
 | `navigate.anchors` | question | `parts` breaks the question into measures, groupings, filters and entities, and navigates from each; in a quick test it was about even (gold 7 of 10 both, a log sample 23 of 30 against 22), so the single embedding stays the default | see the accuracy plan, 2026-09-27 |
 | `navigate.computations`, `computation_min_similarity` | 0, 0.8 | As first built, the closest Computations misled more than they helped: a close look-alike displaced what a question needed. With a similarity floor, equivalents merged and parameters left out of definitions, they were a wash on the full set: a close definition still gets over-applied. Off | all 176 log questions: 129 without, 130 with 5 definitions (4 gained, 3 lost); gold 7 either way |
@@ -209,6 +212,28 @@ clean grouping and barely move NMI against the spec (0.850 vs 0.853).
     rerun as the principal, Cypher answers checked against BigQuery's job log (every job ran as the
     principal), canaries scanned in every response and prompt, the driver probed directly, and five
     broken gateways the checks must catch (`eval/entitlements.py`).
+- **Memory** (plans/2026-09-27-agentic-memory.md, phase 1): `qlsc remember` and `recall` keep an
+  entity's context, fetched from the virtual graph, in a `memory` database beside the semantic layer. A
+  rebuild never touches it. `fennmoor.memory` joins it to the composite.
+  - **What a context is** comes from the virtual graph's model, not per estate. It's the node; every
+    relationship touching it (the many side windowed by its table's partition column and capped at the
+    most recent); then, to `memory.hops`, the to-one relationships out of what was fetched (a fact's
+    dimensions). Its properties are the columns the log's queries read or filter on.
+  - **One Cypher, two targets.** Each read is written once, for the virtual graph (signed for the
+    pass-through) or for memory, where it adds `source` and freshness. So a remembered context can be
+    checked read for read against a fresh fetch.
+  - **Identity:** the virtual graph's labels, types and keys, with `source` on every node. A node key
+    is (source, key) per label.
+  - **Provenance:** on every node and relationship, `fetched_at`, `holds_until`, `fetched_by` and
+    `fetched_with` (the read's Cypher). Every node links `FROM` a stub of its layer Table, and the
+    stub links to stubs of the Columns kept. A stub holds an id that survives a rebuild, and a name.
+  - **Freshness from usage:** a fact holds for its table's write cadence in the log. A frozen table's
+    facts hold for good. `recall` reads memory while the context holds, and fetches again once it
+    doesn't, or once the template changed. A refetch removes the relationships a read no longer
+    returns; nodes stay, and a stale one is never read as fresh.
+  - **Reads and writes are two steps from Python,** not one composite statement. The second hop is
+    keyed on the first's results (a correlated subquery into the virtual graph is Virtual Graph bug
+    2), and each read is signed on its own.
 
 ## Known limits
 

@@ -1,7 +1,7 @@
 # Agentic memory: a context compiler from the virtual graph into a persistent graph
 
-Status: agreed (2026-09-27), after the accuracy work. The spike below has run; nothing in `src/` has
-changed.
+Status: agreed (2026-09-27), after the accuracy work; split into phases (2026-09-28, below). Phase 1
+built and checked (2026-09-28); see "Phase 1, as built" at the end.
 
 ## Why
 
@@ -173,3 +173,111 @@ doesn't change it.
    Neo4j Labs' agent-memory model rather than a single `Note` label. Collisions are handled as above.
 3. **Freshness** comes from how often production writes each table.
 4. **A single-user prototype first.** Sharing across people waits for entitlements phase 1.
+
+## Phases (2026-09-28)
+
+Each phase ends with its checks run and its results written up.
+
+1. **The context compiler, for one reader** (decision 4), reading as the data source. This covers:
+   - the `memory` database, and `fennmoor.memory` in the composite;
+   - context templates from the virtual graph's model;
+   - the same labels and keys, with a `source` on each, and node keys;
+   - provenance as properties, plus Table and Column stubs;
+   - freshness from `Table.write_days`, with read-through.
+
+   The commands are `qlsc remember` and `qlsc recall`. Checked by:
+   - check 1 (correctness), over 20 customers;
+   - check 3 (freshness);
+   - the fetch and recall latency.
+2. **Entitlements over memory:**
+   - `--as` on `remember` and `recall`, with `fetched_by` recorded;
+   - read-time checks against the principal's allowlist (tables and columns);
+   - a row-policied table's facts remembered per principal.
+
+   Checked by check 4, with the entitlement oracle.
+3. **The agent side:**
+   - the agent-memory model (`Conversation`, `Message`, `ReasoningTrace`, `ToolCall`, `Entity`) and
+     `qlsc converse`;
+   - an `ask` recorded as a tool call, with Computation stubs;
+   - the reserved labels checked in `qlsc virtualize` (collisions).
+4. **The memory route and the economics:**
+   - the router's third route: a fresh context reads memory;
+   - `ask --cypher` on memory;
+   - check 2, the simulated session (latency and bytes billed).
+
+   MCP tools come after.
+
+**How phase 1 writes (a change from "Where it runs"):** the reads and the write are two steps from
+Python, not one composite statement. The reads go to the virtual graph, each signed for the
+pass-through; the write is one transaction on memory. Three reasons:
+- the second hop's reads are keyed by the first hop's results, and a correlated subquery into the
+  virtual graph is bug 2;
+- the reads run concurrently;
+- the pass-through signs each read on its own.
+
+The composite still joins memory for reading (`fennmoor.memory`).
+
+## Phase 1, as built (2026-09-28)
+
+**The context compiler** (`src/qlsc/memory.py`, `qlsc remember | recall <label> <key | property=value>`):
+- **The template is generic.** It's derived from the virtual graph's model:
+  - hop 0 is the node;
+  - hop 1 is every relationship touching it. The many side is windowed by its table's partition
+    column (`memory.window_days`, 90) and capped at the most recent `memory.cap` (200);
+  - hop 2 is the to-one relationships out of what hop 1 fetched, each relationship read once.
+
+  For Customer that's 15 reads: the plan's list exactly. Hop 0 and hop 1 run concurrently, and then
+  hop 2, keyed on hop 1's nodes (`IN $keys`). Each read is signed for the pass-through.
+- **Properties:** the columns the log's queries read or filter on, plus keys and partition columns.
+  That's 14 of Customer's 23 columns (`memory.properties: all` keeps every one).
+- **Memory:**
+  - the `memory` database on the semantic layer's instance, made on first use;
+  - `fennmoor.memory` in the composite (made by hand, like the other aliases: docker/nvg/README.md);
+  - a node key (source, key) per label, where `source` is the virtual graph's dataset;
+  - Table and Column stubs, with `FROM` from every node.
+- **Provenance:** `fetched_at`, `holds_until`, `fetched_by` (the data source, in this phase) and
+  `fetched_with` (the read's Cypher) on every node and relationship. The anchor also records the
+  context: `context_fetched_at`, `context_holds_until`, `context_template` (a digest of the template,
+  window and cap) and `context_capped`.
+- **Freshness:** the median gap between the table's write days in the log, which is a day for every
+  table here. A context holds until its first fact expires.
+  - A refetch removes the relationships a read no longer returns, only around the nodes that read was
+    keyed on.
+  - Nodes stay, and every read from memory requires `holds_until > $now` on each node and relationship.
+
+**Checked** (`eval/memory.py`, results/memory.md; 20 customers: the two the graph questions name, and 18
+who called in the window):
+
+| check | result |
+|---|---|
+| contexts read back from memory exactly as fetched (nodes, properties, relationships) | 20 of 20 |
+| the same Cypher, six context questions, same rows on memory and on the virtual graph | 110 of 110 (10 left out: over a capped relationship) |
+| remembering again changes nothing | 5,296 nodes, 15,863 relationships, before and after |
+| within its lifetime, recall reads memory | ok |
+| past it, recall fetches again | ok |
+| a planted stale fact is never read | ok |
+| a refetch removes it | ok |
+| a changed template (30-day window) is fetched again | ok |
+
+Latency, per customer:
+
+| | median | p95 |
+|---|---|---|
+| fetch and remember (15 reads, one write) | 3.6 s | 5.7 s |
+| recall from memory | 0.05 s | 0.12 s |
+| a context question on the virtual graph | 1.37 s | 2.55 s |
+| the same question on memory | 0.006 s | 0.05 s |
+
+The composite reads across memory and the layer in one query: remembered accounts, their table's stub,
+and the same table's write days from `fennmoor.semantic`.
+
+**Worth knowing:**
+- **Seven of 20 customers hit the cap** on card or deposit transactions (200 in 90 days). Their contexts
+  hold the most recent 200, flagged on the anchor. A question over all of them belongs to the virtual
+  graph or SQL, which is phase 4's router.
+- **Virtual Graph's inner joins show in the counts.** 45 calls, but 30 with an agent: a call with no
+  agent has no `HANDLED_BY`. Memory is the same, because it reads the same way.
+- **`holds_until` is an upper bound.** The log gives write days, not times, so a fact fetched just before
+  the day's load holds until the next day's.
+- **Not in this phase:** `--as`, and anything shared between people (phase 2). A context is written as
+  the data source only.
