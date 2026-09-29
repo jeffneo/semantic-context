@@ -1,15 +1,15 @@
 {
  "conversations": {
   "marketing-1": {
-   "id": "737309cb-de2b-45cb-ac1e-7eecae3f660f",
+   "id": "8c70848c-0ea3-4112-a5f9-9a14a90cf50c",
    "as": "qlsc-marketing@jeffdavis-bq-testproj.iam.gserviceaccount.com"
   },
   "marketing-2": {
-   "id": "d7108eb5-0f7f-46d1-a69c-5b2245dde3fa",
+   "id": "223ba246-7da8-4fff-a6dc-1fc13aa5d326",
    "as": "qlsc-marketing@jeffdavis-bq-testproj.iam.gserviceaccount.com"
   },
   "risk-1": {
-   "id": "72e9efbd-c176-4cb4-bade-828136c8a5e6",
+   "id": "30b3d07f-937a-4869-b423-a9a4591cd17b",
    "as": "qlsc-risk@jeffdavis-bq-testproj.iam.gserviceaccount.com"
   }
  },
@@ -119,8 +119,8 @@
   "marketing-2 finds marketing-1's notes": {
    "ok": true,
    "noted": [
-    "  noted: prefers contact channel: email, not phone (since 2026-09-29)",
     "  noted: interested in: a travel rewards card (since 2026-09-29)",
+    "  noted: prefers contact channel: email, not phone (since 2026-09-29)",
     "  noted: Ana (person), daughter of",
     "  decided: offer a travel rewards card, by email (on 2026-09-29)",
     "  in 1 conversation, the last 2026-09-29: Card offer for customer 8322097816940277129"
@@ -129,8 +129,8 @@
   "changed: the new preference closes the old, and the decision based on it is to revisit": {
    "ok": true,
    "noted": [
-    "  noted: prefers contact channel: phone, mornings (since 2026-09-29)",
     "  noted: interested in: a travel rewards card (since 2026-09-29)",
+    "  noted: prefers contact channel: phone, mornings (since 2026-09-29)",
     "  noted: Ana (person), daughter of",
     "  decided: offer a travel rewards card, by email (on 2026-09-29; outcome: accepted; revisit: prefers contact channel: email, not phone is now phone, mornings)",
     "  in 2 conversations, the last 2026-09-29: Travel card follow-up for customer 8322097816940277129"
@@ -176,15 +176,15 @@
   "facts": [
    {
     "origin": "user",
-    "predicate": "prefers contact channel",
-    "valid_from": "2026-09-29T13:54:12.502859000+00:00",
-    "value": "email, not phone"
+    "predicate": "interested in",
+    "valid_from": "2026-09-29T17:45:53.708479000+00:00",
+    "value": "a travel rewards card"
    },
    {
     "origin": "user",
-    "predicate": "interested in",
-    "valid_from": "2026-09-29T13:54:12.538724000+00:00",
-    "value": "a travel rewards card"
+    "predicate": "prefers contact channel",
+    "valid_from": "2026-09-29T17:45:53.660538000+00:00",
+    "value": "email, not phone"
    }
   ],
   "related": [
@@ -199,14 +199,14 @@
     "choice": "offer a travel rewards card, by email",
     "outcomes": [],
     "revisit": [],
-    "valid_from": "2026-09-29T13:54:12.863511000+00:00"
+    "valid_from": "2026-09-29T17:45:53.904044000+00:00"
    }
   ],
   "conversations": [
    {
-    "id": "737309cb-de2b-45cb-ac1e-7eecae3f660f",
+    "id": "8c70848c-0ea3-4112-a5f9-9a14a90cf50c",
     "title": "Card offer for customer 8322097816940277129",
-    "updated_at": "2026-09-29T13:54:12.727985000+00:00"
+    "updated_at": "2026-09-29T17:45:53.809185000+00:00"
    }
   ]
  }

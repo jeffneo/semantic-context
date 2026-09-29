@@ -15,6 +15,13 @@ semantic layer it came from.
                         dimensions), keyed by the nodes already fetched.
               Virtual Graph has no OPTIONAL MATCH, so each relationship is its own read. A hop's reads run
               concurrently, each signed for the pass-through.
+  keyed       Virtual Graph writes a traversal as the start's table joined to itself and to the end's. A
+              relationship that is a column of its start node's table (a fact's customer_key) is read by that
+              column instead: into the anchor, the facts by their own column; out of a hop's facts, the
+              dimensions they name, by key, and only those not fetched yet. The same rows, without rescanning
+              the fact table or billing the far one (BigQuery bills a minimum per table a query references).
+              The anchor's own read still gates the context: none, or none the reader may see, and the
+              context is empty.
   properties  the columns the log's queries read or filter on (memory.properties: used), with each node's
               key and partition column; or every column (all)
   identity    the virtual graph's labels, relationship types and keys, with `source` (the virtual graph's
@@ -220,6 +227,7 @@ class Read:
     inward: bool = False
     window: str | None = None  # the fetched nodes' partition property (inward reads)
     via_window: str | None = None  # the via nodes' partition property (outward reads: prunes partitions)
+    fk: str | None = None  # the start node's property holding the end's key: on the virtual graph, read by it
 
     @property
     def name(self) -> str:
@@ -304,6 +312,7 @@ def model(G: Graph, s: Settings, schema: dict | None = None, allow: entitle.Allo
             "partition": partition,
             "props": {ident(x["name"]): x["type"] for x in n["properties"] if x["column"] in kept},
             "readable": {x["name"]: x["type"] for x in n["properties"]},  # every property the reader may read
+            "columns": {x["name"]: x["column"] for x in n["properties"]},
         }
     rels = [
         {
@@ -313,9 +322,14 @@ def model(G: Graph, s: Settings, schema: dict | None = None, allow: entitle.Allo
             "table": label_of_view.get(
                 r.get("table"), r["start"]["targetEntity"]
             ),  # the label whose table holds it
+            "fk": foreign_key(r, nodes, label_of_view),
         }
         for r in entities["relationships"]
+        if r["start"]["targetEntity"] in nodes and r["end"]["targetEntity"] in nodes
     ]
+    for r in rels:  # the column a relationship joins on is fetched with its start node, to follow it by key
+        if r["fk"]:
+            nodes[r["start"]]["props"][r["fk"]] = nodes[r["start"]]["readable"][r["fk"]]
     policied = {label for label, t in tables.items() if t["id"] in policied_tables}
     return Model(
         f"{schema['catalog']}.{schema['schema']}",
@@ -327,6 +341,26 @@ def model(G: Graph, s: Settings, schema: dict | None = None, allow: entitle.Allo
         policied=policied,
         unreadable=every - set(nodes),
     )
+
+
+def foreign_key(r: dict, nodes: dict, label_of_view: dict) -> str | None:
+    """The start node's property that holds the end node's key, when the relationship is a column of the
+    start node's own table (a fact's customer_key, an account's branch_id): then the relationship can be read
+    by that property, without joining its table to itself and to the end's. None otherwise."""
+    a, b = r["start"]["targetEntity"], r["end"]["targetEntity"]
+    if a not in nodes or b not in nodes or label_of_view.get(r.get("table"), a) != a:
+        return None
+    if len(r["start"]["keys"]) != 1 or len(r["end"]["keys"]) != 1:
+        return None
+    (s,), (e,) = r["start"]["keys"], r["end"]["keys"]
+    by_column = {c: name for name, c in nodes[a]["columns"].items()}
+    fk = by_column.get(e["relationshipColumn"])
+    own = (
+        by_column.get(s["relationshipColumn"]) == nodes[a]["key"]
+        and s["relationshipColumn"] == s["nodeColumn"]
+    )
+    to_key = {c: name for name, c in nodes[b]["columns"].items()}.get(e["nodeColumn"]) == nodes[b]["key"]
+    return fk if fk and own and to_key and fk in nodes[a]["readable"] else None
 
 
 def template(m: Model, anchor: str, hops: int) -> list[Read]:
@@ -341,7 +375,17 @@ def template(m: Model, anchor: str, hops: int) -> list[Read]:
         elif r["end"] == anchor:
             window = m.nodes[r["start"]]["partition"]
             reads.append(
-                Read(1, r["start"], r["type"], r["start"], r["end"], via=anchor, inward=True, window=window)
+                Read(
+                    1,
+                    r["start"],
+                    r["type"],
+                    r["start"],
+                    r["end"],
+                    via=anchor,
+                    inward=True,
+                    window=window,
+                    fk=r.get("fk"),
+                )
             )
     used = {x.type for x in reads}
     frontier = {x.label for x in reads[1:]}
@@ -355,6 +399,7 @@ def template(m: Model, anchor: str, hops: int) -> list[Read]:
                 r["end"],
                 via=r["start"],
                 via_window=m.nodes[r["start"]]["partition"],
+                fk=r.get("fk"),
             )
             for r in sorted(m.rels, key=lambda r: (r["type"], r["start"], r["end"]))
             if r["type"] not in used and r["start"] in frontier
@@ -375,16 +420,35 @@ def digest(m: Model, reads: list[Read], p: dict) -> str:
     return hashlib.sha256(json.dumps(what).encode()).hexdigest()[:16]
 
 
+def keyed(r: Read, memory: bool) -> bool:
+    """Whether the read follows its relationship by the start node's key column rather than traversing it: on
+    the virtual graph, which writes a traversal as the start's table joined to itself and to the end's, so
+    each read would scan its fact table twice and bill the far table too. Into the anchor, the facts are
+    read by their own column (a card transaction's customer_key); out of a hop's facts, their dimensions by
+    key, from the keys the facts already hold, and only those not fetched yet. Memory has the relationships
+    themselves, and traverses them."""
+    return not memory and r.fk is not None and (r.inward or r.hop >= 2)
+
+
 def cypher(m: Model, r: Read, memory: bool = False) -> str:
     """A read's Cypher: over the virtual graph, or (memory) the same read over memory: only its source's
     nodes, only facts that still hold at $now, and a node of a row-policied table only if the reader's own
-    step ($by) read it and that read still holds."""
+    step ($by) read it and that read still holds. On the virtual graph a read with a key column reads by it
+    (keyed): the same rows."""
     n = m.nodes[r.label]
     src = " {source: $source}" if memory else ""
     fresh = lambda v: f"({v}.holds_until IS NULL OR {v}.holds_until > $now)"
     seen = lambda v: f"EXISTS {{ (:Step {{owner: $by}})-[r:READ]->({v}) WHERE r.holds_until > $now }}"
     ret = ", ".join(f"n.`{p}` AS `{p}`" for p in sorted(n["props"]))
-    if r.type is None:
+    if keyed(r, memory) and r.inward:
+        where = [f"n.`{r.fk}` IN $keys"] + ([f"n.`{r.window}` >= $since"] if r.window else [])
+        order = f"n.`{r.window}` DESC, n.`{n['key']}`" if r.window else f"n.`{r.fk}`, n.`{n['key']}`"
+        return (
+            f"MATCH (n:`{r.label}`)\nWHERE "
+            + "\n  AND ".join(where)
+            + f"\nRETURN n.`{r.fk}` AS _via, {ret}\nORDER BY {order}\nLIMIT $limit"
+        )
+    if r.type is None or keyed(r, memory):
         where = [f"n.`{n['key']}` IN $keys"]
         if memory:
             where += [fresh("n")] + ([seen("n")] if r.label in m.policied else [])
@@ -469,10 +533,14 @@ def run_reads(
 
     def one(r: Read) -> tuple[Read, str, list, list[dict], float]:
         q = cypher(m, r, memory)
-        keys = sorted(fetched.get(r.via or anchor, set()), key=str)
+        keys = sorted(fetched.get(r.via or anchor, set()), key=str)  # the nodes the read is keyed on
+        ask = keys
+        if keyed(r, memory) and not r.inward:  # the dimensions those facts name, not fetched yet
+            named = {ctx.nodes[(r.via, k)].get(r.fk) for k in keys}
+            ask = sorted(named - {None} - fetched.get(r.label, set()), key=str)
         sent, extra = (q, {}) if memory else entitle.signing(s, m.allow, q)
         t = time.time()
-        rows = target.rows(sent, **base, keys=keys, **extra) if keys else []
+        rows = target.rows(sent, **base, keys=ask, **extra) if ask else []
         return r, q, keys, rows, time.time() - t
 
     last = max(r.hop for r in reads)
@@ -482,9 +550,9 @@ def run_reads(
     for group in groups:
         with ThreadPoolExecutor(max_workers=p["workers"]) as pool:
             results = list(pool.map(one, group))
-        if group[0].hop == 0 and not results[0][2]:
+        if group[0].hop == 0 and not results[0][3]:
             ctx.seconds = time.time() - t0
-            return ctx  # no such node: an empty context
+            return ctx  # no such node, or not one the reader may see: an empty context
         for r, q, keys, rows, seconds in results:
             capped = r.inward and len(rows) > p["cap"]
             rows = rows[: p["cap"]] if capped else rows
@@ -494,7 +562,7 @@ def run_reads(
                 ctx.nodes[(r.label, row[key])] = row
                 ctx.fetched_with.setdefault((r.label, row[key]), q)
                 fetched.setdefault(r.label, set()).add(row[key])
-                if r.type:
+                if r.type and not (keyed(r, memory) and not r.inward):
                     start, end = (row[key], via) if r.inward else (via, row[key])
                     ctx.edges.add((r.type, r.start, start, r.end, end))
             ctx.reads.append(
@@ -507,6 +575,12 @@ def run_reads(
                     "seconds": seconds,
                 }
             )
+        for r, _, keys, *_ in results:  # a keyed read's relationships: each fact it was keyed on to the
+            if r.type and keyed(r, memory) and not r.inward:  # dimension the fact names, if fetched
+                for k in keys:
+                    f = ctx.nodes[(r.via, k)].get(r.fk)
+                    if (r.label, f) in ctx.nodes:
+                        ctx.edges.add((r.type, r.start, k, r.end, f))
     ctx.seconds = time.time() - t0
     return ctx
 

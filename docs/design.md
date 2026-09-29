@@ -151,7 +151,7 @@ any. `tests/test_config.py` fails if one is not read by the code. Sensitivity on
 | `memory.hops`, `window_days`, `cap` | 2, 92, 200 | A context is an entity's relationships and their to-one dimensions (a call's agent, a purchase's merchant). The many side is windowed by its partition column (which also prunes the warehouse's partitions) and capped, so a context stays small. 92 days is a full quarter, the period questions ask for most (90 missed a quarter's first day, so "last quarter" could never be answered from memory); a capped read is flagged | a customer: 15 reads, 4 to 780 nodes; 7 of 20 customers hit the cap on card or deposit transactions (eval/memory.py) |
 | `memory.properties` | used | The columns the log's queries read or filter on, with keys and partition columns: what anyone asks of these tables, not every column | Customer: 14 of 23 columns |
 | `memory.unknown_hold_days`, `workers` | 1, 6 | A table whose cadence the log doesn't show holds a day, the shortest cadence here; a hop's reads run concurrently | every table the virtual graph serves is written daily |
-| `navigate.memory_route` | true | The router answers from memory when memory holds the whole answer: one entity whose context the reader holds fresh, every table in it, the period inside the window, nothing capped. It changes nothing when no context is fresh | 50 questions about 5 customers: 49 from memory, all the same rows as the SQL, a median 0.027 s against 0.80 s; but each fetch bills about 14 questions' SQL (results/economics.md) |
+| `navigate.memory_route` | true | The router answers from memory when memory holds the whole answer: one entity whose context the reader holds fresh, every table in it, the period inside the window, nothing capped. It changes nothing when no context is fresh | 50 questions about 5 customers: 49 from memory, all the same rows as the SQL, a median 0.028 s against 0.91 s; a fetch bills what 12.5 questions' SQL does, with keyed reads (about 22 before) (results/economics.md) |
 | `memory.tool_result_rows` | 20 | An ask's ToolCall keeps the first rows of its answer, enough for the agent to cite, with the total counted | the example's ask: 10 rows |
 | `distill.min_steps`, `min_support`, `min_success` | 2, 3, 0.7 | A procedure is two tool calls or more (one is just using a tool). A skill needs three tasks, most of them successful, as a Computation needs repeated use | the check's failing pattern (0 of 3 successful) and one-offs (1 each) yield no skill |
 | `distill.similarity`, `gamma`, `seed` | 0.5, 1.0, 42 | Tasks join when half of what they did and read is shared; seeded Leiden, as the build's. The same threshold decides which skill a task followed | the LLM compiles one kind of question slightly differently each time; half-overlap keeps the variants together |
@@ -232,6 +232,12 @@ clean grouping and barely move NMI against the spec (0.850 vs 0.853).
   - **One Cypher, two targets.** Each read is written once, for the virtual graph (signed for the
     pass-through) or for memory, where it adds `source` and freshness. So a remembered context can be
     checked read for read against a fresh fetch.
+  - **Keyed reads on the virtual graph.** Virtual Graph writes a traversal as the start's table joined
+    to itself and to the end's, so every read rescanned its fact table and billed the far table too. A
+    relationship that is a column of its start node's table is read by that column instead: the facts
+    into the anchor by their own `customer_key`, and their dimensions by the keys they hold, only those
+    not fetched yet. The same rows, checked both ways for each principal. The anchor's own read still
+    gates the context. Memory has the relationships themselves, and traverses them.
   - **Identity:** the virtual graph's labels, types and keys, with `source` on every node. A node key
     is (source, key) per label.
   - **Provenance:** on every node and relationship, `fetched_at`, `holds_until`, `fetched_by` and

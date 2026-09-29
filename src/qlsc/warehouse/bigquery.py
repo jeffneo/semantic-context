@@ -402,6 +402,10 @@ class BigQuery(Warehouse):
                 "rows": [dict(r.items()) for r in result],
                 "total": result.total_rows,
                 "bytes_billed": job.total_bytes_billed or 0,
+                # BigQuery withholds a job's statistics when it reads a table with a row access policy: its
+                # bytes are billed, but not reported. At least its minimum, per table it references
+                "bytes_hidden": job.total_bytes_billed is None and not job.cache_hit,
+                "tables_referenced": len(job.referenced_tables or []),
             }
         except subprocess.CalledProcessError:
             return self._login_needed()

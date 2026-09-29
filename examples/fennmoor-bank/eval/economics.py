@@ -6,8 +6,13 @@ of 50 questions, 10 about each of 5 customers, with and without memory.
   with     each customer's context is fetched once (`qlsc recall`: its latency, and the bytes Virtual Graph's
            jobs billed, from BigQuery's own job log), then each question goes by the router's memory route
            when memory holds its whole answer, and by the same SQL otherwise
-The customers' contexts weren't fetched in the day before (BigQuery's result cache lasts a day), so their
-fetches bill what a first fetch does; the report says how many jobs the cache answered even so.
+Each fetch has the job log to itself: the next starts GAP seconds after it ends, and its jobs are those between
+its start and end, MARGIN seconds either side (BigQuery's clock against ours). BigQuery withholds the statistics
+of a job that reads a table with a row access policy (dim_customer): billed, but not reported. Such a job is
+counted at BigQuery's minimum, 10 MiB per table it references, and the report says how many there were.
+The customers' contexts weren't fetched in the day before (BigQuery's result cache lasts a day). A dimension
+read can still be answered by the cache, since the same few sites, branches and products recur across
+customers: such a job is counted at the minimum a first read bills, and the report says how many there were.
 Both compile each question once, with the same LLM call (its time is common to both, and reported apart). Every
 answer memory gives is compared with the SQL's, row for row.
 
@@ -55,7 +60,11 @@ QUESTIONS = [
 # What Virtual Graph's jobs billed between two times, and how many BigQuery's result cache answered (billing
 # nothing): the customers are chosen so none should be.
 VG_BILLED = """
-SELECT COUNT(*) AS jobs, IFNULL(SUM(total_bytes_billed), 0) AS billed, COUNTIF(cache_hit) AS cached
+SELECT COUNT(*) AS jobs, IFNULL(SUM(total_bytes_billed), 0) AS billed, COUNTIF(cache_hit) AS cached,
+       COUNTIF(total_bytes_billed IS NULL AND NOT cache_hit) AS hidden,
+       IFNULL(SUM(IF(total_bytes_billed IS NULL AND NOT cache_hit, ARRAY_LENGTH(referenced_tables), 0)), 0)
+         * @minimum AS hidden_floor,
+       IFNULL(SUM(IF(cache_hit, ARRAY_LENGTH(referenced_tables), 0)), 0) * @minimum AS cached_floor
 FROM `region-us`.INFORMATION_SCHEMA.JOBS_BY_PROJECT
 WHERE creation_time BETWEEN @since AND @until
   AND EXISTS (SELECT 1 FROM UNNEST(labels) l WHERE l.key = 'app' AND l.value = 'neo4j-virtual-graph')
@@ -69,6 +78,8 @@ WHERE s.at > $since
 RETURN collect(DISTINCT c.customer_key) AS keys
 """
 MIB = 2**20
+MINIMUM = 10 * MIB  # what BigQuery bills at least, per table a query references
+GAP, MARGIN = 5, 1  # seconds between fetches; and either side of one, for the job log's clock
 
 
 def norm(rows: list[dict]) -> list[str]:
@@ -84,6 +95,7 @@ def vg_billed(since: dt.datetime, until: dt.datetime) -> dict:
         query_parameters=[
             bigquery.ScalarQueryParameter("since", "TIMESTAMP", since),
             bigquery.ScalarQueryParameter("until", "TIMESTAMP", until),
+            bigquery.ScalarQueryParameter("minimum", "INT64", MINIMUM),
         ]
     )
     last = None
@@ -115,6 +127,7 @@ def main() -> int:
         t0 = dt.datetime.now(dt.UTC)
         ctx = memory.recall(s, "Customer", key, force=True, m=m)
         t1 = dt.datetime.now(dt.UTC)
+        time.sleep(GAP)  # the next fetch's jobs start after this one's window
         if ctx.capped():
             continue
         customers.append(key)
@@ -125,7 +138,9 @@ def main() -> int:
             break
     for key in customers:  # the job log trails the jobs: read what each fetch billed afterwards
         c = res["customers"][str(key)]
-        c |= vg_billed(c.pop("since"), c.pop("until") + dt.timedelta(seconds=5))
+        margin = dt.timedelta(seconds=MARGIN)
+        c |= vg_billed(c.pop("since") - margin, c.pop("until") + margin)
+        c["billed"] += c.pop("hidden_floor") + c.pop("cached_floor")
 
     wh = entitle.warehouse(s, None)
     with Graph(s) as G:
@@ -150,8 +165,10 @@ def main() -> int:
                     continue
                 t0 = time.time()
                 out = wh.run(sql["sql"], p["maximum_bytes_billed"], p["cypher_max_rows"], cache=False)
-                row["sql"] = {"ok": out["ok"], "seconds": round(time.time() - t0, 3), "billed": out.get("bytes_billed", 0),
-                              "rows": len(out.get("rows") or [])}  # fmt: skip
+                hidden = bool(out.get("bytes_hidden"))
+                row["sql"] = {"ok": out["ok"], "seconds": round(time.time() - t0, 3), "rows": len(out.get("rows") or []),
+                              "billed": out.get("bytes_billed", 0) + hidden * MINIMUM * out.get("tables_referenced", 0),
+                              "hidden": hidden}  # fmt: skip
                 mem = navigate.answer_memory(G, s, tr, execute=True, rows=p["cypher_max_rows"])
                 if "result" in mem:
                     same = out["ok"] and norm(out["rows"]) == norm(mem["result"]["rows"])
@@ -193,6 +210,14 @@ def summarize(res: dict) -> dict:
         "fetch billed per customer": statistics.median([c["billed"] for c in fetch]) if fetch else 0,
         "fetch jobs": sum(c["jobs"] for c in fetch),
         "fetch jobs cached": sum(c["cached"] for c in fetch),
+        "fetch jobs hidden": sum(c["hidden"] for c in fetch),
+        "sql jobs hidden": sum(q["sql"].get("hidden", False) for q in qs),
+        "question billed (mean)": without["billed"] / len(qs) if qs else 0,
+        "break-even questions": (
+            statistics.median([c["billed"] for c in fetch]) / (without["billed"] / len(qs))
+        )
+        if fetch and qs and without["billed"]
+        else None,
     }
 
 
@@ -221,7 +246,13 @@ def report(res: dict) -> int:
         "fetches included).",
         f"- **The session's bytes billed:** {wo['billed'] / MIB:,.0f} MiB without memory, {w['billed'] / MIB:,.0f} MiB with "
         f"it (the fetches included, a median {x['fetch billed per customer'] / MIB:,.0f} MiB each; {x['fetch jobs']} "
-        f"jobs, {x['fetch jobs cached']} answered by BigQuery's result cache).",
+        f"jobs; {x['fetch jobs cached']} answered by BigQuery's result cache, counted at the minimum a first read "
+        "bills).",
+        f"- **Break-even:** a fetch bills what {x['break-even questions'] or 0:.1f} questions' SQL does (a question "
+        f"bills {x['question billed (mean)'] / MIB:,.0f} MiB on average).",
+        f"- **Bytes BigQuery didn't report:** {x['fetch jobs hidden']} of the fetches' jobs and {x['sql jobs hidden']} "
+        "of the questions' read a row-policied table, and are counted at BigQuery's minimum (10 MiB per table "
+        "referenced).",
         f"- **Compiling a question** (common to both): median {x['compile latency'].get('median')} s.",
         "",
         "Why a question didn't go to memory:",

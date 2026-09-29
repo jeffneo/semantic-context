@@ -547,9 +547,45 @@ fetch job could be answered from BigQuery's result cache, and none was (0 of 142
   or across sessions within a day.
 - **The session's time is the LLM's,** compiling the question: 7.7 s against 0.8 s for the SQL.
 
-**The fetch's bytes can come down.** BigQuery's job log shows where a fetch's bytes go: the second hop's
-reads, each rescanning the fact table's window (about 71 MiB each) only to follow a foreign key to a
-dimension.
-- **The fix:** the first hop's facts already hold those keys, so the second hop could read the
-  dimensions by key (about 10 MiB each, the minimum per table) and make the relationships from the keys.
-- **The cost:** it changes how a context is fetched, so it waits for a decision.
+**The fetch's bytes, corrected and brought down** (2026-09-29, after phase 5's commit).
+
+- **The first count was wrong.** BigQuery withholds the statistics of any job that reads a table with a
+  row access policy: the job is billed, but its bytes aren't reported. Every hop-0 and hop-1 read joined
+  `dim_customer`, so about 580 MiB per fetch was missing from the 606. The eval's job windows also ran 5 s
+  past each fetch, into the next one's jobs. A fetch really billed about 950 MiB, about 22 questions' SQL.
+- **Why a fetch costs more than a question:** BigQuery bills the columns it scans in the partitions it
+  can't skip, not the rows returned. In this estate the fact tables hold exactly one quarter, so the
+  92-day window skips nothing, and a day's partition (about 3 MiB) is too small for clustering on
+  `customer_key` to skip blocks. A read of 199 card transactions scanned 225 MiB, the whole of its 14
+  columns. A question reads 3 to 5 columns of one table; a fetch reads every used column of every table
+  in the context. The second hop also rescanned each fact table (about 70 MiB a read) just to follow keys
+  the first hop's rows already held.
+- **Keyed reads** (`memory.keyed`). Virtual Graph writes a traversal as the start's table joined to
+  itself and to the end's. A relationship that is a column of its start node's table is now read by that
+  column instead:
+  - into the anchor, the facts by their own column (`n.customer_key IN $keys`), with no join to
+    `dim_customer`: so their bytes are reported too;
+  - out of a hop's facts, the dimensions they name, by key, and only those not fetched yet (an account
+    the first hop already has isn't read again); the relationships are made from the keys.
+  The rows are the same: contexts fetched both ways are identical, for the data source, marketing, risk
+  and contact-center, across Customer, Branch and Agent anchors. The anchor's own read still gates the
+  context (an anchor the reader can't see gives an empty one), and every check was rerun: memory,
+  memory_entitlements, converse and distill pass.
+- **The eval, fixed:** each fetch has the job log to itself (5 s apart, 1 s margins); a job whose bytes
+  are withheld, or that the result cache answered, is counted at BigQuery's minimum, 10 MiB per table it
+  references. The connector's `run` says when a job's bytes were withheld (`bytes_hidden`).
+
+| | before (corrected) | keyed |
+|---|---|---|
+| a fetch's bytes billed (median) | about 950 MiB | 557 MiB |
+| break-even: questions' SQL a fetch bills | about 22 | 12.5 |
+| a fetch's latency (median) | 5.3 s | 4.3 s |
+| the session's query time, with memory | | 22.1 s, against 47.3 s without |
+| answers from memory, the same as the SQL | 49 of 49 | 49 of 49 |
+
+What's left of a fetch is mostly the first hop's facts at full width (card and deposit transactions,
+about 225 MiB each). Here, only a narrower fetch or a batch of entities in one fetch brings that down:
+the scan costs the same for one customer or many. In a warehouse with years of history and large
+clustered partitions, a customer's reads would prune to a few blocks, both sides would sit near the
+per-table minimum, and a fetch's cost would be its count of table references. The next step, batching
+many entities per fetch, waits for a decision.

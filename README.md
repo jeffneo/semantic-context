@@ -239,8 +239,12 @@ against a second. A stale fact is never read.
 - its period is inside the window.
 
 It runs the compiler's Cypher on memory, with memory's own conditions on every node and relationship. It's
-exact, including an outer join's null group: memory has `OPTIONAL MATCH`, which the virtual graph lacks. The
-economics are in `eval/economics.py`.
+exact, including an outer join's null group: memory has `OPTIONAL MATCH`, which the virtual graph lacks.
+
+**What it saves** (`eval/economics.py`, 50 questions about 5 customers): all 49 compiled questions were
+answered from memory with the SQL's rows, in a median 0.028 s against 0.91 s. But a fetch bills what 12.5 of
+those questions' SQL does (557 MiB): BigQuery bills the columns it scans, and here a customer's reads can't
+skip any. Reading relationships by their key columns, not by Virtual Graph's joins, cut a fetch from about 950 MiB.
 
 The agent's side is the Context Memory model ([plan](plans/2026-09-29-context-memory-model.md)).
 `qlsc converse <conversation.yaml>` records a conversation:

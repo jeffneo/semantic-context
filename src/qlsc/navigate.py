@@ -1104,7 +1104,12 @@ def print_sql(a: dict) -> None:
         out = a["result"]
         print(f"\n6. the answer (run in {a['warehouse']})")
         if out["ok"]:
-            where = f"{out['seconds']:.1f} s, {out['bytes_billed'] / 2**20:,.0f} MiB billed"
+            billed = (
+                "bytes not reported (it reads a row-policied table)"
+                if out.get("bytes_hidden")
+                else f"{out['bytes_billed'] / 2**20:,.0f} MiB billed"
+            )
+            where = f"{out['seconds']:.1f} s, {billed}"
             show(out["columns"], out["rows"], out["total"], where)
         else:
             print(f"   failed: {out['error']}")

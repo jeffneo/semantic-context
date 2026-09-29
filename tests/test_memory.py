@@ -64,6 +64,39 @@ def test_the_same_read_over_either_target():
     assert "WHERE $qlsc_principal IS NOT NULL AND (v.`customer_key` IN $keys" in entitle.signed(vg)
 
 
+def test_on_the_virtual_graph_a_relationship_is_read_by_its_key_column():
+    rels = [r | {"fk": {"MADE_BY": "customer_key", "AT": "merchant_id"}.get(r["type"])} for r in RELS]
+    m = memory.Model("p.graph", NODES, rels, {})
+    reads = {r.name: r for r in memory.template(m, "Customer", hops=2)}
+    into, out = reads["Customer<-MADE_BY-Txn"], reads["Txn-AT->Merchant"]
+    # into the anchor: the facts by their own column, windowed and capped; no traversal to join
+    vg = memory.cypher(m, into)
+    assert vg.startswith("MATCH (n:`Txn`)\nWHERE n.`customer_key` IN $keys\n  AND n.`post_date` >= $since")
+    assert "RETURN n.`customer_key` AS _via" in vg and vg.endswith("LIMIT $limit") and "-[x:" not in vg
+    # out of the facts: the dimensions by key (the keys the facts hold)
+    assert (
+        memory.cypher(m, out)
+        == "MATCH (n:`Merchant`)\nWHERE n.`merchant_id` IN $keys\nRETURN n.`merchant_id` AS `merchant_id`"
+    )
+    # memory has the relationships, and traverses them; a read without a key column traverses everywhere
+    assert "-[x:`MADE_BY`]->" in memory.cypher(m, into, memory=True)
+    assert "-[x:`CHARGED_TO`]->" in memory.cypher(m, reads["Txn-CHARGED_TO->Account"])
+
+
+def test_a_key_column_is_one_of_the_start_nodes_own_table():
+    nodes = {
+        "Txn": {"key": "txn_id", "columns": {"txn_id": "txn_id", "cust": "customer_key"}, "readable": {"txn_id": 1, "cust": 1}},
+        "Customer": {"key": "customer_key", "columns": {"customer_key": "customer_key"}, "readable": {"customer_key": 1}},
+    }  # fmt: skip
+    r = {"table": "fct_txn", "start": {"targetEntity": "Txn", "keys": [{"nodeColumn": "txn_id", "relationshipColumn": "txn_id"}]},
+         "end": {"targetEntity": "Customer", "keys": [{"nodeColumn": "customer_key", "relationshipColumn": "customer_key"}]}}  # fmt: skip
+    views = {"fct_txn": "Txn", "link": "Link"}
+    assert memory.foreign_key(r, nodes, views) == "cust"  # the property, by its column
+    assert memory.foreign_key(r | {"table": "link"}, nodes, views) is None  # held in another table
+    hidden = nodes | {"Txn": nodes["Txn"] | {"readable": {"txn_id": 1}}}
+    assert memory.foreign_key(r, hidden, views) is None  # a column the reader may not read
+
+
 def test_freshness_from_the_write_cadence():
     daily = [f"2026-04-{d:02d}" for d in range(1, 31)]
     monthly = ["2026-04-01", "2026-05-01", "2026-06-01"]
