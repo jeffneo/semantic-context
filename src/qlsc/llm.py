@@ -48,7 +48,9 @@ class LLM:
     def __init__(self, system: str, settings: Settings, model: str | None = None):
         self.model = model or settings["llm"]["model"]
         llm = settings["llm"]
-        self.thinking = llm["query_thinking"] if self.model == llm["query_model"] else None
+        query = self.model == llm["query_model"]
+        self.thinking = llm["query_thinking"] if query else None
+        self.effort = llm["query_effort"] if query else None
         self.workers = settings["llm"]["concurrency"]
         self.system = system
         self.client = anthropic.Anthropic(api_key=secret("ANTHROPIC_API_KEY"))
@@ -56,9 +58,13 @@ class LLM:
         self.cache.mkdir(exist_ok=True)
         self.calls = self.cached = 0
         self.tokens = Counter()
+        self.seconds = 0.0  # in the API, over the calls not cached
 
     def call(self, user: str, schema: dict, tool: str, max_tokens: int = 8000) -> dict:
-        key = hashlib.sha256(json.dumps([self.model, self.system, user, schema]).encode()).hexdigest()
+        parts = [self.model, self.system, user, schema]
+        if self.effort:  # a reasoning setting answers differently: its own cache entries
+            parts.append({"thinking": self.thinking, "effort": self.effort})
+        key = hashlib.sha256(json.dumps(parts).encode()).hexdigest()
         path = self.cache / f"{key}.json"
         if path.exists():
             self.cached += 1
@@ -66,7 +72,9 @@ class LLM:
         out = None
         for attempt in range(5):
             try:
+                t0 = time.time()
                 resp = self._create(user, schema, tool, max_tokens)
+                self.seconds += time.time() - t0
             except anthropic.BadRequestError as e:
                 if "tool_choice" not in str(e) or self.model in LLM.no_forced_tool:
                     raise
@@ -102,13 +110,17 @@ class LLM:
 
     def _create(self, user: str, schema: dict, tool: str, max_tokens: int):
         extra = {"thinking": {"type": self.thinking}} if self.thinking else {}
+        config = {"effort": self.effort} if self.effort else {}
+        if self.model in LLM.no_forced_tool:
+            config["format"] = {"type": "json_schema", "schema": strict(schema)}
+        if config:
+            extra["extra_body"] = {"output_config": config}
         if self.model in LLM.no_forced_tool:
             return self.client.messages.create(
                 model=self.model,
                 max_tokens=max_tokens,
                 system=self.system,
                 messages=[{"role": "user", "content": user}],
-                extra_body={"output_config": {"format": {"type": "json_schema", "schema": strict(schema)}}},
                 **extra,
             )
         return self.client.messages.create(

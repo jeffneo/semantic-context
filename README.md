@@ -67,10 +67,9 @@ export and an ontology. Then:
 ```bash
 uv run qlsc extract                   # the aggregated log and the catalog snapshot, from the warehouse
 uv run qlsc build                     # parse, load, variables, computations, cluster, hierarchy, align
-uv run qlsc ask "How many customers use the mobile app each week?"
+uv run qlsc ask "How many customers use the mobile app each week?"   # the router's query, dry-run
 uv run qlsc ask --run "..."           # and run it: the answer, billed up to a cap
-uv run qlsc ask --cypher --run "..."  # Cypher over the virtual graph instead of SQL (below)
-uv run qlsc ask --route --run "..."   # the router's choice: compiled SQL, else free Cypher, else free SQL
+uv run qlsc ask --sql --run "..."     # the SQL route only; --cypher: Cypher over the virtual graph only
 uv run qlsc okf                       # the Computations as an OKF bundle, in <work>/okf
 ```
 
@@ -83,7 +82,7 @@ exactly.
 Three answer keys in the Fennmoor example, each scored on the answer's rows, not on the SQL. With the
 compiler (`navigate.writer: compiled`) and Sonnet 5.5 writing the requests (2026-09-28):
 
-| Answer key | SQL route | Cypher route (virtual graph) | Routed (`ask --route`) |
+| Answer key | SQL route | Cypher route (virtual graph) | Routed (`ask`'s default) |
 |---|---|---|---|
 | 10 gold questions, hand-written references | 6 | 3 (it declines 6 whose data isn't in the virtual graph) | 6 |
 | 176 questions written from the log's own queries, each with its query as the reference | 133 (76%) | 38 | 133 |
@@ -199,6 +198,28 @@ the same, and it names the labels to query: the cohort's tables that are labels 
 plus one hop around them.
 
 The findings are in [plans/2026-09-26-virtual-graph-spike.md](plans/2026-09-26-virtual-graph-spike.md).
+
+## Who may see what: the entitlement gateway
+
+`qlsc ask --as <principal>` answers on a principal's behalf, from only what the warehouse lets them read
+([plan](plans/2026-09-27-entitlements.md)). The warehouse stays the rulebook: the gateway asks BigQuery, as
+the principal, which tables they may read, which columns their policy tags hide, and which tables filter
+rows per reader.
+- **Navigation shows only what they may read:**
+  - the cohort and its columns;
+  - joins and Computations;
+  - examples whose every table and column they read, with who ran them as a kind, not a name;
+  - never a tagged column's values.
+
+  A group they can only partly read is shown without its name.
+- **SQL runs as them,** so BigQuery enforces the tables, columns and rows itself.
+- **Cypher over the virtual graph** reads as one identity. It's allowed only where that shows nothing
+  more: no row-filtered table, and a dry run as them of what Virtual Graph's SQL reads. Otherwise the
+  router takes SQL.
+
+The example's three test principals (marketing, risk and contact-center service accounts) are set up by
+`examples/fennmoor-bank/entitlements/setup.py`. `eval/entitlements.py` checks the gateway with the
+warehouse as the oracle.
 
 ## Repository
 

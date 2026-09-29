@@ -17,6 +17,8 @@ an id.
     combine.
   - Two periods compared: one measure per period, each with a `where` on the date column, and their
     difference or ratio.
+- tables: a table marked frozen is no longer kept current. Use it only when no other table given holds
+  what is asked, or when the question asks about the time before it stopped.
 - dimensions: what the answer is broken down by, as columns (with a grain for a date broken down by
   week, month and so on) or a dimension Computation. Use the column that names what the question
   groups by. With two fact tables, give in `other_columns` the same thing's column in the other fact's

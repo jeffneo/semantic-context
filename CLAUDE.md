@@ -36,7 +36,7 @@ qlsc infers a semantic layer for a data warehouse from its query log, in Neo4j. 
 uv sync
 uv run qlsc --help                       # extract, build, one command per stage, ask
 QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc build
-QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc ask "question"   # --run, --cypher, --route
+QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc ask "question"   # the router's query; --run, --sql, --cypher, --as <principal>
 QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc computations   # then: qlsc okf (the OKF bundle, <work>/okf)
 uv run pytest                            # needs Neo4j up for the demo-query tests
 uv run ruff check . && uv run ruff format .
@@ -48,6 +48,8 @@ uv run examples/fennmoor-bank/eval/log_questions.py write|run   # 176 questions 
 uv run examples/fennmoor-bank/eval/log_accuracy.py [param=value ...]  # ask's answers to them (about an hour, about $6 of LLM calls)
 uv run examples/fennmoor-bank/eval/qdd.py <name> [--route=cypher] [param=value ...]   # a quick A/B of one setting: 40 questions, minutes
 uv run examples/fennmoor-bank/eval/graph_accuracy.py [param=value ...]  # ten graph-shaped questions, both routes
+uv run examples/fennmoor-bank/eval/entitlements.py [--controls-only]  # the gateway, with the warehouse as the oracle (about an hour)
+uv run examples/fennmoor-bank/entitlements/setup.py [--apply]   # the test principals' grants, tags and row policies in BigQuery (as the owner)
 uv run examples/fennmoor-bank/generate/fill.py --slice 2   # fill BigQuery with rows (plans/2026-09-26-fill-*.md)
 ```
 

@@ -39,6 +39,7 @@ from decimal import Decimal
 from neo4j.exceptions import Neo4jError, ServiceUnavailable
 
 from qlsc import compile as compiler
+from qlsc import entitle
 from qlsc.config import Settings
 from qlsc.graph import Graph
 from qlsc.llm import LLM, Embedder, cosine, prompt
@@ -139,8 +140,10 @@ QUERIES = """
 MATCH (s:QueryShape {succeeded: true})-[:REFERENCES]->(t:Table) WHERE t.id IN $tables
 WITH s, count(DISTINCT t) AS hit WHERE hit >= 2
 MATCH (p:Principal)-[r:RAN]->(s)
-WITH s, hit, collect(DISTINCT split(p.id, '@')[0]) AS who, sum(r.jobs) AS jobs
-RETURN s.sample_sql AS sql, hit, who, jobs ORDER BY hit DESC, jobs DESC LIMIT $n
+WITH s, hit, collect(DISTINCT split(p.id, '@')[0]) AS who, collect(DISTINCT p.kind) AS kinds, sum(r.jobs) AS jobs
+RETURN s.id AS id, s.sample_sql AS sql, hit, who, kinds, jobs,
+       [(s)-[:REFERENCES]->(t:Table) WHERE t.in_catalog | t.id] AS tables
+ORDER BY hit DESC, jobs DESC LIMIT $n
 """
 
 # Every query shape that computes something, with who runs it and the tables it reads: the candidates
@@ -148,8 +151,8 @@ RETURN s.sample_sql AS sql, hit, who, jobs ORDER BY hit DESC, jobs DESC LIMIT $n
 SHAPES = """
 MATCH (s:QueryShape {succeeded: true}) WHERE s.statement_type IN $statements AND s.sample_sql IS NOT NULL
 MATCH (p:Principal)-[r:RAN]->(s)
-WITH s, collect(DISTINCT split(p.id, '@')[0]) AS who, sum(r.jobs) AS jobs
-RETURN s.id AS id, s.sample_sql AS sql, who, jobs, [(s)-[:REFERENCES]->(t:Table) WHERE t.in_catalog | t.id] AS tables
+WITH s, collect(DISTINCT split(p.id, '@')[0]) AS who, collect(DISTINCT p.kind) AS kinds, sum(r.jobs) AS jobs
+RETURN s.id AS id, s.sample_sql AS sql, who, kinds, jobs, [(s)-[:REFERENCES]->(t:Table) WHERE t.in_catalog | t.id] AS tables
 ORDER BY id
 """
 
@@ -254,11 +257,35 @@ def round_robin(order: list[str], tables: dict, k: int) -> list[str]:
     return top
 
 
-def cohort(G: Graph, v: list[float], p: dict, mode: str | None = None, rank: str | None = None):
+def cohort(
+    G: Graph,
+    v: list[float],
+    p: dict,
+    mode: str | None = None,
+    rank: str | None = None,
+    allow: entitle.Allowlist | None = None,
+):
     """Steps 2-4: the level-1 groups to open, the tables whose own columns they hold, and the top tables.
-    rank 'round_robin' (default) or 'usage' (most-queried first) -> (groups, tables, top table ids)."""
+    rank 'round_robin' (default) or 'usage' (most-queried first) -> (groups, tables, top table ids).
+    With an allowlist, only the tables and columns it admits: a group partly readable is shown without
+    its name, and an area above it that isn't wholly readable likewise."""
     mode, rank = mode or p["mode"], rank or p["rank"]
     rows = G.rows(DESCEND.format(pick=PICK[mode]), hits=p["hits"], groups=p["groups"], v=v)
+    if allow is not None:
+        kept = [r for r in rows if allow.column(r["table"], r["column"])]
+        partly = {r["grp"] for r in rows if not allow.column(r["table"], r["column"])}  # lost a member
+        alias = {g: f"(a group you can partly read, {i + 1})" for i, g in enumerate(sorted(partly))}
+        rows = [
+            r
+            | {
+                "grp": alias.get(r["grp"], r["grp"]),
+                "via": [
+                    x if allow.semantics.get(x) == "all" else "(an area you can partly read)"
+                    for x in r["via"]
+                ],
+            }
+            for r in kept
+        ]
     groups, tables = {}, {}
     for r in rows:
         g = groups.setdefault(r["grp"], {"sim": r["sim"], "via": r["via"], "members": set()})
@@ -285,8 +312,22 @@ def cohort(G: Graph, v: list[float], p: dict, mode: str | None = None, rank: str
     return groups, tables, top
 
 
-def filter_values(G: Graph, tables: list[str], n: int) -> dict[tuple[str, str], list]:
-    return {(r["t"], r["c"]): r["vals"] for r in G.rows(FILTER_VALUES, tables=tables, n=n)}
+def filter_values(G: Graph, tables: list[str], n: int, allow: entitle.Allowlist | None = None) -> dict:
+    """{(table, column): the values the log filters it on}; with an allowlist, never a tagged column's."""
+    out = {(r["t"], r["c"]): r["vals"] for r in G.rows(FILTER_VALUES, tables=tables, n=n)}
+    return out if allow is None else {k: v for k, v in out.items() if allow.shown(*k)}
+
+
+def columns(G: Graph, tables: list[str], allow: entitle.Allowlist | None = None) -> list[dict]:
+    """COLUMNS for some tables; with an allowlist, only readable tables and their readable columns."""
+    rows = G.rows(COLUMNS, tables=tables)
+    if allow is None:
+        return rows
+    return [
+        r | {"cols": [c for c in r["cols"] if allow.column(r["t"], c["name"])]}
+        for r in rows
+        if allow.readable(r["t"])
+    ]
 
 
 def column_text(name: str, typ: str, values: list | None) -> str:
@@ -411,11 +452,14 @@ def shape_text(sql: str, chars: int) -> str:
     return " ".join(sql.split())[:chars]
 
 
-def similar(v: list[float], shapes: list[dict], vecs: list, distrusted: set[str], k: int) -> list[dict]:
-    """The k query shapes closest to the question that read no distrusted table, closest first."""
+def similar(
+    v: list[float], shapes: list[dict], vecs: list, distrusted: set[str], k: int, keep: set[str] | None = None
+) -> list[dict]:
+    """The k query shapes closest to the question that read no distrusted table (and, with `keep`, are
+    among those), closest first."""
     out = []
     for sh, vec in sorted(zip(shapes, vecs), key=lambda x: (-cosine(v, x[1]), x[0]["id"])):
-        if not set(sh["tables"]) & distrusted:
+        if not set(sh["tables"]) & distrusted and (keep is None or sh["id"] in keep):
             out.append({**sh, "similarity": cosine(v, vec)})
             if len(out) == k:
                 break
@@ -447,7 +491,13 @@ def merge_cohorts(found: list[tuple[dict, dict, list[str]]], k: int) -> tuple[di
     return groups, tables, top
 
 
-def trace(G: Graph, s: Settings, question: str, exclude: frozenset[str] = frozenset()) -> dict:
+def trace(
+    G: Graph,
+    s: Settings,
+    question: str,
+    exclude: frozenset[str] = frozenset(),
+    allow: entitle.Allowlist | None = None,
+) -> dict:
     """Steps 1-4, deterministic: the closest Semantic nodes, the groups opened, the cohort of tables,
     the log's queries closest to the question (and the tables they read), and the joins between them.
     `exclude` names query shapes never to offer as examples (an evaluation leaves out the query a
@@ -456,7 +506,10 @@ def trace(G: Graph, s: Settings, question: str, exclude: frozenset[str] = frozen
     `anchors: parts` breaks the question into its parts first (an LLM call, prompts/decompose_system.md),
     and navigates from each part: every entity, grouping, measure and filter subject opens its own
     groups; every filter value finds the columns the log filters on it; every measure finds the measure
-    Computations closest to it."""
+    Computations closest to it.
+
+    `allow` (the entitlement gateway, qlsc/entitle.py) restricts everything to what a principal may read,
+    and the answer then runs as them."""
     p = s.params["navigate"]
     emb = Embedder(s)
     v = emb.embed([question])[0]
@@ -473,11 +526,11 @@ def trace(G: Graph, s: Settings, question: str, exclude: frozenset[str] = frozen
         )
         vecs = emb.embed(texts) if texts else []
         small = {**p, "groups": p["anchor_groups"], "tables": p["anchor_tables"]}
-        found = [cohort(G, x, small) for x in vecs] or [cohort(G, v, p)]
+        found = [cohort(G, x, small, allow=allow) for x in vecs] or [cohort(G, v, p, allow=allow)]
         groups, tables, top = merge_cohorts(found, p["tables"])
         for f in parts["filters"]:
             for r in G.rows(VALUE_COLUMNS, value=f["value"], k=p["anchor_values"]):
-                if r["t"] not in top + value_tables:
+                if r["t"] not in top + value_tables and (allow is None or allow.readable(r["t"])):
                     value_tables.append(r["t"])
         if p["computations"]:
             per = [(m, "measure") for m in parts["measures"]] + [
@@ -498,7 +551,7 @@ def trace(G: Graph, s: Settings, question: str, exclude: frozenset[str] = frozen
                         definitions.append(r["c"] | {"similarity": r["score"]})
             definitions = definitions[: p["computations"]]
     else:
-        groups, tables, top = cohort(G, v, p)
+        groups, tables, top = cohort(G, v, p, allow=allow)
         if p["computations"]:
             definitions = [
                 r["c"] | {"similarity": r["score"]}
@@ -517,9 +570,16 @@ def trace(G: Graph, s: Settings, question: str, exclude: frozenset[str] = frozen
         vecs = emb.embed([shape_text(x["sql"], p["example_chars"]) for x in shapes])
         everything = [r["t"] for r in G.rows(ALL_TABLES)]
         distrusted = {r["t"] for r in G.rows(PERSONAL)} | {r["t"] for r in G.rows(FROZEN, tables=everything)}
-        examples = similar(v, shapes, vecs, distrusted, p["examples"])
+        keep = entitle.readable_shapes(G, allow, shapes) if allow else None
+        examples = similar(v, shapes, vecs, distrusted, p["examples"], keep)
     else:
-        examples = G.rows(QUERIES, tables=top, n=p["examples"])
+        examples = G.rows(QUERIES, tables=top, n=p["examples"] * (3 if allow else 1))
+        if allow:
+            keep = entitle.readable_shapes(G, allow, examples)
+            examples = [e for e in examples if e["id"] in keep][: p["examples"]]
+    if allow:  # who ran a query, as a kind of principal, never a name
+        examples = [e | {"who": e["kinds"]} for e in examples]
+        definitions = [d for d in definitions if entitle.computation_ok(allow, d)]
     added = list(value_tables)
     if p["example_tables"]:
         added += [
@@ -532,20 +592,33 @@ def trace(G: Graph, s: Settings, question: str, exclude: frozenset[str] = frozen
     glossary = []
     if p["concepts"]:
         glossary = G.rows(GLOSSARY, tables=top + added, groups=list(groups), v=v, k=p["concepts"])
+    hits, joins = G.rows(HITS, hits=p["hits"], v=v), G.rows(JOINS, tables=top + added)
+    if allow:
+        added = [t for t in added if allow.readable(t)]
+        hits = [
+            h if allow.semantics.get(h["name"]) == "all" else h | {"name": "(an area you can partly read)"}
+            for h in hits
+            if allow.semantics.get(h["name"], "none") != "none"
+        ]
+        joins = [j for j in joins if allow.column(j["a"], j["ac"]) and allow.column(j["b"], j["bc"])]
+        glossary = [
+            g | {"columns": [c for c in g["columns"] if allow.column(*c.rsplit(".", 1))]} for g in glossary
+        ]
     return {
         "question": question,
         "exclude": sorted(exclude),
         "glossary": glossary,
         "parts": parts,
-        "hits": G.rows(HITS, hits=p["hits"], v=v),
+        "hits": hits,
         "groups": groups,
         "tables": tables,
         "cohort": top,
         "added": added,
         "top": top + added,
-        "joins": G.rows(JOINS, tables=top + added),
+        "joins": joins,
         "examples": examples,
         "definitions": definitions,
+        "allow": allow,
     }
 
 
@@ -600,18 +673,23 @@ def compiled_request(G: Graph, s: Settings, tr: dict) -> tuple[dict, compiler.Ca
             min=p["computation_min_similarity"],
         )
     }
+    allow = tr.get("allow")
+    if allow:
+        offered = {k: c for k, c in offered.items() if entitle.computation_ok(allow, c)}
     ids = list(dict.fromkeys(tr["top"] + [t for c in offered.values() for t in c["tables"]]))
-    tables = {r["t"]: {c["name"]: c["type"] for c in r["cols"]} for r in G.rows(COLUMNS, tables=ids)}
+    tables = {r["t"]: {c["name"]: c["type"] for c in r["cols"]} for r in columns(G, ids, allow)}
     offered = {k: c for k, c in offered.items() if set(c["tables"]) <= set(tables)}
     joins = G.rows(TRUSTED_JOINS, tables=list(tables), usable=s.params["variables"]["joins"])
+    if allow:
+        joins = [j for j in joins if allow.column(j["a"], j["ac"]) and allow.column(j["b"], j["bc"])]
     cat = compiler.Catalogue(tables, joins, offered)
     llm = LLM(prompt("compile_system", **s.business), s, s["llm"]["query_model"])
-    values = filter_values(G, list(tables), p["filter_values"])
+    values = filter_values(G, list(tables), p["filter_values"], allow)
     text = prompt(
         "compile_request",
         question=tr["question"],
         today=calendar(today(s)),
-        tables=compiler.options_text(cat, values),
+        tables=compiler.options_text(cat, values, {r["t"] for r in G.rows(FROZEN, tables=list(tables))}),
         joins=compiler.joins_text(joins),
         computations=compiler.computations_text(cat),
         examples=example_sql(tr["examples"]),
@@ -636,7 +714,7 @@ def answer_compiled(G: Graph, s: Settings, tr: dict, execute: bool = False, rows
     """The compiler (qlsc/compile.py): the LLM fills a typed request from the layer's options, code
     compiles it. -> {writer: compiled, request, sql, ...} | {fallback: why, request?}"""
     p = s.params["navigate"]
-    wh = connect(s)
+    wh = entitle.warehouse(s, tr.get("allow"))
     request, cat, found = compiled_request(G, s, tr)
     try:
         sql = compiler.compile_sql(request, cat, unique_check(s), dialect=wh.dialect, hops=p["compile_hops"])
@@ -665,10 +743,10 @@ def answer_free(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: in
     """Step 6: the cohort -> one query, dry-run in the warehouse; step 7, the answer, with `execute`.
     -> {sql, explanation, dry_run, result?}"""
     p = s.params["navigate"]
-    wh = connect(s)
+    wh = entitle.warehouse(s, tr.get("allow"))
     top = tr["top"]
-    cols = G.rows(COLUMNS, tables=top)
-    values = filter_values(G, top, p["filter_values"])
+    cols = columns(G, top, tr.get("allow"))
+    values = filter_values(G, top, p["filter_values"], tr.get("allow"))
     tables = "\n".join(
         f"`{r['t']}`: "
         + ", ".join(
@@ -705,9 +783,19 @@ def answer_free(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: in
     return answer
 
 
+def refused(s: Settings, tr: dict, cypher: str, check: dict, labels: dict[str, str]) -> str | None:
+    """Why the gateway won't let the virtual graph answer this principal (entitle.check_cypher), or None."""
+    allow = tr.get("allow")
+    if allow is None or "error" in check:
+        return None
+    table = {label: t for t, label in labels.items()}
+    named = {x for x in re.findall(r"\(\s*\w*\s*:\s*(\w+)", cypher) if x in table}
+    return entitle.check_cypher(s, allow, sorted(table[x] for x in named), check["sql"])
+
+
 def answered(a: dict) -> bool:
-    """Whether a route gave an answer: not declined or skipped, and its query checked (and ran)."""
-    if any(k in a for k in ("skipped", "declined", "error")) or "error" in a.get("check", {}):
+    """Whether a route gave an answer: not declined, refused or skipped, and its query checked (and ran)."""
+    if any(k in a for k in ("skipped", "declined", "refused", "error")) or "error" in a.get("check", {}):
         return False
     return (a.get("result") or {}).get("ok", True) is not False and bool(a.get("sql") or a.get("cypher"))
 
@@ -751,10 +839,13 @@ def answer_cypher(
     path = s.work / "virtual" / "schema.json"
     if not (labels and instance and path.exists()):
         return {"skipped": "no virtual graph: run qlsc virtualize, and set virtualize.neo4j in the config"}
+    model = json.loads(path.read_text())
+    if allow := tr.get("allow"):  # the labels, properties and relationships the principal may read
+        labels = {t: label for t, label in labels.items() if allow.readable(t)}
+        model = model | {"entities": entitle.model(allow, model["entities"], labels)}
     start = [labels[t] for t in tr["top"] if t in labels]
     if not start:
         return {"skipped": "none of the cohort's tables is in the virtual graph"}
-    model = json.loads(path.read_text())
     fallback = {}
     if (writer or p["writer"]) == "compiled":
         out = cypher_compiled(G, s, tr, labels, model["entities"], instance, execute, rows)
@@ -805,6 +896,8 @@ def cypher_compiled(
                     "request": request,
                 }
             answer["check"] = check
+            if why := refused(s, tr, cypher, check, labels):
+                return answer | {"refused": why}
             if execute:
                 answer["result"] = capped_result(V, cypher, p, rows)
     except ServiceUnavailable:
@@ -842,7 +935,9 @@ def cypher_free(
     p = s.params["navigate"]
     nodes, rels = model_slice(model, start)
     table = {label: t for t, label in labels.items()}
-    values = filter_values(G, [table[n["label"]] for n in nodes if n["label"] in table], p["filter_values"])
+    values = filter_values(
+        G, [table[n["label"]] for n in nodes if n["label"] in table], p["filter_values"], tr.get("allow")
+    )
     node_txt = "\n".join(
         f"(:{n['label']}) rows of `{table.get(n['label'], n['table'])}`, key {n['key'][0]['column']}: "
         + ", ".join(
@@ -885,6 +980,8 @@ def cypher_free(
                 out = llm.call(request + "\n\n" + fix, CYPHER_SCHEMA, "record_cypher", max_tokens=3000)
                 check = explain(V, out["cypher"], nodes, rels)
             answer |= {"cypher": out["cypher"], "explanation": out["explanation"], "check": check}
+            if why := refused(s, tr, out["cypher"], check, labels):
+                return answer | {"refused": why}
             if execute and "error" not in check:
                 answer["result"] = capped_result(V, out["cypher"], p, rows)
     except ServiceUnavailable:
@@ -964,6 +1061,9 @@ def print_cypher(a: dict) -> None:
     print("   " + ", ".join(f"{x} ({short(t)})" for x, t in a["start"]))
     if a["around"]:
         print("   one hop: " + ", ".join(a["around"]))
+    if "refused" in a:
+        print("\n6. no Cypher for this principal: the gateway refused it (entitlements)")
+        print("   " + textwrap.fill(a["refused"], 100, subsequent_indent="   "))
     if "declined" in a:
         print("\n6. no Cypher: the writer found the graph can't answer this")
         print("   " + textwrap.fill(a["declined"], 100, subsequent_indent="   "))
@@ -1096,24 +1196,28 @@ def explain(V: Graph, cypher: str, nodes: list[dict] | None = None, rels: list[d
 
 
 def run(
-    s: Settings,
-    question: str,
-    sql: bool = True,
-    cypher: bool = False,
-    execute: bool = False,
-    routed: bool = False,
+    s: Settings, question: str, route: str = "auto", execute: bool = False, as_: str | None = None
 ) -> None:
+    """`qlsc ask`: the trace, then the answer by `route`: auto (the router), sql, cypher, or none (the
+    cohort only). `as_`: on a principal's behalf, through the entitlement gateway (qlsc/entitle.py)."""
     with Graph(s) as G:
-        tr = trace(G, s, question)
+        allow = entitle.allowlist(G, s, as_) if as_ else None
+        if allow:
+            print(
+                f"AS  {allow.principal}: may read {len(allow.tables)} of the layer's tables; "
+                f"{len(allow.hidden)} of their columns hidden (policy tags); the warehouse filters the rows of "
+                f"{len(allow.rows)} of them per reader\n"
+            )
+        tr = trace(G, s, question, allow=allow)
         print_trace(tr)
-        if routed:
+        if route == "auto":
             a = answer_routed(G, s, tr, execute)
             print(
                 f"\nrouted to {a['route'].upper()} ({a.get('writer')})"
                 + (f"; the request didn't compile: {a['fallback']}" if a.get("fallback") else "")
             )
             (print_cypher if a["route"] == "cypher" else print_sql)(a)
-        elif sql and cypher:
+        elif route == "cypher":
             print_cypher(answer_cypher(G, s, tr, execute))
-        elif sql:
+        elif route == "sql":
             print_sql(answer_sql(G, s, tr, execute))

@@ -146,6 +146,8 @@ any. `tests/test_config.py` fails if one is not read by the code. Sensitivity on
 | `align.floor_term`, `floor_class` | 0.52, 0.40 (raw cosine) | Where the best matches turn wrong on inspection | |
 | `navigate.examples`, `examples_by`, `example_tables` | 3, similarity, true | The most-run queries over the cohort held a question's defining logic for 4 of 10 gold questions; the 3 closest by embedding, for 9. Their tables found what navigation missed | SQL route, Sonnet 5: 4 of 10 with the most-run examples, 4 with the closest, 6 with the closest and their tables |
 | `llm.query_model`, `query_thinking` | claude-sonnet-5-5, between_tools | Writing SQL needs a stronger model than naming. Sonnet 5.5 takes no forced tool (answers come as structured outputs) and can't turn thinking off; between_tools, its lowest, keeps a single answer unthought, as Sonnet 5 ran | Given the answer key's own tables, Haiku 4.5 answered 1 of 10 gold questions, Sonnet 5 answered 4. Full set, compiled: Sonnet 5.5 133 of 176 (the free writer on Sonnet 5, 129); not yet run free on 5.5, so the model's share is unmeasured |
+| `llm.query_effort` | null | With `query_thinking: adaptive`, how hard the query model reasons. High effort gained nothing on the free writer's quick test, for more latency and tokens | free writer, 69 questions: 55 without, 55 with high effort (5 moved); 3.1 s and 331 output tokens per question without, 3.8 s and 433 with |
+| `entitlements.allowlist_seconds`, `workers` | 900, 8 | A principal's allowlist (the tables, columns and row policies the warehouse reports for them) is reused for a session, well inside a policy change's reach; its checks run concurrently, one per table | building one over the layer's 177 tables: about 10 s |
 | `navigate.anchors` | question | `parts` breaks the question into measures, groupings, filters and entities, and navigates from each; in a quick test it was about even (gold 7 of 10 both, a log sample 23 of 30 against 22), so the single embedding stays the default | see the accuracy plan, 2026-09-27 |
 | `navigate.computations`, `computation_min_similarity` | 0, 0.8 | As first built, the closest Computations misled more than they helped: a close look-alike displaced what a question needed. With a similarity floor, equivalents merged and parameters left out of definitions, they were a wash on the full set: a close definition still gets over-applied. Off | all 176 log questions: 129 without, 130 with 5 definitions (4 gained, 3 lost); gold 7 either way |
 | `navigate.writer` | free | `compiled`: the LLM fills one typed request (measures, possibly from several facts, per-entity two-step measures, derived measures, HAVING, dimensions, filters, period, or a list of rows) from the layer's options; qlsc/compile.py resolves it into a plan and renders SQL, or Cypher over the Virtual Graph (one fact only; no OPTIONAL MATCH, so an outer join's null group is lost). Joins along the log's trusted joins with the log's join type, never multiplying the fact's rows; Computations exactly as defined. Free writing for what doesn't fit. Level with the free writer; its misses are now the request's choices, not the SQL | SQL, two log samples of 59: free 47, first compiler 48, wider request 45, with the request checks 48; gold 7 each. Cypher, 40 questions: free 10, compiled and checked 12. Full set on Sonnet 5.5: 133 of 176 (compiles 154, 121 correct), gold 6, graph-shaped 5; Cypher 38, 3, 8 (plans/2026-09-28-compiler.md, -compiler-2.md) |
@@ -165,19 +167,48 @@ clean grouping and barely move NMI against the spec (0.850 vs 0.853).
 - **Inputs** as above. A catalog or an ontology is an enhancement layered on the usage graph, never its
   foundation.
 - **Granularity:** QueryShape nodes with run counts, no Job nodes.
-- **Models:** Claude Haiku 4.5 for naming and SQL, no extended thinking; Azure OpenAI
-  `text-embedding-3-large` at 512 dimensions. One line each in the config.
+- **Models:** Claude Haiku 4.5 for naming; Claude Sonnet 5.5 for the queries and the compiler's requests,
+  at its lowest thinking setting; Azure OpenAI `text-embedding-3-large` at 512 dimensions. One line each in
+  the config.
 - **Warehouses:** one connector per warehouse (`src/qlsc/warehouse/`), chosen by `warehouse.type`. The
   log record's field names follow BigQuery's JOBS view; other connectors map onto them. The parser
   resolves BigQuery SQL only so far (`parser/qlsc_parse/catalog.py` DIALECTS); a second dialect is its
   own piece of work.
 - **Designed-vs-used diff:** built (`qlsc align`), with every embedding link proposed, not asserted.
 
+- **Entitlements** (plans/2026-09-27-entitlements.md, phases 1 and 2): `qlsc ask --as <principal>` goes
+  through a gateway (`src/qlsc/entitle.py`) that asks the warehouse, as the principal, what they may read,
+  and never re-implements its rules.
+  - **The allowlist:** tables by permission check (a view also by dry run, since a view reads with its
+    reader's grants); columns by policy tag and whether the principal may read the tag; where the
+    warehouse filters rows per reader. The connector answers all four (`acting_as`, `readable`,
+    `column_tags`, `readable_tags`, `row_policies`).
+  - **What navigation shows:** only what the allowlist admits. A group or Semantic area that isn't
+    wholly readable is shown without its name (stricter than the plan's "without its summary": a name is
+    written from the same members). Examples only when they read at least one table, every table and
+    column they read is readable, and their text names nothing hidden (a metadata query reads no table
+    and may name any in its literals); who ran them, as a kind. Never a tagged column's filter values.
+  - **SQL** runs as the principal: the warehouse enforces everything, exactly.
+  - **Cypher (option A):** Virtual Graph reads as one identity, so the gateway allows it only where no
+    table in the query has a row policy, and a dry run as the principal of each table's columns in
+    Virtual Graph's SQL passes. A refused Cypher answer sends the router to SQL.
+  - **Checked by an oracle** built on different mechanisms: the allowlist by dry runs, SQL answers
+    rerun as the principal, canaries scanned in every response and prompt, and four broken gateways the
+    checks must catch (`eval/entitlements.py`).
+
 ## Known limits
 
 - The example log uses about 150 distinct column-level join predicates and no SELECT has more than 3
   joins; a real log has a long tail of one-off joins and 6 to 10-join queries. Join recovery scores
   flatter qlsc there.
+- BigQuery skips column-level (policy tag) checks for a query it can prove returns no rows: `LIMIT 0`,
+  `WHERE FALSE`, or a literal NULL for a value. Nothing is returned, but a check built on such a dry run
+  checks nothing. The gateway's and the oracle's dry runs use `LIMIT 1` and never fill parameters in.
+- BigQuery shows column names to anyone who may read a table's metadata; policy tags protect the values.
+  A principal's own `INFORMATION_SCHEMA` query lists a hidden column's name. The gateway hides names it
+  shows; it doesn't try to hide what the warehouse itself tells the principal.
+- A fill that recreates a tagged or row-policied table drops its policy tags and row policies:
+  `examples/fennmoor-bank/entitlements/setup.py` restores them, and reports what is in place.
 - Navigation depends on which of several equally good level-1 groupings Leiden settles on. Over 11
   seeds ([results/seeds.md](../examples/fennmoor-bank/results/seeds.md)), the grouping's agreement with the
   spec barely moves (NMI vs subjects 0.863 ± 0.002) but cohort recall ranges 50% to 68% (mean 59%, sd

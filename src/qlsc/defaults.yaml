@@ -11,7 +11,12 @@ llm:
   query_thinking: between_tools      # the thinking setting sent with the query model's calls (null: none sent). Sonnet 5.5
                                      # can't turn thinking off; between_tools is its lowest, no thinking before a single
                                      # answer, as the query model ran on Sonnet 5
+  query_effort: null                 # with query_thinking: adaptive, how hard the query model reasons (low | medium | high | max). null: not sent. Part of the LLM cache key when set
   concurrency: 6
+
+entitlements:                         # qlsc ask --as: the gateway (plans/2026-09-27-entitlements.md). The estate's config names its principals
+  allowlist_seconds: 900              # how long a principal's allowlist is reused: well under a policy change's reach, long enough for a session
+  workers: 8                          # concurrent permission checks when an allowlist is built (one per table)
 
 embeddings:                           # Azure OpenAI: AZURE_OPENAI_API_KEY, _ENDPOINT, _API_VERSION
   deployment: text-embedding-3-large
@@ -79,7 +84,7 @@ parameters:
     example_statements: [SELECT, CREATE_TABLE_AS_SELECT, MERGE, CREATE_VIEW]   # statements that compute something
     example_chars: 3000               # of each query's SQL, comments removed, that is embedded
     today: null                       # the date questions are asked on (YYYY-MM-DD), for "last quarter" and the like: both routes get its calendar and write literal dates. null: the real date. An estate whose data stops (a synthetic one) pins it, which also keeps answers reproducible from day to day
-    writer: free                      # both routes' writer: free (the LLM writes SQL or Cypher) | compiled (the LLM fills one typed request, qlsc/compile.py compiles it to SQL or to Cypher over the Virtual Graph; free writing when it doesn't fit)
+    writer: compiled                  # both routes' writer: free (the LLM writes SQL or Cypher) | compiled (the LLM fills one typed request, qlsc/compile.py compiles it to SQL or to Cypher over the Virtual Graph; free writing when it doesn't fit)
     compile_computations: 12          # compiled: Computations offered as the request's options, closest to the question first
     compile_hops: 2                   # compiled: the longest join path from the fact table
     compile_checks: true              # compiled: check the request against the question (a Computation's restriction it doesn't state, a value it states that the request leaves out) and ask once more with what was found; a week grain follows the log's truncation of that column; a period ending today that the question doesn't end is left open

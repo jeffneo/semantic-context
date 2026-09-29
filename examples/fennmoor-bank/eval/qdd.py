@@ -9,6 +9,8 @@ Usage: uv run examples/fennmoor-bank/eval/qdd.py <name> [--all | --offset=N] [--
   (--all: every log question; --offset: which of each STEP questions to take, for a second sample;
    --route=cypher: the Cypher route over the Virtual Graph instead of SQL)
   e.g. qdd.py base computations=0     qdd.py definitions computations=5
+  A param with a section (llm.query_effort=high) sets that section's; the rest are navigation's.
+Each question records the query model's uncached calls: their API seconds and tokens.
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ from execution import ROWS, judge, references
 from log_accuracy import verdict_of
 from log_questions import QUESTIONS, answers_dir
 
+from qlsc import llm
 from qlsc.graph import Graph
 from qlsc.navigate import answer_cypher, answer_sql, trace
 from qlsc.warehouse import connect
@@ -40,7 +43,16 @@ def main() -> int:
     step = 1 if every else STEP
     s = settings()
     for k, v in overrides.items():
-        s.params["navigate"][k] = yaml.safe_load(v)
+        section, _, key = k.rpartition(".")
+        (s[section] if section else s.params["navigate"])[key] = yaml.safe_load(v)
+    made = []  # every LLM client the question creates, for its calls, seconds and tokens
+    init = llm.LLM.__init__
+
+    def counted(self, *a, **k):
+        init(self, *a, **k)
+        made.append(self)
+
+    llm.LLM.__init__ = counted
     gold = yaml.safe_load((SPEC / "questions.yaml").read_text())["questions"]
     logq = yaml.safe_load(QUESTIONS.read_text())
     kept = [
@@ -61,7 +73,14 @@ def main() -> int:
                 q = logq[qid]
                 ref = json.loads((answers_dir(s) / f"{qid}.json").read_text())
                 tr = trace(G, s, q["question"], exclude=frozenset({q["shape"]}))
+            made.clear()
             a = answer(G, s, tr, execute=True, rows=ROWS)
+            spent = {
+                "calls": sum(c.calls for c in made),
+                "seconds": round(sum(c.seconds for c in made), 2),
+                "tokens_in": sum(c.tokens["in"] for c in made),
+                "tokens_out": sum(c.tokens["out"] for c in made),
+            }
             if src == "gold" and ("skipped" in a or "declined" in a):
                 v, why = ("not covered", a["skipped"]) if "skipped" in a else ("declined", a["declined"])
             elif src == "gold":
@@ -79,6 +98,7 @@ def main() -> int:
                 "definitions": [d["name"] for d in tr.get("definitions", [])],
                 "writer": a.get("writer"),
                 "fallback": a.get("fallback"),
+                "llm": spent,
             }
             print(f"{i}/{len(todo)} {qid} {v:10} {(a.get('writer') or '')[:8]:8} {why[:80]}", flush=True)
             if "fresh login" in why:  # the credentials expired mid-run: every answer from here would fail
@@ -101,6 +121,16 @@ def main() -> int:
         fits = sum(1 for r in res.values() if r["writer"] == "compiled" and r["verdict"] == "correct")
         L += [
             f"Compiled {writers['compiled']} of {len(res)} ({fits} correct); fell back to free writing for {writers.get('free', 0)}.",
+            "",
+        ]
+    spent = [r["llm"] for r in res.values() if r.get("llm", {}).get("calls")]
+    if spent:
+        n_calls = sum(x["calls"] for x in spent)
+        L += [
+            f"Query model, over the {len(spent)} questions it wasn't cached for ({n_calls} calls): "
+            f"{sum(x['seconds'] for x in spent) / len(spent):.1f} s per question in the API, "
+            f"{sum(x['tokens_in'] for x in spent) / len(spent):,.0f} tokens in and "
+            f"{sum(x['tokens_out'] for x in spent) / len(spent):,.0f} out per question.",
             "",
         ]
     L += ["| question | verdict |", "|---|---|"]

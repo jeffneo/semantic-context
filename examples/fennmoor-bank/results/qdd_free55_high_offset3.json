@@ -1,0 +1,587 @@
+{
+ "Q01": {
+  "source": "gold",
+  "verdict": "wrong",
+  "why": "4 rows, not 3",
+  "sql": "SELECT site_id, site_name, SUM(closure_calls) AS closure_calls, SUM(total_expense) AS total_expense_last_year FROM `fennmoor-dw.dw_contact_center.rpt_site_cost_per_contact` WHERE month_start BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY site_id, site_name ORDER BY closure_calls DESC",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 0,
+   "seconds": 0.0,
+   "tokens_in": 0,
+   "tokens_out": 0
+  }
+ },
+ "Q02": {
+  "source": "gold",
+  "verdict": "wrong",
+  "why": "1 rows, not 5",
+  "sql": "WITH latest_score AS (SELECT customer_key, churn_probability, risk_band FROM `fennmoor-dw.ml_scores.churn_score_v3` WHERE score_date = (SELECT MAX(score_date) FROM `fennmoor-dw.ml_scores.churn_score_v3`)), latest_balance AS (SELECT customer_key, avg_balance_30d FROM `fennmoor-dw.ml_features.feat_customer_daily` WHERE as_of_date = (SELECT MAX(as_of_date) FROM `fennmoor-dw.ml_features.feat_customer_daily`)), high_balance AS (SELECT s.customer_key, s.churn_probability, s.risk_band FROM latest_score s JOIN latest_balance b ON b.customer_key = s.customer_key WHERE b.avg_balance_30d >= 100000) SELECT COUNT(DISTINCT customer_key) AS high_balance_customers, AVG(churn_probability) AS avg_churn_probability, COUNT(DISTINCT IF(risk_band = 'HIGH', customer_key, NULL)) AS high_risk_customers, SAFE_DIVIDE(COUNT(DISTINCT IF(risk_band = 'HIGH', customer_key, NULL)), COUNT(DISTINCT customer_key)) AS high_risk_share FROM high_balance",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 0,
+   "seconds": 0.0,
+   "tokens_in": 0,
+   "tokens_out": 0
+  }
+ },
+ "Q04": {
+  "source": "gold",
+  "verdict": "correct",
+  "why": "matches on segment=customer_segment, mcc_category_group=merchant_category_group, spend=total_card_spend",
+  "sql": "WITH spend AS (SELECT t.customer_key, t.mcc_category_group, t.amount FROM `fennmoor-dw.dw_core.fct_card_transactions` AS t WHERE t.post_date BETWEEN '2026-04-01' AND '2026-06-30' AND t.is_purchase) SELECT s.mcc_category_group AS merchant_category_group, c.segment AS customer_segment, COALESCE(SUM(s.amount), 0) AS total_card_spend FROM spend AS s LEFT JOIN `fennmoor-dw.dw_core.dim_customer` AS c ON s.customer_key = c.customer_key GROUP BY 1, 2 ORDER BY total_card_spend DESC",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 0,
+   "seconds": 0.0,
+   "tokens_in": 0,
+   "tokens_out": 0
+  }
+ },
+ "Q05": {
+  "source": "gold",
+  "verdict": "correct",
+  "why": "matches on month=month_start, product_line, month_end_balance",
+  "sql": "WITH eom AS (SELECT b.account_key, b.product_code, DATE_TRUNC(b.balance_date, MONTH) AS month_start, ARRAY_AGG(b.ledger_balance ORDER BY b.balance_date DESC LIMIT 1)[OFFSET(0)] AS eom_balance FROM `fennmoor-dw.dw_core.fct_daily_account_balances` b JOIN `fennmoor-dw.dw_core.dim_account` a ON a.account_key = b.account_key WHERE a.account_family = 'DEPOSIT' GROUP BY 1, 2, 3) SELECT eom.month_start, p.product_line, SUM(eom.eom_balance) AS month_end_balance FROM eom JOIN `fennmoor-dw.dw_core.dim_product` p ON p.product_code = eom.product_code GROUP BY 1, 2 ORDER BY 1, 2",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 0,
+   "seconds": 0.0,
+   "tokens_in": 0,
+   "tokens_out": 0
+  }
+ },
+ "Q07": {
+  "source": "gold",
+  "verdict": "correct",
+  "why": "matches on channel, confirmed_share=confirmed_fraud_share",
+  "sql": "SELECT channel, COUNT(*) AS alerts, COUNTIF(is_confirmed_fraud) AS confirmed_alerts, SAFE_DIVIDE(COUNTIF(is_confirmed_fraud), COUNT(*)) AS confirmed_fraud_share FROM `fennmoor-dw.dw_risk.fct_fraud_alerts` GROUP BY channel ORDER BY confirmed_fraud_share DESC",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 0,
+   "seconds": 0.0,
+   "tokens_in": 0,
+   "tokens_out": 0
+  }
+ },
+ "Q08": {
+  "source": "gold",
+  "verdict": "correct",
+  "why": "matches on campaign_name, card_applications",
+  "sql": "SELECT c.campaign_name, COUNT(*) AS card_applications, COUNT(DISTINCT a.customer_key) AS distinct_customers, AVG(a.hours_since_send) AS avg_hours_to_convert FROM `fennmoor-dw.dw_marketing.fct_campaign_attribution` a JOIN `fennmoor-dw.dw_marketing.dim_campaign` c USING (campaign_id) WHERE a.conversion_behavior = 'card_application_submitted' GROUP BY c.campaign_name ORDER BY card_applications DESC",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 0,
+   "seconds": 0.0,
+   "tokens_in": 0,
+   "tokens_out": 0
+  }
+ },
+ "Q09": {
+  "source": "gold",
+  "verdict": "wrong",
+  "why": "no column holds delinquency_rate (2 of 3 match)",
+  "sql": "WITH latest_snapshot AS (SELECT MAX(snapshot_date) AS snapshot_date FROM `fennmoor-dw.dw_risk.fct_delinquency_daily`), open_loans AS (SELECT product_code, branch_id, COUNT(*) AS open_loans FROM `fennmoor-dw.dw_core.dim_account` WHERE account_family = 'LOAN' AND is_open GROUP BY product_code, branch_id), delinquent AS (SELECT a.product_code, a.branch_id, COUNT(DISTINCT dd.account_key) AS delinquent_loans FROM `fennmoor-dw.dw_risk.fct_delinquency_daily` dd JOIN `fennmoor-dw.dw_core.dim_account` a ON a.account_key = dd.account_key JOIN latest_snapshot ls ON dd.snapshot_date = ls.snapshot_date WHERE dd.dpd >= 30 GROUP BY a.product_code, a.branch_id) SELECT o.product_code, p.product_name, o.branch_id, b.branch_name, o.open_loans, COALESCE(d.delinquent_loans, 0) AS delinquent_loans, SAFE_DIVIDE(COALESCE(d.delinquent_loans, 0), o.open_loans) AS delinquency_rate FROM open_loans o LEFT JOIN delinquent d ON d.product_code = o.product_code AND d.branch_id = o.branch_id LEFT JOIN `fennmoor-dw.dw_core.dim_branch` b ON b.branch_id = o.branch_id LEFT JOIN `fennmoor-dw.dw_core.dim_product` p ON p.product_code = o.product_code ORDER BY delinquency_rate DESC",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 0,
+   "seconds": 0.0,
+   "tokens_in": 0,
+   "tokens_out": 0
+  }
+ },
+ "Q11": {
+  "source": "gold",
+  "verdict": "correct",
+  "why": "matches on week=wk, customers",
+  "sql": "SELECT DATE_TRUNC(session_date, WEEK) AS wk, COUNT(DISTINCT cif_number) AS customers FROM `fennmoor-dw.dw_digital.fct_app_sessions` GROUP BY wk ORDER BY wk",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 0,
+   "seconds": 0.0,
+   "tokens_in": 0,
+   "tokens_out": 0
+  }
+ },
+ "Q12": {
+  "source": "gold",
+  "verdict": "correct",
+  "why": "matches on cif_number (as Q12.alt)",
+  "sql": "SELECT c.cif_number, c.full_name, c.primary_email FROM `fennmoor-dw.dw_customer.customer_360` x JOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key) WHERE x.segment = 'affluent' AND c.email_opt_in AND c.primary_email IS NOT NULL",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 0,
+   "seconds": 0.0,
+   "tokens_in": 0,
+   "tokens_out": 0
+  }
+ },
+ "Q14": {
+  "source": "gold",
+  "verdict": "correct",
+  "why": "matches on account_family, closures",
+  "sql": "SELECT account_family, close_reason, COUNT(*) AS closures FROM `fennmoor-dw.dw_intermediate.int_account_closures` WHERE account_family IN ('DEPOSIT', 'CARD') GROUP BY account_family, close_reason ORDER BY account_family, closures DESC",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 0,
+   "seconds": 0.0,
+   "tokens_in": 0,
+   "tokens_out": 0
+  }
+ },
+ "L05fc9f83": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on queue_site_id, agent_site_id, calls",
+  "sql": "SELECT queue_site_id, agent_site_id, COUNT(DISTINCT conversation_id) AS calls FROM `fennmoor-dw.dw_contact_center.fct_calls` WHERE conversation_date >= '2026-04-09' AND queue_site_id IS NOT NULL AND agent_site_id IS NOT NULL AND agent_site_id <> queue_site_id GROUP BY queue_site_id, agent_site_id ORDER BY calls DESC",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 4.73,
+   "tokens_in": 3567,
+   "tokens_out": 507
+  }
+ },
+ "L0ecb0a57": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on fct_card_transactions_merchant_name=merchant_name, fct_card_transactions_txn_type=txn_type, fct_card_transactions_cardholders=cardholders, fct_card_transactions_total_spend=total_spend",
+  "sql": "SELECT t.merchant_name AS merchant_name, t.txn_type AS txn_type, COUNT(DISTINCT t.customer_key) AS cardholders, SUM(t.amount) AS total_spend FROM `fennmoor-dw.dw_core.fct_card_transactions` AS t WHERE t.post_date BETWEEN '2026-05-31' AND '2026-06-29' AND t.txn_type = 'PURCH' GROUP BY t.merchant_name, t.txn_type ORDER BY cardholders DESC LIMIT 500",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 4.7,
+   "tokens_in": 4470,
+   "tokens_out": 605
+  }
+ },
+ "L1ab5b4f7": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on digital_wallet, cards, customers",
+  "sql": "SELECT c.digital_wallet, COUNT(*) AS cards, COUNT(DISTINCT c.cif_number) AS customers FROM `fennmoor-dw.dw_core.dim_card` c WHERE c.status = 'A' AND c.activation_date BETWEEN DATE '2026-04-01' AND DATE '2026-06-30' GROUP BY c.digital_wallet",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 2.32,
+   "tokens_in": 2909,
+   "tokens_out": 243
+  }
+ },
+ "L2d53a09b": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on PROD_CD=product_code, balance=total_ledger_balance",
+  "sql": "SELECT product_code, SUM(ledger_balance) AS total_ledger_balance FROM `fennmoor-dw.dw_core.fct_daily_account_balances` WHERE balance_date = '2026-04-07' GROUP BY product_code ORDER BY total_ledger_balance DESC",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 2.79,
+   "tokens_in": 3112,
+   "tokens_out": 188
+  }
+ },
+ "L37d38fdd": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on fct_card_transactions_post_month=post_month, fct_card_transactions_segment=customer_segment, fct_card_transactions_interchange=total_interchange",
+  "sql": "WITH purchases AS (SELECT DATE_TRUNC(t.post_date, MONTH) AS post_month, c.segment AS customer_segment, t.interchange FROM `fennmoor-dw.dw_core.fct_card_transactions` AS t LEFT JOIN `fennmoor-dw.dw_core.dim_customer` AS c ON t.customer_key = c.customer_key WHERE t.txn_type = 'PURCH' AND t.post_date >= DATE '2025-07-01' AND t.post_date <= DATE '2026-06-30') SELECT post_month, customer_segment, COALESCE(SUM(interchange), 0) AS total_interchange FROM purchases GROUP BY post_month, customer_segment ORDER BY post_month, customer_segment",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 4.16,
+   "tokens_in": 4452,
+   "tokens_out": 575
+  }
+ },
+ "L3d84d777": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on fct_calls_site_name=site_name, fct_calls_conversation_week=week_start, fct_calls_abandon_rate=abandon_rate",
+  "sql": "WITH weekly AS (SELECT dim_cc_site.site_id AS site_id, dim_cc_site.site_name AS site_name, DATE_TRUNC(fct_calls.conversation_date, WEEK(MONDAY)) AS week_start, COUNT(*) AS total_calls, COUNTIF(fct_calls.is_abandoned) AS abandoned_calls FROM `fennmoor-dw.dw_contact_center.fct_calls` AS fct_calls LEFT JOIN `fennmoor-dw.dw_contact_center.dim_cc_site` AS dim_cc_site ON fct_calls.site_id = dim_cc_site.site_id WHERE fct_calls.conversation_date BETWEEN DATE '2026-04-01' AND DATE '2026-06-30' GROUP BY 1, 2, 3) SELECT site_id, site_name, week_start, total_calls, abandoned_calls, SAFE_DIVIDE(abandoned_calls, total_calls) AS abandon_rate FROM weekly ORDER BY abandon_rate DESC LIMIT 500",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 7.15,
+   "tokens_in": 3907,
+   "tokens_out": 527
+  }
+ },
+ "L42c41a99": {
+  "source": "log",
+  "verdict": "wrong",
+  "why": "no column holds wk, site_id, aht (0 of 3 match)",
+  "sql": "WITH voice_calls AS (SELECT DATE_TRUNC(fct_calls.conversation_date, WEEK(MONDAY)) AS conversation_week, fct_calls.site_id, fct_calls.handle_sec FROM `fennmoor-dw.dw_contact_center.fct_calls` AS fct_calls WHERE fct_calls.conversation_date >= DATE '2026-02-26' AND fct_calls.media_type = 'voice') SELECT voice_calls.conversation_week, dim_cc_site.site_name AS site_name, AVG(voice_calls.handle_sec) AS avg_handle_time_sec FROM voice_calls LEFT JOIN `fennmoor-dw.dw_contact_center.dim_cc_site` AS dim_cc_site ON voice_calls.site_id = dim_cc_site.site_id GROUP BY 1, 2 ORDER BY 1, 2",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 3.06,
+   "tokens_in": 4168,
+   "tokens_out": 436
+  }
+ },
+ "L49555283": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on grp=reporting_category, accounts, balance=total_ledger_balance",
+  "sql": "SELECT p.reporting_category AS reporting_category, COUNT(DISTINCT b.account_key) AS accounts, SUM(b.ledger_balance) AS total_ledger_balance FROM `fennmoor-dw.dw_core.fct_daily_account_balances` b JOIN `fennmoor-dw.dw_core.dim_product` p USING (product_code) WHERE b.balance_date = '2026-06-03' GROUP BY reporting_category ORDER BY total_ledger_balance DESC",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 2.58,
+   "tokens_in": 3112,
+   "tokens_out": 290
+  }
+ },
+ "L5330bf47": {
+  "source": "log",
+  "verdict": "wrong",
+  "why": "3 rows, not 4",
+  "sql": "WITH closure_calls AS (\n  SELECT site_id, conversation_id, is_abandoned\n  FROM `fennmoor-dw.dw_contact_center.fct_calls`\n  WHERE is_account_closure_call\n    AND conversation_date BETWEEN '2025-06-30' AND '2026-06-30'\n)\nSELECT\n  s.site_id,\n  s.site_name,\n  COUNT(c.conversation_id) AS closure_call_count,\n  COUNTIF(c.is_abandoned) AS abandoned_call_count,\n  SAFE_DIVIDE(COUNTIF(c.is_abandoned), COUNT(c.conversation_id)) AS abandon_rate\nFROM `fennmoor-dw.dw_contact_center.dim_cc_site` AS s\nLEFT JOIN closure_calls AS c\n  ON s.site_id = c.site_id\nGROUP BY s.site_id, s.site_name\nORDER BY abandon_rate DESC",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 5.66,
+   "tokens_in": 3960,
+   "tokens_out": 841
+  }
+ },
+ "L5bac0ee7": {
+  "source": "log",
+  "verdict": "wrong",
+  "why": "no column holds N, DLQ, RATE (2 of 5 match)",
+  "sql": "WITH open_loans AS (SELECT a.account_key, a.product_code, a.product_name, a.branch_id FROM `fennmoor-dw.dw_core.dim_account` a WHERE a.account_family = 'LOAN' AND a.open_date <= DATE '2026-04-05' AND (a.close_date IS NULL OR a.close_date > DATE '2026-04-05')), snap AS (SELECT account_key, dpd FROM `fennmoor-dw.dw_risk.fct_delinquency_daily` WHERE snapshot_date = DATE '2026-04-05') SELECT o.product_code, o.product_name, o.branch_id, COUNT(DISTINCT o.account_key) AS open_loans, COUNT(DISTINCT IF(s.dpd >= 30, o.account_key, NULL)) AS delinquent_loans_30_plus, SAFE_DIVIDE(COUNT(DISTINCT IF(s.dpd >= 30, o.account_key, NULL)), COUNT(DISTINCT o.account_key)) AS delinquency_rate FROM open_loans o LEFT JOIN snap s ON s.account_key = o.account_key GROUP BY o.product_code, o.product_name, o.branch_id ORDER BY delinquency_rate DESC",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 11.74,
+   "tokens_in": 3141,
+   "tokens_out": 1139
+  }
+ },
+ "L5ed9db67": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on cif_number, full_name, conversation_date, wrapup_code_name",
+  "sql": "SELECT DISTINCT c.cif_number, c.full_name, f.conversation_date, f.wrapup_code_name FROM `fennmoor-dw.dw_contact_center.fct_calls` f JOIN `fennmoor-dw.dw_core.dim_customer` c ON f.customer_key = c.customer_key WHERE f.conversation_date = '2026-05-21' AND f.is_account_closure_call",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 2.41,
+   "tokens_in": 3286,
+   "tokens_out": 278
+  }
+ },
+ "L67c545c8": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on fct_card_transactions_is_foreign=is_foreign, fct_card_transactions_txn_type=txn_type, fct_card_transactions_interchange=total_interchange, fct_card_transactions_total_spend=total_spend, fct_card_transactions_txn_count=settlement_count",
+  "sql": "SELECT fct_card_transactions.is_foreign AS is_foreign, fct_card_transactions.txn_type AS txn_type, COALESCE(SUM(fct_card_transactions.interchange), 0) AS total_interchange, COALESCE(SUM(CASE WHEN fct_card_transactions.is_purchase THEN fct_card_transactions.amount ELSE NULL END), 0) AS total_spend, COUNT(DISTINCT fct_card_transactions.settlement_id) AS settlement_count FROM `fennmoor-dw.dw_core.fct_card_transactions` AS fct_card_transactions LEFT JOIN `fennmoor-dw.dw_core.dim_customer` AS dim_customer ON fct_card_transactions.customer_key = dim_customer.customer_key WHERE dim_customer.segment IN ('affluent', 'private') AND fct_card_transactions.txn_type = 'PURCH' GROUP BY is_foreign, txn_type ORDER BY total_interchange DESC",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 3.17,
+   "tokens_in": 4520,
+   "tokens_out": 491
+  }
+ },
+ "L6d2aee92": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on category_group=merchant_category_group, m=post_month, spend=total_purchase_spend",
+  "sql": "SELECT DATE_TRUNC(t.post_date, MONTH) AS post_month, t.mcc_category_group AS merchant_category_group, SUM(t.amount) AS total_purchase_spend FROM `fennmoor-dw.dw_core.fct_card_transactions` t WHERE t.post_date >= '2026-02-03' AND t.is_purchase GROUP BY post_month, merchant_category_group ORDER BY post_month, total_purchase_spend DESC",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 3.89,
+   "tokens_in": 3715,
+   "tokens_out": 458
+  }
+ },
+ "L74cd39cb": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on fct_calls_media_type=media_type, fct_calls_abandon_rate=abandon_rate, fct_calls_closure_calls=account_closure_calls, fct_calls_count=total_calls",
+  "sql": "SELECT fct_calls.media_type AS media_type, SAFE_DIVIDE(COUNT(DISTINCT IF(fct_calls.is_abandoned, fct_calls.conversation_id, NULL)), COUNT(DISTINCT fct_calls.conversation_id)) AS abandon_rate, COUNT(DISTINCT IF(fct_calls.is_account_closure_call, fct_calls.conversation_id, NULL)) AS account_closure_calls, COUNT(DISTINCT fct_calls.conversation_id) AS total_calls FROM `fennmoor-dw.dw_contact_center.fct_calls` AS fct_calls WHERE fct_calls.conversation_date BETWEEN DATE '2026-05-31' AND DATE '2026-06-30' AND fct_calls.site_id = 'TUL' AND fct_calls.media_type = 'voice' GROUP BY media_type",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 5.64,
+   "tokens_in": 4129,
+   "tokens_out": 835
+  }
+ },
+ "L78ae7fd3": {
+  "source": "log",
+  "verdict": "wrong",
+  "why": "no column holds n (1 of 2 match)",
+  "sql": "WITH calls AS (SELECT conversation_id, ivr_intent FROM `fennmoor-dw.dw_contact_center.fct_calls` WHERE conversation_date = '2026-05-03'), customer_participants AS (SELECT participant_id, conversation_id FROM `fennmoor-raw.genesys_cloud.participant` WHERE purpose = 'customer' AND COALESCE(_fivetran_deleted, FALSE) = FALSE) SELECT c.ivr_intent AS intent, COUNT(DISTINCT p.participant_id) AS participant_count FROM customer_participants p JOIN calls c ON c.conversation_id = p.conversation_id GROUP BY intent ORDER BY participant_count DESC",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 7.02,
+   "tokens_in": 3964,
+   "tokens_out": 845
+  }
+ },
+ "L800eda03": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on campaign_name, delivered, opens, clicks, ctr=click_through_rate",
+  "sql": "WITH engagement AS (SELECT campaign_id, COUNTIF(delivered) AS delivered, COUNTIF(opened) AS opens, COUNTIF(clicked) AS clicks FROM `fennmoor-dw.dw_marketing.fct_campaign_engagement` WHERE event_date >= '2026-04-12' GROUP BY campaign_id) SELECT c.campaign_id, c.campaign_name, e.delivered, e.opens, e.clicks, SAFE_DIVIDE(e.clicks, e.delivered) AS click_through_rate FROM engagement e JOIN `fennmoor-dw.dw_marketing.dim_campaign` c ON c.campaign_id = e.campaign_id WHERE NOT c.is_archived ORDER BY e.delivered DESC",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 2.93,
+   "tokens_in": 3563,
+   "tokens_out": 423
+  }
+ },
+ "L87ee24ce": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on posted_date, transaction_type, n=deposit_transactions",
+  "sql": "SELECT posted_date, transaction_type, COUNT(*) AS deposit_transactions FROM `fennmoor-dw.dw_core.fct_deposit_transactions` WHERE posted_date >= '2026-05-02' GROUP BY posted_date, transaction_type ORDER BY posted_date, transaction_type",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 2.04,
+   "tokens_in": 3389,
+   "tokens_out": 230
+  }
+ },
+ "L97629e25": {
+  "source": "log",
+  "verdict": "wrong",
+  "why": "no column holds SNAPSHOT_DATE (3 of 4 match)",
+  "sql": "SELECT bucket AS delinquency_bucket, COALESCE(SUM(loans), 0) AS loans, COALESCE(SUM(past_due_amount), 0) AS total_past_due_amount FROM `fennmoor-analytics.looker_scratch.LR_7F2G5H8J1K4L6_delinquency_trend` WHERE snapshot_date = DATE '2026-04-26' GROUP BY bucket ORDER BY bucket",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 7.52,
+   "tokens_in": 3464,
+   "tokens_out": 764
+  }
+ },
+ "L9dfa7691": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on as_of_date, balance=avg_balance_30d, logins=avg_logins_30d, contacts=avg_contacts_90d",
+  "sql": "SELECT as_of_date, AVG(avg_balance_30d) AS avg_balance_30d, AVG(logins_30d) AS avg_logins_30d, AVG(contacts_90d) AS avg_contacts_90d FROM `fennmoor-dw.ml_features.feat_customer_daily` WHERE as_of_date >= '2026-03-04' GROUP BY as_of_date ORDER BY as_of_date",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 3.1,
+   "tokens_in": 3950,
+   "tokens_out": 245
+  }
+ },
+ "Laedcf94e": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on account_family, close_reason, n=closures",
+  "sql": "SELECT account_family, close_reason, COUNT(*) AS closures FROM `fennmoor-dw.dw_core.fct_account_closures` GROUP BY account_family, close_reason ORDER BY account_family, closures DESC",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 2.02,
+   "tokens_in": 2761,
+   "tokens_out": 190
+  }
+ },
+ "Lb7adf6c4": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on grp=product_family, accounts=distinct_accounts, balance=total_ledger_balance",
+  "sql": "WITH balances AS (SELECT b.account_key, b.product_code, b.ledger_balance FROM `fennmoor-dw.dw_core.fct_daily_account_balances` b WHERE b.balance_date = '2026-04-28') SELECT p.product_family AS product_family, SUM(b.ledger_balance) AS total_ledger_balance, COUNT(DISTINCT b.account_key) AS distinct_accounts FROM balances b JOIN `fennmoor-dw.dw_core.dim_product` p ON p.product_code = b.product_code GROUP BY product_family ORDER BY total_ledger_balance DESC",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 2.79,
+   "tokens_in": 3207,
+   "tokens_out": 320
+  }
+ },
+ "Lba99d5e4": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on fct_calls_agent_name=agent_name, fct_calls_media_type=media_type, fct_calls_site_name=site_name, fct_calls_avg_handle_time=avg_handle_time_sec, fct_calls_count=conversation_count",
+  "sql": "WITH mnl_voice_calls AS (SELECT fct_calls.conversation_id, fct_calls.media_type, fct_calls.handle_sec, dim_agent.agent_name, dim_cc_site.site_name FROM `fennmoor-dw.dw_contact_center.fct_calls` AS fct_calls LEFT JOIN `fennmoor-dw.dw_contact_center.dim_cc_site` AS dim_cc_site ON fct_calls.site_id = dim_cc_site.site_id LEFT JOIN `fennmoor-dw.dw_contact_center.dim_agent` AS dim_agent ON fct_calls.agent_user_id = dim_agent.agent_user_id WHERE fct_calls.conversation_date BETWEEN DATE '2026-04-01' AND DATE '2026-06-30' AND dim_cc_site.site_id = 'MNL' AND fct_calls.media_type = 'voice') SELECT agent_name, media_type, site_name, AVG(handle_sec) AS avg_handle_time_sec, COUNT(DISTINCT conversation_id) AS conversation_count FROM mnl_voice_calls GROUP BY agent_name, media_type, site_name ORDER BY conversation_count DESC",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 4.15,
+   "tokens_in": 4480,
+   "tokens_out": 587
+  }
+ },
+ "Lccd8d6b4": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on fct_card_transactions_post_month=post_month, fct_card_transactions_interchange=total_interchange, fct_card_transactions_txn_count=settlement_count",
+  "sql": "SELECT DATE_TRUNC(post_date, MONTH) AS post_month, COALESCE(SUM(interchange), 0) AS total_interchange, COUNT(DISTINCT settlement_id) AS settlement_count FROM `fennmoor-dw.dw_core.fct_card_transactions` WHERE post_date >= DATE '2026-05-31' AND post_date <= DATE '2026-06-29' GROUP BY post_month ORDER BY total_interchange DESC",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 2.48,
+   "tokens_in": 4001,
+   "tokens_out": 291
+  }
+ },
+ "Ld49d2be4": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on sends_per_customer, customers",
+  "sql": "WITH sends_per_customer AS (SELECT customer_key, COUNT(*) AS sends FROM `fennmoor-dw.dw_marketing.fct_campaign_sends` WHERE sent_date >= '2026-04-15' AND customer_key IS NOT NULL GROUP BY customer_key) SELECT sends AS sends_per_customer, COUNT(*) AS customers FROM sends_per_customer GROUP BY sends ORDER BY sends",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 5.55,
+   "tokens_in": 3428,
+   "tokens_out": 599
+  }
+ },
+ "Ldc27f830": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on wk=week_start, channel, sends",
+  "sql": "WITH weekly_sends AS (SELECT DATE_TRUNC(sent_date, WEEK) AS week_start, channel, COUNT(*) AS sends FROM `fennmoor-dw.dw_marketing.fct_campaign_sends` WHERE sent_date >= '2026-04-03' AND channel IN ('email', 'push') GROUP BY week_start, channel) SELECT week_start, channel, sends FROM weekly_sends ORDER BY week_start, channel",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 2.29,
+   "tokens_in": 2369,
+   "tokens_out": 296
+  }
+ },
+ "Le50954e7": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on fct_calls_is_outsourced=is_outsourced, fct_calls_closure_calls=closure_calls",
+  "sql": "WITH closure_calls AS (SELECT conversation_id, site_id FROM `fennmoor-dw.dw_contact_center.fct_calls` WHERE conversation_date BETWEEN '2026-06-23' AND '2026-06-29' AND is_account_closure_call) SELECT s.is_outsourced AS is_outsourced, COUNT(DISTINCT c.conversation_id) AS closure_calls FROM closure_calls AS c LEFT JOIN `fennmoor-dw.dw_contact_center.dim_cc_site` AS s ON c.site_id = s.site_id GROUP BY 1 ORDER BY 1",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 6.63,
+   "tokens_in": 3140,
+   "tokens_out": 366
+  }
+ },
+ "Lea0a11f5": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on wk=event_week, unsubscribes, bounces",
+  "sql": "SELECT DATE_TRUNC(event_date, WEEK) AS event_week, COUNTIF(unsubscribed) AS unsubscribes, COUNTIF(bounced) AS bounces FROM `fennmoor-dw.dw_marketing.fct_campaign_engagement` WHERE event_date >= DATE '2026-02-06' GROUP BY event_week ORDER BY event_week",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 4.74,
+   "tokens_in": 3258,
+   "tokens_out": 594
+  }
+ },
+ "Lee760ebe": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on m=enrollment_month, enrollment_channel, enrollments",
+  "sql": "SELECT DATE_TRUNC(DATE(enrolled_at), MONTH) AS enrollment_month, enrollment_channel, COUNT(DISTINCT olb_user_id) AS enrollments FROM `fennmoor-raw.digital_banking.online_user` WHERE enrolled_at IS NOT NULL AND NOT COALESCE(_fivetran_deleted, FALSE) GROUP BY enrollment_month, enrollment_channel ORDER BY enrollment_month, enrollment_channel",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 8.4,
+   "tokens_in": 3864,
+   "tokens_out": 830
+  }
+ },
+ "Lf3aa1fe7": {
+  "source": "log",
+  "verdict": "correct",
+  "why": "matches on fct_calls_count=conversation_count, fct_calls_wrapup~wrapup_code (relabeled)",
+  "sql": "SELECT wrapup_code_name AS wrapup_code, COUNT(DISTINCT conversation_id) AS conversation_count FROM `fennmoor-dw.dw_contact_center.fct_calls` WHERE conversation_date BETWEEN '2026-06-23' AND '2026-06-29' GROUP BY wrapup_code_name ORDER BY conversation_count DESC LIMIT 50",
+  "definitions": [],
+  "writer": "free",
+  "fallback": null,
+  "llm": {
+   "calls": 1,
+   "seconds": 2.2,
+   "tokens_in": 3317,
+   "tokens_out": 270
+  }
+ }
+}

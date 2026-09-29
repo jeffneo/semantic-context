@@ -1,7 +1,7 @@
 # Entitlements: the warehouse's access rules, carried through the semantic layer and the virtual graph
 
-Status: agreed (2026-09-27), after the accuracy work. The spikes below have run; nothing in `src/`
-has changed.
+Status: phases 1 and 2 built and checked (2026-09-28); phase 3 (the JDBC pass-through) next. See "As
+built" at the end.
 
 ## Why
 
@@ -221,3 +221,79 @@ Unchanged: the build, the layer's model, and every result the build produces. En
 3. **Identity for the prototype:** impersonated service accounts standing in for people. A local
    identity provider comes later.
 4. **Groups a person can only partly read:** their readable tables are shown, without the summary.
+
+## As built: phases 1 and 2 (2026-09-28)
+
+**In BigQuery** (`examples/fennmoor-bank/entitlements/setup.py`, approved and applied as the owner):
+- **APIs and identities:** the IAM, IAM Credentials and Data Catalog APIs enabled; the three service
+  accounts; `qlsc-bq` (the connector's and Virtual Graph's identity) may impersonate each.
+- **Grants:** each account gets `bigquery.jobUser`, read on its datasets and on `fnb_graph`'s views.
+- **Policy tag:** `identifier`, on ten columns of `dim_customer`, `dim_account` and `customer_360`.
+  Fine-grained read is granted to you, `qlsc-bq` and risk.
+- **Row policies on `dim_customer`:** KS and NE for risk, all rows for you, `qlsc-bq` and marketing.
+
+The script shows what's in place and changes only what isn't. It must be rerun after a fill recreates one
+of those tables.
+
+**In the tool:**
+- **The connector** (`warehouse/`): `acting_as`, `readable`, `column_tags`, `readable_tags` and
+  `row_policies`. A view is readable only if a dry run as the principal passes, because a view reads
+  with its reader's own grants.
+- **The gateway** (`src/qlsc/entitle.py`): the allowlist, cached per principal;
+  `navigate.trace(allow=...)` filters by it; SQL runs as the principal. On the Cypher route, option A:
+  refused where a table has a row policy, or where a probe dry run of what Virtual Graph's SQL reads, as
+  the principal, fails. `qlsc ask --as <name>`; the router takes SQL when Cypher is refused.
+- **Stricter than the plan:** a partly readable group, or Semantic area, is shown without its name as
+  well as its summary.
+
+**What building it found:**
+- **BigQuery skips column-level checks for a query it can prove returns nothing** (`LIMIT 0`,
+  `WHERE FALSE`). Nothing is returned, but a check built on such a dry run checks nothing. The oracle's
+  first allowlist used `LIMIT 0` and found no hidden columns. Probes use `LIMIT 1`.
+- **Filling Virtual Graph's parameters with NULL doesn't work:** BigQuery rejects a literal NULL in a
+  comparison, which would have refused every parameterized Cypher query. The gateway dry-runs one probe
+  per table instead, of the columns Virtual Graph's SQL reads there.
+- **A metadata query leaked a hidden name.** An example over `INFORMATION_SCHEMA.PARTITIONS` reads no
+  layer table, so "every table it reads is readable" held trivially. Its literal named
+  `fct_daily_account_balances`, which reached contact-center's prompts. The oracle caught it. An
+  example is now shown only if it reads at least one table and its text names nothing hidden.
+- **The warehouse shows column names to anyone with metadata access;** policy tags protect values.
+  Marketing's own `INFORMATION_SCHEMA.COLUMNS` query lists `tax_id_hash`. That's BigQuery's answer to
+  them, not the gateway's, and the oracle scores it so.
+
+**The oracle** (`eval/entitlements.py`, results/entitlements.md): the three principals × the 14 gold
+questions and six probes, by both routes and the router.
+- **Its own allowlist,** by dry runs as each principal, agrees with the gateway's for all three:
+  marketing 19 tables with 10 columns hidden, risk 30, contact-center 21.
+- **Schema:** 0 leaks in 60 questions, by either route or in any prompt sent to the LLM. The canaries
+  are the names of unreadable tables and hidden columns, the values the log filters them on, and the
+  log's principals: 800 to 900 per principal.
+- **Rows:** 0 incidents. Every SQL answer is the principal's own read of its query. Risk's five answers
+  over `dim_customer` differ from the firm's, as the row policy intends (4,016 of 24,300 customers).
+- **Cypher:**
+  - it answered 3 times, each through labels with no row policy, checked by the oracle's own allowlist;
+  - it was refused 9 times, all for `dim_customer`'s row policy, and the router took SQL each time.
+
+  Marketing's refusals are over-restriction: marketing reads every row, but option A refuses any
+  row-policied table. Phase 3 (the pass-through) is what lifts that.
+- **The negative controls:** four broken gateways, five tries, every one caught by the check meant for
+  it:
+
+  | broken gateway | principal | caught by |
+  |---|---|---|
+  | navigation unfiltered (the trace shows everything; queries still run as the principal) | marketing, contact-center | schema |
+  | hidden columns and their filter values shown | marketing | schema |
+  | SQL run as the estate, not the principal | risk | rows |
+  | the Cypher gate off (option A skipped) | risk | rows |
+
+- **Over-restriction** is counted apart: no question went unanswered on the SQL route. Some answers are
+  empty stand-ins where the principal's tables hold nothing relevant (P4 for marketing: "the average
+  handle time by site" with no contact-center data). The writer returns a typed empty query rather than
+  declining.
+
+**Next:**
+- **Phase 3, the JDBC pass-through:** Virtual Graph reads as the principal, so the row-policy refusals
+  go away.
+- **The writer on an empty cohort** should decline rather than return a stand-in query.
+- **The oracle** takes about 50 minutes (60 questions, both routes); `--rescore` redoes its schema
+  checks from the saved texts.

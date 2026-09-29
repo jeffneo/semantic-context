@@ -1,0 +1,2438 @@
+{
+ "runs": {
+  "marketing": {
+   "oracle": {
+    "tables": 19,
+    "hidden": [
+     [
+      "fennmoor-dw.dw_core.dim_account",
+      "primary_cif_number"
+     ],
+     [
+      "fennmoor-dw.dw_core.dim_customer",
+      "birth_date"
+     ],
+     [
+      "fennmoor-dw.dw_core.dim_customer",
+      "cif_number"
+     ],
+     [
+      "fennmoor-dw.dw_core.dim_customer",
+      "full_name"
+     ],
+     [
+      "fennmoor-dw.dw_core.dim_customer",
+      "primary_email"
+     ],
+     [
+      "fennmoor-dw.dw_core.dim_customer",
+      "primary_mobile"
+     ],
+     [
+      "fennmoor-dw.dw_core.dim_customer",
+      "tax_id_hash"
+     ],
+     [
+      "fennmoor-dw.dw_customer.customer_360",
+      "cif_number"
+     ],
+     [
+      "fennmoor-dw.dw_customer.customer_360",
+      "full_name"
+     ],
+     [
+      "fennmoor-dw.dw_customer.customer_360",
+      "primary_email"
+     ]
+    ],
+    "agrees": true,
+    "canaries": 827
+   },
+   "Q01": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT 'no contact center data available' AS note",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": null,
+     "query": null,
+     "answered": false,
+     "why_not": "none of the cohort's tables is in the virtual graph"
+    }
+   },
+   "Q02": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "compiled",
+     "query": "SELECT\n  AVG(customer_360.churn_probability) AS avg_churn_probability\nFROM `fennmoor-dw.dw_customer.customer_360` AS customer_360\nWHERE\n  (\n    customer_360.total_deposit_balance >= 50000\n  )",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph can't answer this. It has no customer balance property (total_deposit_balance lives in customer_360, which is not modeled), so 'high-balance' can't be defined. It also has no churn-risk score, and the churn signals the bank's SQL uses (fees, account closures, web activity) are not in the given labels. Building a stand-in from transactions or segment would answer a different question."
+    }
+   },
+   "Q03": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT 'Cannot answer: no web page-visit or call-log tables are available' AS note",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph given has no web page visit or call center data. It only covers customers, accounts, branches, and card and deposit transactions. Answering this would need web session/page-view and call/contact-center tables, which are not part of the labels or relationships provided."
+    }
+   },
+   "Q04": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT m.mcc_description AS merchant_category, m.category_group, t.customer_key, SUM(t.amount) AS spend FROM `fennmoor-dw.dw_core.fct_card_transactions` t JOIN `fennmoor-dw.dw_core.dim_merchant` m ON m.merchant_id = t.merchant_id WHERE t.post_date BETWEEN '2026-04-01' AND '2026-06-30' AND t.is_purchase GROUP BY 1, 2, 3 ORDER BY spend DESC",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": "MATCH (t:CardTransaction)-[:TRANSACTED_AT]->(m:Merchant), (t)-[:MADE_BY]->(c:Customer) WHERE t.is_purchase = true AND t.post_date >= date('2026-04-01') AND t.post_date <= date('2026-06-30') RETURN m.category_group AS merchant_category, c.segment AS customer_segment, sum(t.amount) AS card_spend ORDER BY merchant_category, customer_segment",
+     "answered": false,
+     "why_not": "the warehouse filters the rows of fennmoor-dw.dw_core.dim_customer per reader, and the virtual graph reads them all"
+    }
+   },
+   "Q05": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "compiled",
+     "query": "WITH fct_daily_account_balances_1 AS (\n  SELECT\n    month,\n    product_line,\n    SUM(month_end_balance) AS month_end_balance\n  FROM (\n    SELECT\n      DATE_TRUNC(fct_daily_account_balances.balance_date, MONTH) AS month,\n      dim_product.product_line AS product_line,\n      fct_daily_account_balances.account_key AS per_fct_daily_account_balances_account_key,\n      fct_daily_account_balances.balance_date AS per_fct_daily_account_balances_balance_date,\n      SUM(fct_daily_account_balances.ledger_balance) AS month_end_balance\n    FROM `fennmoor-dw.dw_core.fct_daily_account_balances` AS fct_daily_account_balances\n    JOIN `fennmoor-dw.dw_core.dim_product` AS dim_product\n      ON dim_product.product_code = fct_daily_account_balances.product_code\n    GROUP BY\n      1,\n      2,\n      3,\n      4\n  )\n  GROUP BY\n    1,\n    2\n)\nSELECT\n  month,\n  product_line,\n  month_end_balance AS month_end_balance\nFROM fct_daily_account_balances_1",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "Month-end deposit balances come from the daily account balances table (fct_daily_account_balances, ledger_balance by balance_date), as the bank's own SQL shows. That table is not exposed in the graph: there is no balance node or property. Account has no balance property, and DepositTransaction only holds transaction amounts. Deriving balances by summing transactions would be a different, unreliable measure, so no stand-in query is written."
+    }
+   },
+   "Q06": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT 'No query run: no table or column in the provided schema holds Social Security numbers, raw or hashed' AS answer",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph has no property holding a Social Security number, raw or hashed, on any label (Customer, Account, Branch, CardTransaction, DepositTransaction). Customer carries only identifiers like customer_key and sf_contact_id, and CardTransaction carries cif_number and card_token, none of which is an SSN. Where SSNs are stored is a data-catalog question about the warehouse schema, not something a query over these tables can answer."
+    }
+   },
+   "Q07": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT 'UNANSWERABLE' AS status",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": null,
+     "query": null,
+     "answered": false,
+     "why_not": "none of the cohort's tables is in the virtual graph"
+    }
+   },
+   "Q08": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "compiled",
+     "query": "SELECT\n  dim_campaign.campaign_name AS campaign_name,\n  COUNT(DISTINCT fct_campaign_attribution.conversion_id) AS card_applications\nFROM `fennmoor-dw.dw_marketing.fct_campaign_attribution` AS fct_campaign_attribution\nJOIN `fennmoor-dw.dw_marketing.dim_campaign` AS dim_campaign\n  ON dim_campaign.campaign_id = fct_campaign_attribution.campaign_id\nWHERE\n  (\n    fct_campaign_attribution.conversion_behavior = 'card_application_submitted'\n  )\nGROUP BY\n  1\nORDER BY\n  card_applications DESC",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph provided has no campaign or attribution data and no credit card application data. Campaign information lives in dw_marketing tables (dim_campaign, fct_campaign_attribution, fct_campaign_engagement), which are not represented as node labels here. Nothing in the graph models an application or a conversion event. The only card data is CardTransaction and Account rows, which cannot be linked to marketing campaigns. Any query would answer a different question, so none is written."
+    }
+   },
+   "Q09": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT 1 AS not_answerable FROM (SELECT 1) WHERE FALSE",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph has no delinquency data. Account has only a generic status_code and no days-past-due, delinquency flag, past-due amount or loan balance, and loan payment or balance tables are not among the labels given. The existing SQL doesn't define a delinquency rate either, so any query would be a stand-in for a different question."
+    }
+   },
+   "Q10": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT 'unanswerable' AS status, 'The provided tables contain no customer satisfaction data (no CSAT/NPS/survey scores) and no agent or agent-tenure data, so this question cannot be answered from these tables.' AS reason",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph has no agent or employee entity with a tenure measure, and no customer satisfaction data (no survey, CSAT or NPS scores, and no link between customers and the agents who served them). The only tenure fields are Customer.tenure_months (how long the customer has been with the bank) and Branch open dates, which are not agent tenure, so any query would answer a different question."
+    }
+   },
+   "Q11": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT NULL AS week_start, 0 AS mobile_app_customers FROM UNNEST([1]) WHERE FALSE",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph has no mobile app usage or login/session data. DepositTransaction.channel is a free-text channel column with no seen values or definition for mobile, Customer.is_digitally_enrolled is only an enrollment flag (not activity), and the web_sessions_30d in the example SQL comes from customer_360, which is not part of this graph. Weekly mobile app usage cannot be determined without a digital session or login event source."
+    }
+   },
+   "Q12": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT customer_key, sf_contact_id, sf_household_id, preferred_language, state_code, zip_code, segment FROM `fennmoor-dw.dw_core.dim_customer` WHERE segment IN ('affluent', 'mass_affluent', 'private') AND email_opt_in = TRUE AND customer_status = 'A' AND is_deceased = FALSE AND is_employee = FALSE ORDER BY customer_key",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The Customer node has segment, email_opt_in, sf_contact_id and other flags, but no email address or other contact-detail columns (name, phone, email) exist in the graph provided. The example SQL touches only campaign send and engagement tables, which are not part of this graph, and gives no definition of 'affluent' or how to pull contact details. A query returning customer keys and Salesforce contact IDs for segment 'affluent' with email_opt_in = true would not be the contact details the campaign needs, so no stand-in query is given."
+    }
+   },
+   "Q13": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT table_name, column_name, data_type, ordinal_position FROM `fennmoor-dw.dw_core.INFORMATION_SCHEMA.COLUMNS` WHERE STARTS_WITH(UPPER(table_name), 'CC') ORDER BY table_name, ordinal_position",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph has no table or label whose name starts with CC. Its tables are dim_account, dim_customer, dim_branch, fct_card_transactions, dim_product and fct_deposit_transactions, and Virtual Graph can't list warehouse table names or their contents by name prefix. The closest match, fct_card_transactions, starts with fct_, not CC. If you meant card data, tell me which label and I'll query that instead."
+    }
+   },
+   "Q14": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "ok",
+      "why": "no row-filtered table, and the principal reads all it reads"
+     }
+    },
+    "route": "cypher",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT account_family, close_reason, COUNT(*) AS closures FROM (SELECT 'DEPOSIT' AS account_family, close_reason FROM `fennmoor-dw.dw_core.fct_account_closures` WHERE account_family = 'DEPOSIT' UNION ALL SELECT account_family, close_reason FROM `fennmoor-dw.dw_core.dim_account` WHERE account_family = 'CARD' AND close_date IS NOT NULL) GROUP BY account_family, close_reason ORDER BY account_family, closures DESC",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": "MATCH (a:Account) WHERE a.close_date IS NOT NULL AND a.account_family IN ['DEPOSIT', 'CARD'] RETURN a.account_family AS account_family, a.close_reason AS close_reason, count(a) AS closures ORDER BY account_family, closures DESC",
+     "answered": true,
+     "why_not": null
+    }
+   },
+   "P1": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "compiled",
+     "query": "SELECT\n  dim_customer.state_code AS state,\n  COUNT(DISTINCT dim_customer.customer_key) AS customers\nFROM `fennmoor-dw.dw_core.dim_customer` AS dim_customer\nGROUP BY\n  1",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "compiled",
+     "query": "MATCH (dim_customer:Customer)\nRETURN dim_customer.state_code AS state, count(DISTINCT dim_customer.customer_key) AS customers",
+     "answered": false,
+     "why_not": "the warehouse filters the rows of fennmoor-dw.dw_core.dim_customer per reader, and the virtual graph reads them all"
+    }
+   },
+   "P2": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT customer_key FROM `fennmoor-dw.dw_core.dim_customer` WHERE segment = 'affluent'",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The Customer node has a segment property (with an 'affluent' value), but it has no name or email address properties, and no other node or relationship in the given graph holds customer names or emails. Customer only carries an sf_contact_id, which points to a table outside this graph. So the query can filter affluent customers but cannot return their names and emails."
+    }
+   },
+   "P3": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT 'no fraud alert table available' AS note",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": null,
+     "query": null,
+     "answered": false,
+     "why_not": "none of the cohort's tables is in the virtual graph"
+    }
+   },
+   "P4": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT NULL AS contact_center_site, NULL AS avg_call_handle_time LIMIT 0",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": null,
+     "query": null,
+     "answered": false,
+     "why_not": "none of the cohort's tables is in the virtual graph"
+    }
+   },
+   "P5": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT c.customer_key, cl.cif_number, c.total_deposit_balance FROM `fennmoor-dw.dw_customer.customer_360` c LEFT JOIN (SELECT customer_key, ANY_VALUE(cif_number) AS cif_number FROM `fennmoor-dw.dw_core.fct_account_closures` WHERE cif_number IS NOT NULL GROUP BY customer_key) cl USING (customer_key) ORDER BY c.total_deposit_balance DESC LIMIT 20",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph cannot answer this. Deposit balances live in a customer_360 table (total_deposit_balance) that is not represented by any node label, and none of the given nodes has a balance property. Customer has no cif_number property (only CardTransaction carries one, and summing card purchases would answer a different question). DepositTransaction.signed_amount is a transaction flow, not a balance, so summing it would be a stand-in for the requested metric."
+    }
+   },
+   "P6": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "compiled",
+     "query": "SELECT\n  dim_customer.segment AS segment,\n  COUNT(DISTINCT fct_card_transactions.settlement_id) AS card_transactions\nFROM `fennmoor-dw.dw_core.fct_card_transactions` AS fct_card_transactions\nLEFT JOIN `fennmoor-dw.dw_core.dim_customer` AS dim_customer\n  ON dim_customer.customer_key = fct_card_transactions.customer_key\nGROUP BY\n  1",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "compiled",
+     "query": "MATCH (fct_card_transactions:CardTransaction)\nMATCH (fct_card_transactions)-[:MADE_BY]->(dim_customer:Customer)\nRETURN dim_customer.segment AS segment, count(DISTINCT fct_card_transactions.settlement_id) AS card_transactions",
+     "answered": false,
+     "why_not": "the warehouse filters the rows of fennmoor-dw.dw_core.dim_customer per reader, and the virtual graph reads them all"
+    }
+   }
+  },
+  "risk": {
+   "oracle": {
+    "tables": 30,
+    "hidden": [],
+    "agrees": true,
+    "canaries": 805
+   },
+   "Q01": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT 'no contact center data available' AS note",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": null,
+     "query": null,
+     "answered": false,
+     "why_not": "none of the cohort's tables is in the virtual graph"
+    }
+   },
+   "Q02": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT 1 AS unable_to_answer_no_balance_data",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph has no churn-risk measure and no balance data. Customer and Account nodes have no balance property, so 'high-balance' cannot be defined. Nor is there any risk score, closure fact, fee, or delinquency table exposed (the closure and fee tables in the example SQL are not part of the graph given). Only proxies like segment or is_open exist, and using them would answer a different question."
+    }
+   },
+   "Q03": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT 'cannot_answer' AS status",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph provided has no web page visit or web session data and no call or contact center data. It only covers customers, accounts, branches, card transactions and deposit transactions, so there is nothing to link web page visits to subsequent calls."
+    }
+   },
+   "Q04": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT m.mcc_description AS merchant_category, m.category_group, t.customer_key, SUM(t.amount) AS spend FROM `fennmoor-dw.dw_core.fct_card_transactions` t JOIN `fennmoor-dw.dw_core.dim_merchant` m ON m.merchant_id = t.merchant_id WHERE t.post_date BETWEEN '2026-04-01' AND '2026-06-30' AND t.is_purchase GROUP BY 1, 2, 3 ORDER BY spend DESC",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": "MATCH (t:CardTransaction)-[:TRANSACTED_AT]->(m:Merchant) MATCH (t)-[:MADE_BY]->(c:Customer) WHERE t.is_purchase = true AND t.post_date >= date('2026-04-01') AND t.post_date <= date('2026-06-30') RETURN m.category_group AS merchant_category, c.segment AS customer_segment, sum(t.amount) AS card_spend ORDER BY merchant_category, customer_segment",
+     "answered": false,
+     "why_not": "the warehouse filters the rows of fennmoor-dw.dw_core.dim_customer per reader, and the virtual graph reads them all"
+    }
+   },
+   "Q05": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "compiled",
+     "query": "WITH fct_daily_account_balances_1 AS (\n  SELECT\n    product_line,\n    month,\n    SUM(month_end_balance) AS month_end_balance\n  FROM (\n    SELECT\n      dim_product.product_line AS product_line,\n      DATE_TRUNC(fct_daily_account_balances.balance_date, MONTH) AS month,\n      fct_daily_account_balances.account_key AS per_fct_daily_account_balances_account_key,\n      SUM(fct_daily_account_balances.ledger_balance) AS month_end_balance\n    FROM `fennmoor-dw.dw_core.fct_daily_account_balances` AS fct_daily_account_balances\n    LEFT JOIN `fennmoor-dw.dw_core.dim_account` AS dim_account\n      ON dim_account.account_key = fct_daily_account_balances.account_key\n    JOIN `fennmoor-dw.dw_core.dim_product` AS dim_product\n      ON dim_product.product_code = fct_daily_account_balances.product_code\n    WHERE\n      (\n        dim_account.account_family = 'DEPOSIT'\n      )\n    GROUP BY\n      1,\n      2,\n      3\n  )\n  GROUP BY\n    1,\n    2\n)\nSELECT\n  product_line,\n  month,\n  month_end_balance AS month_end_balance\nFROM fct_daily_account_balances_1",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "Month-end deposit balances live in fct_daily_account_balances (ledger_balance by balance_date), which the graph does not expose: Account has no balance property and there is no daily-balance node. DepositTransaction only holds transaction amounts, and summing them would not reproduce ledger balances, so any query would answer a different question."
+    }
+   },
+   "Q06": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT 'fennmoor-dw.dw_core.dim_customer' AS table_name, 'tax_id_hash' AS column_name, 'STRING' AS column_type, 'hashed tax ID (SSN/TIN)' AS storage_form UNION ALL SELECT 'fennmoor-raw.loan_origination.applicant', 'ssnLast4', 'STRING', 'last 4 digits of SSN only (partial, not full or hashed)'",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": "MATCH (c:Customer) RETURN 'fennmoor-dw.dw_core.dim_customer' AS table_name, 'tax_id_hash' AS column_name, 'hashed' AS storage_form, count(c) AS rows_in_table",
+     "answered": false,
+     "why_not": "the warehouse filters the rows of fennmoor-dw.dw_core.dim_customer per reader, and the virtual graph reads them all"
+    }
+   },
+   "Q07": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "compiled",
+     "query": "SELECT\n  fct_fraud_alerts.channel AS channel,\n  SAFE_DIVIDE(COUNTIF(fct_fraud_alerts.is_confirmed_fraud), COUNT(*)) AS confirmed_fraud_rate\nFROM `fennmoor-dw.dw_risk.fct_fraud_alerts` AS fct_fraud_alerts\nGROUP BY\n  1",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": null,
+     "query": null,
+     "answered": false,
+     "why_not": "none of the cohort's tables is in the virtual graph"
+    }
+   },
+   "Q08": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "compiled",
+     "query": "SELECT\n  fct_credit_applications.offer_code AS campaign,\n  COUNT(DISTINCT fct_credit_applications.application_id) AS applications\nFROM `fennmoor-dw.dw_risk.fct_credit_applications` AS fct_credit_applications\nWHERE\n  (\n    NOT fct_credit_applications.offer_code IS NULL\n  )\nGROUP BY\n  1\nORDER BY\n  applications DESC",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph given has no credit card application or marketing campaign data. The labels cover deposit and card transactions, accounts, customers, merchants, branches and products. Credit applications sit in a separate table (dw_risk.fct_credit_applications), which has no node label or relationship here, and nothing links applications to campaigns. Any query would answer a different question, so none is written."
+    }
+   },
+   "Q09": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "compiled",
+     "query": "SELECT\n  dim_account.product_code AS product,\n  dim_branch.branch_name AS branch,\n  COUNT(\n    DISTINCT IF(fct_delinquency_daily.dpd >= 30, fct_delinquency_daily.account_key, NULL)\n  ) AS delinquent_loans,\n  COUNT(\n    IF((\n      dim_account.account_family = 'LOAN'\n    ) AND (\n      dim_account.is_open\n    ), 1, NULL)\n  ) AS open_loans,\n  SAFE_DIVIDE(\n    COUNT(\n      DISTINCT IF(fct_delinquency_daily.dpd >= 30, fct_delinquency_daily.account_key, NULL)\n    ),\n    COUNT(\n      IF((\n        dim_account.account_family = 'LOAN'\n      ) AND (\n        dim_account.is_open\n      ), 1, NULL)\n    )\n  ) AS delinquency_rate\nFROM `fennmoor-dw.dw_risk.fct_delinquency_daily` AS fct_delinquency_daily\nJOIN `fennmoor-dw.dw_core.dim_account` AS dim_account\n  ON dim_account.account_key = fct_delinquency_daily.account_key\nLEFT JOIN `fennmoor-dw.dw_core.dim_branch` AS dim_branch\n  ON dim_branch.branch_id = dim_account.branch_id\nGROUP BY\n  1,\n  2",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph has no delinquency data. Delinquency status (days past due, e.g. DPD >= 30) lives in `dw_risk.fct_delinquency_daily`, which has no node label or relationship in the graph given. Account only offers open/closed status and product/branch attributes, so a delinquency rate by product and branch cannot be computed without a delinquency node."
+    }
+   },
+   "Q10": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT 'Cannot answer: no customer satisfaction or agent tenure data exists in the provided tables' AS note",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": null,
+     "query": null,
+     "answered": false,
+     "why_not": "none of the cohort's tables is in the virtual graph"
+    }
+   },
+   "Q11": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT DATE_TRUNC(posted_date, WEEK) AS week, COUNT(DISTINCT customer_key) AS customers FROM `fennmoor-dw.dw_core.fct_deposit_transactions` WHERE channel = 'MOBILE' GROUP BY week ORDER BY week",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph has no mobile app usage or login/session data. DepositTransaction.channel has no values shown for a mobile app, and Customer.is_digitally_enrolled only marks enrollment, not weekly activity. Counting distinct customers per week by mobile channel or enrollment would answer a different question, so no query is written."
+    }
+   },
+   "Q12": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows (the firm's differ: the row policy applied)"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "compiled",
+     "query": "SELECT DISTINCT\n  dim_customer.cif_number AS cif_number,\n  dim_customer.full_name AS full_name,\n  dim_customer.primary_email AS primary_email\nFROM `fennmoor-dw.dw_core.dim_customer` AS dim_customer\nWHERE\n  (\n    dim_customer.segment = 'affluent'\n  )\n  AND (\n    dim_customer.email_opt_in IS TRUE\n  )\n  AND (\n    NOT dim_customer.primary_email IS NULL\n  )\n  AND (\n    dim_customer.is_deceased IS FALSE\n  )",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "compiled",
+     "query": "MATCH (dim_customer:Customer)\nWHERE (dim_customer.segment = 'affluent')\n  AND (dim_customer.email_opt_in = true)\n  AND (NOT (dim_customer.primary_email IS NULL))\n  AND (dim_customer.is_deceased = false)\nRETURN DISTINCT dim_customer.cif_number AS cif_number, dim_customer.full_name AS full_name, dim_customer.primary_email AS primary_email",
+     "answered": false,
+     "why_not": "the warehouse filters the rows of fennmoor-dw.dw_core.dim_customer per reader, and the virtual graph reads them all"
+    }
+   },
+   "Q13": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT 'no tables starting with CC were found' AS result",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph only exposes these tables: dim_customer, dim_account, dim_branch, fct_card_transactions, fct_deposit_transactions and dim_product. None has a name starting with CC, and Cypher over this graph cannot list warehouse table names or browse schema metadata, so there is no query that answers what is in tables named CC*."
+    }
+   },
+   "Q14": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "ok",
+      "why": "no row-filtered table, and the principal reads all it reads"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "compiled",
+     "query": "SELECT\n  fct_account_closures.close_reason AS close_reason,\n  fct_account_closures.account_family AS account_family,\n  COUNT(*) AS closures\nFROM `fennmoor-dw.dw_core.fct_account_closures` AS fct_account_closures\nWHERE\n  (\n    fct_account_closures.account_family IN ('DEPOSIT', 'CARD')\n  )\nGROUP BY\n  1,\n  2\nORDER BY\n  closures DESC",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": "MATCH (a:Account) WHERE a.close_date IS NOT NULL AND a.account_family IN ['DEPOSIT', 'CARD'] RETURN a.account_family AS account_family, a.close_reason AS close_reason, count(a) AS closures ORDER BY account_family, closures DESC",
+     "answered": true,
+     "why_not": null
+    }
+   },
+   "P1": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows (the firm's differ: the row policy applied)"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "compiled",
+     "query": "SELECT\n  dim_customer.state_code AS state,\n  COUNT(DISTINCT dim_customer.customer_key) AS customers\nFROM `fennmoor-dw.dw_core.dim_customer` AS dim_customer\nGROUP BY\n  1",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "compiled",
+     "query": "MATCH (dim_customer:Customer)\nRETURN dim_customer.state_code AS state, count(DISTINCT dim_customer.customer_key) AS customers",
+     "answered": false,
+     "why_not": "the warehouse filters the rows of fennmoor-dw.dw_core.dim_customer per reader, and the virtual graph reads them all"
+    }
+   },
+   "P2": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows (the firm's differ: the row policy applied)"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "compiled",
+     "query": "SELECT DISTINCT\n  dim_customer.full_name AS full_name,\n  dim_customer.primary_email AS primary_email\nFROM `fennmoor-dw.dw_core.dim_customer` AS dim_customer\nWHERE\n  (\n    dim_customer.segment = 'affluent'\n  )",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "compiled",
+     "query": "MATCH (dim_customer:Customer)\nWHERE (dim_customer.segment = 'affluent')\nRETURN DISTINCT dim_customer.full_name AS full_name, dim_customer.primary_email AS primary_email",
+     "answered": false,
+     "why_not": "the warehouse filters the rows of fennmoor-dw.dw_core.dim_customer per reader, and the virtual graph reads them all"
+    }
+   },
+   "P3": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "compiled",
+     "query": "SELECT\n  fct_fraud_alerts.channel AS channel,\n  COUNT(*) AS fraud_alerts\nFROM `fennmoor-dw.dw_risk.fct_fraud_alerts` AS fct_fraud_alerts\nGROUP BY\n  1",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": null,
+     "query": null,
+     "answered": false,
+     "why_not": "none of the cohort's tables is in the virtual graph"
+    }
+   },
+   "P4": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT NULL AS contact_center_site, NULL AS avg_call_handle_time FROM (SELECT 1) WHERE FALSE",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": null,
+     "query": null,
+     "answered": false,
+     "why_not": "none of the cohort's tables is in the virtual graph"
+    }
+   },
+   "P5": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows (the firm's differ: the row policy applied)"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "compiled",
+     "query": "SELECT\n  dim_customer.cif_number AS cif_number,\n  SUM(fct_daily_account_balances.ledger_balance) AS total_deposit_balance\nFROM `fennmoor-dw.dw_core.fct_daily_account_balances` AS fct_daily_account_balances\nLEFT JOIN `fennmoor-dw.dw_core.dim_account` AS dim_account\n  ON dim_account.account_key = fct_daily_account_balances.account_key\nLEFT JOIN `fennmoor-dw.dw_core.dim_customer` AS dim_customer\n  ON dim_customer.customer_key = fct_daily_account_balances.customer_key\nWHERE\n  (\n    dim_account.account_family = 'DEPOSIT'\n  )\nGROUP BY\n  1\nORDER BY\n  total_deposit_balance DESC",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph has no deposit balance data. Account has no balance property, and DepositTransaction only holds individual transactions (amount, signed_amount). Summing transactions would give net flow over time, not a current balance, so it would answer a different question. A balance or balance-snapshot table is needed to rank customers by total deposit balance."
+    }
+   },
+   "P6": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows (the firm's differ: the row policy applied)"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "compiled",
+     "query": "SELECT\n  dim_customer.segment AS segment,\n  COUNT(DISTINCT fct_card_transactions.settlement_id) AS card_transactions\nFROM `fennmoor-dw.dw_core.fct_card_transactions` AS fct_card_transactions\nLEFT JOIN `fennmoor-dw.dw_core.dim_customer` AS dim_customer\n  ON dim_customer.customer_key = fct_card_transactions.customer_key\nGROUP BY\n  1",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "compiled",
+     "query": "MATCH (fct_card_transactions:CardTransaction)\nMATCH (fct_card_transactions)-[:MADE_BY]->(dim_customer:Customer)\nRETURN dim_customer.segment AS segment, count(DISTINCT fct_card_transactions.settlement_id) AS card_transactions",
+     "answered": false,
+     "why_not": "the warehouse filters the rows of fennmoor-dw.dw_core.dim_customer per reader, and the virtual graph reads them all"
+    }
+   }
+  },
+  "contact-center": {
+   "oracle": {
+    "tables": 21,
+    "hidden": [],
+    "agrees": true,
+    "canaries": 840
+   },
+   "Q01": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "WITH closures AS (\n  SELECT site_id, COUNTIF(is_account_closure_call) AS closure_calls\n  FROM `fennmoor-dw.dw_contact_center.fct_calls`\n  GROUP BY site_id\n),\ncosts AS (\n  SELECT site_id, SUM(total_expense) AS total_expense_2025\n  FROM `fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly`\n  WHERE month_start BETWEEN '2025-01-01' AND '2025-12-31'\n  GROUP BY site_id\n)\nSELECT\n  s.site_id,\n  s.site_name,\n  COALESCE(c.closure_calls, 0) AS closure_calls,\n  co.total_expense_2025\nFROM `fennmoor-dw.dw_contact_center.dim_cc_site` AS s\nLEFT JOIN closures AS c ON c.site_id = s.site_id\nLEFT JOIN costs AS co ON co.site_id = s.site_id\nORDER BY closure_calls DESC",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "Cancellation counts per contact center can be computed from Call.is_account_closure_call grouped by ContactCenterSite, but the graph has no operating cost data: ContactCenterSite has seat_count and cost_center_id but no cost amounts. The cost-per-contact figures live in rpt_site_cost_per_contact, which is not modeled in the graph, so the 'cost to run last year' part cannot be answered."
+    }
+   },
+   "Q02": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "WITH customer_calls AS (SELECT cif_number, COUNT(*) AS total_calls, COUNTIF(is_account_closure_call) AS closure_calls, COUNTIF(wrapup_code_name = 'ACCT_CLOSE') AS acct_close_wrapups, COUNTIF(is_abandoned) AS abandoned_calls, COUNTIF(was_transferred) AS transferred_calls, MAX(IF(is_account_closure_call, conversation_date, NULL)) AS last_closure_call_date FROM `fennmoor-dw.dw_contact_center.fct_calls` WHERE cif_number IS NOT NULL GROUP BY cif_number) SELECT cif_number, total_calls, closure_calls, acct_close_wrapups, abandoned_calls, transferred_calls, last_closure_call_date, SAFE_DIVIDE(closure_calls, total_calls) AS closure_call_rate FROM customer_calls WHERE closure_calls > 0 ORDER BY closure_calls DESC, closure_call_rate DESC",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph provided only covers contact center data (calls, agents, queues, sites). It has no customer balance or account balance property, so 'high-balance customers' cannot be identified, and there is no churn risk score or churn indicator. Account closure calls are only a partial proxy for churn, and without balance data the question can't be answered without a stand-in that answers a different question."
+    }
+   },
+   "Q03": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT 1 AS not_answerable -- web page visit data is not in the provided tables",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph only covers contact-center data (calls, agents, queues, sites). It has no web page, web session, or clickstream table, and nothing links a call to prior web visits, so the pages customers visit before calling cannot be determined."
+    }
+   },
+   "Q04": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT NULL AS merchant_category, NULL AS customer_segment, NULL AS card_spend FROM UNNEST([1]) WHERE FALSE",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph given only covers contact center data (Call, Queue, Agent, ContactCenterSite). It has no card transactions, spend amounts, merchant categories or customer segments, so card spend by merchant category and customer segment can't be computed from it."
+    }
+   },
+   "Q05": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "select 1 as unsupported",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": null,
+     "query": null,
+     "answered": false,
+     "why_not": "none of the cohort's tables is in the virtual graph"
+    }
+   },
+   "Q06": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT 'no table or column holding Social Security numbers found in the provided schema' AS finding",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": null,
+     "query": null,
+     "answered": false,
+     "why_not": "none of the cohort's tables is in the virtual graph"
+    }
+   },
+   "Q07": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT 'UNANSWERABLE' AS note",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph given only covers contact center data (Agent, ContactCenterSite, Call, Queue). It has no fraud alert node, no confirmed-fraud outcome property and no channel property for alerts, so the share of fraud alerts that are confirmed fraud by channel cannot be computed. Call.media_type is a contact channel for calls, not for fraud alerts."
+    }
+   },
+   "Q08": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT 1 AS not_answerable FROM `fennmoor-dw.dw_contact_center.fct_calls` LIMIT 0",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph provided only covers contact center data: ContactCenterSite, Call, Agent and Queue. It has no marketing campaign, credit card application, or attribution data (campaign, channel, lead source, application), and no relationship linking calls to campaigns or applications. Any query over these labels would answer a different question, so none is written."
+    }
+   },
+   "Q09": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT 'CANNOT_ANSWER' AS status, 'The provided tables (dim_cc_site, fct_calls) contain only contact center data. There are no loan, delinquency, product or branch columns, so a loan delinquency rate by product and branch cannot be computed.' AS reason",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph provided only covers contact center data (ContactCenterSite, Call, Agent, Queue). It has no loans, loan products, bank branches, or delinquency/days-past-due fields, so a loan delinquency rate by product and branch cannot be computed. The example SQL only shows call abandon rates, which is unrelated."
+    }
+   },
+   "Q10": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows (the firm's differ: the row policy applied)"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "compiled",
+     "query": "SELECT\n  dim_agent.tenure_months AS tenure_months,\n  AVG(fct_csat.csat_score) AS avg_csat,\n  COUNT(*) AS surveys\nFROM `fennmoor-dw.dw_contact_center.fct_csat` AS fct_csat\nJOIN `fennmoor-dw.dw_contact_center.fct_calls` AS fct_calls\n  ON fct_calls.conversation_id = fct_csat.conversation_id\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_agent` AS dim_agent\n  ON dim_agent.agent_user_id = fct_calls.agent_user_id\nGROUP BY\n  1\nORDER BY\n  tenure_months",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph has no customer satisfaction data. Satisfaction scores (nps_score, is_detractor) live in the fct_csat table, which the example SQL joins to calls, but that table has no node label or relationship in the graph provided. Agent tenure exists (Agent.tenure_months) and calls link to agents, but without a satisfaction property or a CSAT node there is nothing to compare across tenure."
+    }
+   },
+   "Q11": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT DATE_TRUNC(conversation_date, WEEK) AS week_start, COUNT(DISTINCT customer_key) AS customer_count FROM `fennmoor-dw.dw_contact_center.fct_calls` GROUP BY 1 ORDER BY 1",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph only covers contact-center data: calls (voice media type), agents, queues and sites. It has no mobile app usage, login or session data, so weekly mobile app users can't be counted. Call.customer_key identifies callers, not app users, and using it would answer a different question."
+    }
+   },
+   "Q12": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT 1 AS not_answerable FROM (SELECT 1) WHERE FALSE",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph given covers only contact-center data (calls, agents, queues, sites). It has no customer node, no email address or other contact details, and no wealth or affluence attribute such as balance, segment or income, so a list of affluent customers' contact details can't be built from it. Call only carries customer_key and cif_number, with nothing to link them to contact information or a wealth measure."
+    }
+   },
+   "Q13": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT 'dim_cc_site' AS table_name, COUNT(*) AS row_count, CAST(NULL AS STRING) AS note FROM `fennmoor-dw.dw_contact_center.dim_cc_site` UNION ALL SELECT 'fct_csat' AS table_name, COUNT(*) AS row_count, CAST(NULL AS STRING) AS note FROM `fennmoor-dw.dw_contact_center.fct_csat` UNION ALL SELECT 'cdr_* (legacy call detail records, all monthly shards)' AS table_name, COUNT(*) AS row_count, CAST(NULL AS STRING) AS note FROM `fennmoor-raw.contact_center_legacy.cdr_*`",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The question asks about the contents of tables whose names start with CC, which is a question about the warehouse's schema, not about business data. The graph has only two labels (ContactCenterSite and Call) built on tables named dim_cc_site and fct_calls, so no table name starts with 'CC' and there is no property that carries table names. A Cypher query over these labels can't list tables by name prefix or describe their contents, and any stand-in query would answer a different question."
+    }
+   },
+   "Q14": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT wrapup_code_name AS closure_reason, COUNTIF(is_account_closure_call) AS closure_calls FROM `fennmoor-dw.dw_contact_center.fct_calls` WHERE is_account_closure_call GROUP BY 1 ORDER BY 2 DESC",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph only covers contact-center data (calls, agents, queues, sites). It has no account or product nodes, no deposit vs. card classification, and no closure reason field. The nearest data is Call.is_account_closure_call and wrapup_code_name ('ACCT_CLOSE', 'ACCT_MAINT'), which are call wrap-up codes, not account closure reasons, and calls carry no product type. Any query here would answer a different question, so none is written."
+    }
+   },
+   "P1": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT NULL AS state, 0 AS customer_count FROM UNNEST([1]) WHERE FALSE",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph has no customer entity and no customer state. The only state property is ContactCenterSite.state, which is the location of a contact center site, not where a customer lives. Call carries customer_key, but nothing links it to a customer table or a customer address/state, so customers per state can't be computed."
+    }
+   },
+   "P2": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT NULL AS customer_name, NULL AS email_address LIMIT 0",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph provided only covers contact-center data (Agent, Call, ContactCenterSite, Queue). There is no customer node or table with names, email addresses, or an affluence/segment attribute; Call only carries customer_key and cif_number identifiers. The question can't be answered without the customer dimension and a definition of 'affluent'."
+    }
+   },
+   "P3": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT media_type AS channel, COUNT(*) AS call_count FROM `fennmoor-dw.dw_contact_center.fct_calls` GROUP BY media_type ORDER BY call_count DESC",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph only covers contact center data (agents, calls, queues, sites). It has no fraud alert node, alert table, or channel property, so fraud alerts by channel cannot be computed. The Call.media_type column is a contact channel for calls, not a fraud alert channel, and using it would answer a different question."
+    }
+   },
+   "P4": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows (the firm's differ: the row policy applied)"
+     },
+     "cypher": {
+      "verdict": "ok",
+      "why": "no row-filtered table, and the principal reads all it reads"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "compiled",
+     "query": "SELECT\n  dim_cc_site.site_name AS site,\n  AVG(fct_calls.handle_sec) AS avg_call_handle_time\nFROM `fennmoor-dw.dw_contact_center.fct_calls` AS fct_calls\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_cc_site` AS dim_cc_site\n  ON dim_cc_site.site_id = fct_calls.site_id\nGROUP BY\n  1",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "compiled",
+     "query": "MATCH (fct_calls:Call)\nMATCH (fct_calls)-[:SERVICED_AT]->(dim_cc_site:ContactCenterSite)\nRETURN dim_cc_site.site_name AS site, avg(fct_calls.handle_sec) AS avg_call_handle_time",
+     "answered": true,
+     "why_not": null
+    }
+   },
+   "P5": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT 'No deposit balance data available: the provided tables (fct_calls, fct_agent_daily) contain only contact-center data and have no deposit balance column' AS note, CAST(NULL AS STRING) AS cif_number, CAST(NULL AS FLOAT64) AS total_deposit_balance",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph provided only covers contact center data (calls, agents, queues, sites). It has no deposit account or balance tables or properties, so total deposit balances by CIF number cannot be computed. The Call node has a cif_number, but nothing in it holds balances."
+    }
+   },
+   "P6": {
+    "schema": {
+     "sql": [],
+     "cypher": [],
+     "prompts": []
+    },
+    "rows": {
+     "sql": {
+      "verdict": "ok",
+      "why": "the principal's rows"
+     },
+     "cypher": {
+      "verdict": "no answer"
+     }
+    },
+    "route": "sql",
+    "sql": {
+     "writer": "free",
+     "query": "SELECT 'unanswerable' AS status",
+     "answered": true,
+     "why_not": null
+    },
+    "cypher": {
+     "writer": "free",
+     "query": null,
+     "answered": false,
+     "why_not": "The graph provided only covers contact center data (calls, queues, agents, sites). It has no card transaction data and no customer segment property or node, so card transactions per customer segment cannot be computed. Call.customer_key exists but doesn't link to any customer or segment table in the given graph."
+    }
+   }
+  }
+ },
+ "controls": {
+  "navigation unfiltered (the trace shows everything; queries still run as the principal)": [
+   {
+    "principal": "marketing",
+    "caught": true,
+    "by": "schema",
+    "detail": {
+     "P3": {
+      "schema": {
+       "sql": [
+        "principal olumide.bankole",
+        "principal rachel.kim",
+        "table alert_subscription",
+        "table case_alert_link",
+        "table digital_banking.alert_subscription",
+        "table dw_risk.fct_fraud_alerts",
+        "table dw_staging.stg_fraud__alert",
+        "table dw_staging.stg_fraud__case_alert_link",
+        "table dw_staging.stg_fraud__fraud_case",
+        "table dw_staging.stg_fraud__rule",
+        "table dw_staging.stg_olb__alert_subscription",
+        "table fct_fraud_alerts",
+        "table fraud_case",
+        "table fraud_platform.alert",
+        "table fraud_platform.case_alert_link",
+        "table fraud_platform.fraud_case",
+        "table fraud_platform.rule",
+        "table p2p_scam_cases_2026",
+        "table sbx_fraud.p2p_scam_cases_2026",
+        "table stg_fraud__alert",
+        "table stg_fraud__case_alert_link",
+        "table stg_fraud__fraud_case",
+        "table stg_fraud__rule",
+        "table stg_olb__alert_subscription"
+       ],
+       "cypher": [
+        "principal olumide.bankole",
+        "principal rachel.kim",
+        "table alert_subscription",
+        "table case_alert_link",
+        "table digital_banking.alert_subscription",
+        "table dw_risk.fct_fraud_alerts",
+        "table dw_staging.stg_fraud__alert",
+        "table dw_staging.stg_fraud__case_alert_link",
+        "table dw_staging.stg_fraud__fraud_case",
+        "table dw_staging.stg_fraud__rule",
+        "table dw_staging.stg_olb__alert_subscription",
+        "table fct_fraud_alerts",
+        "table fraud_case",
+        "table fraud_platform.alert",
+        "table fraud_platform.case_alert_link",
+        "table fraud_platform.fraud_case",
+        "table fraud_platform.rule",
+        "table p2p_scam_cases_2026",
+        "table sbx_fraud.p2p_scam_cases_2026",
+        "table stg_fraud__alert",
+        "table stg_fraud__case_alert_link",
+        "table stg_fraud__fraud_case",
+        "table stg_fraud__rule",
+        "table stg_olb__alert_subscription"
+       ],
+       "prompts": [
+        "table dw_risk.fct_fraud_alerts",
+        "table fct_fraud_alerts",
+        "table fraud_platform.alert",
+        "table fraud_platform.rule"
+       ]
+      },
+      "rows": {
+       "sql": {
+        "verdict": "no answer"
+       },
+       "cypher": {
+        "verdict": "no answer"
+       }
+      },
+      "route": "sql",
+      "sql": {
+       "writer": "free",
+       "query": "SELECT channel, COUNT(*) AS alerts FROM `fennmoor-dw.dw_risk.fct_fraud_alerts` GROUP BY channel ORDER BY alerts DESC",
+       "answered": true,
+       "why_not": "Access Denied: Table dw_risk.fct_fraud_alerts: User does not have permission to query table dw_risk.fct_fraud_alerts, or perhaps it does not exist."
+      },
+      "cypher": {
+       "writer": null,
+       "query": null,
+       "answered": false,
+       "why_not": "none of the cohort's tables is in the virtual graph"
+      }
+     },
+     "P4": {
+      "schema": {
+       "sql": [
+        "table ACCT_DLY_BAL",
+        "table CC_CALL_VOL_DLY",
+        "table CC_EXPNS_MTHLY",
+        "table agg_site_monthly",
+        "table cc_closure_calls_apr_may",
+        "table cc_cost_per_call_fy25",
+        "table cc_site_scorecard_2026",
+        "table dim_agent",
+        "table dim_cc_site",
+        "table dw_contact_center.agg_site_monthly",
+        "table dw_contact_center.dim_agent",
+        "table dw_contact_center.dim_cc_site",
+        "table dw_contact_center.fct_agent_daily",
+        "table dw_contact_center.fct_calls",
+        "table dw_contact_center.fct_cc_site_cost_monthly",
+        "table dw_contact_center.fct_contacts_all",
+        "table dw_intermediate.int_calls_legacy_cdr",
+        "table fct_agent_daily",
+        "table fct_calls",
+        "table fct_cc_site_cost_monthly",
+        "table fct_contacts_all",
+        "table int_calls_legacy_cdr",
+        "table legacy_edw.ACCT_DLY_BAL",
+        "table legacy_edw.CC_CALL_VOL_DLY",
+        "table legacy_edw.CC_EXPNS_MTHLY",
+        "table p2p_scam_cases_2026",
+        "table sbx_cx_ops.cc_closure_calls_apr_may",
+        "table sbx_cx_ops.cc_site_scorecard_2026",
+        "table sbx_finance.cc_cost_per_call_fy25",
+        "table sbx_fraud.p2p_scam_cases_2026"
+       ],
+       "cypher": [
+        "table ACCT_DLY_BAL",
+        "table CC_CALL_VOL_DLY",
+        "table CC_EXPNS_MTHLY",
+        "table agg_site_monthly",
+        "table cc_closure_calls_apr_may",
+        "table cc_cost_per_call_fy25",
+        "table cc_site_scorecard_2026",
+        "table dim_agent",
+        "table dim_cc_site",
+        "table dw_contact_center.agg_site_monthly",
+        "table dw_contact_center.dim_agent",
+        "table dw_contact_center.dim_cc_site",
+        "table dw_contact_center.fct_agent_daily",
+        "table dw_contact_center.fct_calls",
+        "table dw_contact_center.fct_cc_site_cost_monthly",
+        "table dw_contact_center.fct_contacts_all",
+        "table dw_intermediate.int_calls_legacy_cdr",
+        "table fct_agent_daily",
+        "table fct_calls",
+        "table fct_cc_site_cost_monthly",
+        "table fct_contacts_all",
+        "table int_calls_legacy_cdr",
+        "table legacy_edw.ACCT_DLY_BAL",
+        "table legacy_edw.CC_CALL_VOL_DLY",
+        "table legacy_edw.CC_EXPNS_MTHLY",
+        "table p2p_scam_cases_2026",
+        "table sbx_cx_ops.cc_closure_calls_apr_may",
+        "table sbx_cx_ops.cc_site_scorecard_2026",
+        "table sbx_finance.cc_cost_per_call_fy25",
+        "table sbx_fraud.p2p_scam_cases_2026"
+       ],
+       "prompts": [
+        "table agg_site_monthly",
+        "table dim_agent",
+        "table dim_cc_site",
+        "table dw_contact_center.agg_site_monthly",
+        "table dw_contact_center.dim_agent",
+        "table dw_contact_center.dim_cc_site",
+        "table dw_contact_center.fct_agent_daily",
+        "table dw_contact_center.fct_calls",
+        "table dw_contact_center.fct_cc_site_cost_monthly",
+        "table fct_agent_daily",
+        "table fct_calls",
+        "table fct_cc_site_cost_monthly"
+       ]
+      },
+      "rows": {
+       "sql": {
+        "verdict": "no answer"
+       },
+       "cypher": {
+        "verdict": "no answer"
+       }
+      },
+      "route": "sql",
+      "sql": {
+       "writer": "free",
+       "query": "SELECT site_id, AVG(handle_sec) AS avg_handle_time_sec, COUNT(DISTINCT conversation_id) AS call_count FROM `fennmoor-dw.dw_contact_center.fct_calls` GROUP BY site_id ORDER BY site_id",
+       "answered": true,
+       "why_not": "Access Denied: Table dw_contact_center.fct_calls: User does not have permission to query table dw_contact_center.fct_calls, or perhaps it does not exist."
+      },
+      "cypher": {
+       "writer": null,
+       "query": null,
+       "answered": false,
+       "why_not": "none of the cohort's tables is in the virtual graph"
+      }
+     }
+    }
+   },
+   {
+    "principal": "contact-center",
+    "caught": true,
+    "by": "schema",
+    "detail": {
+     "P3": {
+      "schema": {
+       "sql": [
+        "principal olumide.bankole",
+        "principal rachel.kim",
+        "table alert_subscription",
+        "table case_alert_link",
+        "table digital_banking.alert_subscription",
+        "table dim_card",
+        "table dw_core.dim_card",
+        "table dw_risk.fct_fraud_alerts",
+        "table dw_staging.stg_fraud__alert",
+        "table dw_staging.stg_fraud__case_alert_link",
+        "table dw_staging.stg_fraud__fraud_case",
+        "table dw_staging.stg_fraud__rule",
+        "table dw_staging.stg_olb__alert_subscription",
+        "table fct_fraud_alerts",
+        "table fraud_case",
+        "table fraud_platform.alert",
+        "table fraud_platform.case_alert_link",
+        "table fraud_platform.fraud_case",
+        "table fraud_platform.rule",
+        "table p2p_scam_cases_2026",
+        "table sbx_fraud.p2p_scam_cases_2026",
+        "table stg_fraud__alert",
+        "table stg_fraud__case_alert_link",
+        "table stg_fraud__fraud_case",
+        "table stg_fraud__rule",
+        "table stg_olb__alert_subscription",
+        "value 'CARD' of dim_account.account_family",
+        "value 'CARD' of fct_fraud_alerts.entity_type",
+        "value 'CARD' of int_accounts_unioned.account_family"
+       ],
+       "cypher": [
+        "principal olumide.bankole",
+        "principal rachel.kim",
+        "table alert_subscription",
+        "table case_alert_link",
+        "table digital_banking.alert_subscription",
+        "table dim_card",
+        "table dw_core.dim_card",
+        "table dw_risk.fct_fraud_alerts",
+        "table dw_staging.stg_fraud__alert",
+        "table dw_staging.stg_fraud__case_alert_link",
+        "table dw_staging.stg_fraud__fraud_case",
+        "table dw_staging.stg_fraud__rule",
+        "table dw_staging.stg_olb__alert_subscription",
+        "table fct_fraud_alerts",
+        "table fraud_case",
+        "table fraud_platform.alert",
+        "table fraud_platform.case_alert_link",
+        "table fraud_platform.fraud_case",
+        "table fraud_platform.rule",
+        "table p2p_scam_cases_2026",
+        "table sbx_fraud.p2p_scam_cases_2026",
+        "table stg_fraud__alert",
+        "table stg_fraud__case_alert_link",
+        "table stg_fraud__fraud_case",
+        "table stg_fraud__rule",
+        "table stg_olb__alert_subscription",
+        "value 'CARD' of dim_account.account_family",
+        "value 'CARD' of fct_fraud_alerts.entity_type",
+        "value 'CARD' of int_accounts_unioned.account_family"
+       ],
+       "prompts": [
+        "table dim_card",
+        "table dw_core.dim_card",
+        "table dw_risk.fct_fraud_alerts",
+        "table fct_fraud_alerts",
+        "table fraud_platform.alert",
+        "table fraud_platform.rule",
+        "value 'CARD' of dim_account.account_family",
+        "value 'CARD' of fct_fraud_alerts.entity_type",
+        "value 'CARD' of int_accounts_unioned.account_family"
+       ]
+      },
+      "rows": {
+       "sql": {
+        "verdict": "no answer"
+       },
+       "cypher": {
+        "verdict": "no answer"
+       }
+      },
+      "route": "sql",
+      "sql": {
+       "writer": "free",
+       "query": "SELECT channel, COUNT(*) AS alerts FROM `fennmoor-dw.dw_risk.fct_fraud_alerts` GROUP BY channel ORDER BY alerts DESC",
+       "answered": true,
+       "why_not": "Access Denied: Table dw_risk.fct_fraud_alerts: User does not have permission to query table dw_risk.fct_fraud_alerts, or perhaps it does not exist."
+      },
+      "cypher": {
+       "writer": null,
+       "query": null,
+       "answered": false,
+       "why_not": "none of the cohort's tables is in the virtual graph"
+      }
+     },
+     "P4": {
+      "schema": {
+       "sql": [
+        "table ACCT_DLY_BAL",
+        "table CC_CALL_VOL_DLY",
+        "table CC_EXPNS_MTHLY",
+        "table cc_closure_calls_apr_may",
+        "table cc_cost_per_call_fy25",
+        "table cc_site_scorecard_2026",
+        "table dim_date",
+        "table dw_contact_center.fct_contacts_all",
+        "table dw_core.dim_date",
+        "table dw_intermediate.int_calls_legacy_cdr",
+        "table fct_contacts_all",
+        "table int_calls_legacy_cdr",
+        "table legacy_edw.ACCT_DLY_BAL",
+        "table legacy_edw.CC_CALL_VOL_DLY",
+        "table legacy_edw.CC_EXPNS_MTHLY",
+        "table p2p_scam_cases_2026",
+        "table sbx_cx_ops.cc_closure_calls_apr_may",
+        "table sbx_cx_ops.cc_site_scorecard_2026",
+        "table sbx_finance.cc_cost_per_call_fy25",
+        "table sbx_fraud.p2p_scam_cases_2026"
+       ],
+       "cypher": [
+        "table ACCT_DLY_BAL",
+        "table CC_CALL_VOL_DLY",
+        "table CC_EXPNS_MTHLY",
+        "table cc_closure_calls_apr_may",
+        "table cc_cost_per_call_fy25",
+        "table cc_site_scorecard_2026",
+        "table dim_date",
+        "table dw_contact_center.fct_contacts_all",
+        "table dw_core.dim_date",
+        "table dw_intermediate.int_calls_legacy_cdr",
+        "table fct_contacts_all",
+        "table int_calls_legacy_cdr",
+        "table legacy_edw.ACCT_DLY_BAL",
+        "table legacy_edw.CC_CALL_VOL_DLY",
+        "table legacy_edw.CC_EXPNS_MTHLY",
+        "table p2p_scam_cases_2026",
+        "table sbx_cx_ops.cc_closure_calls_apr_may",
+        "table sbx_cx_ops.cc_site_scorecard_2026",
+        "table sbx_finance.cc_cost_per_call_fy25",
+        "table sbx_fraud.p2p_scam_cases_2026"
+       ],
+       "prompts": []
+      },
+      "rows": {
+       "sql": {
+        "verdict": "ok",
+        "why": "the principal's rows (the firm's differ: the row policy applied)"
+       },
+       "cypher": {
+        "verdict": "ok",
+        "why": "no row-filtered table, and the principal reads all it reads"
+       }
+      },
+      "route": "sql",
+      "sql": {
+       "writer": "compiled",
+       "query": "SELECT\n  dim_cc_site.site_name AS site,\n  AVG(fct_calls.handle_sec) AS avg_call_handle_time\nFROM `fennmoor-dw.dw_contact_center.fct_calls` AS fct_calls\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_cc_site` AS dim_cc_site\n  ON dim_cc_site.site_id = fct_calls.site_id\nGROUP BY\n  1",
+       "answered": true,
+       "why_not": null
+      },
+      "cypher": {
+       "writer": "compiled",
+       "query": "MATCH (fct_calls:Call)\nMATCH (fct_calls)-[:SERVICED_AT]->(dim_cc_site:ContactCenterSite)\nRETURN dim_cc_site.site_name AS site, avg(fct_calls.handle_sec) AS avg_call_handle_time",
+       "answered": true,
+       "why_not": null
+      }
+     }
+    }
+   }
+  ],
+  "hidden columns and their filter values shown": [
+   {
+    "principal": "marketing",
+    "caught": true,
+    "by": "schema",
+    "detail": {
+     "P2": {
+      "schema": {
+       "sql": [
+        "column birth_date",
+        "column full_name",
+        "column primary_email",
+        "column primary_mobile",
+        "column tax_id_hash"
+       ],
+       "cypher": [
+        "column birth_date",
+        "column full_name",
+        "column primary_email",
+        "column primary_mobile",
+        "column tax_id_hash"
+       ],
+       "prompts": [
+        "column birth_date",
+        "column full_name",
+        "column primary_cif_number",
+        "column primary_email",
+        "column primary_mobile",
+        "column tax_id_hash",
+        "value '0000020127' of customer_360.cif_number",
+        "value '0000052078' of customer_360.cif_number",
+        "value '0000074287' of customer_360.cif_number",
+        "value '0000114070' of customer_360.cif_number",
+        "value '0000121065' of customer_360.cif_number",
+        "value '0000124943' of customer_360.cif_number",
+        "value '0000146448' of customer_360.cif_number",
+        "value '0000168017' of customer_360.cif_number"
+       ]
+      },
+      "rows": {
+       "sql": {
+        "verdict": "no answer"
+       },
+       "cypher": {
+        "verdict": "no answer"
+       }
+      },
+      "route": "sql",
+      "sql": {
+       "writer": "free",
+       "query": "SELECT full_name, primary_email FROM `fennmoor-dw.dw_customer.customer_360` WHERE segment = 'affluent'",
+       "answered": true,
+       "why_not": "Access Denied: BigQuery BigQuery: User has neither fine-grained reader nor masked get permission to get data protected by policy tag \"qlsc-identifiers : identifier\" on columns dw_customer.customer_360.full_name, dw_customer.customer_360.primary_email."
+      },
+      "cypher": {
+       "writer": "compiled",
+       "query": "MATCH (dim_customer:Customer)\nWHERE (dim_customer.segment = 'affluent')\nRETURN DISTINCT dim_customer.full_name AS full_name, dim_customer.primary_email AS primary_email",
+       "answered": false,
+       "why_not": "the warehouse filters the rows of fennmoor-dw.dw_core.dim_customer per reader, and the virtual graph reads them all"
+      }
+     },
+     "P5": {
+      "schema": {
+       "sql": [
+        "column full_name",
+        "column primary_email",
+        "value '0000626923' of customer_360.cif_number"
+       ],
+       "cypher": [
+        "column full_name",
+        "column primary_email",
+        "value '0000626923' of customer_360.cif_number"
+       ],
+       "prompts": [
+        "column birth_date",
+        "column full_name",
+        "column primary_cif_number",
+        "column primary_email",
+        "column primary_mobile",
+        "column tax_id_hash",
+        "value '0000020127' of customer_360.cif_number",
+        "value '0000052078' of customer_360.cif_number",
+        "value '0000074287' of customer_360.cif_number",
+        "value '0000114070' of customer_360.cif_number",
+        "value '0000121065' of customer_360.cif_number",
+        "value '0000124943' of customer_360.cif_number",
+        "value '0000146448' of customer_360.cif_number",
+        "value '0000168017' of customer_360.cif_number",
+        "value '0000626923' of customer_360.cif_number"
+       ]
+      },
+      "rows": {
+       "sql": {
+        "verdict": "no answer"
+       },
+       "cypher": {
+        "verdict": "no answer"
+       }
+      },
+      "route": "sql",
+      "sql": {
+       "writer": "free",
+       "query": "SELECT c.cif_number, x.total_deposit_balance FROM `fennmoor-dw.dw_customer.customer_360` x JOIN `fennmoor-dw.dw_core.dim_customer` c ON c.customer_key = x.customer_key ORDER BY x.total_deposit_balance DESC LIMIT 100",
+       "answered": true,
+       "why_not": "Access Denied: BigQuery BigQuery: User has neither fine-grained reader nor masked get permission to get data protected by policy tag \"qlsc-identifiers : identifier\" on column dw_core.dim_customer.cif_number."
+      },
+      "cypher": {
+       "writer": "free",
+       "query": null,
+       "answered": false,
+       "why_not": "The graph has no deposit balance data. Account has no balance property, and DepositTransaction only holds individual transaction amounts, which are not balances. The bank's own SQL reads total_deposit_balance from customer_360, a table that is not among the labels provided, so balances by CIF number cannot be computed from this graph."
+      }
+     }
+    }
+   }
+  ],
+  "SQL run as the estate, not the principal": [
+   {
+    "principal": "risk",
+    "caught": true,
+    "by": "rows",
+    "detail": {
+     "P1": {
+      "schema": {
+       "sql": [],
+       "cypher": [],
+       "prompts": []
+      },
+      "rows": {
+       "sql": {
+        "verdict": "INCIDENT",
+        "why": "the answer isn't the principal's own read of its query"
+       },
+       "cypher": {
+        "verdict": "no answer"
+       }
+      },
+      "route": "sql",
+      "sql": {
+       "writer": "compiled",
+       "query": "SELECT\n  dim_customer.state_code AS state,\n  COUNT(DISTINCT dim_customer.customer_key) AS customers\nFROM `fennmoor-dw.dw_core.dim_customer` AS dim_customer\nGROUP BY\n  1",
+       "answered": true,
+       "why_not": null
+      },
+      "cypher": {
+       "writer": "compiled",
+       "query": "MATCH (dim_customer:Customer)\nRETURN dim_customer.state_code AS state, count(DISTINCT dim_customer.customer_key) AS customers",
+       "answered": false,
+       "why_not": "the warehouse filters the rows of fennmoor-dw.dw_core.dim_customer per reader, and the virtual graph reads them all"
+      }
+     },
+     "P6": {
+      "schema": {
+       "sql": [],
+       "cypher": [],
+       "prompts": []
+      },
+      "rows": {
+       "sql": {
+        "verdict": "INCIDENT",
+        "why": "the answer isn't the principal's own read of its query"
+       },
+       "cypher": {
+        "verdict": "no answer"
+       }
+      },
+      "route": "sql",
+      "sql": {
+       "writer": "compiled",
+       "query": "SELECT\n  dim_customer.segment AS segment,\n  COUNT(DISTINCT fct_card_transactions.settlement_id) AS card_transactions\nFROM `fennmoor-dw.dw_core.fct_card_transactions` AS fct_card_transactions\nLEFT JOIN `fennmoor-dw.dw_core.dim_customer` AS dim_customer\n  ON dim_customer.customer_key = fct_card_transactions.customer_key\nGROUP BY\n  1",
+       "answered": true,
+       "why_not": null
+      },
+      "cypher": {
+       "writer": "compiled",
+       "query": "MATCH (fct_card_transactions:CardTransaction)\nMATCH (fct_card_transactions)-[:MADE_BY]->(dim_customer:Customer)\nRETURN dim_customer.segment AS segment, count(DISTINCT fct_card_transactions.settlement_id) AS card_transactions",
+       "answered": false,
+       "why_not": "the warehouse filters the rows of fennmoor-dw.dw_core.dim_customer per reader, and the virtual graph reads them all"
+      }
+     }
+    }
+   }
+  ],
+  "the Cypher gate off (option A skipped)": [
+   {
+    "principal": "risk",
+    "caught": true,
+    "by": "rows",
+    "detail": {
+     "P1": {
+      "schema": {
+       "sql": [],
+       "cypher": [],
+       "prompts": []
+      },
+      "rows": {
+       "sql": {
+        "verdict": "ok",
+        "why": "the principal's rows (the firm's differ: the row policy applied)"
+       },
+       "cypher": {
+        "verdict": "INCIDENT",
+        "why": "the virtual graph read every row of fennmoor-dw.dw_core.dim_customer"
+       }
+      },
+      "route": "sql",
+      "sql": {
+       "writer": "compiled",
+       "query": "SELECT\n  dim_customer.state_code AS state,\n  COUNT(DISTINCT dim_customer.customer_key) AS customers\nFROM `fennmoor-dw.dw_core.dim_customer` AS dim_customer\nGROUP BY\n  1",
+       "answered": true,
+       "why_not": null
+      },
+      "cypher": {
+       "writer": "compiled",
+       "query": "MATCH (dim_customer:Customer)\nRETURN dim_customer.state_code AS state, count(DISTINCT dim_customer.customer_key) AS customers",
+       "answered": true,
+       "why_not": null
+      }
+     },
+     "P6": {
+      "schema": {
+       "sql": [],
+       "cypher": [],
+       "prompts": []
+      },
+      "rows": {
+       "sql": {
+        "verdict": "ok",
+        "why": "the principal's rows (the firm's differ: the row policy applied)"
+       },
+       "cypher": {
+        "verdict": "INCIDENT",
+        "why": "the virtual graph read every row of fennmoor-dw.dw_core.dim_customer"
+       }
+      },
+      "route": "sql",
+      "sql": {
+       "writer": "compiled",
+       "query": "SELECT\n  dim_customer.segment AS segment,\n  COUNT(DISTINCT fct_card_transactions.settlement_id) AS card_transactions\nFROM `fennmoor-dw.dw_core.fct_card_transactions` AS fct_card_transactions\nLEFT JOIN `fennmoor-dw.dw_core.dim_customer` AS dim_customer\n  ON dim_customer.customer_key = fct_card_transactions.customer_key\nGROUP BY\n  1",
+       "answered": true,
+       "why_not": null
+      },
+      "cypher": {
+       "writer": "compiled",
+       "query": "MATCH (fct_card_transactions:CardTransaction)\nMATCH (fct_card_transactions)-[:MADE_BY]->(dim_customer:Customer)\nRETURN dim_customer.segment AS segment, count(DISTINCT fct_card_transactions.settlement_id) AS card_transactions",
+       "answered": true,
+       "why_not": null
+      }
+     }
+    }
+   }
+  ]
+ }
+}

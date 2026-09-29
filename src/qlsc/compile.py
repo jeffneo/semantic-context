@@ -1121,8 +1121,9 @@ def timestamp_on(prop: str, op: str, day: str) -> str:
 # ---- the prompt's options
 
 
-def options_text(cat: Catalogue, values: dict) -> str:
-    """The tables, their columns (with the values the log filters them on), and the joins, for the prompt."""
+def options_text(cat: Catalogue, values: dict, frozen: set[str] = frozenset()) -> str:
+    """The tables, their columns (with the values the log filters them on), and the joins, for the prompt.
+    A frozen table (nothing writes it, and no production process reads it) says so: its data has stopped."""
     lines = []
     for t, cols in cat.tables.items():
         parts = []
@@ -1131,7 +1132,10 @@ def options_text(cat: Catalogue, values: dict) -> str:
             parts.append(
                 f"{c} {typ}" + (f" (values seen: {', '.join(repr(v) for v in seen)})" if seen else "")
             )
-        lines.append(f"`{short(t)}`: " + ", ".join(parts))
+        stale = (
+            " (frozen: nothing writes it any more and no production process reads it)" if t in frozen else ""
+        )
+        lines.append(f"`{short(t)}`{stale}: " + ", ".join(parts))
     return "\n".join(lines)
 
 

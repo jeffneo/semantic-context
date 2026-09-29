@@ -21,6 +21,15 @@ For `qlsc virtualize` (a Neo4j Virtual Graph over the warehouse's rows), a conne
   create_views(dataset, views)   the views the virtual graph reads, in one dataset of their own
   virtual_graph(dataset) Virtual Graph's datasource.json and secret.json for this warehouse
 
+For `qlsc ask --as` (the entitlement gateway, plans/2026-09-27-entitlements.md), a connector may also
+answer, as the warehouse enforces them, who may read what; the warehouse stays the rulebook:
+
+  acting_as(principal)   this connector acting for a principal: every query and check runs as them
+  readable(tables)       the tables this connector's identity may read (as the principal, when acting)
+  column_tags(tables)    the access-policy tag on each column that has one (a privileged read)
+  readable_tags(tags)    the tags this identity may read the columns of
+  row_policies(tables)   the tables whose rows the warehouse filters per reader (a privileged read)
+
 To add a warehouse: subclass Warehouse in a module here and list it in CONNECTORS.
 """
 
@@ -108,6 +117,26 @@ class Warehouse(ABC):
     def virtual_graph(self, dataset: str) -> tuple[dict, dict]:
         """(datasource.json, secret.json) for a virtual graph reading `dataset`."""
         raise NotImplementedError(f"{self.name}: no Virtual Graph support")
+
+    # ---- entitlements (optional; qlsc ask --as)
+
+    def acting_as(self, principal: str) -> Warehouse:
+        raise NotImplementedError(f"{self.name}: cannot act for a principal")
+
+    def readable(self, tables: list[str]) -> set[str]:
+        """Of these tables (logical names), those this identity may read."""
+        raise NotImplementedError(f"{self.name}: no entitlement checks")
+
+    def column_tags(self, tables: list[str]) -> dict[tuple[str, str], str]:
+        """{(table, column): tag} for every column with an access-policy tag."""
+        raise NotImplementedError(f"{self.name}: no entitlement checks")
+
+    def readable_tags(self, tags: list[str]) -> set[str]:
+        raise NotImplementedError(f"{self.name}: no entitlement checks")
+
+    def row_policies(self, tables: list[str]) -> set[str]:
+        """Of these tables, those with row-level policies: what they return depends on who reads."""
+        raise NotImplementedError(f"{self.name}: no entitlement checks")
 
     # ---- running queries (optional; qlsc ask --run)
 

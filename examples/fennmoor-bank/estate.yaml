@@ -57,3 +57,9 @@ parameters:
     today: 2026-07-01                 # the day after the log window: the gold questions' "last quarter" is 2026 Q2, "last year" 2025
 
 work_dir: work
+
+entitlements:                         # qlsc ask --as <name>: the test principals (entitlements/setup.py grants them)
+  principals:
+    marketing: qlsc-marketing@jeffdavis-bq-testproj.iam.gserviceaccount.com
+    risk: qlsc-risk@jeffdavis-bq-testproj.iam.gserviceaccount.com
+    contact-center: qlsc-contact-center@jeffdavis-bq-testproj.iam.gserviceaccount.com

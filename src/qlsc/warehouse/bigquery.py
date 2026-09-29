@@ -8,13 +8,17 @@ exclude_datasets, timezone. Job rows never leave the warehouse: grouping happens
 from __future__ import annotations
 
 import datetime as dt
+import json
 import os
 import re
 import subprocess
 from collections import Counter, defaultdict
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 
 import google.auth.credentials
+from google.auth import impersonated_credentials
+from google.auth.transport.requests import AuthorizedSession
 from google.cloud import bigquery
 
 from qlsc.warehouse import Warehouse
@@ -34,6 +38,9 @@ class GcloudCredentials(google.auth.credentials.Credentials):
         )
         self.token = out.stdout.strip()
         self.expiry = dt.datetime.now(dt.UTC).replace(tzinfo=None) + dt.timedelta(minutes=45)
+
+
+SCOPE = "https://www.googleapis.com/auth/cloud-platform"
 
 
 def client(project: str, gcloud_config: str, location: str) -> bigquery.Client:
@@ -218,6 +225,114 @@ class BigQuery(Warehouse):
         if unhomed:
             print(f"  never referenced in the log, placed by sibling datasets: {sorted(unhomed)}")
         return aliases
+
+    # ---- entitlements: BigQuery answers, as the principal, what the principal may read
+
+    def acting_as(self, principal: str) -> BigQuery:
+        """This connector as a principal: the estate's identity impersonates it (it holds the
+        principal's token-creator grant), so BigQuery enforces the principal's own grants, column
+        policy tags and row access policies on every query and check."""
+        other = BigQuery(self.settings)
+        creds = impersonated_credentials.Credentials(
+            source_credentials=GcloudCredentials(self.cfg["gcloud_config"]),
+            target_principal=principal,
+            target_scopes=[SCOPE],
+            lifetime=3600,
+        )
+        other._client = bigquery.Client(
+            project=self.cfg["project"], credentials=creds, location=self.cfg["location"]
+        )
+        other.principal = principal
+        return other
+
+    def _each(self, items: list, f) -> list:
+        with ThreadPoolExecutor(self.settings["entitlements"]["workers"]) as pool:
+            return list(pool.map(f, items))
+
+    def _physical_ref(self, table: str) -> bigquery.TableReference | None:
+        """A logical table's physical reference; a wildcard (shard family) by its first shard."""
+        cat = json.loads((self.settings.work / "catalog.json").read_text())
+        entry = cat["tables"].get(table) or {}
+        if entry.get("kind") == "WILDCARD":
+            if not entry.get("shards"):
+                return None
+            table = table[:-1] + entry["shards"][0][len(table.rsplit(".", 1)[-1]) - 1 :]
+        elif not entry:
+            return None  # not deployed: nobody can read it
+        return bigquery.TableReference.from_string(self._physical_table(table).strip("`"))
+
+    def readable(self, tables: list[str]) -> set[str]:
+        def check(t):
+            ref = self._physical_ref(t)
+            if ref is None:
+                return False
+            try:
+                got = self.client._connection.api_request(
+                    method="POST",
+                    path=f"/projects/{ref.project}/datasets/{ref.dataset_id}/tables/{ref.table_id}:testIamPermissions",
+                    data={"permissions": ["bigquery.tables.getData"]},
+                )
+            except Exception:
+                return False  # no such table, or not even allowed to ask
+            if "bigquery.tables.getData" not in got.get("permissions", []):
+                return False
+            if kinds.get(t) != "VIEW":
+                return True
+            # A view runs with its reader's own grants on what it reads (unless it is authorized): the grant on
+            # the view alone doesn't make it readable. A dry run says (LIMIT 1: an empty query checks nothing).
+            return (
+                self._dry_run(f"SELECT 1 FROM `{ref.project}.{ref.dataset_id}.{ref.table_id}` LIMIT 1")["ok"]
+                is True
+            )
+
+        kinds = {
+            k: v.get("kind")
+            for k, v in json.loads((self.settings.work / "catalog.json").read_text())["tables"].items()
+        }
+        return {t for t, ok in zip(tables, self._each(tables, check)) if ok}
+
+    def column_tags(self, tables: list[str]) -> dict[tuple[str, str], str]:
+        def tags(t):
+            ref = self._physical_ref(t)
+            if ref is None:
+                return []
+            try:
+                schema = self.client.get_table(ref).schema
+            except Exception:
+                return []
+            return [
+                (t, f.name, f.policy_tags.names[0]) for f in schema if f.policy_tags and f.policy_tags.names
+            ]
+
+        return {(t, c): tag for found in self._each(tables, tags) for t, c, tag in found}
+
+    def readable_tags(self, tags: list[str]) -> set[str]:
+        session = AuthorizedSession(self.client._credentials)
+
+        def check(tag):
+            r = session.post(
+                f"https://datacatalog.googleapis.com/v1/{tag}:testIamPermissions",
+                json={"permissions": ["datacatalog.categories.fineGrainedGet"]},
+            )
+            return r.ok and "datacatalog.categories.fineGrainedGet" in r.json().get("permissions", [])
+
+        return {t for t, ok in zip(tags, self._each(tags, check)) if ok}
+
+    def row_policies(self, tables: list[str]) -> set[str]:
+        def has(t):
+            ref = self._physical_ref(t)
+            if ref is None:
+                return False
+            try:
+                got = self.client._connection.api_request(
+                    method="GET",
+                    path=f"/projects/{ref.project}/datasets/{ref.dataset_id}/tables/{ref.table_id}/rowAccessPolicies",
+                )
+            except Exception:
+                return False
+            return bool(got.get("rowAccessPolicies"))
+
+        return {t for t, ok in zip(tables, self._each(tables, has)) if ok}
 
     # ---- Virtual Graph
 
