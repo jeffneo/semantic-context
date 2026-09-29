@@ -223,32 +223,41 @@ uv run qlsc recall Customer cif_number=0001000025    # first time: 15 reads from
 uv run qlsc recall Customer cif_number=0001000025    # again: from memory, ~0.05 s
 ```
 
-`--as <principal>` fetches as them: only the tables, columns and rows the warehouse lets them read. A
-fact from a row-policied table is marked for each principal who fetched it, and is read back only by
-them. Checked with BigQuery, read as each principal, as the oracle (`eval/memory_entitlements.py`): 0
-incidents in 18 recalls, and three deliberately broken reads caught.
+`--as <principal>` fetches as them: only the tables, columns and rows the warehouse lets them read.
+- **Every recall is a step the reader owns.** A row-policied fact is read back only by a principal whose
+  own step read it.
+- **Checked with BigQuery as the oracle,** read as each principal (`eval/memory_entitlements.py`): 0
+  incidents in 18 recalls, and three deliberately broken reads caught.
 
 Over 20 customers (`eval/memory.py`), every context read back from memory was exactly the one fetched.
-Six context questions gave the same rows on memory as on the virtual graph, 110 of 110, in 6 ms against
-1.4 s. A stale fact is never read.
+Six context questions gave the same rows on memory as on the virtual graph, 110 of 110, in milliseconds
+against a second. A stale fact is never read.
 
-The agent's side is Neo4j Labs' agent-memory model. `qlsc converse <conversation.yaml>` records a
-conversation:
-- its messages, chained;
-- a reasoning trace per question, with a tool call per `recall` or `ask` (an ask keeps its query and
-  links to the tables and Computations it used);
-- what the agent learned: preferences, facts, and people and things outside the warehouse.
+The agent's side is the Context Memory model ([plan](plans/2026-09-29-context-memory-model.md)).
+`qlsc converse <conversation.yaml>` records a conversation:
+- **messages;**
+- **a task per request, with a step per tool call.** An ask keeps its query, and links to the tables and
+  Computations it used;
+- **facts learned, and decisions** with what they were based on and how they turned out.
 
 A message mentions the warehouse's own `Customer` node, so the next session's recall finds it:
 
 ```bash
 uv run qlsc converse examples/fennmoor-bank/conversations/marketing-1.yaml
 uv run qlsc recall --as marketing Customer 8322097816940277129
-#   noted: contact channel: email, not phone (since 2026-09-29) ...
+#   noted: prefers contact channel: email, not phone (since 2026-09-29)
+#   decided: offer a travel rewards card, by email (...)
 ```
 
-A changed preference closes the old one rather than replacing it. Each principal sees only their own
-notes (`eval/converse.py`: 16 of 16 checks).
+A changed fact supersedes the old one, never overwriting it. A decision based on it is flagged to
+revisit. Each principal sees only their own notes (`eval/converse.py`: 26 of 26 checks).
+
+**Skills are distilled from the agents' experience** with the method qlsc uses on the query log:
+1. `qlsc distill` groups the tasks by what they did and read (Leiden), and proposes a skill from each
+   group that repeats and succeeds. Its procedure is written from the schema, with no values.
+2. A person approves it (`qlsc skills --approve <id> --as <principal>`).
+3. It's then offered to new tasks that fit, to readers who may read its tables. It's measured as tasks
+   follow it, and retired when it stops working (`eval/distill.py`).
 
 ## Who may see what: the entitlement gateway
 

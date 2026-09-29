@@ -20,9 +20,9 @@ read back from memory:
      and recall fetches it (as nothing) instead of serving it; an anchor whose table they can't read is
      refused.
 Negative controls: deliberately broken reads of memory the oracle must catch.
-  - row marks ignored: another principal's rows shown;
+  - reads ignored: a row-policied node shown though the reader's own steps never read it;
   - columns unrestricted: the full model's properties;
-  - another's context: read with another principal's marks.
+  - another's reads: read with another principal's steps.
 
 Writes results/memory_entitlements.md and .json.
 Usage: uv run examples/fennmoor-bank/eval/memory_entitlements.py
@@ -243,9 +243,9 @@ def main() -> int:
         # negative controls: broken reads of memory, which the oracle must catch
         mk = models["marketing"]
         controls = {
-            "row marks ignored (risk)": ("risk", dataclasses.replace(risk, policied=set(), depends=set()), [("Customer", outside), ("Branch", BRANCH)]),
+            "reads ignored (risk sees rows its steps never read)": ("risk", dataclasses.replace(risk, policied=set()), [("Customer", outside), ("Branch", BRANCH)]),
             "columns unrestricted (marketing)": ("marketing", dataclasses.replace(ds, reader=mk.reader, allow=mk.allow), [("Customer", named[0])]),
-            "another's context (risk read with marketing's marks)": ("risk", dataclasses.replace(risk, reader=mk.reader), [("Customer", outside)]),
+            "another's reads (risk read with marketing's steps)": ("risk", dataclasses.replace(risk, reader=mk.reader), [("Customer", outside)]),
         }  # fmt: skip
         for cname, (name, broken, targets) in controls.items():
             found = []

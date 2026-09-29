@@ -7,7 +7,8 @@ For 20 customers (the two the graph questions name, then 18 who called in the wi
      same Cypher, six context questions, gives the same rows on memory and on the virtual graph. A
      question over a capped relationship (the most recent facts only) is left out: memory holds the cap,
      the virtual graph all.
-  2. idempotence: remembering three contexts again leaves memory's node and relationship counts unchanged.
+  2. idempotence: remembering three contexts again leaves memory's facts unchanged: its nodes and
+     relationships, besides the Step each recall leaves (the record of who read what).
   3. freshness, on the first customer:
      - within its lifetime, recall reads memory;
      - past it, recall fetches again;
@@ -82,16 +83,27 @@ RETURN a.product_name AS product, d.transaction_type AS type, count(d) AS n, sum
 ORDER BY product, type""",
     ),
 }
-COUNTS = "MATCH (n) WITH count(n) AS nodes MATCH ()-[r]->() RETURN nodes, count(r) AS relationships"
+# The remembered facts: not the Steps each recall leaves, nor their READs (the record of who read what)
+COUNTS = """
+MATCH (n) WHERE NOT n:Step WITH count(n) AS nodes
+MATCH ()-[r]->() WHERE type(r) <> 'READ' RETURN nodes, count(r) AS relationships
+"""
 PLANT = """
 MATCH (c:Customer {source: $source, customer_key: $key})
 MERGE (k:Call {source: $source, conversation_id: $id})
 SET k.conversation_date = $day, k.fetched_at = $old, k.holds_until = $old
-MERGE (k)-[x:RECEIVED_FROM]->(c) SET x.fetched_at = $old, x.holds_until = $old, x[$seen] = $old, k[$seen] = $old
+MERGE (k)-[x:RECEIVED_FROM]->(c) SET x.fetched_at = $old, x.holds_until = $old
 """
 PLANTED = "MATCH (k:Call {source: $source, conversation_id: $id})-[x:RECEIVED_FROM]->() RETURN count(x) AS n"
 UNPLANT = "MATCH (k:Call {source: $source, conversation_id: $id}) DETACH DELETE k"
 STALE_ID = "qlsc-memory-check-stale"
+# The freshness checks start from no record of the customer's context for this reader, and leave none dated
+# after now (they move the clock): every fetch is a kept Step, and one from an earlier run would still hold.
+FORGET_STEPS = """
+MATCH (s:Step {tool: 'recall', owner: $by})-[:READ {context: true}]->(:Customer {customer_key: $key})
+DETACH DELETE s
+"""
+FORGET_FUTURE = "MATCH (s:Step {tool: 'recall'}) WHERE s.at > $now DETACH DELETE s"
 
 
 def norm(rows: list[dict]) -> list[str]:
@@ -202,6 +214,7 @@ def main() -> int:
 
         # 3. freshness, on the first customer
         key, f = keys[0], res["freshness"]
+        M.run(FORGET_STEPS, by=m.reader, key=key)
         ctx = memory.recall(s, "Customer", key, force=True, m=m)
         until = ctx.holds_until
         inside = memory.recall(s, "Customer", key, now=until - dt.timedelta(minutes=1), m=m)
@@ -213,7 +226,7 @@ def main() -> int:
         }
         old = dt.datetime.now(dt.UTC) - dt.timedelta(days=2)
         day = dt.date.fromisoformat(res["window_since"]) + dt.timedelta(days=1)
-        M.run(PLANT, source=m.source, key=key, id=STALE_ID, day=day, old=old, seen=m.seen())
+        M.run(PLANT, source=m.source, key=key, id=STALE_ID, day=day, old=old)
         served = memory.recall(s, "Customer", key, m=m)
         leaked = ("Call", STALE_ID) in served.nodes
         f["a stale fact"] = {
@@ -231,6 +244,7 @@ def main() -> int:
         f["a changed template"] = {"origin": other.origin, "ok": other.origin == "virtual graph"}
         s["memory"]["window_days"] = configured
         memory.recall(s, "Customer", key, force=True, m=m)  # back to the configured template
+        M.run(FORGET_FUTURE, now=dt.datetime.now(dt.UTC))
         for name, x in f.items():
             print(f"freshness: {name}: {'ok' if x['ok'] else 'FAILED'} {x}", flush=True)
 

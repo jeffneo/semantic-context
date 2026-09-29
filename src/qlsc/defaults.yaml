@@ -29,6 +29,19 @@ memory:                               # qlsc remember / recall: an entity's cont
   workers: 6                          # concurrent reads of the virtual graph, one per relationship of a hop
   tool_result_rows: 20                # qlsc converse: the rows of an ask's answer its ToolCall keeps (the rest are counted)
 
+distill:                              # qlsc distill: skills from the agents' experience in memory (qlsc/distill.py)
+  min_steps: 2                        # a task of one step is using a tool, not a procedure
+  min_support: 3                      # tasks a skill needs, and uses before a skill can be retired
+  min_success: 0.7                    # of a cluster's tasks, the share that must have succeeded
+  similarity: 0.5                     # Jaccard of two tasks' steps and reads that joins them; and a task's to a skill it followed
+  gamma: 1.0                          # Leiden's resolution over the tasks
+  seed: 42
+  examples: 8                         # masked requests the LLM sees when it names a skill
+  offers: 3                           # approved skills offered to a new task, at most
+  offer_similarity: 0.45              # raw cosine of a request (masked) to a skill's trigger, at least
+  retire_below: 0.6                   # an approved skill whose followers succeed less often is retired
+  negative: [wrong, unhelpful, declined, rejected]   # ratings and outcomes that make a task a failure
+
 embeddings:                           # Azure OpenAI: AZURE_OPENAI_API_KEY, _ENDPOINT, _API_VERSION
   deployment: text-embedding-3-large
   dimensions: 512

@@ -37,6 +37,6 @@ Check 4 of plans/2026-09-27-agentic-memory.md (phase 2): memory never shows a re
 
 | broken read | caught | by |
 |---|---|---|
-| row marks ignored (risk) | yes | Customer: 1 of 1 rows they can't read, e.g. 4406449607907749601 |
-| columns unrestricted (marketing) | yes | Customer: hidden columns shown: cif_number, full_name, primary_email |
-| another's context (risk read with marketing's marks) | yes | Customer: 1 of 1 rows they can't read, e.g. 4406449607907749601 |
+| reads ignored (risk sees rows its steps never read) | yes | Customer: 1 of 1 rows they can't read, e.g. 4406449607907749601 |
+| columns unrestricted (marketing) | yes | Agent: 30 rows of fennmoor-dw.dw_contact_center.dim_agent, which they can't read |
+| another's reads (risk read with marketing's steps) | yes | Customer: 1 of 1 rows they can't read, e.g. 4406449607907749601 |

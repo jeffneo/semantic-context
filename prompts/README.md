@@ -14,6 +14,8 @@ warehouse connector.
 | `variable_system.md` | `qlsc variables` | system prompt: name the real-world thing a set of joined columns holds |
 | `semantic_system.md` | `qlsc cluster` | system prompt: name the business area a level-1 group of co-read variables and columns covers |
 | `parent_system.md` | `qlsc hierarchy` | system prompt: name a broader area from its groups, in vendor-neutral business language |
+| `skill_system.md` | `qlsc distill` | system prompt: name a skill (a repeated, successful procedure) from its procedure and masked requests, with no values |
+| `skill_request.md` | `qlsc distill` | one skill to name: its procedure, support, and the requests it served, masked |
 | `computation_system.md` | `qlsc computations` | system prompt: name a measure, derived dimension or population the log's queries compute |
 | `computation_merge_system.md` | `qlsc computations` | system prompt: which near-alike computations are the same computation written differently |
 | `computation_merge.md` | `qlsc computations` | the candidate sets to judge |

@@ -77,17 +77,20 @@ class Graph:
     def drop_projection(self, name: str) -> None:
         self.run("CALL gds.graph.drop($g, false) YIELD graphName RETURN graphName", g=name)
 
-    def project_pairs(self, name: str, rows: list[dict]) -> dict:
+    def project_pairs(
+        self, name: str, rows: list[dict], labels: tuple[str, ...] = ("Variable", "Unjoined", "Semantic")
+    ) -> dict:
         """An undirected projection from rows {a, b, w} of node ids (b and w may be None for a node
-        with no edges). GDS numbers nodes in the order rows arrive and Leiden's result depends on that
-        numbering, so rows are sorted: a seeded run repeats on a rebuilt database."""
+        with no edges), over nodes of `labels`. GDS numbers nodes in the order rows arrive and Leiden's
+        result depends on that numbering, so rows are sorted: a seeded run repeats on a rebuilt database."""
         self.drop_projection(name)
         ids = sorted({r["a"] for r in rows} | {r["b"] for r in rows if r["b"]})
         eid = dict(
             self.run(
-                """MATCH (n) WHERE (n:Variable OR n:Unjoined OR n:Semantic) AND n.id IN $ids
+                """MATCH (n) WHERE any(l IN labels(n) WHERE l IN $labels) AND n.id IN $ids
                    RETURN n.id, elementId(n)""",
                 ids=ids,
+                labels=list(labels),
             ).records
         )
         rows = [

@@ -1,7 +1,9 @@
 # Agentic memory: a context compiler from the virtual graph into a persistent graph
 
 Status: agreed (2026-09-27), after the accuracy work; split into phases (2026-09-28, below). Phases 1 and
-2 built and checked (2026-09-28), phase 3 (2026-09-29); see each phase's "as built" at the end.
+2 built and checked (2026-09-28), phase 3 (2026-09-29). On 2026-09-29 the agent side was rebuilt on the
+Context Memory model ([its plan](2026-09-29-context-memory-model.md)), and distillation became phase 4.
+See each phase's "as built" at the end.
 
 ## Why
 
@@ -200,7 +202,9 @@ Each phase ends with its checks run and its results written up.
      `qlsc converse`;
    - an `ask` recorded as a tool call, with Computation stubs;
    - the reserved labels checked in `qlsc virtualize` (collisions).
-4. **The memory route and the economics:**
+4. **Distillation** (added 2026-09-29, with the Context Memory model): skills from the agents'
+   experience ([its plan](2026-09-29-context-memory-model.md)).
+5. **The memory route and the economics:**
    - the router's third route: a fresh context reads memory;
    - `ask --cypher` on memory;
    - check 2, the simulated session (latency and bytes billed).
@@ -482,3 +486,17 @@ every warehouse call failed.
 - **Vector indexes** on messages and preferences, for semantic search over what was said: agent-memory
   has them.
 - **An MCP server** exposing recall, ask and the learning calls: after phase 4.
+
+## Phase 3, rebuilt, and phase 4, distillation (2026-09-29)
+
+The agent side was rebuilt on the Context Memory model. Distillation, the model's differentiator, was
+built as phase 4. Both are written up in [the Context Memory plan's as-built section](2026-09-29-context-memory-model.md#as-built-2026-09-29).
+In short:
+- `eval/converse.py`: 26 of 26 checks.
+- `eval/distill.py`: 13 of 13. Two skills were distilled from repeated, successful work, none from the
+  failing pattern, with no values in either. The approval gate, the offers by permission, and
+  measurement and retirement all held.
+- **Phases 1 and 2 now use `READ` edges.** Their checks were rerun on them: `eval/memory.py` and
+  `eval/memory_entitlements.py`.
+
+Phase 5 is next: the router's memory route and the economics check.

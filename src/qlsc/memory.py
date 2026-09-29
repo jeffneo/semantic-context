@@ -1,5 +1,6 @@
 """Memory: an entity's context, fetched from the virtual graph and kept in a persistent Neo4j database
-(plans/2026-09-27-agentic-memory.md; phase 1, the context compiler; phase 2, entitlements).
+(plans/2026-09-27-agentic-memory.md; phase 1, the context compiler; phase 2, entitlements; the Context Memory
+model, plans/2026-09-29-context-memory-model.md).
 
 The virtual graph reads warehouse rows on demand and keeps nothing. Memory keeps what a read fetched, so the
 next read of the same context is a local graph read, fast and free, and every fact stays tied to the
@@ -30,15 +31,17 @@ semantic layer it came from.
               restricts it for them (entitle.model: readable tables, no hidden columns), and each read is
               signed for them, so the warehouse applies their tables, columns and rows. A remembered row has
               left the warehouse's enforcement, so:
-              - a fact that depends on who reads it (a node of a table with a row access policy, or a
-                relationship whose table or either end has one) carries `seen_until:<principal>` for each
-                principal who fetched it, and is read only by a principal with their own mark still holding.
-                A refetch takes the principal's mark off what it no longer returns, and a relationship no one
-                has a mark on is removed;
-              - any other fact is the same whoever reads it, and is shared;
-              - a context is recorded per principal on its anchor (`context_until:<principal>`, ...), and a
-                recall reads memory only for a context the principal fetched, with their template as it is
-                now: a table or column they lost changes it, and it is fetched again.
+              - every recall is a Step, owned by its reader: (:Step {tool: 'recall', owner})-[:READ]->. A
+                fetch's step READ the anchor (the context record: when, with which template, until when it
+                holds) and every node of a table with a row access policy it fetched, until it holds for them.
+                Such a node is read from memory only by a principal whose own step read it and still holds;
+                a relationship, only between nodes the reader may see. Any other fact is the same whoever
+                reads it, and is shared;
+              - a refetch removes a relationship it didn't return only where it could have: not one to a
+                row-policied node the reader can't see;
+              - a recall reads memory only for a context the reader's own step fetched, with their template
+                as it is now: a table or column they lost changes it, and it is fetched again. Every read,
+                from memory too, leaves its step: who read what, and when.
 
 Each read's Cypher is written once for either target: the virtual graph, or memory, where the same read adds
 `source` and freshness. So a context read back from memory can be compared with the virtual graph's, read for
@@ -53,6 +56,7 @@ import json
 import re
 import statistics
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
@@ -65,10 +69,9 @@ from qlsc.warehouse import connect
 
 IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 # Labels memory itself uses, which a virtual graph's labels must not take (qlsc virtualize renames one that
-# does): Neo4j Labs agent-memory's (qlsc/converse.py), its POLE+O entity types, and memory's stubs.
+# does): the Context Memory model's (qlsc/converse.py) and memory's stubs of the semantic layer.
 RESERVED_LABELS = frozenset(
-    {"Conversation", "Message", "Entity", "Preference", "Fact", "ReasoningTrace", "ReasoningStep", "ToolCall",
-     "Tool", "Extractor", "Schema", "Person", "Organization", "Location", "Event", "Object", "Table", "Column",
+    {"Conversation", "Message", "Task", "Step", "Decision", "Fact", "Entity", "Skill", "Table", "Column",
      "Computation"}
 )  # fmt: skip
 DATA_SOURCE = "data source"  # fetched_by when no principal is named: the estate's own read
@@ -99,6 +102,8 @@ NODE_KEY = (
 STUB_KEYS = (
     "CREATE CONSTRAINT stub_table IF NOT EXISTS FOR (t:Table) REQUIRE t.id IS UNIQUE",
     "CREATE CONSTRAINT stub_column IF NOT EXISTS FOR (c:Column) REQUIRE c.id IS UNIQUE",
+    "CREATE CONSTRAINT step_id IF NOT EXISTS FOR (s:Step) REQUIRE s.id IS UNIQUE",
+    "CREATE INDEX step_owner IF NOT EXISTS FOR (s:Step) ON (s.owner, s.tool)",
 )
 
 STUBS = """
@@ -113,8 +118,7 @@ MERGE (x)-[:HAS_COLUMN]->(y)
 NODES = """
 UNWIND $rows AS r
 MERGE (n:`{label}` {{source: $source, `{key}`: r.key}})
-SET n += r.props, n.fetched_at = $at, n.holds_until = $until, n.fetched_by = $by, n.fetched_with = r.cypher,
-    n[$seen] = CASE WHEN $depends THEN $seen_until ELSE n[$seen] END
+SET n += r.props, n.fetched_at = $at, n.holds_until = $until, n.fetched_by = $by, n.fetched_with = r.cypher
 WITH n
 MATCH (t:Table {{id: $table}})
 MERGE (n)-[:FROM]->(t)
@@ -124,64 +128,66 @@ UNWIND $rows AS r
 MATCH (a:`{start}` {{source: $source, `{start_key}`: r.start}})
 MATCH (b:`{end}` {{source: $source, `{end_key}`: r.end}})
 MERGE (a)-[x:`{type}`]->(b)
-SET x.fetched_at = $at, x.holds_until = $until, x.fetched_by = $by, x.fetched_with = $cypher,
-    x[$seen] = CASE WHEN $depends THEN $seen_until ELSE x[$seen] END
+SET x.fetched_at = $at, x.holds_until = $until, x.fetched_by = $by, x.fetched_with = $cypher
 """
-# A read's relationships the new fetch didn't return, around the nodes it was keyed on. One that depends on
-# who reads it loses only this reader's mark, and goes when no one's is left (one with no mark, no one reads).
+# A read's relationships the new fetch didn't return, around the nodes it was keyed on. Where the other end is
+# of a row-policied table, only those the reader may see: an absent row they can't see says nothing ($open,
+# else $visible, the other ends this fetch read).
 PRUNE_INTO = """
-MATCH (:`{start}`)-[x:`{type}`]->(v:`{end}` {{source: $source}})
-WHERE v.`{end_key}` IN $keys AND x.fetched_at < $at
+MATCH (o:`{start}`)-[x:`{type}`]->(v:`{end}` {{source: $source}})
+WHERE v.`{end_key}` IN $keys AND x.fetched_at < $at AND ($open OR o.`{start_key}` IN $visible)
 DELETE x
 """
 PRUNE_OUT_OF = """
-MATCH (v:`{start}` {{source: $source}})-[x:`{type}`]->(:`{end}`)
-WHERE v.`{start_key}` IN $keys AND x.fetched_at < $at
+MATCH (v:`{start}` {{source: $source}})-[x:`{type}`]->(o:`{end}`)
+WHERE v.`{start_key}` IN $keys AND x.fetched_at < $at AND ($open OR o.`{end_key}` IN $visible)
 DELETE x
 """
-UNSEE_INTO = """
-MATCH (:`{start}`)-[x:`{type}`]->(v:`{end}` {{source: $source}})
-WHERE v.`{end_key}` IN $keys
-  AND (x[$seen] < $seen_until OR none(k IN keys(x) WHERE k STARTS WITH 'seen_until:'))
-SET x[$seen] = null
-WITH x WHERE none(k IN keys(x) WHERE k STARTS WITH 'seen_until:')
-DELETE x
-"""
-UNSEE_OUT_OF = """
-MATCH (v:`{start}` {{source: $source}})-[x:`{type}`]->(:`{end}`)
-WHERE v.`{start_key}` IN $keys
-  AND (x[$seen] < $seen_until OR none(k IN keys(x) WHERE k STARTS WITH 'seen_until:'))
-SET x[$seen] = null
-WITH x WHERE none(k IN keys(x) WHERE k STARTS WITH 'seen_until:')
-DELETE x
-"""
-# The anchor's record of a reader's context: $k_at, $k_until, ... are that reader's property names.
-CONTEXT = """
+# The recall itself, as a Step its reader owns. A fetch's step READ the anchor (the context record) and every
+# row-policied node it fetched; a read of memory's step READ the anchor only, for the record.
+STEP = """
+CREATE (s:Step {{id: $id, tool: 'recall', owner: $by, scope: 'private', at: $at, recorded_at: $at, status: 'ok',
+                 arguments: $arguments, fingerprint: $fingerprint, template: $template, origin: $origin,
+                 capped: $capped}})
+WITH s
 MATCH (a:`{label}` {{source: $source, `{key}`: $key}})
-SET a[$k_at] = $at, a[$k_until] = $until, a[$k_template] = $template, a[$k_capped] = $capped
+CREATE (s)-[:READ {{context: true, context_until: $until, holds_until: $seen_until}}]->(a)
+"""
+SEEN = """
+MATCH (s:Step {{id: $id}})
+UNWIND $keys AS k
+MATCH (n:`{label}` {{source: $source, `{key}`: k}})
+MERGE (s)-[r:READ]->(n) ON CREATE SET r.holds_until = $seen_until
 """
 FRESH = """
-MATCH (a:`{label}` {{source: $source, `{key}`: $key}})
-WHERE a[$k_template] = $template AND a[$k_at] IS NOT NULL AND (a[$k_until] IS NULL OR a[$k_until] > $now)
-RETURN a[$k_at] AS at, a[$k_until] AS until, a[$k_capped] AS capped
+MATCH (s:Step {{tool: 'recall', owner: $by, template: $template, origin: 'virtual graph'}})
+      -[r:READ {{context: true}}]->(a:`{label}` {{source: $source, `{key}`: $key}})
+WHERE s.at <= $now AND (r.context_until IS NULL OR r.context_until > $now)
+RETURN s.at AS at, r.context_until AS until, s.capped AS capped
+ORDER BY s.at DESC LIMIT 1
 """
 FIND_IN_MEMORY = """
-MATCH (a:`{label}` {{source: $source}})
-WHERE a.`{prop}` = $value AND a[$k_template] = $template AND a[$k_at] IS NOT NULL
-  AND (a[$k_until] IS NULL OR a[$k_until] > $now)
-RETURN a.`{key}` AS key LIMIT 2
+MATCH (s:Step {{tool: 'recall', owner: $by, template: $template, origin: 'virtual graph'}})
+      -[r:READ {{context: true}}]->(a:`{label}` {{source: $source}})
+WHERE a.`{prop}` = $value AND s.at <= $now AND (r.context_until IS NULL OR r.context_until > $now)
+RETURN DISTINCT a.`{key}` AS key LIMIT 2
 """
 FIND = "MATCH (n:`{label}`) WHERE n.`{prop}` = $value RETURN n.`{key}` AS key LIMIT 2"
-# What the reader's agent noted about an anchor (qlsc/converse.py): the preferences and facts that still
-# hold, the people and things related to it, and the conversations that mentioned it.
+# What the reader's own agent side noted about an anchor (qlsc/converse.py): the facts about it that still hold,
+# the people and things facts relate to it, its decisions (with their outcomes, and whether a fact one was based
+# on has since been superseded), and the conversations that mentioned it.
 NOTES = """
 MATCH (a:`{label}` {{source: $source, `{key}`: $key}})
-RETURN [(p:Preference)-[:ABOUT]->(a) WHERE p.recorded_by = $by AND (p.valid_until IS NULL OR p.valid_until > $now)
-        | p {{.category, .preference, .valid_from}}] AS preferences,
-       [(f:Fact)-[:ABOUT]->(a) WHERE f.recorded_by = $by AND (f.valid_until IS NULL OR f.valid_until > $now)
-        | f {{.predicate, .object, .valid_from}}] AS facts,
-       [(e:Entity)-[r:RELATED_TO]->(a) WHERE e.recorded_by = $by | e {{.name, .type, relation: r.relation_type}}] AS entities,
-       [(c:Conversation)-[:HAS_MESSAGE]->(m:Message)-[:MENTIONS]->(a) WHERE m.recorded_by = $by
+RETURN [(f:Fact)-[:ABOUT]->(a) WHERE f.owner = $by AND (f.valid_until IS NULL OR f.valid_until > $now)
+        | f {{.predicate, .value, .origin, .valid_from}}] AS facts,
+       [(e:Entity)<-[:ABOUT]-(f:Fact)-[:MENTIONS]->(a) WHERE f.owner = $by AND (f.valid_until IS NULL OR f.valid_until > $now)
+        | {{name: e.name, type: e.type, predicate: f.predicate}}] AS related,
+       [(d:Decision)-[:ABOUT]->(a) WHERE d.owner = $by AND (d.valid_until IS NULL OR d.valid_until > $now)
+        | d {{.choice, .valid_from,
+             outcomes: [(o:Fact {{predicate: 'outcome'}})-[:ABOUT]->(d) WHERE o.owner = $by | o.value],
+             revisit: [(d)-[:BASED_ON]->(b:Fact)<-[:SUPERSEDES]-(n:Fact) WHERE n.owner = $by
+                       | b.predicate + ': ' + b.value + ' is now ' + n.value]}}] AS decisions,
+       [(c:Conversation)<-[:PART_OF]-(m:Message)-[:MENTIONS]->(a) WHERE m.owner = $by
         | c {{.id, .title, .updated_at}}] AS conversations
 """
 
@@ -238,18 +244,10 @@ class Model:
     reader: str = DATA_SOURCE  # the principal, or the data source
     allow: entitle.Allowlist | None = None
     policied: set[str] = field(default_factory=set)  # labels whose table has a row access policy
-    depends: set[str] = field(default_factory=set)  # relationship types whose facts depend on the reader
     unreadable: set[str] = field(default_factory=set)  # labels the reader may not read
 
     def key(self, label: str) -> str:
         return self.nodes[label]["key"]
-
-    def seen(self) -> str:
-        """The property that marks a fact this reader fetched, until when it holds for them."""
-        return f"seen_until:{self.reader}"
-
-    def context_keys(self) -> dict[str, str]:
-        return {f"k_{k}": f"context_{k}:{self.reader}" for k in ("at", "until", "template", "capped")}
 
 
 def row_policied(s: Settings, tables: list[str]) -> set[str]:
@@ -319,7 +317,6 @@ def model(G: Graph, s: Settings, schema: dict | None = None, allow: entitle.Allo
         for r in entities["relationships"]
     ]
     policied = {label for label, t in tables.items() if t["id"] in policied_tables}
-    depends = {r["type"] for r in rels if {r["table"], r["start"], r["end"]} & policied}
     return Model(
         f"{schema['catalog']}.{schema['schema']}",
         nodes,
@@ -328,7 +325,6 @@ def model(G: Graph, s: Settings, schema: dict | None = None, allow: entitle.Allo
         reader=allow.principal if allow else DATA_SOURCE,
         allow=allow,
         policied=policied,
-        depends=depends,
         unreadable=every - set(nodes),
     )
 
@@ -381,12 +377,12 @@ def digest(m: Model, reads: list[Read], p: dict) -> str:
 
 def cypher(m: Model, r: Read, memory: bool = False) -> str:
     """A read's Cypher: over the virtual graph, or (memory) the same read over memory: only its source's
-    nodes, only facts that still hold at $now, and a fact that depends on who reads it only with the
-    reader's own mark ($seen) still holding."""
+    nodes, only facts that still hold at $now, and a node of a row-policied table only if the reader's own
+    step ($by) read it and that read still holds."""
     n = m.nodes[r.label]
     src = " {source: $source}" if memory else ""
     fresh = lambda v: f"({v}.holds_until IS NULL OR {v}.holds_until > $now)"
-    seen = lambda v: f"{v}[$seen] > $now"
+    seen = lambda v: f"EXISTS {{ (:Step {{owner: $by}})-[r:READ]->({v}) WHERE r.holds_until > $now }}"
     ret = ", ".join(f"n.`{p}` AS `{p}`" for p in sorted(n["props"]))
     if r.type is None:
         where = [f"n.`{n['key']}` IN $keys"]
@@ -405,8 +401,7 @@ def cypher(m: Model, r: Read, memory: bool = False) -> str:
         where.append(f"v.`{r.via_window}` >= $since")
     if memory:
         where += [fresh("x"), fresh("n")]
-        where += [seen("x")] * (r.type in m.depends) + [seen("n")] * (r.label in m.policied)
-        where += [seen("v")] * (r.via in m.policied)
+        where += [seen("n")] * (r.label in m.policied) + [seen("v")] * (r.via in m.policied)
     order = f"n.`{r.window}` DESC, n.`{n['key']}`" if r.window else f"v.`{vk}`, n.`{n['key']}`"
     limit = "\nLIMIT $limit" if r.inward else ""
     return (
@@ -434,6 +429,7 @@ class Context:
     fetched_at: dt.datetime | None = None
     holds_until: dt.datetime | None = None
     seconds: float = 0.0
+    step: str | None = None  # the recall's Step in memory
 
     def capped(self) -> list[str]:
         return [x["read"] for x in self.reads if x["capped"]]
@@ -468,7 +464,7 @@ def run_reads(
     fetched: dict[str, set] = {anchor: {anchor_key}}
     base = {"since": window_start(s), "limit": p["cap"] + 1}
     if memory:
-        base |= {"source": m.source, "now": now, "seen": m.seen()}
+        base |= {"source": m.source, "now": now, "by": m.reader}
     t0 = time.time()
 
     def one(r: Read) -> tuple[Read, str, list, list[dict], float]:
@@ -548,9 +544,10 @@ def ensure(s: Settings, m: Model) -> None:
 
 def write(s: Settings, m: Model, ctx: Context, reads: list[Read], template_id: str, at: dt.datetime) -> float:
     """The context into memory, in one transaction: stubs, nodes, relationships, the reads' stale
-    relationships removed, and the anchor's context properties. -> seconds"""
+    relationships removed, and the recall's Step: its READ of the anchor is the context record, and its READ
+    of each row-policied node lets the reader see it until it holds for them. -> seconds"""
     t0 = time.time()
-    by, seen = m.reader, m.seen()
+    by = m.reader
     by_label: dict[str, list[dict]] = {}
     done = {x["read"]: x for x in ctx.reads}
     for (label, key), props in ctx.nodes.items():
@@ -558,8 +555,8 @@ def write(s: Settings, m: Model, ctx: Context, reads: list[Read], template_id: s
             {"key": key, "props": props, "cypher": ctx.fetched_with[(label, key)]}
         )
     until = {label: holds_until(s, m.tables.get(label, {}), at) for label in m.nodes}
-    # a reader's mark holds as long as the fact; a frozen table's, as long as an unknown cadence's: their
-    # right to its rows may change though the rows don't
+    # what the reader saw holds for them as long as the fact; a frozen table's, as long as an unknown
+    # cadence's: their right to its rows may change though the rows don't
     seen_until = {
         label: u or at + dt.timedelta(days=s["memory"]["unknown_hold_days"]) for label, u in until.items()
     }
@@ -568,24 +565,17 @@ def write(s: Settings, m: Model, ctx: Context, reads: list[Read], template_id: s
         for label, t in sorted(m.tables.items())
         if label in by_label
     ]
+    fetched = {label: sorted((k for lb, k in ctx.nodes if lb == label), key=str) for label in by_label}
+    dates = [until[label] for label in by_label]
+    context_until = min((d for d in dates if d is not None), default=None)
+    step = str(uuid.uuid4())
 
     def tx(t):
         t.run(STUBS, tables=tables).consume()
         for label, rows in sorted(by_label.items()):
             q = NODES.format(label=label, key=m.key(label))
             table = m.tables.get(label, {}).get("id")
-            t.run(
-                q,
-                rows=rows,
-                source=m.source,
-                at=at,
-                until=until[label],
-                by=by,
-                table=table,
-                seen=seen,
-                depends=label in m.policied,
-                seen_until=seen_until[label],
-            ).consume()
+            t.run(q, rows=rows, source=m.source, at=at, until=until[label], by=by, table=table).consume()
         for r in reads:
             if r.type is None or r.name not in done:
                 continue
@@ -602,42 +592,53 @@ def write(s: Settings, m: Model, ctx: Context, reads: list[Read], template_id: s
                 until=until[r.start],
                 by=by,
                 cypher=done[r.name]["cypher"],
-                seen=seen,
-                depends=r.type in m.depends,
-                seen_until=seen_until[r.start],
             ).consume()
-            # only around the nodes this read was keyed on: others' relationships are theirs
-            if r.type in m.depends:
-                prune = UNSEE_INTO if r.inward else UNSEE_OUT_OF
-            else:
-                prune = PRUNE_INTO if r.inward else PRUNE_OUT_OF
+            # only around the nodes this read was keyed on, and only where an absent row says it's gone
+            other = r.start if r.inward else r.end
             t.run(
-                prune.format(**ends),
+                (PRUNE_INTO if r.inward else PRUNE_OUT_OF).format(**ends),
                 keys=done[r.name]["keys"],
                 source=m.source,
                 at=at,
-                seen=seen,
-                seen_until=seen_until[r.start],
+                open=other not in m.policied,
+                visible=fetched.get(other, []),
             ).consume()
-        dates = [until[label] for label in {x[0] for x in ctx.nodes}]
-        context_until = min((d for d in dates if d is not None), default=None)
-        anchor = ctx.label
-        t.run(
-            CONTEXT.format(label=anchor, key=m.key(anchor)),
-            key=ctx.key,
-            source=m.source,
-            at=at,
-            until=context_until,
-            template=template_id,
-            capped=ctx.capped(),
-            **m.context_keys(),
-        ).consume()
+        record(t, m, ctx, template_id, at, step, "virtual graph", context_until, seen_until[ctx.label])
+        for label in sorted(m.policied & set(by_label)):
+            t.run(
+                SEEN.format(label=label, key=m.key(label)),
+                id=step,
+                keys=fetched[label],
+                source=m.source,
+                seen_until=seen_until[label],
+            ).consume()
         return context_until
 
     with memory_graph(s) as M, M.driver.session(database=M.db) as session:
         ctx.holds_until = session.execute_write(tx)
-    ctx.fetched_at = at
+    ctx.fetched_at, ctx.step = at, step
     return time.time() - t0
+
+
+def record(
+    t, m: Model, ctx: Context, template_id: str, at, step: str, origin: str, until, seen_until
+) -> None:
+    """The recall's Step and its READ of the anchor, in transaction `t`."""
+    t.run(
+        STEP.format(label=ctx.label, key=m.key(ctx.label)),
+        id=step,
+        by=m.reader,
+        at=at,
+        arguments=json.dumps({"label": ctx.label, "key": str(ctx.key)}),
+        fingerprint=f"recall {ctx.label} ?",
+        template=template_id,
+        origin=origin,
+        capped=ctx.capped(),
+        source=m.source,
+        key=ctx.key,
+        until=until,
+        seen_until=seen_until,
+    ).consume()
 
 
 def virtual_graph(s: Settings) -> Graph:
@@ -660,9 +661,7 @@ def find(s: Settings, m: Model, label: str, prop: str, value, now: dt.datetime, 
         try:
             hits = [
                 r["key"]
-                for r in M.rows(
-                    q, source=m.source, value=value, template=template_id, now=now, **m.context_keys()
-                )
+                for r in M.rows(q, source=m.source, value=value, template=template_id, now=now, by=m.reader)
             ]
         except DatabaseUnavailable:
             hits = []
@@ -709,7 +708,7 @@ def recall(
                     source=m.source,
                     template=template_id,
                     now=now,
-                    **m.context_keys(),
+                    by=m.reader,
                 )
             except DatabaseUnavailable:
                 fresh = []  # no memory database yet
@@ -718,6 +717,12 @@ def recall(
                 ctx.fetched_at, ctx.holds_until = fresh[0]["at"], fresh[0]["until"]
                 for x in ctx.reads:
                     x["capped"] = x["read"] in (fresh[0]["capped"] or [])
+                if ctx.nodes:  # the read of memory leaves its step too: who read what, and when
+                    ctx.step = str(uuid.uuid4())
+                    with M.driver.session(database=M.db) as session:
+                        session.execute_write(
+                            lambda t: record(t, m, ctx, template_id, now, ctx.step, "memory", None, None)
+                        )
                 return ctx
     with virtual_graph(s) as V:
         ctx = run_reads(s, m, reads, key, V, memory=False, now=now)
@@ -744,7 +749,7 @@ def resolve(s: Settings, m: Model, label: str, key, now: dt.datetime):
 
 
 def notes(s: Settings, m: Model, label: str, key, now: dt.datetime) -> dict:
-    """What the reader's agent noted about `label` `key` (qlsc converse): their own notes only."""
+    """What the reader's own agent side noted about `label` `key` (qlsc converse)."""
     with memory_graph(s) as M:
         try:
             got = M.rows(
@@ -764,13 +769,13 @@ def notes(s: Settings, m: Model, label: str, key, now: dt.datetime) -> dict:
 def show_notes(n: dict) -> list[str]:
     day = lambda d: str(d)[:10]
     lines = [
-        f"  noted: {p['category']}: {p['preference']} (since {day(p['valid_from'])})"
-        for p in n.get("preferences", [])
+        f"  noted: {f['predicate']}: {f['value']} (since {day(f['valid_from'])})" for f in n.get("facts", [])
     ]
-    lines += [
-        f"  noted: {f['predicate']}: {f['object']} (since {day(f['valid_from'])})" for f in n.get("facts", [])
-    ]
-    lines += [f"  noted: {e['name']} ({e['type'].lower()}), {e['relation']}" for e in n.get("entities", [])]
+    lines += [f"  noted: {e['name']} ({e['type']}), {e['predicate']}" for e in n.get("related", [])]
+    for d in n.get("decisions", []):
+        outcome = f"; outcome: {', '.join(d['outcomes'])}" if d["outcomes"] else ""
+        revisit = f"; revisit: {'; '.join(d['revisit'])}" if d["revisit"] else ""
+        lines.append(f"  decided: {d['choice']} (on {day(d['valid_from'])}{outcome}{revisit})")
     if cs := n.get("conversations"):
         lines.append(
             f"  in {len(cs)} conversation{'s' * (len(cs) > 1)}, the last {day(cs[-1]['updated_at'])}: {cs[-1]['title']}"

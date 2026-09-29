@@ -7,18 +7,24 @@ messages:
   - user: I'm meeting customer 8322097816940277129 today. What do we hold for them?
     tools:
       - recall: Customer 8322097816940277129
-  - assistant: >-
+  - agent: >-
       A mass-segment customer of 99 months with 17 accounts; 45 calls, and card and deposit activity
       every week of the last 90 days.
   - user: What did they spend on their cards last quarter, by merchant category?
     tools:
       - ask: Card spend by merchant category for the customer with customer_key 8322097816940277129, last quarter
-  - assistant: Their card spend last quarter, by merchant category, is above.
+  - agent: Their card spend last quarter, by merchant category, is above.
   - user: >-
       They'd rather hear from us by email than by phone, and they asked about a travel card. Their
       daughter Ana banks with a competitor.
     learned:
-      - preference: {about: Customer 8322097816940277129, category: contact channel, preference: "email, not phone"}
-      - fact: {about: Customer 8322097816940277129, predicate: interested in, object: a travel rewards card}
-      - entity: {name: Ana, type: PERSON, about: Customer 8322097816940277129, relation: DAUGHTER_OF}
-  - assistant: "Noted: email only, a travel card offer to follow, and Ana."
+      - fact: {about: Customer 8322097816940277129, predicate: prefers contact channel, value: "email, not phone"}
+      - fact: {about: Customer 8322097816940277129, predicate: interested in, value: a travel rewards card}
+      - entity: {name: Ana, type: person, predicate: daughter of, about: Customer 8322097816940277129}
+  - agent: "Noted: email only, and Ana. I'd offer the travel rewards card, by email."
+    decided:
+      - choice: offer a travel rewards card, by email
+        rationale: They asked about a travel card, spend on travel, and prefer email.
+        about: Customer 8322097816940277129
+        based_on: [fact prefers contact channel, fact interested in, step ask]
+        alternatives: [offer a cash-back card, no offer yet]

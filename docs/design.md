@@ -152,6 +152,10 @@ any. `tests/test_config.py` fails if one is not read by the code. Sensitivity on
 | `memory.properties` | used | The columns the log's queries read or filter on, with keys and partition columns: what anyone asks of these tables, not every column | Customer: 14 of 23 columns |
 | `memory.unknown_hold_days`, `workers` | 1, 6 | A table whose cadence the log doesn't show holds a day, the shortest cadence here; a hop's reads run concurrently | every table the virtual graph serves is written daily |
 | `memory.tool_result_rows` | 20 | An ask's ToolCall keeps the first rows of its answer, enough for the agent to cite, with the total counted | the example's ask: 10 rows |
+| `distill.min_steps`, `min_support`, `min_success` | 2, 3, 0.7 | A procedure is two tool calls or more (one is just using a tool). A skill needs three tasks, most of them successful, as a Computation needs repeated use | the check's failing pattern (0 of 3 successful) and one-offs (1 each) yield no skill |
+| `distill.similarity`, `gamma`, `seed` | 0.5, 1.0, 42 | Tasks join when half of what they did and read is shared; seeded Leiden, as the build's. The same threshold decides which skill a task followed | the LLM compiles one kind of question slightly differently each time; half-overlap keeps the variants together |
+| `distill.offers`, `offer_similarity` | 3, 0.45 | At most three approved skills offered to a new task, by the raw cosine of its request (masked) to a skill's trigger | see results/distill.md |
+| `distill.retire_below`, `negative` | 0.6, [wrong, unhelpful, declined, rejected] | An approved skill whose followers succeed less often is retired; these ratings and outcomes make a task a failure | |
 | `entitlements.token_seconds` | 300 | How long a principal token signed for the JDBC pass-through holds: one question's queries, never a session's. Virtual Graph reads within seconds of signing | a Cypher answer takes about 3 to 30 s |
 | `navigate.anchors` | question | `parts` breaks the question into measures, groupings, filters and entities, and navigates from each; in a quick test it was about even (gold 7 of 10 both, a log sample 23 of 30 against 22), so the single embedding stays the default | see the accuracy plan, 2026-09-27 |
 | `navigate.computations`, `computation_min_similarity` | 0, 0.8 | As first built, the closest Computations misled more than they helped: a close look-alike displaced what a question needed. With a similarity floor, equivalents merged and parameters left out of definitions, they were a wash on the full set: a close definition still gets over-applied. Off | all 176 log questions: 129 without, 130 with 5 definitions (4 gained, 3 lost); gold 7 either way |
@@ -213,13 +217,17 @@ clean grouping and barely move NMI against the spec (0.850 vs 0.853).
     rerun as the principal, Cypher answers checked against BigQuery's job log (every job ran as the
     principal), canaries scanned in every response and prompt, the driver probed directly, and five
     broken gateways the checks must catch (`eval/entitlements.py`).
-- **Memory** (plans/2026-09-27-agentic-memory.md, phases 1 to 3): `qlsc remember` and `recall` keep an
-  entity's context, fetched from the virtual graph, in a `memory` database beside the semantic layer. A
-  rebuild never touches it. `fennmoor.memory` joins it to the composite.
-  - **What a context is** comes from the virtual graph's model, not per estate. It's the node; every
-    relationship touching it (the many side windowed by its table's partition column and capped at the
-    most recent); then, to `memory.hops`, the to-one relationships out of what was fetched (a fact's
-    dimensions). Its properties are the columns the log's queries read or filter on.
+- **Memory** (plans/2026-09-27-agentic-memory.md; the model, plans/2026-09-29-context-memory-model.md):
+  `qlsc remember` and `recall` keep an entity's context, fetched from the virtual graph, in a `memory`
+  database beside the semantic layer. A rebuild never touches it. `fennmoor.memory` joins it to the
+  composite.
+  - **What a context is** comes from the virtual graph's model, not per estate:
+    - the node itself;
+    - every relationship touching it, the many side windowed by its table's partition column and capped
+      at the most recent;
+    - then, to `memory.hops`, the to-one relationships out of what was fetched (a fact's dimensions).
+
+    Its properties are the columns the log's queries read or filter on.
   - **One Cypher, two targets.** Each read is written once, for the virtual graph (signed for the
     pass-through) or for memory, where it adds `source` and freshness. So a remembered context can be
     checked read for read against a fresh fetch.
@@ -228,37 +236,57 @@ clean grouping and barely move NMI against the spec (0.850 vs 0.853).
   - **Provenance:** on every node and relationship, `fetched_at`, `holds_until`, `fetched_by` and
     `fetched_with` (the read's Cypher). Every node links `FROM` a stub of its layer Table, and the
     stub links to stubs of the Columns kept. A stub holds an id that survives a rebuild, and a name.
-  - **Freshness from usage:** a fact holds for its table's write cadence in the log. A frozen table's
-    facts hold for good. `recall` reads memory while the context holds, and fetches again once it
-    doesn't, or once the template changed. A refetch removes the relationships a read no longer
-    returns; nodes stay, and a stale one is never read as fresh.
-  - **Entitlements** (`--as <principal>`): a remembered row has left the warehouse's enforcement, so memory
-    keeps it:
+  - **Freshness from usage:** a fact holds for its table's write cadence in the log, and a frozen
+    table's facts hold for good.
+    - `recall` reads memory while the context holds. It fetches again once it doesn't, or once the
+      template changed.
+    - A refetch removes the relationships a read no longer returns. Nodes stay, and a stale one is never
+      read as fresh.
+  - **Every recall is a Step its reader owns:** `(:Step {tool: 'recall', owner})-[:READ]->`. Every read
+    leaves a record of who read what, and when, from memory too.
+  - **Entitlements** (`--as <principal>`): a remembered row has left the warehouse's enforcement.
     - **The fetch is theirs.** The template is the virtual graph's model as the gateway restricts it for
       them, and every read is signed for them. BigQuery applies their tables, columns and rows.
-    - **A fact that depends on who reads it** is a node of a table with a row access policy, or a
-      relationship whose table or either end has one. It carries a mark per principal who fetched it
-      (`seen_until:<principal>`), and a read of memory needs the reader's own mark. A refetch removes
-      only the reader's mark from what it no longer returns; a relationship no one has a mark on goes.
-      One node per row stays one node, so identity is still (source, key).
-    - **Any other fact** is the same whoever reads it, and is shared.
-    - **A context is recorded per principal** on its anchor. A recall reads memory only for the
-      principal's own context, with their template as it is now: a table or column they lost changes it,
-      so it is fetched again.
-  - **The agent's side** (`qlsc converse`, `src/qlsc/converse.py`) is Neo4j Labs' agent-memory model, as
-    its own Cypher writes it:
-    - conversations and messages;
-    - reasoning traces, with a step and a tool call per `recall` or `ask`;
-    - the preferences, facts and POLE+O entities the agent learns.
-
-    The warehouse facts are its long-term memory under their own labels: a message `MENTIONS` the
-    `Customer` itself, not an `Entity`.
-    - **Nothing is deleted.** A new preference in a category, or a fact with the same predicate, closes
-      the old one and `SUPERSEDES` it.
-    - **Private to its principal.** Everything is `recorded_by` its principal and read back only by
-      them. `qlsc recall` shows the reader's own notes.
+    - **A node of a table with a row access policy** is read from memory only by a principal whose own
+      recall step `READ` it, while that read holds. A relationship is read only between nodes the reader
+      may see. One row stays one node, so identity is still (source, key).
+    - **Pruning.** A refetch removes a relationship it didn't return only where it could have: not one
+      to a row-policied node the reader can't see.
+    - **Everything else is shared,** since it's the same whoever reads it.
+    - **The context record is the reader's own recall step** (its `READ` of the anchor, with the
+      template it used). A recall reads memory only for that, with their template as it is now. A table
+      or column they lost changes it, so the context is fetched again.
+  - **The agent's side** (`qlsc converse`, `src/qlsc/converse.py`) is the Context Memory model. Its eight
+    labels are `Conversation`, `Message`, `Task`, `Step`, `Decision`, `Fact`, `Entity` and `Skill`. Its
+    ten relationship types are `PART_OF`, `NEXT`, `FROM`, `READ`, `ABOUT`, `MENTIONS`, `BASED_ON`,
+    `SUPERSEDES`, `SAME_AS` and `FOLLOWED`.
+    - **Tasks.** Each user message starts a Task. Its Steps are qlsc's tools: an `ask`'s step keeps its
+      query and `READ`s the Table and Computation stubs it used. A step's fingerprint is its call without
+      its values.
+    - **Knowledge.** Preferences, relations, outcomes and ratings are all Facts (`predicate`, `value`),
+      `ABOUT` their subject. Decisions are `BASED_ON` facts and steps.
+    - **Long-term memory.** The warehouse facts are the long-term memory, under their own labels: a
+      message `MENTIONS` the `Customer` itself.
+    - **Nothing is edited or deleted.** A new fact `SUPERSEDES` the old, `{because: changed}` (it held
+      until now) or `corrected` (it never held). A decision based on a superseded fact is flagged to
+      revisit.
+    - **Private to its principal.** Everything has an `owner`, taken from the gateway and never from
+      content, and a `scope`. It's read back only by its owner, and `qlsc recall` shows the reader's
+      own notes.
     - **Reserved labels.** A virtual graph label may not take a name memory uses:
       `memory.RESERVED_LABELS`, which `qlsc virtualize` enforces.
+  - **Distillation** (`qlsc distill`, `src/qlsc/distill.py`): the method qlsc uses on the query log,
+    applied to the agents' own record.
+    1. **Cluster.** Tasks of two or more steps are clustered by what they did and read: Jaccard
+       similarity, then seeded Leiden.
+    2. **Propose.** A cluster that repeats and succeeds becomes a proposed Skill. Its procedure is
+       written from the fingerprints, schema only. Its name comes from the LLM, over masked requests,
+       and is checked against every literal of its evidence.
+    3. **Approve.** A person approves it (`qlsc skills --approve`), and only then is it offered to new
+       tasks that fit. It's offered only to readers who may read every table it's about.
+    4. **Measure.** Tasks that follow it are recorded with `FOLLOWED` and counted, and it's retired when
+       they stop succeeding.
+    5. **Keep evidence private.** Others see how many tasks a skill came from, not which.
   - **Reads and writes are two steps from Python,** not one composite statement. The second hop is
     keyed on the first's results (a correlated subquery into the virtual graph is Virtual Graph bug
     2), and each read is signed on its own.

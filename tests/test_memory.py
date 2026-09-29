@@ -94,34 +94,53 @@ def test_identifiers_only():
         raise AssertionError("expected Unsupported")
 
 
-def test_a_fact_that_depends_on_the_reader_needs_their_own_mark():
-    """Phase 2: Customer's table has a row policy, so a customer, and a relationship touching one, is read
-    from memory only with the reader's own mark still holding; a purchase's merchant is anyone's."""
+def test_a_row_policied_node_needs_the_readers_own_read():
+    """Customer's table has a row policy: a customer is read from memory only if the reader's own step READ
+    it and that read still holds, and so is a relationship to one; a purchase's merchant is anyone's."""
     import dataclasses
 
-    m = dataclasses.replace(M, reader="p@x", policied={"Customer"}, depends={"MADE_BY", "OWNED_BY"})
-    assert m.seen() == "seen_until:p@x"
-    assert m.context_keys()["k_until"] == "context_until:p@x"
+    m = dataclasses.replace(M, reader="p@x", policied={"Customer"})
     reads = {r.name: r for r in memory.template(m, "Customer", hops=2)}
-    anchor = memory.cypher(m, reads["Customer"], memory=True)
-    assert "n[$seen] > $now" in anchor
+    mine = "(:Step {owner: $by})-[r:READ]->"
+    assert f"EXISTS {{ {mine}(n) WHERE r.holds_until > $now }}" in memory.cypher(
+        m, reads["Customer"], memory=True
+    )
     made_by = memory.cypher(m, reads["Customer<-MADE_BY-Txn"], memory=True)
-    assert "x[$seen] > $now" in made_by and "v[$seen] > $now" in made_by and "n[$seen]" not in made_by
-    merchant = memory.cypher(m, reads["Txn-AT->Merchant"], memory=True)
-    assert "$seen" not in merchant
+    assert f"{mine}(v)" in made_by and f"{mine}(n)" not in made_by
+    assert "Step" not in memory.cypher(m, reads["Txn-AT->Merchant"], memory=True)
     # the virtual graph's read is the same whoever reads: the warehouse applies their rules
     assert memory.cypher(m, reads["Customer<-MADE_BY-Txn"]) == memory.cypher(
         M, reads["Customer<-MADE_BY-Txn"]
     )
 
 
+def test_an_asks_fingerprint_has_no_values():
+    from qlsc.converse import fingerprint
+
+    request = {
+        "fits": True,
+        "reason": "…",
+        "measures": [{"alias": "spend", "aggregate": "SUM", "column": "dw.fct_txn.amount"}],
+        "filters": [{"column": "dw.fct_txn.customer_key", "op": "=", "value": "8322097816940277129"}],
+        "period": {"column": "dw.fct_txn.post_date", "from": "2026-04-01", "to": "2026-06-30"},
+        "limit": 10,
+    }
+    a = {"request": request, "writer": "compiled", "route": "sql"}
+    other = request | {"filters": [{"column": "dw.fct_txn.customer_key", "op": "=", "value": "42"}],
+                       "period": {"column": "dw.fct_txn.post_date", "from": "2025-01-01", "to": "2025-03-31"}}  # fmt: skip
+    f = fingerprint(a, [])
+    assert "8322097816940277129" not in f and "2026" not in f and "spend" not in f
+    assert f == fingerprint(a | {"request": other}, [])  # the same kind of ask, whoever it was for
+    assert fingerprint({"route": "cypher", "writer": "free"}, ["b", "a"]) == "ask cypher over a, b"
+
+
 def test_a_virtual_graph_label_never_takes_one_memory_reserves():
     from qlsc.virtualize import fallback_label
 
     assert fallback_label("p.dw_web.fct_web_events") == "WebEvent"
-    assert fallback_label("p.dw_web.events") == "DwWebEvent"  # Event is agent-memory's (POLE+O)
+    assert fallback_label("p.dw_ops.tasks") == "DwOpsTask"  # Task is memory's own
     assert fallback_label("p.dw_core.dim_customer") == "Customer"
-    assert "Message" in memory.RESERVED_LABELS and "Table" in memory.RESERVED_LABELS
+    assert {"Message", "Decision", "Skill", "Table"} <= memory.RESERVED_LABELS
 
 
 def test_the_computations_a_request_used():

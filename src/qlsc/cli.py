@@ -12,7 +12,9 @@
   qlsc remember LABEL KEY       an entity's context, fetched from the virtual graph and kept in memory
   qlsc recall LABEL KEY         the same context: from memory while it holds, else fetched again, with
                                 what your agent noted about it
-  qlsc converse FILE            record a conversation (YAML) in the agent-memory model, running its tools
+  qlsc converse FILE            record a conversation (YAML) in the Context Memory model, running its tools
+  qlsc distill                  skills from the agents' experience in memory: proposed, for a person to approve
+  qlsc skills [--approve ID]    the skills you may see; approve a proposed one (--as the approver)
                                 (KEY: the label's key, or property=value; --as PRINCIPAL, as for ask)
 
 Every command reads the estate's config from --config, or QLSC_CONFIG (environment or .env).
@@ -29,6 +31,7 @@ from qlsc import (
     cluster,
     computations,
     converse,
+    distill,
     extract,
     hierarchy,
     load,
@@ -140,7 +143,14 @@ def parser() -> argparse.ArgumentParser:
         p.set_defaults(
             func=lambda s, a, force=force: memory.run(s, a.label, a.key, force=force, full=a.full, as_=a.as_)
         )
-    p = sub.add_parser("converse", help="record a conversation (a YAML file) in the agent-memory model")
+    sub.add_parser("distill", help="skills from the agents' experience in memory, proposed").set_defaults(
+        func=lambda s, a: distill.run(s, distill_now=True)
+    )
+    p = sub.add_parser("skills", help="the skills you may see; --approve a proposed one")
+    p.add_argument("--approve", metavar="ID", help="approve a proposed skill, by id or name")
+    p.add_argument("--as", dest="as_", metavar="PRINCIPAL", help="as whom (the approver, or the reader)")
+    p.set_defaults(func=lambda s, a: distill.run(s, approve_id=a.approve, as_=a.as_))
+    p = sub.add_parser("converse", help="record a conversation (a YAML file) in the Context Memory model")
     p.add_argument("file", help="the conversation: title, messages, the tools each called, what was learned")
     p.add_argument(
         "--as", dest="as_", metavar="PRINCIPAL", help="on a principal's behalf (else the file's `as`)"

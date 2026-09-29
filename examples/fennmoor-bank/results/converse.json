@@ -1,167 +1,53 @@
 {
  "conversations": {
   "marketing-1": {
-   "id": "394c9172-ccff-4f36-bb21-3f067dd09aad",
-   "as": "qlsc-marketing@jeffdavis-bq-testproj.iam.gserviceaccount.com",
-   "messages": 6,
-   "spec": {
-    "title": "Card offer for customer 8322097816940277129",
-    "as": "marketing",
-    "messages": [
-     {
-      "user": "I'm meeting customer 8322097816940277129 today. What do we hold for them?",
-      "tools": [
-       {
-        "recall": "Customer 8322097816940277129"
-       }
-      ]
-     },
-     {
-      "assistant": "A mass-segment customer of 99 months with 17 accounts; 45 calls, and card and deposit activity every week of the last 90 days."
-     },
-     {
-      "user": "What did they spend on their cards last quarter, by merchant category?",
-      "tools": [
-       {
-        "ask": "Card spend by merchant category for the customer with customer_key 8322097816940277129, last quarter"
-       }
-      ]
-     },
-     {
-      "assistant": "Their card spend last quarter, by merchant category, is above."
-     },
-     {
-      "user": "They'd rather hear from us by email than by phone, and they asked about a travel card. Their daughter Ana banks with a competitor.",
-      "learned": [
-       {
-        "preference": {
-         "about": "Customer 8322097816940277129",
-         "category": "contact channel",
-         "preference": "email, not phone"
-        }
-       },
-       {
-        "fact": {
-         "about": "Customer 8322097816940277129",
-         "predicate": "interested in",
-         "object": "a travel rewards card"
-        }
-       },
-       {
-        "entity": {
-         "name": "Ana",
-         "type": "PERSON",
-         "about": "Customer 8322097816940277129",
-         "relation": "DAUGHTER_OF"
-        }
-       }
-      ]
-     },
-     {
-      "assistant": "Noted: email only, a travel card offer to follow, and Ana."
-     }
-    ]
-   }
+   "id": "3cf4fc9b-9877-413f-94b5-777c6e6d9aa8",
+   "as": "qlsc-marketing@jeffdavis-bq-testproj.iam.gserviceaccount.com"
   },
   "marketing-2": {
-   "id": "834cd217-4430-4051-bba2-58e164bbc80f",
-   "as": "qlsc-marketing@jeffdavis-bq-testproj.iam.gserviceaccount.com",
-   "messages": 4,
-   "spec": {
-    "title": "Travel card follow-up for customer 8322097816940277129",
-    "as": "marketing",
-    "messages": [
-     {
-      "user": "Back with customer 8322097816940277129. Where did we leave it?",
-      "tools": [
-       {
-        "recall": "Customer 8322097816940277129"
-       }
-      ]
-     },
-     {
-      "assistant": "Last time they asked for email only, and were interested in a travel rewards card."
-     },
-     {
-      "user": "They called in to say a phone call is fine after all, in the mornings.",
-      "learned": [
-       {
-        "preference": {
-         "about": "Customer 8322097816940277129",
-         "category": "contact channel",
-         "preference": "phone, mornings"
-        }
-       }
-      ]
-     },
-     {
-      "assistant": "Noted: phone in the mornings, in place of email only."
-     }
-    ]
-   }
+   "id": "cb64ab54-69a4-4fd9-8ae0-d0c78314f70a",
+   "as": "qlsc-marketing@jeffdavis-bq-testproj.iam.gserviceaccount.com"
   },
   "risk-1": {
-   "id": "b301cc73-66a0-4e7a-8240-4ed9d6bb51ad",
-   "as": "qlsc-risk@jeffdavis-bq-testproj.iam.gserviceaccount.com",
-   "messages": 4,
-   "spec": {
-    "title": "Review of customer -9222608688654483010",
-    "as": "risk",
-    "messages": [
-     {
-      "user": "Review customer -9222608688654483010 for me.",
-      "tools": [
-       {
-        "recall": "Customer -9222608688654483010"
-       }
-      ]
-     },
-     {
-      "assistant": "A mass-affluent customer in Kansas, 30 months with the bank."
-     },
-     {
-      "user": "Their address change is pending verification; hold any limit increase until it clears.",
-      "learned": [
-       {
-        "fact": {
-         "about": "Customer -9222608688654483010",
-         "predicate": "review status",
-         "object": "address change pending verification"
-        }
-       }
-      ]
-     },
-     {
-      "assistant": "Noted, and flagged against the customer."
-     }
-    ]
-   }
+   "id": "c3aa45c5-dc90-4644-ac6d-6a793823ba43",
+   "as": "qlsc-risk@jeffdavis-bq-testproj.iam.gserviceaccount.com"
   }
  },
  "checks": {
-  "marketing-1: the message chain": {
-   "ok": true,
-   "messages": 6
+  "marketing-1: messages, in order": {
+   "ok": true
   },
-  "marketing-2: the message chain": {
+  "marketing-1: a task per request, its steps in order": {
    "ok": true,
-   "messages": 4
+   "tasks": [
+    [
+     "recall"
+    ],
+    [
+     "ask"
+    ],
+    []
+   ]
   },
-  "risk-1: the message chain": {
+  "marketing-1: step 1 (recall, from memory)": {
    "ok": true,
-   "messages": 4
-  },
-  "marketing-1: tool call 1 (recall)": {
-   "ok": true,
-   "touched": [
-    "Customer"
+   "tool": "recall",
+   "status": "ok",
+   "fingerprint": "recall Customer ?",
+   "origin": "memory",
+   "anchor": [
+    8322097816940277129
    ],
    "tables": [],
    "computations": []
   },
-  "marketing-1: tool call 2 (ask)": {
+  "marketing-1: step 2 (ask)": {
    "ok": true,
-   "touched": [],
+   "tool": "ask",
+   "status": "ok",
+   "fingerprint": "ask {\"dimensions\": [{\"column\": \"dw_core.dim_merchant.mcc_description\"}], \"filters\": [{\"column\": \"dw_core.fct_card_transactions.customer_key\", \"op\": \"=\"}], \"measures\": [{\"computation\": \"ddb1443582c2c1c5\"}], \"period\": {\"column\": \"dw_core.fct_card_transactions.post_date\", \"from\": \"?\", \"to\": \"?\"}}",
+   "origin": null,
+   "anchor": [],
    "tables": [
     "fennmoor-dw.dw_core.fct_card_transactions",
     "fennmoor-dw.dw_core.dim_merchant"
@@ -170,51 +56,103 @@
     "ddb1443582c2c1c5"
    ]
   },
-  "marketing-2: tool call 1 (recall)": {
-   "ok": true,
-   "touched": [
-    "Customer"
-   ],
-   "tables": [],
-   "computations": []
-  },
-  "risk-1: tool call 1 (recall)": {
-   "ok": true,
-   "touched": [
-    "Customer"
-   ],
-   "tables": [],
-   "computations": []
-  },
   "marketing-1: mentions are the warehouse's Customer": {
+   "ok": true
+  },
+  "marketing-2: messages, in order": {
+   "ok": true
+  },
+  "marketing-2: a task per request, its steps in order": {
    "ok": true,
-   "customers": [
-    "8322097816940277129"
+   "tasks": [
+    [
+     "recall"
+    ],
+    []
    ]
+  },
+  "marketing-2: step 1 (recall, from memory)": {
+   "ok": true,
+   "tool": "recall",
+   "status": "ok",
+   "fingerprint": "recall Customer ?",
+   "origin": "memory",
+   "anchor": [
+    8322097816940277129
+   ],
+   "tables": [],
+   "computations": []
+  },
+  "marketing-2: mentions are the warehouse's Customer": {
+   "ok": true
+  },
+  "risk-1: messages, in order": {
+   "ok": true
+  },
+  "risk-1: a task per request, its steps in order": {
+   "ok": true,
+   "tasks": [
+    [
+     "recall"
+    ],
+    []
+   ]
+  },
+  "risk-1: step 1 (recall, from memory)": {
+   "ok": true,
+   "tool": "recall",
+   "status": "ok",
+   "fingerprint": "recall Customer ?",
+   "origin": "memory",
+   "anchor": [
+    -9222608688654483010
+   ],
+   "tables": [],
+   "computations": []
   },
   "risk-1: mentions are the warehouse's Customer": {
-   "ok": true,
-   "customers": [
-    "-9222608688654483010"
-   ]
+   "ok": true
+  },
+  "marketing-1: the decision, ABOUT the customer, BASED_ON two facts and the ask": {
+   "ok": true
   },
   "marketing-2 finds marketing-1's notes": {
    "ok": true,
    "noted": [
-    "  noted: contact channel: email, not phone (since 2026-09-29)",
+    "  noted: prefers contact channel: email, not phone (since 2026-09-29)",
     "  noted: interested in: a travel rewards card (since 2026-09-29)",
-    "  noted: Ana (person), DAUGHTER_OF",
+    "  noted: Ana (person), daughter of",
+    "  decided: offer a travel rewards card, by email (on 2026-09-29)",
     "  in 1 conversation, the last 2026-09-29: Card offer for customer 8322097816940277129"
    ]
   },
-  "a new preference supersedes the old": {
+  "changed: the new preference closes the old, and the decision based on it is to revisit": {
    "ok": true,
    "noted": [
-    "  noted: contact channel: phone, mornings (since 2026-09-29)",
     "  noted: interested in: a travel rewards card (since 2026-09-29)",
-    "  noted: Ana (person), DAUGHTER_OF",
+    "  noted: prefers contact channel: phone, mornings (since 2026-09-29)",
+    "  noted: Ana (person), daughter of",
+    "  decided: offer a travel rewards card, by email (on 2026-09-29; outcome: accepted; revisit: prefers contact channel: email, not phone is now phone, mornings)",
     "  in 2 conversations, the last 2026-09-29: Travel card follow-up for customer 8322097816940277129"
    ]
+  },
+  "an outcome is a fact about its decision": {
+   "ok": true
+  },
+  "corrected: the old fact never held": {
+   "ok": true
+  },
+  "marketing-1: every node it wrote is its principal's, and private": {
+   "ok": true,
+   "nodes": 17
+  },
+  "marketing-2: every node it wrote is its principal's, and private": {
+   "ok": true,
+   "nodes": 10
+  },
+  "risk-1: every node it wrote is its principal's, and private": {
+   "ok": true,
+   "nodes": 10
   },
   "the data source sees nothing of marketing's notes": {
    "ok": true
@@ -222,12 +160,12 @@
   "marketing sees nothing of risk's notes on a Kansas customer": {
    "ok": true
   },
-  "risk sees its own note on it": {
+  "risk sees its own": {
    "ok": true
   },
   "risk can't note a customer outside its rows": {
    "ok": true,
-   "why": "Customer 8322097816940277129 isn't in memory as qlsc-risk@jeffdavis-bq-testproj.iam.gserviceaccount.com fetched it: recall it first"
+   "why": "Customer 8322097816940277129 isn't in memory as qlsc-risk@jeffdavis-bq-testproj.iam.gserviceaccount.com may see it: recall it first"
   },
   "a refetch leaves them attached": {
    "ok": true,
@@ -235,32 +173,40 @@
   }
  },
  "before marketing-2": {
-  "preferences": [
-   {
-    "category": "contact channel",
-    "preference": "email, not phone",
-    "valid_from": "2026-09-29T11:11:02.509520000+00:00"
-   }
-  ],
   "facts": [
    {
-    "object": "a travel rewards card",
+    "origin": "user",
+    "predicate": "prefers contact channel",
+    "valid_from": "2026-09-29T12:25:37.685493000+00:00",
+    "value": "email, not phone"
+   },
+   {
+    "origin": "user",
     "predicate": "interested in",
-    "valid_from": "2026-09-29T11:11:02.550200000+00:00"
+    "valid_from": "2026-09-29T12:25:37.713706000+00:00",
+    "value": "a travel rewards card"
    }
   ],
-  "entities": [
+  "related": [
    {
     "name": "Ana",
-    "relation": "DAUGHTER_OF",
-    "type": "PERSON"
+    "predicate": "daughter of",
+    "type": "person"
+   }
+  ],
+  "decisions": [
+   {
+    "choice": "offer a travel rewards card, by email",
+    "outcomes": [],
+    "revisit": [],
+    "valid_from": "2026-09-29T12:25:37.916274000+00:00"
    }
   ],
   "conversations": [
    {
-    "id": "394c9172-ccff-4f36-bb21-3f067dd09aad",
+    "id": "3cf4fc9b-9877-413f-94b5-777c6e6d9aa8",
     "title": "Card offer for customer 8322097816940277129",
-    "updated_at": "2026-09-29T11:11:02.626888000+00:00"
+    "updated_at": "2026-09-29T12:25:37.823278000+00:00"
    }
   ]
  }

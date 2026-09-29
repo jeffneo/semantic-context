@@ -151,7 +151,7 @@
   }
  },
  "controls": {
-  "row marks ignored (risk)": {
+  "reads ignored (risk sees rows its steps never read)": {
    "caught": true,
    "by": [
     "Customer: 1 of 1 rows they can't read, e.g. 4406449607907749601",
@@ -161,10 +161,12 @@
   "columns unrestricted (marketing)": {
    "caught": true,
    "by": [
-    "Customer: hidden columns shown: cif_number, full_name, primary_email"
+    "Agent: 30 rows of fennmoor-dw.dw_contact_center.dim_agent, which they can't read",
+    "Call: 54 rows of fennmoor-dw.dw_contact_center.fct_calls, which they can't read",
+    "ContactCenterSite: 3 rows of fennmoor-dw.dw_contact_center.dim_cc_site, which they can't read"
    ]
   },
-  "another's context (risk read with marketing's marks)": {
+  "another's reads (risk read with marketing's steps)": {
    "caught": true,
    "by": [
     "Customer: 1 of 1 rows they can't read, e.g. 4406449607907749601"

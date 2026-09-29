@@ -1,0 +1,324 @@
+{
+ "sessions": [
+  {
+   "pattern": "A",
+   "key": "-9222608688654483010",
+   "task": "b9d7378c-298e-4bea-afcf-bee576bb0554",
+   "offered": [],
+   "followed": [],
+   "ask_ok": true
+  },
+  {
+   "pattern": "A",
+   "key": "-9222574476215892105",
+   "task": "8d6dcad9-91a3-478c-bd1d-346335679da0",
+   "offered": [],
+   "followed": [],
+   "ask_ok": true
+  },
+  {
+   "pattern": "A",
+   "key": "-9221063171405116986",
+   "task": "b91d2968-e512-41ea-82b3-aa8fa3a60957",
+   "offered": [],
+   "followed": [],
+   "ask_ok": true
+  },
+  {
+   "pattern": "A",
+   "key": "-9220075890278552624",
+   "task": "5634b34b-b464-425d-a031-dabfea48a4b6",
+   "offered": [],
+   "followed": [],
+   "ask_ok": true
+  },
+  {
+   "pattern": "A",
+   "key": "-9216038908868225893",
+   "task": "88eac92a-1dd9-4d06-9862-fbed0d5b930d",
+   "offered": [],
+   "followed": [],
+   "ask_ok": true
+  },
+  {
+   "pattern": "B",
+   "key": "-9216038908868225893",
+   "task": "058033f3-d99a-4f33-8409-008a0682bfed",
+   "offered": [],
+   "followed": [],
+   "ask_ok": true
+  },
+  {
+   "pattern": "B",
+   "key": "-9212503573550955222",
+   "task": "16a0169d-7e90-49c2-9857-39942ba18671",
+   "offered": [],
+   "followed": [],
+   "ask_ok": true
+  },
+  {
+   "pattern": "B",
+   "key": "-9209958960023349720",
+   "task": "00f85ec6-43ab-4dff-ba38-e542d68934bc",
+   "offered": [],
+   "followed": [],
+   "ask_ok": true
+  },
+  {
+   "pattern": "B",
+   "key": "-9208516148041883104",
+   "task": "16e53222-4fb8-4e3a-add7-e1bc9e6f49aa",
+   "offered": [],
+   "followed": [],
+   "ask_ok": true
+  },
+  {
+   "pattern": "C",
+   "key": "-9215880595133743573",
+   "task": "fce6dd23-00b1-44c0-acf1-fe0fef674902",
+   "offered": [],
+   "followed": [],
+   "ask_ok": true
+  },
+  {
+   "pattern": "C",
+   "key": "-9211824707822917825",
+   "task": "26a3abca-6b3e-4df2-bd04-2228580fcf6f",
+   "offered": [],
+   "followed": [],
+   "ask_ok": true
+  },
+  {
+   "pattern": "C",
+   "key": "-9210257275411290315",
+   "task": "ff9887bb-dd00-40e2-b1e3-ef0338900dd9",
+   "offered": [],
+   "followed": [],
+   "ask_ok": true
+  },
+  {
+   "pattern": "branch",
+   "key": "101",
+   "task": "46cb90a7-a914-4d80-9f21-bcd96373af58",
+   "offered": [],
+   "followed": [],
+   "ask_ok": true
+  },
+  {
+   "pattern": "risk-calls",
+   "key": "-9201348598340979897",
+   "task": "58f1cf1d-c5f6-475a-9b91-d5f1f55ab59c",
+   "offered": [],
+   "followed": [],
+   "ask_ok": true
+  },
+  {
+   "pattern": "A",
+   "key": "-9210223701290079287",
+   "task": "16901805-e2c9-4667-bd4f-a455a91dcaef",
+   "offered": [
+    "33e419a9-e9d3-429c-86be-e0750e947465"
+   ],
+   "followed": [
+    "33e419a9-e9d3-429c-86be-e0750e947465"
+   ],
+   "ask_ok": true
+  },
+  {
+   "pattern": "A",
+   "key": "-9209255889542210479",
+   "task": "441128b9-cc7f-4f20-ba04-169ca8a60441",
+   "offered": [
+    "33e419a9-e9d3-429c-86be-e0750e947465"
+   ],
+   "followed": [
+    "33e419a9-e9d3-429c-86be-e0750e947465"
+   ],
+   "ask_ok": true
+  },
+  {
+   "pattern": "A",
+   "key": "-9208265761706123971",
+   "task": "11f113fe-e958-4790-982d-5dfba331fec4",
+   "offered": [
+    "33e419a9-e9d3-429c-86be-e0750e947465"
+   ],
+   "followed": [
+    "33e419a9-e9d3-429c-86be-e0750e947465"
+   ],
+   "ask_ok": true
+  },
+  {
+   "pattern": "A",
+   "key": "-9207585647632785396",
+   "task": "5b333435-ac63-44f8-b1e4-83c5cdcf5f51",
+   "offered": [
+    "33e419a9-e9d3-429c-86be-e0750e947465"
+   ],
+   "followed": [
+    "33e419a9-e9d3-429c-86be-e0750e947465"
+   ],
+   "ask_ok": true
+  }
+ ],
+ "checks": {
+  "skills for A and B, and no other": {
+   "ok": true,
+   "found": {
+    "A": [
+     "Review customer holdings and recent card spending"
+    ],
+    "B": [
+     "Review customer risk and deposit activity"
+    ]
+   }
+  },
+  "no value of the evidence in any skill": {
+   "ok": true
+  },
+  "each skill ABOUT the tables its steps read": {
+   "ok": true,
+   "tables": {
+    "A": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_core.dim_merchant",
+     "fennmoor-dw.dw_core.fct_card_transactions"
+    ],
+    "B": [
+     "fennmoor-dw.dw_core.dim_customer",
+     "fennmoor-dw.dw_core.fct_deposit_transactions"
+    ]
+   }
+  },
+  "distilling again changes nothing": {
+   "ok": true
+  },
+  "contact-center may not approve B": {
+   "ok": true
+  },
+  "marketing approves A, once": {
+   "ok": true
+  },
+  "a new A-like request of marketing's is offered A": {
+   "ok": true,
+   "offered": [
+    {
+     "id": "33e419a9-e9d3-429c-86be-e0750e947465",
+     "name": "Review customer holdings and recent card spending",
+     "procedure": [
+      "recall the Customer's context",
+      "ask Card Purchase Spend by dim_merchant.category_group where fct_card_transactions.customer_key = ? over a period of fct_card_transactions.post_date"
+     ],
+     "similarity": 0.753
+    }
+   ]
+  },
+  "contact-center's same request is offered nothing": {
+   "ok": true
+  },
+  "B, proposed, is offered to no one": {
+   "ok": true
+  },
+  "2 sessions offered A follow it and succeed": {
+   "ok": true,
+   "uses": 2,
+   "successes": 2
+  },
+  "2 more that follow it fail, and A is retired": {
+   "ok": true,
+   "why": [
+    "2 of 4 tasks that followed it succeeded"
+   ]
+  },
+  "a retired skill is offered to no one": {
+   "ok": true
+  },
+  "a reader sees how many tasks a skill came from, not which": {
+   "ok": true
+  }
+ },
+ "skills": {
+  "A": {
+   "name": "Review customer holdings and recent card spending",
+   "description": "Gathers context on a customer's relationship and analyzes their recent card transaction patterns by merchant category. Use this to prepare for customer meetings with insights into their banking behavior and spending habits.",
+   "trigger": "When you need to prepare for a customer meeting and want to know what products they hold and how they've spent on their cards by merchant category in a recent period.",
+   "procedure": [
+    "recall the Customer's context",
+    "ask Card Purchase Spend by dim_merchant.category_group where fct_card_transactions.customer_key = ? over a period of fct_card_transactions.post_date"
+   ],
+   "tables": [
+    "fennmoor-dw.dw_core.dim_customer",
+    "fennmoor-dw.dw_core.dim_merchant",
+    "fennmoor-dw.dw_core.fct_card_transactions"
+   ]
+  },
+  "B": {
+   "name": "Review customer risk and deposit activity",
+   "description": "Retrieves a customer's profile context and summarizes their deposit transactions by type over a recent period to assess risk exposure. Used to evaluate customer financial activity and patterns for compliance or credit review purposes.",
+   "trigger": "When you need to conduct a risk review of a customer by examining their background and recent deposits broken down by transaction type.",
+   "procedure": [
+    "recall the Customer's context",
+    "ask SUM(fct_deposit_transactions.amount) by fct_deposit_transactions.transaction_type where fct_deposit_transactions.customer_key = ? over a period of fct_deposit_transactions.posted_date"
+   ],
+   "tables": [
+    "fennmoor-dw.dw_core.dim_customer",
+    "fennmoor-dw.dw_core.fct_deposit_transactions"
+   ]
+  }
+ },
+ "final": [
+  {
+   "id": "33e419a9-e9d3-429c-86be-e0750e947465",
+   "key": "aa6892a27820cb50",
+   "name": "Review customer holdings and recent card spending",
+   "status": "retired",
+   "fingerprints": [
+    "recall Customer ?",
+    "ask {\"dimensions\": [{\"column\": \"dw_core.dim_merchant.category_group\"}], \"filters\": [{\"column\": \"dw_core.fct_card_transactions.customer_key\", \"op\": \"=\"}], \"measures\": [{\"computation\": \"ddb1443582c2c1c5\"}], \"period\": {\"column\": \"dw_core.fct_card_transactions.post_date\", \"from\": \"?\", \"to\": \"?\"}}"
+   ],
+   "tables": [
+    "fennmoor-dw.dw_core.dim_customer",
+    "fennmoor-dw.dw_core.dim_merchant",
+    "fennmoor-dw.dw_core.fct_card_transactions"
+   ],
+   "trigger": "When you need to prepare for a customer meeting and want to know what products they hold and how they've spent on their cards by merchant category in a recent period.",
+   "description": "Gathers context on a customer's relationship and analyzes their recent card transaction patterns by merchant category. Use this to prepare for customer meetings with insights into their banking behavior and spending habits.",
+   "procedure": [
+    "recall the Customer's context",
+    "ask Card Purchase Spend by dim_merchant.category_group where fct_card_transactions.customer_key = ? over a period of fct_card_transactions.post_date"
+   ],
+   "support": 9,
+   "success_rate": 0.778,
+   "uses": 4,
+   "successes": 2,
+   "version": 1,
+   "evidence": 9
+  },
+  {
+   "id": "de9b6a85-69bf-4923-992b-6e745d6a0b53",
+   "key": "13ce42b30366c9d9",
+   "name": "Review customer risk and deposit activity",
+   "status": "proposed",
+   "fingerprints": [
+    "recall Customer ?",
+    "ask {\"dimensions\": [{\"column\": \"dw_core.fct_deposit_transactions.transaction_type\"}], \"filters\": [{\"column\": \"dw_core.fct_deposit_transactions.customer_key\", \"op\": \"=\"}], \"measures\": [{\"aggregate\": \"SUM\", \"column\": \"dw_core.fct_deposit_transactions.amount\"}], \"period\": {\"column\": \"dw_core.fct_deposit_transactions.posted_date\", \"from\": \"?\", \"to\": \"?\"}}"
+   ],
+   "tables": [
+    "fennmoor-dw.dw_core.dim_customer",
+    "fennmoor-dw.dw_core.fct_deposit_transactions"
+   ],
+   "trigger": "When you need to conduct a risk review of a customer by examining their background and recent deposits broken down by transaction type.",
+   "description": "Retrieves a customer's profile context and summarizes their deposit transactions by type over a recent period to assess risk exposure. Used to evaluate customer financial activity and patterns for compliance or credit review purposes.",
+   "procedure": [
+    "recall the Customer's context",
+    "ask SUM(fct_deposit_transactions.amount) by fct_deposit_transactions.transaction_type where fct_deposit_transactions.customer_key = ? over a period of fct_deposit_transactions.posted_date"
+   ],
+   "support": 4,
+   "success_rate": 1.0,
+   "uses": 0,
+   "successes": 0,
+   "version": 1,
+   "evidence": 4
+  }
+ ]
+}
