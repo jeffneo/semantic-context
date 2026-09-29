@@ -87,7 +87,7 @@ PLANT = """
 MATCH (c:Customer {source: $source, customer_key: $key})
 MERGE (k:Call {source: $source, conversation_id: $id})
 SET k.conversation_date = $day, k.fetched_at = $old, k.holds_until = $old
-MERGE (k)-[x:RECEIVED_FROM]->(c) SET x.fetched_at = $old, x.holds_until = $old
+MERGE (k)-[x:RECEIVED_FROM]->(c) SET x.fetched_at = $old, x.holds_until = $old, x[$seen] = $old, k[$seen] = $old
 """
 PLANTED = "MATCH (k:Call {source: $source, conversation_id: $id})-[x:RECEIVED_FROM]->() RETURN count(x) AS n"
 UNPLANT = "MATCH (k:Call {source: $source, conversation_id: $id}) DETACH DELETE k"
@@ -213,7 +213,7 @@ def main() -> int:
         }
         old = dt.datetime.now(dt.UTC) - dt.timedelta(days=2)
         day = dt.date.fromisoformat(res["window_since"]) + dt.timedelta(days=1)
-        M.run(PLANT, source=m.source, key=key, id=STALE_ID, day=day, old=old)
+        M.run(PLANT, source=m.source, key=key, id=STALE_ID, day=day, old=old, seen=m.seen())
         served = memory.recall(s, "Customer", key, m=m)
         leaked = ("Call", STALE_ID) in served.nodes
         f["a stale fact"] = {

@@ -1,7 +1,7 @@
 # Agentic memory: a context compiler from the virtual graph into a persistent graph
 
-Status: agreed (2026-09-27), after the accuracy work; split into phases (2026-09-28, below). Phase 1
-built and checked (2026-09-28); see "Phase 1, as built" at the end.
+Status: agreed (2026-09-27), after the accuracy work; split into phases (2026-09-28, below). Phases 1 and
+2 built and checked (2026-09-28); see "Phase 1, as built" and "Phase 2, as built" at the end.
 
 ## Why
 
@@ -252,7 +252,7 @@ who called in the window):
 |---|---|
 | contexts read back from memory exactly as fetched (nodes, properties, relationships) | 20 of 20 |
 | the same Cypher, six context questions, same rows on memory and on the virtual graph | 110 of 110 (10 left out: over a capped relationship) |
-| remembering again changes nothing | 5,296 nodes, 15,863 relationships, before and after |
+| remembering again changes nothing | 5,296 nodes, 15,863 relationships, before and after (6,610 and 19,143 on the phase 2 rerun, with its contexts in memory too) |
 | within its lifetime, recall reads memory | ok |
 | past it, recall fetches again | ok |
 | a planted stale fact is never read | ok |
@@ -281,3 +281,81 @@ and the same table's write days from `fennmoor.semantic`.
   the day's load holds until the next day's.
 - **Not in this phase:** `--as`, and anything shared between people (phase 2). A context is written as
   the data source only.
+
+## Phase 2, as built (2026-09-28)
+
+**`--as <principal>`** on `remember` and `recall`, as for `ask` (`src/qlsc/memory.py`):
+- **The fetch is theirs:**
+  - the template comes from the virtual graph's model as the gateway restricts it for them
+    (`entitle.model`: readable tables only, no hidden columns);
+  - each read is signed for them, so the pass-through runs it as them and BigQuery applies their tables,
+    columns and rows;
+  - a lookup by a property they can't read (marketing's `cif_number`) is refused before it's sent.
+- **Facts that depend on who reads them:**
+  - **Which ones:** a node of a table with a row access policy (`dim_customer`), and a relationship
+    whose table or either end has one. Which tables have a policy comes from the warehouse, cached as
+    the allowlists are.
+  - **The mark:** each such fact carries a mark per principal who fetched it
+    (`seen_until:<principal>`, as long as the fact holds), and a read of memory needs the reader's own
+    mark.
+  - **On refetch:** a refetch takes the reader's mark off what it no longer returns. A relationship with
+    no mark left is removed.
+
+  Nodes aren't split per principal: one row stays one node, so identity is still (source, key).
+- **Other facts** are the same whoever reads them, and are shared: a call, an account, a branch.
+- **Contexts are recorded per principal** on the anchor (`context_until:<principal>`, `context_template:…`).
+  A recall reads memory only for a context the principal fetched, with their template as it is now. A
+  table or column they lost changes the template, so the context is fetched again.
+- **An anchor whose table they can't read** is refused (`the warehouse doesn't let … read Customer's
+  table`).
+
+**Checked** (`eval/memory_entitlements.py`, results/memory_entitlements.md):
+- **The setup.** The anchors are four customers (two in KS, inside risk's row policy, and the two the
+  graph questions name, outside it), branch 101 (Topeka, KS) and the busiest agent. The data source
+  remembers them all first, so memory holds every row. Then each principal remembers and recalls them as
+  themselves.
+- **The oracle** is BigQuery, read as the principal directly: not through the gateway, the virtual graph
+  or the pass-through. Every node must be a row they may read, with the same values. Every relationship
+  must be the foreign key in that row. No property may be a column hidden from them, by the oracle's own
+  dry-run allowlist.
+
+| | result |
+|---|---|
+| recalls checked | 18 (marketing 5, risk 6 with 2 empty, contact-center 1, and 10 refusals) |
+| incidents | 0 |
+| each read of memory the same as the principal's own fetch | all |
+| risk reads memory for a customer others remembered | nothing |
+| risk's recall of it | fetched (as nothing), not served |
+| contact-center's recall of a customer | refused: it can't read `dim_customer` |
+
+The row policy shows in the counts. Branch 101's context is 931 nodes for marketing (every row) and 636
+for risk (KS and NE customers only).
+
+Negative controls, reads of memory broken on purpose, all caught by the oracle:
+
+| broken read | caught by |
+|---|---|
+| row marks ignored (risk) | rows risk can't read (295 of 353 customers around branch 101) |
+| columns unrestricted (marketing) | hidden columns shown: `cif_number`, `full_name`, `primary_email` |
+| another's context (risk read with marketing's marks) | a row risk can't read |
+
+**Found on the way:**
+- **Phase 1's refetch removed a relationship outright,** even one that depends on the reader. As risk,
+  it would have deleted the accounts-to-customers relationships marketing had fetched around branch 101,
+  a loss of marketing's facts. Such a relationship now loses only the reader's mark. A relationship with
+  no marks at all, such as one left from phase 1, is removed on the next refetch around it.
+- **Virtual Graph returns a `TIMESTAMP` without its zone** (the value is UTC). Memory keeps it as
+  returned, the same as the virtual graph. The oracle first compared it as local time, and flagged
+  every call.
+
+Phase 1's checks, rerun after these changes, all pass: 20 of 20 contexts, 110 of 110 questions, and
+freshness.
+
+**Not in this phase:**
+- **Sharing a context between principals.** A principal reads memory only for their own contexts. A
+  context whose template reads no row-policied table could be shared when two principals' templates
+  are identical, but at two hops every template here reaches Customer.
+- **Arbitrary Cypher over memory as a principal** (`ask --cypher` on memory, phase 4). It needs the
+  same restriction as the virtual graph (the model), and the marks in its `WHERE`.
+- **The stubs** (Table, Column) are names only, and anyone reading memory raw sees them. BigQuery shows
+  column names to metadata readers too.

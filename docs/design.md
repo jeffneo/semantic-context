@@ -212,7 +212,7 @@ clean grouping and barely move NMI against the spec (0.850 vs 0.853).
     rerun as the principal, Cypher answers checked against BigQuery's job log (every job ran as the
     principal), canaries scanned in every response and prompt, the driver probed directly, and five
     broken gateways the checks must catch (`eval/entitlements.py`).
-- **Memory** (plans/2026-09-27-agentic-memory.md, phase 1): `qlsc remember` and `recall` keep an
+- **Memory** (plans/2026-09-27-agentic-memory.md, phases 1 and 2): `qlsc remember` and `recall` keep an
   entity's context, fetched from the virtual graph, in a `memory` database beside the semantic layer. A
   rebuild never touches it. `fennmoor.memory` joins it to the composite.
   - **What a context is** comes from the virtual graph's model, not per estate. It's the node; every
@@ -231,6 +231,19 @@ clean grouping and barely move NMI against the spec (0.850 vs 0.853).
     facts hold for good. `recall` reads memory while the context holds, and fetches again once it
     doesn't, or once the template changed. A refetch removes the relationships a read no longer
     returns; nodes stay, and a stale one is never read as fresh.
+  - **Entitlements** (`--as <principal>`): a remembered row has left the warehouse's enforcement, so memory
+    keeps it:
+    - **The fetch is theirs.** The template is the virtual graph's model as the gateway restricts it for
+      them, and every read is signed for them. BigQuery applies their tables, columns and rows.
+    - **A fact that depends on who reads it** is a node of a table with a row access policy, or a
+      relationship whose table or either end has one. It carries a mark per principal who fetched it
+      (`seen_until:<principal>`), and a read of memory needs the reader's own mark. A refetch removes
+      only the reader's mark from what it no longer returns; a relationship no one has a mark on goes.
+      One node per row stays one node, so identity is still (source, key).
+    - **Any other fact** is the same whoever reads it, and is shared.
+    - **A context is recorded per principal** on its anchor. A recall reads memory only for the
+      principal's own context, with their template as it is now: a table or column they lost changes it,
+      so it is fetched again.
   - **Reads and writes are two steps from Python,** not one composite statement. The second hop is
     keyed on the first's results (a correlated subquery into the virtual graph is Virtual Graph bug
     2), and each read is signed on its own.

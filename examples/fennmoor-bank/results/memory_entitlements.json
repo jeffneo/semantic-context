@@ -1,0 +1,174 @@
+{
+ "anchors": [
+  [
+   "Customer",
+   "-9222608688654483010"
+  ],
+  [
+   "Customer",
+   "-9218325325162838369"
+  ],
+  [
+   "Customer",
+   "4406449607907749601"
+  ],
+  [
+   "Customer",
+   "8322097816940277129"
+  ],
+  [
+   "Branch",
+   "101"
+  ],
+  [
+   "Agent",
+   "9143e7f7-8e11-6904-c98e-fb076ea611a1"
+  ]
+ ],
+ "runs": {
+  "marketing": {
+   "Customer -9222608688654483010": {
+    "nodes": 185,
+    "edges": 275,
+    "same as their fetch": true,
+    "differences": [],
+    "incidents": [],
+    "verdict": "ok"
+   },
+   "Customer -9218325325162838369": {
+    "nodes": 1,
+    "edges": 0,
+    "same as their fetch": true,
+    "differences": [],
+    "incidents": [],
+    "verdict": "ok"
+   },
+   "Customer 4406449607907749601": {
+    "nodes": 658,
+    "edges": 1283,
+    "same as their fetch": true,
+    "differences": [],
+    "incidents": [],
+    "verdict": "ok"
+   },
+   "Customer 8322097816940277129": {
+    "nodes": 640,
+    "edges": 1250,
+    "same as their fetch": true,
+    "differences": [],
+    "incidents": [],
+    "verdict": "ok"
+   },
+   "Branch 101": {
+    "nodes": 931,
+    "edges": 1189,
+    "same as their fetch": true,
+    "differences": [],
+    "incidents": [],
+    "verdict": "ok"
+   },
+   "Agent 9143e7f7-8e11-6904-c98e-fb076ea611a1": {
+    "verdict": "refused"
+   }
+  },
+  "risk": {
+   "Customer -9222608688654483010": {
+    "nodes": 185,
+    "edges": 275,
+    "same as their fetch": true,
+    "differences": [],
+    "incidents": [],
+    "verdict": "ok"
+   },
+   "Customer -9218325325162838369": {
+    "nodes": 1,
+    "edges": 0,
+    "same as their fetch": true,
+    "differences": [],
+    "incidents": [],
+    "verdict": "ok"
+   },
+   "Customer 4406449607907749601": {
+    "verdict": "nothing they may read",
+    "origin": "virtual graph",
+    "nodes": 0
+   },
+   "Customer 8322097816940277129": {
+    "verdict": "nothing they may read",
+    "origin": "virtual graph",
+    "nodes": 0
+   },
+   "Branch 101": {
+    "nodes": 636,
+    "edges": 860,
+    "same as their fetch": true,
+    "differences": [],
+    "incidents": [],
+    "verdict": "ok"
+   },
+   "Agent 9143e7f7-8e11-6904-c98e-fb076ea611a1": {
+    "verdict": "refused"
+   }
+  },
+  "contact-center": {
+   "Customer -9222608688654483010": {
+    "verdict": "refused"
+   },
+   "Customer -9218325325162838369": {
+    "verdict": "refused"
+   },
+   "Customer 4406449607907749601": {
+    "verdict": "refused"
+   },
+   "Customer 8322097816940277129": {
+    "verdict": "refused"
+   },
+   "Branch 101": {
+    "verdict": "refused"
+   },
+   "Agent 9143e7f7-8e11-6904-c98e-fb076ea611a1": {
+    "nodes": 275,
+    "edges": 600,
+    "same as their fetch": true,
+    "differences": [],
+    "incidents": [],
+    "verdict": "ok"
+   }
+  }
+ },
+ "isolation": {
+  "risk reads memory for a customer others remembered": {
+   "nodes": 0,
+   "ok": true
+  },
+  "risk's recall of it": {
+   "origin": "virtual graph",
+   "nodes": 0,
+   "ok": true
+  },
+  "contact-center's recall of a customer": {
+   "ok": true
+  }
+ },
+ "controls": {
+  "row marks ignored (risk)": {
+   "caught": true,
+   "by": [
+    "Customer: 1 of 1 rows they can't read, e.g. 4406449607907749601",
+    "Customer: 295 of 353 rows they can't read, e.g. -1054897066509271318"
+   ]
+  },
+  "columns unrestricted (marketing)": {
+   "caught": true,
+   "by": [
+    "Customer: hidden columns shown: cif_number, full_name, primary_email"
+   ]
+  },
+  "another's context (risk read with marketing's marks)": {
+   "caught": true,
+   "by": [
+    "Customer: 1 of 1 rows they can't read, e.g. 4406449607907749601"
+   ]
+  }
+ }
+}

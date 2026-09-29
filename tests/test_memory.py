@@ -92,3 +92,24 @@ def test_identifiers_only():
         pass
     else:
         raise AssertionError("expected Unsupported")
+
+
+def test_a_fact_that_depends_on_the_reader_needs_their_own_mark():
+    """Phase 2: Customer's table has a row policy, so a customer, and a relationship touching one, is read
+    from memory only with the reader's own mark still holding; a purchase's merchant is anyone's."""
+    import dataclasses
+
+    m = dataclasses.replace(M, reader="p@x", policied={"Customer"}, depends={"MADE_BY", "OWNED_BY"})
+    assert m.seen() == "seen_until:p@x"
+    assert m.context_keys()["k_until"] == "context_until:p@x"
+    reads = {r.name: r for r in memory.template(m, "Customer", hops=2)}
+    anchor = memory.cypher(m, reads["Customer"], memory=True)
+    assert "n[$seen] > $now" in anchor
+    made_by = memory.cypher(m, reads["Customer<-MADE_BY-Txn"], memory=True)
+    assert "x[$seen] > $now" in made_by and "v[$seen] > $now" in made_by and "n[$seen]" not in made_by
+    merchant = memory.cypher(m, reads["Txn-AT->Merchant"], memory=True)
+    assert "$seen" not in merchant
+    # the virtual graph's read is the same whoever reads: the warehouse applies their rules
+    assert memory.cypher(m, reads["Customer<-MADE_BY-Txn"]) == memory.cypher(
+        M, reads["Customer<-MADE_BY-Txn"]
+    )

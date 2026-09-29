@@ -11,7 +11,7 @@
     --as PRINCIPAL              ... on a principal's behalf: only what the warehouse lets them read, run as them
   qlsc remember LABEL KEY       an entity's context, fetched from the virtual graph and kept in memory
   qlsc recall LABEL KEY         the same context: from memory while it holds, else fetched again
-                                (KEY: the label's key, or property=value)
+                                (KEY: the label's key, or property=value; --as PRINCIPAL, as for ask)
 
 Every command reads the estate's config from --config, or QLSC_CONFIG (environment or .env).
 """
@@ -127,7 +127,15 @@ def parser() -> argparse.ArgumentParser:
         p.add_argument("label", help="a label of the virtual graph")
         p.add_argument("key", help="its key, or property=value (another property that identifies one)")
         p.add_argument("--full", action="store_true", help="every node of the context, not only the counts")
-        p.set_defaults(func=lambda s, a, force=force: memory.run(s, a.label, a.key, force=force, full=a.full))
+        p.add_argument(
+            "--as",
+            dest="as_",
+            metavar="PRINCIPAL",
+            help="on a principal's behalf: fetched as them, and only what they fetched and may read now",
+        )
+        p.set_defaults(
+            func=lambda s, a, force=force: memory.run(s, a.label, a.key, force=force, full=a.full, as_=a.as_)
+        )
     return ap
 
 
@@ -135,7 +143,7 @@ def main(argv: list[str] | None = None) -> int:
     a = parser().parse_args(argv)
     try:
         a.func(load_settings(a.config), a)
-    except ConfigError as e:
+    except (ConfigError, memory.Unsupported) as e:
         print(f"qlsc: {e}", file=sys.stderr)
         return 2
     return 0

@@ -215,6 +215,11 @@ uv run qlsc recall Customer cif_number=0001000025    # first time: 15 reads from
 uv run qlsc recall Customer cif_number=0001000025    # again: from memory, ~0.05 s
 ```
 
+`--as <principal>` fetches as them: only the tables, columns and rows the warehouse lets them read. A
+fact from a row-policied table is marked for each principal who fetched it, and is read back only by
+them. Checked with BigQuery, read as each principal, as the oracle (`eval/memory_entitlements.py`): 0
+incidents in 18 recalls, and three deliberately broken reads caught.
+
 Over 20 customers (`eval/memory.py`), every context read back from memory was exactly the one fetched.
 Six context questions gave the same rows on memory as on the virtual graph, 110 of 110, in 6 ms against
 1.4 s. A stale fact is never read.
