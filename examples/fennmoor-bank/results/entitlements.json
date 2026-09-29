@@ -147,10 +147,11 @@
       "why": "the principal's rows"
      },
      "cypher": {
-      "verdict": "no answer"
+      "verdict": "ok",
+      "why": "no row-filtered table, and the principal reads all it reads"
      }
     },
-    "route": "sql",
+    "route": "cypher",
     "sql": {
      "writer": "free",
      "query": "SELECT m.mcc_description AS merchant_category, m.category_group, t.customer_key, SUM(t.amount) AS spend FROM `fennmoor-dw.dw_core.fct_card_transactions` t JOIN `fennmoor-dw.dw_core.dim_merchant` m ON m.merchant_id = t.merchant_id WHERE t.post_date BETWEEN '2026-04-01' AND '2026-06-30' AND t.is_purchase GROUP BY 1, 2, 3 ORDER BY spend DESC",
@@ -160,8 +161,8 @@
     "cypher": {
      "writer": "free",
      "query": "MATCH (t:CardTransaction)-[:TRANSACTED_AT]->(m:Merchant), (t)-[:MADE_BY]->(c:Customer) WHERE t.is_purchase = true AND t.post_date >= date('2026-04-01') AND t.post_date <= date('2026-06-30') RETURN m.category_group AS merchant_category, c.segment AS customer_segment, sum(t.amount) AS card_spend ORDER BY merchant_category, customer_segment",
-     "answered": false,
-     "why_not": "the warehouse filters the rows of fennmoor-dw.dw_core.dim_customer per reader, and the virtual graph reads them all"
+     "answered": true,
+     "why_not": null
     }
    },
    "Q05": {
@@ -467,7 +468,8 @@
       "why": "the principal's rows"
      },
      "cypher": {
-      "verdict": "no answer"
+      "verdict": "ok",
+      "why": "no row-filtered table, and the principal reads all it reads"
      }
     },
     "route": "sql",
@@ -480,8 +482,8 @@
     "cypher": {
      "writer": "compiled",
      "query": "MATCH (dim_customer:Customer)\nRETURN dim_customer.state_code AS state, count(DISTINCT dim_customer.customer_key) AS customers",
-     "answered": false,
-     "why_not": "the warehouse filters the rows of fennmoor-dw.dw_core.dim_customer per reader, and the virtual graph reads them all"
+     "answered": true,
+     "why_not": null
     }
    },
    "P2": {
@@ -612,7 +614,8 @@
       "why": "the principal's rows"
      },
      "cypher": {
-      "verdict": "no answer"
+      "verdict": "ok",
+      "why": "no row-filtered table, and the principal reads all it reads"
      }
     },
     "route": "sql",
@@ -625,8 +628,8 @@
     "cypher": {
      "writer": "compiled",
      "query": "MATCH (fct_card_transactions:CardTransaction)\nMATCH (fct_card_transactions)-[:MADE_BY]->(dim_customer:Customer)\nRETURN dim_customer.segment AS segment, count(DISTINCT fct_card_transactions.settlement_id) AS card_transactions",
-     "answered": false,
-     "why_not": "the warehouse filters the rows of fennmoor-dw.dw_core.dim_customer per reader, and the virtual graph reads them all"
+     "answered": true,
+     "why_not": null
     }
    }
   },
@@ -736,10 +739,11 @@
       "why": "the principal's rows"
      },
      "cypher": {
-      "verdict": "no answer"
+      "verdict": "ok",
+      "why": "no row-filtered table, and the principal reads all it reads"
      }
     },
-    "route": "sql",
+    "route": "cypher",
     "sql": {
      "writer": "free",
      "query": "SELECT m.mcc_description AS merchant_category, m.category_group, t.customer_key, SUM(t.amount) AS spend FROM `fennmoor-dw.dw_core.fct_card_transactions` t JOIN `fennmoor-dw.dw_core.dim_merchant` m ON m.merchant_id = t.merchant_id WHERE t.post_date BETWEEN '2026-04-01' AND '2026-06-30' AND t.is_purchase GROUP BY 1, 2, 3 ORDER BY spend DESC",
@@ -749,8 +753,8 @@
     "cypher": {
      "writer": "free",
      "query": "MATCH (t:CardTransaction)-[:TRANSACTED_AT]->(m:Merchant) MATCH (t)-[:MADE_BY]->(c:Customer) WHERE t.is_purchase = true AND t.post_date >= date('2026-04-01') AND t.post_date <= date('2026-06-30') RETURN m.category_group AS merchant_category, c.segment AS customer_segment, sum(t.amount) AS card_spend ORDER BY merchant_category, customer_segment",
-     "answered": false,
-     "why_not": "the warehouse filters the rows of fennmoor-dw.dw_core.dim_customer per reader, and the virtual graph reads them all"
+     "answered": true,
+     "why_not": null
     }
    },
    "Q05": {
@@ -794,10 +798,11 @@
       "why": "the principal's rows"
      },
      "cypher": {
-      "verdict": "no answer"
+      "verdict": "ok",
+      "why": "no row-filtered table, and the principal reads all it reads"
      }
     },
-    "route": "sql",
+    "route": "cypher",
     "sql": {
      "writer": "free",
      "query": "SELECT 'fennmoor-dw.dw_core.dim_customer' AS table_name, 'tax_id_hash' AS column_name, 'STRING' AS column_type, 'hashed tax ID (SSN/TIN)' AS storage_form UNION ALL SELECT 'fennmoor-raw.loan_origination.applicant', 'ssnLast4', 'STRING', 'last 4 digits of SSN only (partial, not full or hashed)'",
@@ -807,8 +812,8 @@
     "cypher": {
      "writer": "free",
      "query": "MATCH (c:Customer) RETURN 'fennmoor-dw.dw_core.dim_customer' AS table_name, 'tax_id_hash' AS column_name, 'hashed' AS storage_form, count(c) AS rows_in_table",
-     "answered": false,
-     "why_not": "the warehouse filters the rows of fennmoor-dw.dw_core.dim_customer per reader, and the virtual graph reads them all"
+     "answered": true,
+     "why_not": null
     }
    },
    "Q07": {
@@ -968,7 +973,8 @@
       "why": "the principal's rows (the firm's differ: the row policy applied)"
      },
      "cypher": {
-      "verdict": "no answer"
+      "verdict": "ok",
+      "why": "no row-filtered table, and the principal reads all it reads"
      }
     },
     "route": "sql",
@@ -981,8 +987,8 @@
     "cypher": {
      "writer": "compiled",
      "query": "MATCH (dim_customer:Customer)\nWHERE (dim_customer.segment = 'affluent')\n  AND (dim_customer.email_opt_in = true)\n  AND (NOT (dim_customer.primary_email IS NULL))\n  AND (dim_customer.is_deceased = false)\nRETURN DISTINCT dim_customer.cif_number AS cif_number, dim_customer.full_name AS full_name, dim_customer.primary_email AS primary_email",
-     "answered": false,
-     "why_not": "the warehouse filters the rows of fennmoor-dw.dw_core.dim_customer per reader, and the virtual graph reads them all"
+     "answered": true,
+     "why_not": null
     }
    },
    "Q13": {
@@ -1056,7 +1062,8 @@
       "why": "the principal's rows (the firm's differ: the row policy applied)"
      },
      "cypher": {
-      "verdict": "no answer"
+      "verdict": "ok",
+      "why": "no row-filtered table, and the principal reads all it reads"
      }
     },
     "route": "sql",
@@ -1069,8 +1076,8 @@
     "cypher": {
      "writer": "compiled",
      "query": "MATCH (dim_customer:Customer)\nRETURN dim_customer.state_code AS state, count(DISTINCT dim_customer.customer_key) AS customers",
-     "answered": false,
-     "why_not": "the warehouse filters the rows of fennmoor-dw.dw_core.dim_customer per reader, and the virtual graph reads them all"
+     "answered": true,
+     "why_not": null
     }
    },
    "P2": {
@@ -1085,7 +1092,8 @@
       "why": "the principal's rows (the firm's differ: the row policy applied)"
      },
      "cypher": {
-      "verdict": "no answer"
+      "verdict": "ok",
+      "why": "no row-filtered table, and the principal reads all it reads"
      }
     },
     "route": "sql",
@@ -1098,8 +1106,8 @@
     "cypher": {
      "writer": "compiled",
      "query": "MATCH (dim_customer:Customer)\nWHERE (dim_customer.segment = 'affluent')\nRETURN DISTINCT dim_customer.full_name AS full_name, dim_customer.primary_email AS primary_email",
-     "answered": false,
-     "why_not": "the warehouse filters the rows of fennmoor-dw.dw_core.dim_customer per reader, and the virtual graph reads them all"
+     "answered": true,
+     "why_not": null
     }
    },
    "P3": {
@@ -1201,7 +1209,8 @@
       "why": "the principal's rows (the firm's differ: the row policy applied)"
      },
      "cypher": {
-      "verdict": "no answer"
+      "verdict": "ok",
+      "why": "no row-filtered table, and the principal reads all it reads"
      }
     },
     "route": "sql",
@@ -1214,8 +1223,8 @@
     "cypher": {
      "writer": "compiled",
      "query": "MATCH (fct_card_transactions:CardTransaction)\nMATCH (fct_card_transactions)-[:MADE_BY]->(dim_customer:Customer)\nRETURN dim_customer.segment AS segment, count(DISTINCT fct_card_transactions.settlement_id) AS card_transactions",
-     "answered": false,
-     "why_not": "the warehouse filters the rows of fennmoor-dw.dw_core.dim_customer per reader, and the virtual graph reads them all"
+     "answered": true,
+     "why_not": null
     }
    }
   },
@@ -1496,7 +1505,7 @@
     "rows": {
      "sql": {
       "verdict": "ok",
-      "why": "the principal's rows (the firm's differ: the row policy applied)"
+      "why": "the principal's rows"
      },
      "cypher": {
       "verdict": "no answer"
@@ -1728,7 +1737,7 @@
     "rows": {
      "sql": {
       "verdict": "ok",
-      "why": "the principal's rows (the firm's differ: the row policy applied)"
+      "why": "the principal's rows"
      },
      "cypher": {
       "verdict": "ok",
@@ -2158,7 +2167,7 @@
       "rows": {
        "sql": {
         "verdict": "ok",
-        "why": "the principal's rows (the firm's differ: the row policy applied)"
+        "why": "the principal's rows"
        },
        "cypher": {
         "verdict": "ok",
@@ -2240,7 +2249,7 @@
        "writer": "compiled",
        "query": "MATCH (dim_customer:Customer)\nWHERE (dim_customer.segment = 'affluent')\nRETURN DISTINCT dim_customer.full_name AS full_name, dim_customer.primary_email AS primary_email",
        "answered": false,
-       "why_not": "the warehouse filters the rows of fennmoor-dw.dw_core.dim_customer per reader, and the virtual graph reads them all"
+       "why_not": "qlsc-marketing@jeffdavis-bq-testproj.iam.gserviceaccount.com may not read what the virtual graph's SQL reads: Access Denied: BigQuery BigQuery: User has neither fine-grained reader nor masked get permission to get data protected by policy tag \"qlsc-identifiers : identifier\" on columns dw_core.dim_customer.ful"
       }
      },
      "P5": {
@@ -2316,7 +2325,8 @@
         "why": "the answer isn't the principal's own read of its query"
        },
        "cypher": {
-        "verdict": "no answer"
+        "verdict": "ok",
+        "why": "no row-filtered table, and the principal reads all it reads"
        }
       },
       "route": "sql",
@@ -2329,8 +2339,8 @@
       "cypher": {
        "writer": "compiled",
        "query": "MATCH (dim_customer:Customer)\nRETURN dim_customer.state_code AS state, count(DISTINCT dim_customer.customer_key) AS customers",
-       "answered": false,
-       "why_not": "the warehouse filters the rows of fennmoor-dw.dw_core.dim_customer per reader, and the virtual graph reads them all"
+       "answered": true,
+       "why_not": null
       }
      },
      "P6": {
@@ -2345,7 +2355,8 @@
         "why": "the answer isn't the principal's own read of its query"
        },
        "cypher": {
-        "verdict": "no answer"
+        "verdict": "ok",
+        "why": "no row-filtered table, and the principal reads all it reads"
        }
       },
       "route": "sql",
@@ -2358,14 +2369,14 @@
       "cypher": {
        "writer": "compiled",
        "query": "MATCH (fct_card_transactions:CardTransaction)\nMATCH (fct_card_transactions)-[:MADE_BY]->(dim_customer:Customer)\nRETURN dim_customer.segment AS segment, count(DISTINCT fct_card_transactions.settlement_id) AS card_transactions",
-       "answered": false,
-       "why_not": "the warehouse filters the rows of fennmoor-dw.dw_core.dim_customer per reader, and the virtual graph reads them all"
+       "answered": true,
+       "why_not": null
       }
      }
     }
    }
   ],
-  "the Cypher gate off (option A skipped)": [
+  "the gateway signs as the data source, not the principal": [
    {
     "principal": "risk",
     "caught": true,
@@ -2384,7 +2395,7 @@
        },
        "cypher": {
         "verdict": "INCIDENT",
-        "why": "the virtual graph read every row of fennmoor-dw.dw_core.dim_customer"
+        "why": "the virtual graph read as qlsc-bq@jeffdavis-bq-testproj.iam.gserviceaccount.com"
        }
       },
       "route": "sql",
@@ -2414,7 +2425,7 @@
        },
        "cypher": {
         "verdict": "INCIDENT",
-        "why": "the virtual graph read every row of fennmoor-dw.dw_core.dim_customer"
+        "why": "the virtual graph read as qlsc-bq@jeffdavis-bq-testproj.iam.gserviceaccount.com"
        }
       },
       "route": "sql",
@@ -2434,5 +2445,19 @@
     }
    }
   ]
+ },
+ "driver": {
+  "no token (a Neo4j user reaching the virtual graph directly)": {
+   "refused": true,
+   "why": "qlsc pass-through: refused, the query carries no principal token (sign it through the qlsc gateway)"
+  },
+  "a forged token (marketing's name, risk's signature)": {
+   "refused": true,
+   "why": "qlsc pass-through: refused, a principal token not signed by the gateway"
+  },
+  "an expired token": {
+   "refused": true,
+   "why": "qlsc pass-through: refused, an expired principal token"
+  }
  }
 }

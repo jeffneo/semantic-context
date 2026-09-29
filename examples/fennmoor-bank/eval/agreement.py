@@ -18,6 +18,7 @@ from common import RESULTS, settings, write_result
 from execution import MAXIMUM_BYTES_BILLED, ROWS, compare
 from neo4j.exceptions import Neo4jError
 
+from qlsc import entitle
 from qlsc.graph import Graph
 from qlsc.warehouse import connect
 
@@ -32,7 +33,8 @@ def main() -> int:
         for q in both:
             sql = wh.run(runs[q]["sql"]["query"], MAXIMUM_BYTES_BILLED, ROWS)
             try:
-                result = V.run(runs[q]["cypher"]["query"])
+                cypher, params = entitle.signing(s, None, runs[q]["cypher"]["query"])  # the estate's own read
+                result = V.run(cypher, **params)
                 rows = [x.data() for x in result.records]
                 cy = {"ok": True, "columns": list(result.keys), "rows": rows, "total": len(rows)}
             except Neo4jError:

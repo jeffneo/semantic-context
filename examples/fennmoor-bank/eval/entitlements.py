@@ -1,11 +1,14 @@
-"""Entitlements, checked with the warehouse as the oracle (plans/2026-09-27-entitlements.md, phases 1 and 2).
+"""Entitlements, checked with the warehouse as the oracle (plans/2026-09-27-entitlements.md; the pass-through,
+plans/2026-09-28-jdbc-passthrough.md).
 
 For each test principal (the estate's entitlements.principals, set up by entitlements/setup.py), each gold
 question and a few probes, by both routes and the router, through the gateway (`qlsc ask --as`):
   1. rows: a SQL answer is what the principal's own read of the same query returns (run again as them,
      on a client built here), and where the estate's own read differs, the answer is the principal's: the
-     row policy applied. A Cypher answer reads no table the warehouse filters per reader (the table's row
-     policies, read here), and a dry run of Virtual Graph's SQL as the principal passes.
+     row policy applied. A Cypher answer, with the pass-through on (virtualize.passthrough), ran as the
+     principal: every job Virtual Graph ran for it is theirs in BigQuery's own job log, read here as the
+     owner. Without it, the answer reads no table the warehouse filters per reader (the table's row
+     policies, read here). Either way, a dry run of Virtual Graph's SQL as the principal passes.
   2. schema: no response, and no prompt sent to the LLM, names a table the principal can't read, a column
      hidden from them, a value the log filters either on, or a principal of the log. The oracle's allowlist
      is built here by dry runs as the principal: a different mechanism from the gateway's permission checks.
@@ -20,9 +23,12 @@ Usage: uv run examples/fennmoor-bank/eval/entitlements.py [--controls-only | --r
 
 from __future__ import annotations
 
+import datetime as dt
+import importlib.util
 import json
 import re
 import sys
+import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -58,6 +64,19 @@ CONTROLS = {
     "SQL run as the estate, not the principal": (["risk"], ["P1", "P6"], "rows"),
     "the Cypher gate off (option A skipped)": (["risk"], ["P1", "P6"], "rows"),
 }
+# With the JDBC pass-through the gate's row-policy refusal no longer applies (the virtual graph reads as the
+# principal), so its control is this one instead: the gateway signing every query as the data source.
+PASSTHROUGH_CONTROLS = {
+    "the gateway signs as the data source, not the principal": (["risk"], ["P1", "P6"], "rows"),
+}
+VG_JOBS = """
+SELECT DISTINCT user_email FROM `region-us`.INFORMATION_SCHEMA.JOBS_BY_PROJECT
+WHERE creation_time >= @since
+  AND EXISTS (SELECT 1 FROM UNNEST(labels) l WHERE l.key = 'app' AND l.value = 'neo4j-virtual-graph')
+  -- not the pool's liveness checks, nor Virtual Graph's key checks: no rows read
+  AND TRIM(query) != 'SELECT 1'
+  AND NOT REGEXP_CONTAINS(query, r'^SELECT 1 FROM `[^`]+`\.`[^`]+`\.`[^`]+` GROUP BY `[^`]+` HAVING COUNT\(\*\) > 1 LIMIT 1$')
+"""
 LAYER_TABLES = "MATCH (t:Table) WHERE t.in_catalog RETURN t.id AS t ORDER BY t"
 LAYER_COLUMNS = (
     "MATCH (t:Table)-[:HAS_COLUMN]->(c:Column) WHERE t.in_catalog RETURN t.id AS t, collect(c.name) AS cols"
@@ -122,6 +141,22 @@ class Oracle:
         except Exception as e:
             return {"error": str(getattr(e, "message", e))[:200]}
 
+    def vg_readers(self, since: float) -> set[str]:
+        """Who ran the jobs Virtual Graph sent since then, from BigQuery's own job log, read as the
+        project's owner: the gateway can't write it."""
+        owner = owner_client(self.s)
+        config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("since", "TIMESTAMP", dt.datetime.fromtimestamp(since, dt.UTC))
+            ]
+        )
+        for _ in range(6):  # the log trails the jobs by a few seconds
+            got = {r["user_email"] for r in owner.query(VG_JOBS, job_config=config).result()}
+            if got:
+                return got
+            time.sleep(5)
+        return set()
+
     def row_policies(self, tables: list[str]) -> set[str]:
         """Tables with row access policies, read afresh from the warehouse (not the gateway's cache)."""
         out = set()
@@ -136,6 +171,20 @@ class Oracle:
             if got.get("rowAccessPolicies"):
                 out.add(t)
         return out
+
+
+_OWNER = {}
+
+
+def owner_client(s) -> bigquery.Client:
+    """A client as the project's owner (entitlements/setup.py's credentials), for the job log."""
+    if "client" not in _OWNER:
+        path = Path(__file__).parent.parent / "entitlements" / "setup.py"
+        spec = importlib.util.spec_from_file_location("fennmoor_entitlements_setup", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        _OWNER["client"] = module.BQ
+    return _OWNER["client"]
 
 
 def canaries(G, s, readable: set[str], hidden: set) -> list[tuple[str, re.Pattern]]:
@@ -265,7 +314,8 @@ def ask(G, s, question: str, allow, oracle: Oracle, marks: list, keep: Path | No
     try:
         tr = trace(G, s, question, allow=allow)
         answers = {"sql": answer_sql(G, s, tr, execute=True, rows=ROWS)}
-        answers["cypher"] = answer_cypher(G, s, tr, execute=True, rows=ROWS)
+        since = time.time() - 2
+        answers["cypher"] = answer_cypher(G, s, tr, execute=True, rows=ROWS) | {"since": since}
     finally:
         llm.LLM.call = call
     shown = json.dumps({k: v for k, v in tr.items() if k != "allow"}, default=str)
@@ -329,12 +379,19 @@ def rows_check(route: str, a: dict, oracle: Oracle) -> dict:
     labels = {x for x in re.findall(r"\(\s*\w*\s*:\s*(\w+)", a["cypher"])}
     table = {r["label"]: r["table"] for r in GRAPH_LABELS}
     tables = sorted(table[x] for x in labels if x in table)
-    filtered = oracle.row_policies(tables)
-    if filtered:
-        return {
-            "verdict": "INCIDENT",
-            "why": f"the virtual graph read every row of {', '.join(sorted(filtered))}",
-        }
+    if entitle.passthrough(oracle.s):  # the warehouse's own job log: as whom Virtual Graph read
+        readers = oracle.vg_readers(a["since"])
+        if not readers:
+            return {"verdict": "unverified", "why": "no Virtual Graph job in the warehouse's log for it"}
+        if readers != {oracle.who}:
+            return {"verdict": "INCIDENT", "why": f"the virtual graph read as {', '.join(sorted(readers))}"}
+    else:
+        filtered = oracle.row_policies(tables)
+        if filtered:
+            return {
+                "verdict": "INCIDENT",
+                "why": f"the virtual graph read every row of {', '.join(sorted(filtered))}",
+            }
     unreadable = [t for t in tables if t not in oracle.readable]  # the oracle's own allowlist
     props = set(re.findall(r"\b\w+\.(\w+)\b", a["cypher"]))
     hidden = sorted(c for t, c in oracle.hidden if t in tables and c in props)
@@ -347,6 +404,43 @@ def rows_check(route: str, a: dict, oracle: Oracle) -> dict:
 
 
 GRAPH_LABELS: list = []
+
+
+def controls(s) -> dict:
+    out = dict(CONTROLS)
+    if entitle.passthrough(s):
+        del out["the Cypher gate off (option A skipped)"]
+        out |= PASSTHROUGH_CONTROLS
+    return out
+
+
+def driver_probes(s) -> dict:
+    """Straight to the virtual graph, not through the gateway: the pass-through must refuse each."""
+    q = "MATCH (c:Customer) RETURN count(*) AS n"
+    p = s["entitlements"]["principals"]
+    forged = entitle.token(s, p["marketing"]).split(".")[0] + "." + entitle.token(s, p["risk"]).split(".")[1]
+    tries = {
+        "no token (a Neo4j user reaching the virtual graph directly)": (q, {}),
+        "a forged token (marketing's name, risk's signature)": (
+            entitle.signed(q),
+            {"qlsc_principal": forged},
+        ),
+        "an expired token": (
+            entitle.signed(q),
+            {"qlsc_principal": entitle.token(s, p["risk"], now=time.time() - 3600)},
+        ),
+    }
+    out = {}
+    with Graph(s, s["virtualize"]["neo4j"]) as V:
+        for name, (cypher, params) in tries.items():
+            try:
+                V.capped(cypher, 10, **params)
+                out[name] = {"refused": False}
+            except Exception as e:
+                why = str(getattr(e, "message", e))
+                out[name] = {"refused": "qlsc pass-through: refused" in why, "why": why[:160]}
+            print(f"  driver: {name}: {'refused' if out[name]['refused'] else 'NOT REFUSED'}", flush=True)
+    return out
 
 
 def broken(name: str):
@@ -372,6 +466,9 @@ def broken(name: str):
         patch(entitle, "warehouse", lambda s, allow: connect(s))
     elif name.startswith("the Cypher gate off"):
         patch(entitle, "check_cypher", lambda *a, **k: None)
+    elif name.startswith("the gateway signs as the data source"):
+        real = entitle.signing
+        patch(entitle, "signing", lambda s, allow, cypher: real(s, None, cypher))
     return lambda: [setattr(o, a, v) for o, a, v in reversed(saved)]
 
 
@@ -390,6 +487,8 @@ def main() -> int:
     gold = yaml.safe_load((SPEC / "questions.yaml").read_text())["questions"]
     questions = {q: gold[q]["question"] for q in sorted(gold)} | PROBES
     res = {"runs": {}, "controls": {}}
+    if entitle.passthrough(s):
+        res["driver"] = driver_probes(s)
     with Graph(s) as G:
         GRAPH_LABELS.extend(G.rows(navigate.LABELS))
         tables = [r["t"] for r in G.rows(LAYER_TABLES)]
@@ -414,7 +513,7 @@ def main() -> int:
                 f"the gateway {'agrees' if agree else 'DISAGREES'}; {len(marks)} canaries",
                 flush=True,
             )
-            for control, (whom, probes, check) in CONTROLS.items():
+            for control, (whom, probes, check) in controls(s).items():
                 if name not in whom:
                     continue
                 undo = broken(control)
@@ -492,10 +591,16 @@ def report(res: dict) -> int:
     L = ["# Entitlements, with the warehouse as the oracle", ""]
     L.append(
         "Each test principal through the gateway (`qlsc ask --as`), every gold question and six probes, by "
-        "both routes (plans/2026-09-27-entitlements.md, phases 1 and 2). **Schema**: no response or LLM "
+        "both routes (plans/2026-09-27-entitlements.md). **Schema**: no response or LLM "
         "prompt names what the principal can't read (the canaries: unreadable tables, hidden columns, their "
         "filter values, the log's principals). **Rows**: a SQL answer is the principal's own read of its "
-        "query; a Cypher answer reads no row-filtered table and nothing the principal can't read."
+        "query; "
+        + (
+            "a Cypher answer ran as the principal: every BigQuery job Virtual Graph ran for it is theirs in "
+            "the warehouse's job log (the pass-through, plans/2026-09-28-jdbc-passthrough.md)."
+            if "driver" in res
+            else "a Cypher answer reads no row-filtered table and nothing the principal can't read."
+        )
     )
     L += [
         "",
@@ -515,6 +620,9 @@ def report(res: dict) -> int:
             f"{n('cypher', lambda x: 'filters the rows' in str(x['why_not']) or 'dry run' in str(x['why_not']))} | "
             f"{sum(1 for r in qs.values() if r['route'] == 'cypher')} |"
         )
+    if res.get("driver"):
+        L += ["", "## The pass-through, reached directly", "", "| query | refused |", "|---|---|"]
+        L += [f"| {k} | {'yes' if x['refused'] else '**NO**'} |" for k, x in res["driver"].items()]
     L += [
         "",
         "## Negative controls: broken gateways the checks must catch",

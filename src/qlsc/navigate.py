@@ -889,7 +889,8 @@ def cypher_compiled(
     }
     try:
         with Graph(s, instance) as V:
-            check = explain(V, cypher, model["nodes"], model["relationships"])
+            sent, params = entitle.signing(s, tr.get("allow"), cypher)
+            check = explain(V, sent, model["nodes"], model["relationships"], params)
             if "error" in check:
                 return {
                     "fallback": f"the compiled Cypher failed its check: {check['error'][:200]}",
@@ -899,7 +900,7 @@ def cypher_compiled(
             if why := refused(s, tr, cypher, check, labels):
                 return answer | {"refused": why}
             if execute:
-                answer["result"] = capped_result(V, cypher, p, rows)
+                answer["result"] = capped_result(V, sent, p, rows, params)
     except ServiceUnavailable:
         answer["error"] = f"the Virtual Graph instance is not running at {instance['uri']}"
     except Neo4jError as e:
@@ -907,9 +908,9 @@ def cypher_compiled(
     return answer
 
 
-def capped_result(V: Graph, cypher: str, p: dict, rows: int | None) -> dict:
+def capped_result(V: Graph, cypher: str, p: dict, rows: int | None, params: dict | None = None) -> dict:
     t0 = time.time()
-    columns, data, more = V.capped(cypher, p["cypher_max_rows"])
+    columns, data, more = V.capped(cypher, p["cypher_max_rows"], **(params or {}))
     return {
         "ok": True,
         "columns": columns,
@@ -974,16 +975,18 @@ def cypher_free(
             out = llm.call(request, CYPHER_SCHEMA, "record_cypher", max_tokens=3000)
             if not out["answerable"]:
                 return answer | {"declined": out["explanation"]}
-            check = explain(V, out["cypher"], nodes, rels)
+            sent, params = entitle.signing(s, tr.get("allow"), out["cypher"])
+            check = explain(V, sent, nodes, rels, params)
             if "error" in check:
                 fix = prompt("cypher_fix", error=check["error"])
                 out = llm.call(request + "\n\n" + fix, CYPHER_SCHEMA, "record_cypher", max_tokens=3000)
-                check = explain(V, out["cypher"], nodes, rels)
+                sent, params = entitle.signing(s, tr.get("allow"), out["cypher"])
+                check = explain(V, sent, nodes, rels, params)
             answer |= {"cypher": out["cypher"], "explanation": out["explanation"], "check": check}
             if why := refused(s, tr, out["cypher"], check, labels):
                 return answer | {"refused": why}
             if execute and "error" not in check:
-                answer["result"] = capped_result(V, out["cypher"], p, rows)
+                answer["result"] = capped_result(V, sent, p, rows, params)
     except ServiceUnavailable:
         answer["error"] = f"the Virtual Graph instance is not running at {instance['uri']}"
     except Neo4jError as e:
@@ -1170,7 +1173,13 @@ def wrong_directions(cypher: str, nodes: list[dict], rels: list[dict]) -> list[s
     return list(dict.fromkeys(out))
 
 
-def explain(V: Graph, cypher: str, nodes: list[dict] | None = None, rels: list[dict] | None = None) -> dict:
+def explain(
+    V: Graph,
+    cypher: str,
+    nodes: list[dict] | None = None,
+    rels: list[dict] | None = None,
+    params: dict | None = None,
+) -> dict:
     """Virtual Graph's verdict on a query without running it: {sql: [...]} | {error}. Checked first,
     without a round trip: the constructs its subset rejects; and, with the model's nodes and
     relationships, a label, relationship type or property the graph lacks, and a relationship walked
@@ -1188,7 +1197,7 @@ def explain(V: Graph, cypher: str, nodes: list[dict] | None = None, rels: list[d
     if missing:
         return {"error": "unknown properties: " + "; ".join(missing)}
     try:
-        return {"sql": external_sql(V.run("EXPLAIN " + cypher).summary.plan)}
+        return {"sql": external_sql(V.run("EXPLAIN " + cypher, **(params or {})).summary.plan)}
     except ServiceUnavailable:
         raise
     except Neo4jError as e:

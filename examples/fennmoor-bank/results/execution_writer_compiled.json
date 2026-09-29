@@ -68,7 +68,7 @@
   "sql": {
    "verdict": "wrong",
    "why": "1 rows, not 5",
-   "query": "SELECT\n  AVG(LR_id_customer_facts.churn_probability) AS avg_churn_probability_high_balance\nFROM `fennmoor-analytics.looker_scratch.LR_{id}_customer_facts` AS LR_id_customer_facts\nWHERE\n  (\n    LR_id_customer_facts.total_deposit_balance >= 100000\n  )",
+   "query": "SELECT\n  AVG(LR_id_customer_facts.churn_probability) AS avg_churn_probability\nFROM `fennmoor-analytics.looker_scratch.LR_{id}_customer_facts` AS LR_id_customer_facts\nWHERE\n  (\n    LR_id_customer_facts.total_deposit_balance >= 100000\n  )",
    "writer": "compiled"
   },
   "cypher": {
@@ -183,8 +183,8 @@
   ],
   "sql": {
    "verdict": "wrong",
-   "why": "4 rows, not 12",
-   "query": "SELECT\n  stg_ref__product_hierarchy.product_line AS product_line,\n  SUM(EOM_BAL_SNAP.EOM_BAL_AMT) AS month_end_balance\nFROM `fennmoor-analytics.legacy_edw.EOM_BAL_SNAP` AS EOM_BAL_SNAP\nLEFT JOIN `fennmoor-dw.dw_staging.stg_ref__product_hierarchy` AS stg_ref__product_hierarchy\n  ON stg_ref__product_hierarchy.prod_cd = EOM_BAL_SNAP.PROD_CD\nGROUP BY\n  1",
+   "why": "no column holds month_end_balance (2 of 3 match)",
+   "query": "WITH fct_daily_account_balances_1 AS (\n  SELECT\n    month,\n    product_line,\n    SUM(month_end_balance) AS month_end_balance\n  FROM (\n    SELECT\n      DATE_TRUNC(fct_daily_account_balances.balance_date, MONTH) AS month,\n      dim_product.product_line AS product_line,\n      fct_daily_account_balances.account_key AS per_fct_daily_account_balances_account_key,\n      SUM(fct_daily_account_balances.ledger_balance) AS month_end_balance\n    FROM `fennmoor-dw.dw_core.fct_daily_account_balances` AS fct_daily_account_balances\n    JOIN `fennmoor-dw.dw_core.dim_product` AS dim_product\n      ON dim_product.product_code = fct_daily_account_balances.product_code\n    GROUP BY\n      1,\n      2,\n      3\n  )\n  GROUP BY\n    1,\n    2\n)\nSELECT\n  month,\n  product_line,\n  month_end_balance AS month_end_balance\nFROM fct_daily_account_balances_1",
    "writer": "compiled"
   },
   "cypher": {
@@ -291,8 +291,8 @@
   ],
   "sql": {
    "verdict": "correct",
-   "why": "matches on campaign_name, card_applications",
-   "query": "SELECT\n  dim_campaign.campaign_name AS campaign_name,\n  COUNT(DISTINCT fct_campaign_attribution.conversion_id) AS card_applications\nFROM `fennmoor-dw.dw_marketing.fct_campaign_attribution` AS fct_campaign_attribution\nJOIN `fennmoor-dw.dw_marketing.dim_campaign` AS dim_campaign\n  ON dim_campaign.campaign_id = fct_campaign_attribution.campaign_id\nWHERE\n  (\n    fct_campaign_attribution.conversion_behavior = 'card_application_submitted'\n  )\nGROUP BY\n  1\nORDER BY\n  card_applications DESC",
+   "why": "matches on campaign_name=campaign, card_applications",
+   "query": "SELECT\n  dim_campaign.campaign_name AS campaign,\n  COUNT(DISTINCT fct_campaign_attribution.conversion_id) AS card_applications\nFROM `fennmoor-dw.dw_marketing.fct_campaign_attribution` AS fct_campaign_attribution\nJOIN `fennmoor-dw.dw_marketing.dim_campaign` AS dim_campaign\n  ON dim_campaign.campaign_id = fct_campaign_attribution.campaign_id\nWHERE\n  (\n    fct_campaign_attribution.conversion_behavior = 'card_application_submitted'\n  )\nGROUP BY\n  1\nORDER BY\n  card_applications DESC",
    "writer": "compiled"
   },
   "cypher": {
@@ -335,7 +335,7 @@
   "sql": {
    "verdict": "wrong",
    "why": "no column holds delinquency_rate (2 of 3 match)",
-   "query": "SELECT\n  dim_account.product_code AS product,\n  dim_branch.branch_name AS branch,\n  COUNT(\n    DISTINCT IF(fct_delinquency_daily.dpd >= 30, fct_delinquency_daily.account_key, NULL)\n  ) AS delinquent_loans,\n  COUNT(\n    IF((\n      dim_account.account_family = 'LOAN'\n    ) AND (\n      dim_account.is_open\n    ), 1, NULL)\n  ) AS open_loans,\n  SAFE_DIVIDE(\n    COUNT(\n      DISTINCT IF(fct_delinquency_daily.dpd >= 30, fct_delinquency_daily.account_key, NULL)\n    ),\n    COUNT(\n      IF((\n        dim_account.account_family = 'LOAN'\n      ) AND (\n        dim_account.is_open\n      ), 1, NULL)\n    )\n  ) AS delinquency_rate\nFROM `fennmoor-dw.dw_risk.fct_delinquency_daily` AS fct_delinquency_daily\nJOIN `fennmoor-dw.dw_core.dim_account` AS dim_account\n  ON dim_account.account_key = fct_delinquency_daily.account_key\nLEFT JOIN `fennmoor-dw.dw_core.dim_branch` AS dim_branch\n  ON dim_branch.branch_id = dim_account.branch_id\nGROUP BY\n  1,\n  2\nORDER BY\n  delinquency_rate DESC",
+   "query": "SELECT\n  dim_account.product_code AS product,\n  dim_branch.branch_name AS branch,\n  COUNT(\n    DISTINCT IF(fct_delinquency_daily.dpd >= 30, fct_delinquency_daily.account_key, NULL)\n  ) AS delinquent_loans,\n  COUNT(\n    IF((\n      dim_account.account_family = 'LOAN'\n    ) AND (\n      dim_account.is_open\n    ), 1, NULL)\n  ) AS open_loans,\n  SAFE_DIVIDE(\n    COUNT(\n      DISTINCT IF(fct_delinquency_daily.dpd >= 30, fct_delinquency_daily.account_key, NULL)\n    ),\n    COUNT(\n      IF((\n        dim_account.account_family = 'LOAN'\n      ) AND (\n        dim_account.is_open\n      ), 1, NULL)\n    )\n  ) AS delinquency_rate\nFROM `fennmoor-dw.dw_risk.fct_delinquency_daily` AS fct_delinquency_daily\nJOIN `fennmoor-dw.dw_core.dim_account` AS dim_account\n  ON dim_account.account_key = fct_delinquency_daily.account_key\nLEFT JOIN `fennmoor-dw.dw_core.dim_branch` AS dim_branch\n  ON dim_branch.branch_id = dim_account.branch_id\nGROUP BY\n  1,\n  2",
    "writer": "compiled"
   },
   "cypher": {
@@ -511,7 +511,7 @@
   "sql": {
    "verdict": "correct",
    "why": "matches on account_family, closures",
-   "query": "SELECT\n  int_account_closures.close_reason AS close_reason,\n  int_account_closures.account_family AS account_family,\n  COUNT(*) AS closures\nFROM `fennmoor-dw.dw_intermediate.int_account_closures` AS int_account_closures\nWHERE\n  (\n    int_account_closures.account_family IN ('DEPOSIT', 'CARD')\n  )\nGROUP BY\n  1,\n  2",
+   "query": "SELECT\n  int_account_closures.close_reason AS close_reason,\n  int_account_closures.account_family AS account_family,\n  COUNT(*) AS closures\nFROM `fennmoor-dw.dw_intermediate.int_account_closures` AS int_account_closures\nWHERE\n  (\n    int_account_closures.account_family IN ('DEPOSIT', 'CARD')\n  )\nGROUP BY\n  1,\n  2\nORDER BY\n  closures DESC",
    "writer": "compiled"
   },
   "cypher": {

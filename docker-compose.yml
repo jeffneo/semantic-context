@@ -145,6 +145,9 @@ services:
       NEO4J_dbms_memory_transaction_total_max: 3g
       NEO4J_db_transaction_timeout: 180s
       GOOGLE_APPLICATION_CREDENTIALS: /nvg_home/credentials.json
+      # enforce: a query's SQL runs as the principal its signed token names, and unsigned queries are refused;
+      # off: everything as the data source's identity (the key is /nvg_home/passthrough.key, which qlsc makes)
+      QLSC_PASSTHROUGH: ${QLSC_PASSTHROUGH:-enforce}
       # A local keystore, for the credentials of the remote aliases a composite database uses (see
       # docker/nvg/README.md).
       # Make it once: docker exec qlsc-neo4j-vg keytool -genseckey -keyalg aes -keysize 256 \
@@ -163,7 +166,12 @@ services:
     volumes:
       - ${QLSC_WORK:-./examples/fennmoor-bank/work}/virtual:/nvg_home
       - ${VG_CREDENTIALS:?set VG_CREDENTIALS in .env}:/nvg_home/credentials.json:ro
-      - ./docker/nvg/google-cloud-bigquery-jdbc-1.0.0-all.jar:/var/lib/neo4j/lib/google-cloud-bigquery-jdbc-1.0.0-all.jar
+      # The JDBC pass-through (vg-passthrough/, plans/2026-09-28-jdbc-passthrough.md) stands in for the BigQuery
+      # driver Virtual Graph loads, and runs each signed query's SQL as its principal. Build it first
+      # (vg-passthrough/build.sh). VG_JDBC_JAR=./docker/nvg/google-cloud-bigquery-jdbc-1.0.0-all.jar mounts the
+      # real driver here instead, as before the pass-through.
+      - ${VG_JDBC_JAR:-./vg-passthrough/target/qlsc-vg-passthrough.jar}:/var/lib/neo4j/lib/google-cloud-bigquery-jdbc-1.0.0-all.jar
+      - ./docker/nvg/google-cloud-bigquery-jdbc-1.0.0-all.jar:/var/lib/neo4j/qlsc/google-cloud-bigquery-jdbc-1.0.0-all.jar
       - ./docker/tls/bolt:/ssl/bolt:ro
       - neo4j-vg-data:/data
 

@@ -18,12 +18,22 @@ warehouse enforces tables, columns and rows exactly. The Cypher route runs as th
 identity, so it is allowed only where that can't show more (option A, `check_cypher`): every table and
 column it reads readable by the principal, as a dry run of Virtual Graph's own SQL as the principal
 confirms (a probe per table of the columns it reads there), and no table with a row policy.
+
+With the JDBC pass-through (option C, plans/2026-09-28-jdbc-passthrough.md; the estate's
+virtualize.passthrough), every Cypher query carries a signed token naming whom it is for (`sign`): the
+driver in Virtual Graph's JVM verifies it and runs Virtual Graph's SQL as that principal, so the warehouse
+filters its rows too, and the row-policy refusal no longer applies. A query with no token is refused there.
 """
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
 import json
+import os
 import re
+import secrets
 import time
 from dataclasses import asdict, dataclass, field
 
@@ -216,7 +226,7 @@ def check_cypher(s: Settings, allow: Allowlist, tables: list[str], external_sql:
     read would: no table the warehouse filters per reader, and the principal allowed every table and
     column Virtual Graph's SQL reads (a dry run of it, as the principal)."""
     filtered = sorted(t for t in tables if t in allow.rows)
-    if filtered:
+    if filtered and not passthrough(s):  # without the pass-through, Virtual Graph reads every row
         return f"the warehouse filters the rows of {', '.join(filtered)} per reader, and the virtual graph reads them all"
     person = warehouse(s, allow)
     for sql in external_sql:
@@ -229,3 +239,57 @@ def check_cypher(s: Settings, allow: Allowlist, tables: list[str], external_sql:
             if res["ok"] is not True:
                 return f"{allow.principal} may not read what the virtual graph's SQL reads: {res.get('error', '')[:200]}"
     return None
+
+
+# ---- the JDBC pass-through: the gateway's signed statement of whom a query is for
+
+
+def passthrough(s: Settings) -> bool:
+    return bool(s.get("virtualize", {}).get("passthrough"))
+
+
+def key(s: Settings) -> bytes:
+    """The key the gateway and the pass-through share, in <work>/virtual/passthrough.key (mounted read-only
+    into Virtual Graph's container, never committed); made on first use."""
+    path = s.work / "virtual" / "passthrough.key"
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(secrets.token_hex(32))
+        os.chmod(path, 0o644)  # the container reads it as another user; the work directory is the user's
+    return bytes.fromhex(path.read_text().strip())
+
+
+def token(s: Settings, principal: str, now: float | None = None) -> str:
+    """base64url("principal\nexpires") . base64url(HMAC-SHA256): vg-passthrough's Token.java verifies it.
+    The empty principal is the data source's own identity, for the estate's own reads."""
+    expires = int((now or time.time()) + s["entitlements"]["token_seconds"])
+    payload = f"{principal}\n{expires}".encode()
+    b64 = lambda b: base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+    return b64(payload) + "." + b64(hmac.new(key(s), payload, hashlib.sha256).digest())
+
+
+CLAUSE = re.compile(r"\b(OPTIONAL\s+MATCH|MATCH|WHERE|WITH|RETURN|UNWIND|ORDER\s+BY|LIMIT)\b", re.I)
+
+
+def signed(cypher: str) -> str:
+    """The query with the gateway's predicate, `$qlsc_principal IS NOT NULL`, in the WHERE of its
+    matches (added if there is none): Virtual Graph carries it into every statement it sends, as the
+    parameter the pass-through reads. The rest of the WHERE is bracketed, so the predicate holds over all
+    of it."""
+    masked = re.sub(r"'(?:\\.|[^'\\])*'|\"(?:\\.|[^\"\\])*\"", lambda m: " " * len(m.group()), cypher)
+    clauses = [(m.start(), m.end(), m.group(1).upper()) for m in CLAUSE.finditer(masked)]
+    after = next((a for a, _, k in clauses if k in ("WITH", "RETURN", "UNWIND")), len(cypher))
+    where = next(((a, b) for a, b, k in clauses if k == "WHERE" and a < after), None)
+    if where is None:
+        return cypher[:after].rstrip() + "\nWHERE $qlsc_principal IS NOT NULL\n" + cypher[after:]
+    end = next((a for a, _, _ in clauses if a > where[1]), len(cypher))
+    body = cypher[where[1] : end].strip()
+    return f"{cypher[: where[1]]} $qlsc_principal IS NOT NULL AND ({body})\n{cypher[end:]}"
+
+
+def signing(s: Settings, allow: Allowlist | None, cypher: str) -> tuple[str, dict]:
+    """(the query to send to the virtual graph, its parameters): signed for the principal, or for the data
+    source when no one is named, when the estate runs the pass-through; as it is otherwise."""
+    if not passthrough(s):
+        return cypher, {}
+    return signed(cypher), {"qlsc_principal": token(s, allow.principal if allow else "")}

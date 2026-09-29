@@ -1,7 +1,7 @@
 # Entitlements: the warehouse's access rules, carried through the semantic layer and the virtual graph
 
-Status: phases 1 and 2 built and checked (2026-09-28); phase 3 (the JDBC pass-through) next. See "As
-built" at the end.
+Status: phases 1 and 2 built and checked (2026-09-28); phase 3, the JDBC pass-through, built and checked
+the same day ([its plan](2026-09-28-jdbc-passthrough.md)). See "As built" at the end.
 
 ## Why
 
@@ -292,8 +292,9 @@ questions and six probes, by both routes and the router.
   declining.
 
 **Next:**
-- **Phase 3, the JDBC pass-through:** Virtual Graph reads as the principal, so the row-policy refusals
-  go away.
+- **Phase 3, the JDBC pass-through:** done. Virtual Graph reads as the principal, and the row-policy
+  refusals are gone: Cypher answered 12 times, not 3, with 0 leaks and 0 incidents
+  ([as built](2026-09-28-jdbc-passthrough.md#as-built-2026-09-28)).
 - **The writer on an empty cohort** should decline rather than return a stand-in query.
 - **The oracle** takes about 50 minutes (60 questions, both routes); `--rescore` redoes its schema
   checks from the saved texts.

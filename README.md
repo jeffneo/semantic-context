@@ -213,13 +213,16 @@ rows per reader.
 
   A group they can only partly read is shown without its name.
 - **SQL runs as them,** so BigQuery enforces the tables, columns and rows itself.
-- **Cypher over the virtual graph** reads as one identity. It's allowed only where that shows nothing
-  more: no row-filtered table, and a dry run as them of what Virtual Graph's SQL reads. Otherwise the
-  router takes SQL.
+- **Cypher over the virtual graph runs as them too.** The gateway signs each query for its principal. A
+  JDBC driver in Virtual Graph's JVM (`vg-passthrough/`, [plan](plans/2026-09-28-jdbc-passthrough.md))
+  verifies the signature and runs the SQL as that principal. An unsigned query, from anyone who reaches
+  the virtual graph directly, is refused. Build it with `vg-passthrough/build.sh` before starting
+  `neo4j-vg`.
 
 The example's three test principals (marketing, risk and contact-center service accounts) are set up by
 `examples/fennmoor-bank/entitlements/setup.py`. `eval/entitlements.py` checks the gateway with the
-warehouse as the oracle.
+warehouse as the oracle. Over 60 questions it finds no leaks and no rows a principal may not read. Every
+Cypher answer ran as its principal, by BigQuery's job log.
 
 ## Repository
 
@@ -235,6 +238,7 @@ warehouse as the oracle.
 | `tests/` | `uv run pytest`: the tool/example boundary, prompts, config, the method's pure parts, the demo queries |
 | `plans/` | Agreed plans for work in progress ([plans/README.md](plans/README.md)) |
 | `CLAUDE.md` | Standing context for AI coding agents: principles, conventions, commands, safety rules |
+| `vg-passthrough/` | The JDBC pass-through: Virtual Graph reads BigQuery as each query's principal (Java, JDK only; `build.sh`) |
 | `docker/`, `docker-compose.yml` | Neo4j Enterprise with GDS and APOC, the parse service, optionally Enterprise Studio and a Virtual Graph instance (`--profile vg`) |
 
 To add a warehouse, subclass `Warehouse` in `src/qlsc/warehouse/` and list it in `CONNECTORS`; the

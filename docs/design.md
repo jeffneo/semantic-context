@@ -148,6 +148,7 @@ any. `tests/test_config.py` fails if one is not read by the code. Sensitivity on
 | `llm.query_model`, `query_thinking` | claude-sonnet-5-5, between_tools | Writing SQL needs a stronger model than naming. Sonnet 5.5 takes no forced tool (answers come as structured outputs) and can't turn thinking off; between_tools, its lowest, keeps a single answer unthought, as Sonnet 5 ran | Given the answer key's own tables, Haiku 4.5 answered 1 of 10 gold questions, Sonnet 5 answered 4. Full set, compiled: Sonnet 5.5 133 of 176 (the free writer on Sonnet 5, 129); not yet run free on 5.5, so the model's share is unmeasured |
 | `llm.query_effort` | null | With `query_thinking: adaptive`, how hard the query model reasons. High effort gained nothing on the free writer's quick test, for more latency and tokens | free writer, 69 questions: 55 without, 55 with high effort (5 moved); 3.1 s and 331 output tokens per question without, 3.8 s and 433 with |
 | `entitlements.allowlist_seconds`, `workers` | 900, 8 | A principal's allowlist (the tables, columns and row policies the warehouse reports for them) is reused for a session, well inside a policy change's reach; its checks run concurrently, one per table | building one over the layer's 177 tables: about 10 s |
+| `entitlements.token_seconds` | 300 | How long a principal token signed for the JDBC pass-through holds: one question's queries, never a session's. Virtual Graph reads within seconds of signing | a Cypher answer takes about 3 to 30 s |
 | `navigate.anchors` | question | `parts` breaks the question into measures, groupings, filters and entities, and navigates from each; in a quick test it was about even (gold 7 of 10 both, a log sample 23 of 30 against 22), so the single embedding stays the default | see the accuracy plan, 2026-09-27 |
 | `navigate.computations`, `computation_min_similarity` | 0, 0.8 | As first built, the closest Computations misled more than they helped: a close look-alike displaced what a question needed. With a similarity floor, equivalents merged and parameters left out of definitions, they were a wash on the full set: a close definition still gets over-applied. Off | all 176 log questions: 129 without, 130 with 5 definitions (4 gained, 3 lost); gold 7 either way |
 | `navigate.writer` | free | `compiled`: the LLM fills one typed request (measures, possibly from several facts, per-entity two-step measures, derived measures, HAVING, dimensions, filters, period, or a list of rows) from the layer's options; qlsc/compile.py resolves it into a plan and renders SQL, or Cypher over the Virtual Graph (one fact only; no OPTIONAL MATCH, so an outer join's null group is lost). Joins along the log's trusted joins with the log's join type, never multiplying the fact's rows; Computations exactly as defined. Free writing for what doesn't fit. Level with the free writer; its misses are now the request's choices, not the SQL | SQL, two log samples of 59: free 47, first compiler 48, wider request 45, with the request checks 48; gold 7 each. Cypher, 40 questions: free 10, compiled and checked 12. Full set on Sonnet 5.5: 133 of 176 (compiles 154, 121 correct), gold 6, graph-shaped 5; Cypher 38, 3, 8 (plans/2026-09-28-compiler.md, -compiler-2.md) |
@@ -176,7 +177,7 @@ clean grouping and barely move NMI against the spec (0.850 vs 0.853).
   own piece of work.
 - **Designed-vs-used diff:** built (`qlsc align`), with every embedding link proposed, not asserted.
 
-- **Entitlements** (plans/2026-09-27-entitlements.md, phases 1 and 2): `qlsc ask --as <principal>` goes
+- **Entitlements** (plans/2026-09-27-entitlements.md; phase 3, plans/2026-09-28-jdbc-passthrough.md): `qlsc ask --as <principal>` goes
   through a gateway (`src/qlsc/entitle.py`) that asks the warehouse, as the principal, what they may read,
   and never re-implements its rules.
   - **The allowlist:** tables by permission check (a view also by dry run, since a view reads with its
@@ -189,12 +190,25 @@ clean grouping and barely move NMI against the spec (0.850 vs 0.853).
     column they read is readable, and their text names nothing hidden (a metadata query reads no table
     and may name any in its literals); who ran them, as a kind. Never a tagged column's filter values.
   - **SQL** runs as the principal: the warehouse enforces everything, exactly.
-  - **Cypher (option A):** Virtual Graph reads as one identity, so the gateway allows it only where no
-    table in the query has a row policy, and a dry run as the principal of each table's columns in
-    Virtual Graph's SQL passes. A refused Cypher answer sends the router to SQL.
+  - **Cypher, through the JDBC pass-through** (`vg-passthrough/`, when the estate sets
+    `virtualize.passthrough`):
+    - **Signing.** The gateway signs every query it sends to the virtual graph with
+      `$qlsc_principal`: an HMAC token for the principal, or for the data source when none is named.
+    - **Running as the principal.** A driver standing in for BigQuery's, in Virtual Graph's own JVM,
+      verifies the token and takes the predicate out. It runs the SQL on a connection impersonating
+      that principal, so the warehouse enforces tables, columns and rows exactly as on SQL.
+    - **Refusals.** An unsigned, forged or expired statement is refused. The exceptions are metadata,
+      and Virtual Graph's startup check that a key is unique.
+
+    The gateway still restricts the model to what the principal may read, and dry-runs each table's
+    columns as them first.
+  - **Cypher without it (option A):** Virtual Graph reads as one identity. So the gateway allows Cypher
+    only where no table in the query has a row policy, and the same dry runs pass. A refused Cypher
+    answer sends the router to SQL.
   - **Checked by an oracle** built on different mechanisms: the allowlist by dry runs, SQL answers
-    rerun as the principal, canaries scanned in every response and prompt, and four broken gateways the
-    checks must catch (`eval/entitlements.py`).
+    rerun as the principal, Cypher answers checked against BigQuery's job log (every job ran as the
+    principal), canaries scanned in every response and prompt, the driver probed directly, and five
+    broken gateways the checks must catch (`eval/entitlements.py`).
 
 ## Known limits
 

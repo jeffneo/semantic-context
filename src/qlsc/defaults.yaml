@@ -17,6 +17,7 @@ llm:
 entitlements:                         # qlsc ask --as: the gateway (plans/2026-09-27-entitlements.md). The estate's config names its principals
   allowlist_seconds: 900              # how long a principal's allowlist is reused: well under a policy change's reach, long enough for a session
   workers: 8                          # concurrent permission checks when an allowlist is built (one per table)
+  token_seconds: 300                  # how long a signed principal token for the JDBC pass-through holds: one question's queries, not a session's
 
 embeddings:                           # Azure OpenAI: AZURE_OPENAI_API_KEY, _ENDPOINT, _API_VERSION
   deployment: text-embedding-3-large

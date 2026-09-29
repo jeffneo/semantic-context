@@ -26,6 +26,7 @@ from execution import MAXIMUM_BYTES_BILLED, ROWS, compare
 from log_accuracy import VIRTUAL, verdict_of
 from log_questions import HERE, QUESTIONS, answers_dir
 
+from qlsc import entitle
 from qlsc.graph import Graph
 from qlsc.navigate import answer_cypher, trace
 from qlsc.warehouse import connect
@@ -54,7 +55,8 @@ def lenient_rerun(s, q: dict, r: dict, route: str) -> str:
     items = [[c] for c in q["compare"]]
     if route == "cypher":
         with Graph(s, s["virtualize"]["neo4j"]) as V:
-            result = V.run(r["query"])
+            cypher, params = entitle.signing(s, None, r["query"])  # the estate's own read
+            result = V.run(cypher, **params)
             rows = [x.data() for x in result.records]
             got = {"ok": True, "columns": list(result.keys), "rows": rows, "total": len(rows)}
     else:

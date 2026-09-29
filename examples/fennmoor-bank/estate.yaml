@@ -42,6 +42,7 @@ virtualize:                           # qlsc virtualize: the Virtual Graph spike
   dataset: fnb_graph                  # the views the virtual graph reads, one dataset of their own
   maximum_bytes_billed: 1000000000    # per query Virtual Graph sends to BigQuery
   credentials_file: /nvg_home/credentials.json
+  passthrough: true                   # the JDBC pass-through runs in the container: every Cypher query is signed for its principal
   driver_properties:                  # passed to the Google BigQuery JDBC driver as they are
     OAuthType: 3                      # application-default credentials: the impersonated qlsc-bq account, no key file
     Labels: "app=neo4j-virtual-graph,graph=fennmoor"   # on every BigQuery job it sends: find them in INFORMATION_SCHEMA.JOBS

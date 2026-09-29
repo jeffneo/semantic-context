@@ -54,7 +54,9 @@ uv run examples/fennmoor-bank/generate/fill.py --slice 2   # fill BigQuery with 
 ```
 
 Services: `docker compose up -d neo4j parser` (Neo4j on bolt 7690 per the example config, parser on
-8090). After changing `parser/`, rebuild it: `docker compose up -d --build parser`.
+8090). After changing `parser/`, rebuild it: `docker compose up -d --build parser`. Virtual Graph:
+`vg-passthrough/build.sh`, then `docker compose --profile vg up -d --force-recreate neo4j-vg` (bolt 7692);
+every Cypher query it runs must be signed (`entitle.signing`), or the pass-through refuses it.
 
 ## Changing code
 
