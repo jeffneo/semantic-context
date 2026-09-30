@@ -161,3 +161,29 @@ def test_similar_examples_skip_distrusted_tables():
     got = similar([1.0, 0.0], shapes, vecs, distrusted={"sbx.copy"}, k=1)
     assert [x["id"] for x in got] == ["b"]  # a is closest but reads a sandbox
     assert shape_text("/* dbt */ SELECT a -- note\n FROM t", 100) == "SELECT a FROM t"
+
+
+def test_a_groups_naming_evidence_is_the_same_whatever_order_the_graph_returns():
+    """The namer's prompt is its cache key: rows arriving in another order must give the same text."""
+    from qlsc import cluster
+
+    class Graph:
+        def __init__(self, flip: bool):
+            self.flip = flip
+
+        def rows(self, q, **_):
+            order = (lambda xs: xs[::-1]) if self.flip else (lambda xs: xs)
+            if "(v:Variable)<-[:IS]-(c:Column)" in q:
+                return order([{"u": "v1", "name": "customer", "tables": order(["p.d.a", "p.d.b"]),
+                               "cols": ["p.d.a.k", "p.d.b.k"]},
+                              {"u": "v2", "name": "account", "tables": order(["p.d.b", "p.d.a"]),
+                               "cols": ["p.d.a.j", "p.d.b.j"]}])  # fmt: skip
+            if "c:Unjoined" in q:
+                return order([{"u": "c1", "name": "x", "type": "INT64", "t": "p.d.a"},
+                              {"u": "c2", "name": "y", "type": "INT64", "t": "p.d.b"}])  # fmt: skip
+            if "count(DISTINCT s) AS n" in q:
+                return [{"u": u, "n": 1} for u in order(["v1", "v2", "c1", "c2"])]
+            return [{"q": "SELECT 1"}]
+
+    groups = lambda flip: {"g": ["v2", "v1", "c2", "c1"][:: -1 if flip else 1]}
+    assert cluster.evidence(Graph(False), groups(False)) == cluster.evidence(Graph(True), groups(True))

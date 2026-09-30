@@ -37,7 +37,7 @@ import dataclasses
 import datetime as dt
 import json
 
-from common import native, settings, write_result
+from common import native, settings, typed, write_result
 from entitlements import Oracle
 from memory import compare
 
@@ -52,10 +52,10 @@ BY_STATE = """
 MATCH (c:Customer) WHERE c.state_code IN $states
 RETURN c.customer_key AS key ORDER BY key LIMIT 2
 """
-AGENT = """
-MATCH (k:Call)-[:HANDLED_BY]->(g:Agent) WHERE k.conversation_date >= $since
+AGENT = typed("""
+MATCH (k:Call)-[:REL(Call,Agent)]->(g:Agent) WHERE k.conversation_date >= $since
 RETURN g.agent_user_id AS key, count(k) AS calls ORDER BY calls DESC, key LIMIT 1
-"""
+""")
 
 
 def literal(v) -> str:

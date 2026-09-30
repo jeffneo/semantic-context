@@ -63,7 +63,7 @@ CONTROLS = {
     "SQL run as the estate, not the principal": (["risk"], ["P1", "P6"], "rows"),
     "the gateway signs as the data source, not the principal": (["risk"], ["P1", "P6"], "rows"),
 }
-VG_JOBS = """
+VG_JOBS = r"""
 SELECT DISTINCT user_email FROM `region-us`.INFORMATION_SCHEMA.JOBS_BY_PROJECT
 WHERE creation_time >= @since
   AND EXISTS (SELECT 1 FROM UNNEST(labels) l WHERE l.key = 'app' AND l.value = 'neo4j-virtual-graph')

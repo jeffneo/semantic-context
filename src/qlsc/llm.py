@@ -47,6 +47,8 @@ class LLM:
         self.model = model or llm["model"]
         self.thinking = llm["query_thinking"] if self.model == llm["query_model"] else None
         self.workers = llm["concurrency"]
+        # $ per million tokens in and out; None: not listed
+        self.price = next(((p["in"], p["out"]) for p in llm["prices"] if p["model"] == self.model), None)
         self.system = system
         self.client = anthropic.Anthropic(api_key=secret("ANTHROPIC_API_KEY"))
         self.cache = settings.work / "llm_cache"
@@ -96,12 +98,18 @@ class LLM:
         path.write_text(json.dumps(out))
         return out
 
-    def cost(self) -> float:
-        """Haiku 4.5 list price: $1 / $5 per million input / output tokens."""
-        return self.tokens["in"] / 1e6 + self.tokens["out"] * 5 / 1e6
+    def cost(self) -> float | None:
+        """At the model's list price (llm.prices); None for a model not listed."""
+        if self.price is None:
+            return None
+        return (self.tokens["in"] * self.price[0] + self.tokens["out"] * self.price[1]) / 1e6
+
+    def spent(self) -> str:
+        cost = self.cost()
+        return "$?" if cost is None else f"${cost:.2f}"
 
     def summary(self) -> str:
-        return f"LLM {self.model}: {self.calls} calls, {self.cached} cached, ${self.cost():.2f}"
+        return f"LLM {self.model}: {self.calls} calls, {self.cached} cached, {self.spent()}"
 
 
 # ------------------------------------------------------------------ naming

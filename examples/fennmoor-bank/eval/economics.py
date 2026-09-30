@@ -35,18 +35,18 @@ import datetime as dt
 import json
 import time
 
-from common import native, quantiles, settings, write_result
+from common import native, quantiles, settings, typed, write_result
 from entitlements import owner_client
 from google.cloud import bigquery
 
 from qlsc import entitle, memory, navigate
 from qlsc.graph import Graph
 
-CANDIDATES = """
-MATCH (k:Call)-[:RECEIVED_FROM]->(c:Customer)<-[:MADE_BY]-(t:CardTransaction)
+CANDIDATES = typed("""
+MATCH (k:Call)-[:REL(Call,Customer)]->(c:Customer)<-[:REL(CardTransaction,Customer)]-(t:CardTransaction)
 WHERE k.conversation_date >= $since AND t.post_date >= $since
 RETURN DISTINCT c.customer_key AS key ORDER BY key LIMIT $n
-"""
+""")
 QUESTIONS = [
     "How many accounts does the customer with customer_key {k} hold, by product line?",
     "Card spend by merchant category for the customer with customer_key {k}, last quarter",

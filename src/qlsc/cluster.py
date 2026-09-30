@@ -135,7 +135,8 @@ def stability(G: Graph, groups: dict, shapes: Shapes, flows: Flows, p: dict) -> 
 
 
 def evidence(G: Graph, groups: dict[str, list[str]]) -> dict[str, str]:
-    """What the namer sees: tables, variables (named), other columns, and a query that reads many members."""
+    """What the namer sees: tables, variables (named), other columns, and a query that reads many members.
+    Every tie broken by name, so the text (the LLM cache's key) doesn't depend on the order rows arrive in."""
     unit = {}
     for r in G.rows("""MATCH (v:Variable)<-[:IS]-(c:Column)<-[:HAS_COLUMN]-(t:Table)
                        RETURN v.id AS u, v.name AS name, collect(DISTINCT t.id) AS tables, collect(c.id) AS cols"""):
@@ -159,19 +160,21 @@ def evidence(G: Graph, groups: dict[str, list[str]]) -> dict[str, str]:
         cols = {c for m in members for c in unit[m]["cols"]}
         best = G.rows(
             """MATCH (s:QueryShape)-[:READS]->(c:Column) WHERE c.id IN $cols
-                         WITH s, count(DISTINCT c) AS n ORDER BY n DESC, s.jobs DESC LIMIT 1
+                         WITH s, count(DISTINCT c) AS n ORDER BY n DESC, s.jobs DESC, s.id LIMIT 1
                          RETURN s.sample_sql AS q""",
             cols=sorted(cols),
         )
         vs, cs = (
-            sorted((m for m in members if unit[m]["kind"] == kind), key=lambda m: -reads.get(m, 0))
+            sorted((m for m in members if unit[m]["kind"] == kind), key=lambda m: (-reads.get(m, 0), m))
             for kind in ("variable", "column")
         )
         lines = [
             f"### semantic group {sid}",
             f"id: {sid}",
             f"{len(members)} members from {len(tables)} tables: "
-            + ", ".join(f"{short(t)} ({n})" for t, n in tables.most_common(10))
+            + ", ".join(
+                f"{short(t)} ({n})" for t, n in sorted(tables.items(), key=lambda x: (-x[1], x[0]))[:10]
+            )
             + (" ..." if len(tables) > 10 else ""),
         ]
         if vs:

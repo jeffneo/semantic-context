@@ -37,8 +37,8 @@ The example's conversations (`conversations/*.yaml`), recorded with `qlsc conver
 
 Before marketing-2:
 
-    noted: interested in: a travel rewards card (since 2026-09-30)
     noted: prefers contact channel: email, not phone (since 2026-09-30)
+    noted: interested in: a travel rewards card (since 2026-09-30)
     noted: Ana (person), daughter of
     decided: offer a travel rewards card, by email (on 2026-09-30)
     in 1 conversation, the last 2026-09-30: Card offer for customer 8322097816940277129

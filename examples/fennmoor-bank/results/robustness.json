@@ -182,63 +182,63 @@
    "k": 3,
    "gamma": 1.5,
    "groups": 12,
-   "nmi_domains": 0.6886255510771491,
-   "seed_ari": 0.9696804013178083
+   "nmi_domains": 0.6840956186068755,
+   "seed_ari": 1.0
   },
   {
    "k": 3,
    "gamma": 3.0,
-   "groups": 16,
-   "nmi_domains": 0.7047086738347774,
+   "groups": 17,
+   "nmi_domains": 0.7143994810556811,
    "seed_ari": 1.0
   },
   {
    "k": 3,
    "gamma": 4.5,
-   "groups": 21,
-   "nmi_domains": 0.7068225174476723,
+   "groups": 18,
+   "nmi_domains": 0.7122902382877138,
    "seed_ari": 1.0
   },
   {
    "k": 5,
    "gamma": 1.5,
-   "groups": 11,
-   "nmi_domains": 0.6826973758633096,
-   "seed_ari": 0.8742030516176417
+   "groups": 10,
+   "nmi_domains": 0.6774304125267792,
+   "seed_ari": 0.9823336816007675
   },
   {
    "k": 5,
    "gamma": 3.0,
-   "groups": 16,
-   "nmi_domains": 0.708465205815931,
+   "groups": 15,
+   "nmi_domains": 0.7218996263355683,
    "seed_ari": 1.0
   },
   {
    "k": 5,
    "gamma": 4.5,
    "groups": 18,
-   "nmi_domains": 0.7082206801328607,
+   "nmi_domains": 0.7160888015405971,
    "seed_ari": 1.0
   },
   {
    "k": 8,
    "gamma": 1.5,
-   "groups": 10,
-   "nmi_domains": 0.6628887997606979,
-   "seed_ari": 0.9791516716822709
+   "groups": 9,
+   "nmi_domains": 0.639583507889406,
+   "seed_ari": 1.0
   },
   {
    "k": 8,
    "gamma": 3.0,
    "groups": 15,
-   "nmi_domains": 0.6980350468094066,
+   "nmi_domains": 0.6879651184862337,
    "seed_ari": 1.0
   },
   {
    "k": 8,
    "gamma": 4.5,
    "groups": 19,
-   "nmi_domains": 0.7045606877487514,
+   "nmi_domains": 0.6996462542340673,
    "seed_ari": 1.0
   }
  ]

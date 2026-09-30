@@ -43,7 +43,7 @@ The worked example is **Fennmoor Bank**, a synthetic US retail bank on BigQuery 
 of 315,729 jobs, planted traps, a data catalog and an ontology. The tutorial walks through it end to
 end: [examples/fennmoor-bank/](examples/fennmoor-bank/README.md).
 
-What it finds there: 50 variables built only from trusted joins; semantic levels of 109 → 16 → 5
+What it finds there: 50 variables built only from trusted joins; semantic levels of 109 → 15 → 4
 groups (median group stability 0.95); every join and lineage edge in the answer key recovered; all
 three planted wrong catalog bindings surfaced by the alignment.
 
@@ -84,9 +84,11 @@ compiler and Sonnet 5.5 writing the requests, and free Cypher over the virtual g
 
 | Answer key                                                                             | SQL route | Cypher route (virtual graph)                            | Routed (`ask`'s default) |
 | -------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------- | ------------------------ |
-| 10 gold questions, hand-written references                                             | 6         | 3 (it declines 6 whose data isn't in the virtual graph) | 6                        |
-| 176 questions written from the log's own queries, each with its query as the reference | 128 (73%) | 33                                                      | 128                      |
-| 10 graph-shaped questions: neighbourhoods, several hops, shared neighbours             | 5         | 8                                                       | 7                        |
+| 10 gold questions, hand-written references                                             | 7         | 3 (it declines 5 whose data isn't in the virtual graph) | 7                        |
+| 176 questions written from the log's own queries, each with its query as the reference | 128 (73%)\* | 33\*                                                   | 128\*                    |
+| 10 graph-shaped questions: neighbourhoods, several hops, shared neighbours             | 6         | 8                                                       | 7                        |
+
+\* Before the build's last round of names (the simplification's phase 3): not rerun since.
 
 The free writer with Sonnet 5, before the compiler: 7, 129 and 5 on the SQL route; 3, 41 and 7 on
 Cypher. On 2026-09-28, before the simplification ([plan](plans/2026-09-29-simplification.md)): 133 and 8
@@ -129,7 +131,7 @@ whose value changes from run to run is a question's parameter, not part of the d
 out. Haiku names each from its expression and the names queries give it. Health checks (one ungrouped
 row of aggregates) are flagged, and equivalents over the same tables are merged.
 
-On the Fennmoor example this finds 1,182 Computations, of which 614 are business ones.
+On the Fennmoor example this finds 1,185 Computations, of which 615 are business ones.
 
 `qlsc okf` writes them as an [Open Knowledge Format](https://github.com/GoogleCloudPlatform/open-knowledge-format)
 bundle:
@@ -166,13 +168,13 @@ So a query can put what the layer knows beside the rows it describes:
 ```cypher
 CALL () {                                   // the semantic layer: where this relationship comes from
   USE fennmoor.semantic
-  MATCH (t:Table {graph_label: 'Call'})-[:HAS_COLUMN]->(c:Column {graph_relationship: 'SERVICED_AT'}),
+  MATCH (t:Table {graph_label: 'Call'})-[:HAS_COLUMN]->(c:Column {graph_relationship: 'PROCESSED_AT'}),
         (c)-[:IS]->(v:Variable)-[:IN_SEMANTIC]->(g:Semantic)
   RETURN g.name AS business_area, v.name AS variable, t.name + '.' + c.name AS column
 }
 CALL () {                                   // the warehouse: live rows, through Virtual Graph
   USE fennmoor.rows
-  MATCH (call:Call)-[:SERVICED_AT]->(s:ContactCenterSite)
+  MATCH (call:Call)-[:PROCESSED_AT]->(s:ContactCenterSite)
   WHERE call.is_account_closure_call = true
   RETURN s.site_name AS site, count(call) AS closure_calls
 }
@@ -246,17 +248,17 @@ It runs the compiler's Cypher on memory, with memory's own conditions on every n
 exact, including an outer join's null group: memory has `OPTIONAL MATCH`, which the virtual graph lacks.
 
 **What it saves** (`eval/economics.py`, 50 questions about 5 customers): 50 of 50 compiled questions were
-answered from memory with the SQL's rows, in a median 0.031 s against 0.82 s. BigQuery bills the columns it
+answered from memory with the SQL's rows, in a median 0.045 s against 0.71 s. BigQuery bills the columns it
 scans, not the rows it returns, so contexts are fetched in batches: `qlsc remember Customer KEY...` reads
 many customers' contexts together, each still exactly its own.
 
 | fetched | MiB billed per customer | break-even: questions per customer |
 |---|---|---|
-| one at a time | 559 | 12.4 |
-| in a batch of 5 | 113 | 2.5 |
+| one at a time | 541 | 12.7 |
+| in a batch of 5 | 121 | 2.8 |
 | in a batch of 50 | 12 | 0.3 |
 
-The session with memory billed 563 MiB against 2,263 without, in 8.0 s of query time against 45.0 s.
+The session with memory billed 605 MiB against 2,128 without, in 7.6 s of query time against 40.4 s.
 
 The agent's side is the Context Memory model ([plan](plans/2026-09-29-context-memory-model.md)).
 `qlsc converse <conversation.yaml>` records a conversation:

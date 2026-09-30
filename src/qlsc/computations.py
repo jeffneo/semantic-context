@@ -42,6 +42,7 @@ MATCH (s:QueryShape {succeeded: true}) WHERE s.sample_sql IS NOT NULL
 OPTIONAL MATCH (p:Principal)-[r:RAN]->(s)
 WITH s, sum(r.jobs) AS jobs, 'service_account' IN collect(p.kind) AS production
 OPTIONAL MATCH (s)-[:REFERENCES]->(t:Table)
+WITH s, jobs, production, t ORDER BY t.id
 RETURN s.id AS id, s.sample_sql AS sql, jobs, production, collect(t.id) AS tables
 ORDER BY id
 """
@@ -57,10 +58,13 @@ def extract(G: Graph, s: Settings) -> dict[str, dict]:
     aliases: dict[str, Counter] = defaultdict(Counter)
     grains: dict[str, Counter] = defaultdict(Counter)
     shapes = G.rows(SHAPES)
+    unread: Counter = Counter()  # why a shape's statement couldn't be read
     for i, x in enumerate(shapes, 1):
         project = x["tables"][0].split(".")[0] if x["tables"] else None
         seen = set()
-        for c in computations(x["sql"], catalog, project):
+        got = computations(x["sql"], catalog, project)
+        unread.update(e.split(":", 2)[0] + ":" + e.split(":", 2)[1] for e in got["errors"])
+        for c in got["computations"]:
             keep = [
                 i for i, cols in enumerate(c["filter_columns"]) if not set(cols) & params.get(x["id"], set())
             ]
@@ -95,6 +99,8 @@ def extract(G: Graph, s: Settings) -> dict[str, dict]:
                 seen.add(cid)
         if i % 400 == 0:
             print(f"  {i}/{len(shapes)} shapes read, {len(found)} computations", flush=True)
+    if unread:
+        print(f"  {sum(unread.values())} statements couldn't be read: {dict(unread.most_common(5))}")
     for cid, c in found.items():
         c["aliases"] = [a for a, _ in aliases[cid].most_common(5)]
         c["grain"] = json.loads(grains[cid].most_common(1)[0][0]) if grains[cid] else []
@@ -265,5 +271,5 @@ def run(s: Settings, names: bool = True) -> None:
         failed = sum(1 for n in named.values() if n["status"] == "failed")
         print(
             f"named {len(named)} ({failed} failed); {llm.calls} LLM calls ({llm.cached} cached), "
-            f"${llm.cost():.2f}; {time.time() - t0:.0f}s"
+            f"{llm.spent()}; {time.time() - t0:.0f}s"
         )

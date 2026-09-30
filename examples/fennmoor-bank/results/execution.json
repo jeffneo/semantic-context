@@ -17,24 +17,23 @@
    "fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly",
    "fennmoor-analytics.sbx_finance.cc_cost_per_call_fy25",
    "fennmoor-dw.dw_contact_center.fct_calls",
-   "fennmoor-dw.dw_contact_center.rpt_site_cost_per_contact",
+   "fennmoor-dw.dw_contact_center.dim_cc_site",
    "fennmoor-raw.gl_erp.journal_line",
    "fennmoor-raw.gl_erp.vendor_invoice",
    "fennmoor-dw.dw_core.dim_date",
-   "fennmoor-analytics.looker_scratch.LR_{id}_site_monthly_kpis",
-   "fennmoor-dw.dw_finance.dim_cost_center",
-   "fennmoor-dw.dw_contact_center.dim_cc_site"
+   "fennmoor-raw.reference_data.contact_center_site",
+   "fennmoor-dw.dw_finance.dim_cost_center"
   ],
   "sql": {
    "verdict": "wrong",
    "why": "4 rows, not 3",
-   "query": "WITH fct_calls_1 AS (\n  SELECT\n    dim_cc_site.site_name AS site,\n    COUNT(\n      DISTINCT IF(fct_calls.is_account_closure_call IS TRUE, fct_calls.conversation_id, NULL)\n    ) AS closure_calls\n  FROM `fennmoor-dw.dw_contact_center.fct_calls` AS fct_calls\n  LEFT JOIN `fennmoor-dw.dw_contact_center.dim_cc_site` AS dim_cc_site\n    ON dim_cc_site.site_id = fct_calls.site_id\n  WHERE\n    (\n      fct_calls.conversation_date >= CAST('2025-01-01' AS DATE)\n    )\n    AND (\n      fct_calls.conversation_date <= CAST('2025-12-31' AS DATE)\n    )\n  GROUP BY\n    1\n), fct_cc_site_cost_monthly_2 AS (\n  SELECT\n    dim_cc_site.site_name AS site,\n    SUM(fct_cc_site_cost_monthly.total_expense) AS total_cost\n  FROM `fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly` AS fct_cc_site_cost_monthly\n  JOIN `fennmoor-dw.dw_contact_center.dim_cc_site` AS dim_cc_site\n    ON dim_cc_site.site_id = fct_cc_site_cost_monthly.site_id\n  WHERE\n    (\n      fct_cc_site_cost_monthly.month_start >= CAST('2025-01-01' AS DATE)\n    )\n    AND (\n      fct_cc_site_cost_monthly.month_start <= CAST('2025-12-31' AS DATE)\n    )\n  GROUP BY\n    1\n)\nSELECT\n  site,\n  closure_calls AS closure_calls,\n  total_cost AS total_cost\nFROM fct_calls_1\nFULL JOIN fct_cc_site_cost_monthly_2\n  USING (site)\nORDER BY\n  closure_calls DESC",
+   "query": "WITH fct_calls_1 AS (\n  SELECT\n    dim_cc_site.site_id AS site,\n    dim_cc_site.site_name AS site_name,\n    COUNT(\n      DISTINCT IF(fct_calls.is_account_closure_call IS TRUE, fct_calls.conversation_id, NULL)\n    ) AS closure_calls\n  FROM `fennmoor-dw.dw_contact_center.fct_calls` AS fct_calls\n  LEFT JOIN `fennmoor-dw.dw_contact_center.dim_cc_site` AS dim_cc_site\n    ON dim_cc_site.site_id = fct_calls.site_id\n  WHERE\n    (\n      fct_calls.conversation_date >= CAST('2025-01-01' AS DATE)\n    )\n    AND (\n      fct_calls.conversation_date <= CAST('2025-12-31' AS DATE)\n    )\n  GROUP BY\n    1,\n    2\n), fct_cc_site_cost_monthly_2 AS (\n  SELECT\n    dim_cc_site.site_id AS site,\n    dim_cc_site.site_name AS site_name,\n    SUM(fct_cc_site_cost_monthly.total_expense) AS total_cost\n  FROM `fennmoor-dw.dw_contact_center.fct_cc_site_cost_monthly` AS fct_cc_site_cost_monthly\n  JOIN `fennmoor-dw.dw_contact_center.dim_cc_site` AS dim_cc_site\n    ON dim_cc_site.site_id = fct_cc_site_cost_monthly.site_id\n  WHERE\n    (\n      fct_cc_site_cost_monthly.month_start >= CAST('2025-01-01' AS DATE)\n    )\n    AND (\n      fct_cc_site_cost_monthly.month_start <= CAST('2025-12-31' AS DATE)\n    )\n  GROUP BY\n    1,\n    2\n)\nSELECT\n  site,\n  site_name,\n  closure_calls AS closure_calls,\n  total_cost AS total_cost\nFROM fct_calls_1\nFULL JOIN fct_cc_site_cost_monthly_2\n  USING (site, site_name)\nORDER BY\n  closure_calls DESC",
    "writer": "compiled",
    "fallback": null
   },
   "cypher": {
    "verdict": "declined",
-   "why": "The graph can rank contact center sites by account-closure calls (Call.is_account_closure_call grouped by ContactCenterSite), but it has no cost data for running a site. ContactCenterSite only carries a cost_center_id and name, while the actual costs live in finance tables that are not part of this graph, so 'what each cost to run last year' cannot be answered. A cancellations-only query would answer a different question, so none is written.",
+   "why": "The graph can rank contact center sites by account cancellations (Call.is_account_closure_call counted per ContactCenterSite), but it has no cost data. The only cost-related fields are cost_center_id and cost_center_name on ContactCenterSite, which are identifiers, not amounts. The cost center table (dw_finance.dim_cost_center) and any spend or expense figures for last year are not in the graph, so what each site cost to run cannot be answered.",
    "query": null,
    "writer": "free",
    "fallback": null
@@ -55,13 +54,13 @@
    ]
   ],
   "cohort": [
+   "fennmoor-analytics.looker_scratch.LR_{id}_customer_facts",
    "fennmoor-dw.dw_core.fct_account_closures",
    "fennmoor-analytics.looker_scratch.LR_{id}_churn_explore",
    "fennmoor-analytics.sbx_customer_analytics.customer_360_final",
    "fennmoor-dw.ml_features.feat_customer_daily",
-   "fennmoor-analytics.looker_scratch.LR_{id}_customer_facts",
-   "fennmoor-analytics.sbx_customer_analytics.customer_360_final_FIXED",
    "fennmoor-analytics.sbx_customer_analytics.churn_cohort_analysis_2026q1",
+   "fennmoor-analytics.sbx_customer_analytics.customer_360_final_FIXED",
    "fennmoor-analytics.sbx_customer_analytics.customer_360_v2",
    "fennmoor-dw.dw_core.dim_customer",
    "fennmoor-dw.ml_scores.churn_score_v3",
@@ -76,7 +75,7 @@
   },
   "cypher": {
    "verdict": "declined",
-   "why": "The graph has no churn score or churn risk data and no account balance property. Churn probabilities and risk bands only appear in the ml_scores churn_score tables (or a Looker derived table), and total_deposit_balance only in a Looker scratch table. None of these are modeled as labels here. Customer, Account and the transaction labels offer no balance or churn-risk properties, so a query would answer a different question.",
+   "why": "The graph has no churn score or risk band. Churn probabilities live in the ml_scores.churn_score_v3 and v2 tables (and a Looker scratch table), none of which are modelled as node labels. The graph also has no account balance property (only Account status/open dates and transaction amounts), so 'high-balance' can't be defined here either. A query on the given labels would answer a different question, so none is written.",
    "query": null,
    "writer": "free",
    "fallback": null
@@ -90,14 +89,14 @@
   "question": "Which web pages do customers visit before they call us?",
   "compare": [],
   "cohort": [
-   "fennmoor-dw.dw_digital.fct_account_opening_funnel",
-   "fennmoor-dw.dw_contact_center.fct_calls",
    "fennmoor-raw.analytics_312874659.events_*",
-   "fennmoor-dw.dw_core.dim_customer",
+   "fennmoor-dw.dw_contact_center.fct_calls",
+   "fennmoor-analytics.sbx_customer_analytics.customer_360_final",
+   "fennmoor-dw.dw_digital.fct_account_opening_funnel",
    "fennmoor-dw.dw_digital.fct_web_sessions",
-   "fennmoor-analytics.looker_scratch.LR_{id}_digital_funnel_daily",
-   "fennmoor-dw.dw_core.dim_date",
    "fennmoor-dw.dw_staging.stg_ga4__events",
+   "fennmoor-dw.dw_core.dim_date",
+   "fennmoor-analytics.sbx_customer_analytics.customer_360_final_FIXED",
    "fennmoor-dw.dw_customer.customer_360",
    "fennmoor-dw.dw_contact_center.dim_queue",
    "fennmoor-dw.dw_contact_center.dim_cc_site"
@@ -105,13 +104,13 @@
   "sql": {
    "verdict": "not scored",
    "why": "15 rows",
-   "query": "WITH calls AS (\n  SELECT\n    conversation_id,\n    customer_key,\n    conversation_start\n  FROM `fennmoor-dw.dw_contact_center.fct_calls`\n  WHERE customer_key IS NOT NULL\n),\nprior_sessions AS (\n  SELECT\n    c.conversation_id,\n    c.customer_key,\n    s.session_key,\n    s.landing_page\n  FROM calls c\n  JOIN `fennmoor-dw.dw_digital.fct_web_sessions` s\n    ON s.customer_key = c.customer_key\n   AND s.session_start < c.conversation_start\n   AND s.session_start >= TIMESTAMP_SUB(c.conversation_start, INTERVAL 1 DAY)\n)\nSELECT\n  landing_page,\n  COUNT(DISTINCT customer_key) AS customers,\n  COUNT(DISTINCT conversation_id) AS calls_preceded,\n  COUNT(DISTINCT session_key) AS sessions\nFROM prior_sessions\nGROUP BY landing_page\nORDER BY customers DESC\nLIMIT 50",
+   "query": "WITH calls AS (\n  SELECT\n    conversation_id,\n    customer_key,\n    conversation_start\n  FROM `fennmoor-dw.dw_contact_center.fct_calls`\n  WHERE customer_key IS NOT NULL\n),\nlast_session_before_call AS (\n  SELECT\n    c.conversation_id,\n    c.customer_key,\n    s.landing_page,\n    ROW_NUMBER() OVER (PARTITION BY c.conversation_id ORDER BY s.session_start DESC) AS rn\n  FROM calls c\n  JOIN `fennmoor-dw.dw_digital.fct_web_sessions` s\n    ON s.customer_key = c.customer_key\n   AND s.session_start < c.conversation_start\n   AND s.session_start >= TIMESTAMP_SUB(c.conversation_start, INTERVAL 24 HOUR)\n)\nSELECT\n  landing_page,\n  COUNT(DISTINCT customer_key) AS customers,\n  COUNT(*) AS calls_preceded_by_visit\nFROM last_session_before_call\nWHERE rn = 1\nGROUP BY landing_page\nORDER BY customers DESC\nLIMIT 50",
    "writer": "free",
-   "fallback": "Answering this needs web activity sequenced against calls: for each call, the pages the same customer viewed shortly before it. The tables hold no such link. fct_web_sessions records only a session's landing page and a visited_help flag, and its only join to fct_calls is through the customer, with no ordering of visits before a call. The request can express a page breakdown or a per-customer contact count, but not 'before they call' as a time relationship between two fact tables."
+   "fallback": "The question asks which pages customers visited before they called, a sequence of web sessions ahead of each call. That means linking web sessions to calls through the customer and comparing timestamps, and the bank's data model has no join between the web session facts and the calls fact. It is not a measure over one fact table or two facts combined on shared dimensions, so it can't be expressed as this kind of request."
   },
   "cypher": {
    "verdict": "declined",
-   "why": "The graph given has no web session or page-visit data. The only web-session table, fct_web_sessions (landing_page, visited_help, session_date), appears only in the example SQL and has no node label or relationships here. Call nodes link to Customer, but there is nothing in the graph that says which pages a customer visited before a call, so the question can't be answered from these labels.",
+   "why": "The graph given has no web session or page-visit data. It covers only call, queue, agent, contact center site and customer tables. The web sessions table (dw_digital.fct_web_sessions) that holds landing pages and help-page visits appears only in the example SQL and has no node label or relationship in this graph. So there is no way to connect a customer's web page visits to their calls, and a query on the given labels would not answer which pages customers visit before calling.",
    "query": null,
    "writer": "free",
    "fallback": null
@@ -137,11 +136,11 @@
   "cohort": [
    "fennmoor-analytics.looker_scratch.LR_{id}_card_spend_by_mcc",
    "fennmoor-dw.dw_core.fct_card_transactions",
-   "fennmoor-analytics.sbx_customer_analytics.customer_360_final",
    "fennmoor-raw.card_processor.merchant",
+   "fennmoor-analytics.sbx_customer_analytics.customer_360_final",
    "fennmoor-dw.dw_intermediate.int_card_transactions_enriched",
-   "fennmoor-analytics.sbx_customer_analytics.customer_360_final_FIXED",
    "fennmoor-dw.dw_staging.stg_cards__merchant",
+   "fennmoor-analytics.sbx_customer_analytics.customer_360_final_FIXED",
    "fennmoor-analytics.sbx_customer_analytics.customer_360_v2",
    "fennmoor-dw.dw_core.dim_customer",
    "fennmoor-dw.dw_core.dim_merchant"
@@ -181,31 +180,31 @@
   "cohort": [
    "fennmoor-dw.dw_core.dim_product",
    "fennmoor-raw.core_banking_cdc.ACCOUNT",
-   "fennmoor-dw.dw_core.dim_account",
+   "fennmoor-raw.card_processor.statement",
    "fennmoor-dw.dw_core.fct_deposit_transactions",
    "fennmoor-analytics.legacy_edw.EOM_BAL_SNAP",
    "fennmoor-dw.dw_staging.stg_ref__product_hierarchy",
    "fennmoor-analytics.legacy_edw.ACCT_DLY_BAL",
-   "fennmoor-dw.dw_customer.customer_monthly_summary",
+   "fennmoor-dw.dw_staging.stg_cards__statement",
    "fennmoor-dw.dw_core.fct_daily_account_balances"
   ],
   "sql": {
-   "verdict": "wrong",
-   "why": "4 rows, not 12",
-   "query": "WITH fct_daily_account_balances_1 AS (\n  SELECT\n    product_line,\n    SUM(month_end_balance) AS month_end_balance\n  FROM (\n    SELECT\n      dim_product.product_line AS product_line,\n      fct_daily_account_balances.account_key AS per_fct_daily_account_balances_account_key,\n      SUM(fct_daily_account_balances.ledger_balance) AS month_end_balance\n    FROM `fennmoor-dw.dw_core.fct_daily_account_balances` AS fct_daily_account_balances\n    JOIN `fennmoor-dw.dw_core.dim_product` AS dim_product\n      ON dim_product.product_code = fct_daily_account_balances.product_code\n    GROUP BY\n      1,\n      2\n  )\n  GROUP BY\n    1\n)\nSELECT\n  product_line,\n  month_end_balance AS month_end_balance\nFROM fct_daily_account_balances_1",
+   "verdict": "correct",
+   "why": "matches on month, product_line, month_end_balance",
+   "query": "WITH fct_daily_account_balances_1 AS (\n  SELECT\n    product_line,\n    month,\n    SUM(month_end_balance) AS month_end_balance\n  FROM (\n    SELECT\n      dim_product.product_line AS product_line,\n      DATE_TRUNC(fct_daily_account_balances.balance_date, MONTH) AS month,\n      DATE_TRUNC(fct_daily_account_balances.balance_date, MONTH) AS per_DATE_TRUNC_fct_daily_account_balances_balance_date_MONTH,\n      fct_daily_account_balances.account_key AS per_fct_daily_account_balances_account_key,\n      fct_daily_account_balances.product_code AS per_fct_daily_account_balances_product_code,\n      ARRAY_AGG(\n        fct_daily_account_balances.ledger_balance ORDER BY fct_daily_account_balances.balance_date DESC\n        LIMIT 1\n      )[OFFSET(0)] AS month_end_balance\n    FROM `fennmoor-dw.dw_core.fct_daily_account_balances` AS fct_daily_account_balances\n    JOIN `fennmoor-dw.dw_core.dim_product` AS dim_product\n      ON dim_product.product_code = fct_daily_account_balances.product_code\n    GROUP BY\n      1,\n      2,\n      3,\n      4,\n      5\n  )\n  GROUP BY\n    1,\n    2\n)\nSELECT\n  product_line,\n  month,\n  month_end_balance AS month_end_balance\nFROM fct_daily_account_balances_1",
    "writer": "compiled",
    "fallback": null
   },
   "cypher": {
    "verdict": "declined",
-   "why": "The graph has no balance data. Month-end deposit balances come from fct_daily_account_balances (ledger_balance by balance_date), which is not modeled as a node label here. The available fact nodes (DepositTransaction, CardTransaction) hold transaction amounts, not balances, and summing signed transactions would not reproduce true ledger balances (no opening balances, possible history gaps), so any query would answer a different question.",
+   "why": "The graph has no balance data. Month-end deposit balances come from fct_daily_account_balances (ledger_balance by balance_date) in the bank's SQL, but that table is not modeled as any node label here. DepositTransaction only holds individual transaction amounts, and summing them would not give an account balance, so any query would answer a different question.",
    "query": null,
    "writer": "free",
    "fallback": null
   },
   "routed": {
    "route": "sql",
-   "verdict": "wrong"
+   "verdict": "correct"
   }
  },
  "Q06": {
@@ -230,7 +229,7 @@
   },
   "cypher": {
    "verdict": "declined",
-   "why": "This asks where SSNs are stored, which is a question about warehouse metadata (which tables and columns hold them), not about the data in the graph. The graph has only Customer.tax_id_hash, a hashed tax ID on dim_customer, and no property or node that lists columns or tables across datasets. The bank's existing SQL answers this by querying INFORMATION_SCHEMA.COLUMNS in other datasets (legacy_edw, sbx_risk), which Cypher cannot reach, so a Cypher query here would only return customer data, not the storage locations.",
+   "why": "The question asks where SSNs (raw or hashed) are stored across the warehouse, which is a schema/metadata question. The graph only models customer, account, branch, call and transaction data; it has no nodes for tables, columns or schemas. The only related property is Customer.tax_id_hash, but querying it would return customer data rather than answer where SSNs are stored. The bank's existing SQL answers this by searching INFORMATION_SCHEMA.COLUMNS, which is not represented in the graph.",
    "query": null,
    "writer": "free",
    "fallback": null
@@ -252,13 +251,13 @@
   ],
   "cohort": [
    "fennmoor-raw.fraud_platform.alert",
-   "fennmoor-raw.fraud_platform.fraud_case",
    "fennmoor-dw.dw_core.dim_card",
+   "fennmoor-raw.fraud_platform.fraud_case",
    "fennmoor-raw.digital_banking.alert_subscription",
    "fennmoor-raw.fraud_platform.rule",
    "fennmoor-raw.fraud_platform.case_alert_link",
-   "fennmoor-dw.dw_staging.stg_fraud__fraud_case",
-   "fennmoor-dw.dw_risk.fct_fraud_alerts"
+   "fennmoor-dw.dw_risk.fct_fraud_alerts",
+   "fennmoor-dw.dw_staging.stg_fraud__fraud_case"
   ],
   "sql": {
    "verdict": "correct",
@@ -292,27 +291,28 @@
   ],
   "cohort": [
    "fennmoor-dw.dw_risk.fct_credit_applications",
-   "fennmoor-dw.dw_marketing.fct_campaign_sends",
-   "fennmoor-dw.dw_core.dim_customer",
+   "fennmoor-dw.dw_core.dim_card",
    "fennmoor-analytics.sbx_customer_analytics.customer_360_final",
+   "fennmoor-dw.dw_marketing.fct_campaign_sends",
    "fennmoor-raw.loan_origination.decision",
    "fennmoor-dw.dw_staging.stg_los__decision",
+   "fennmoor-raw.card_processor.card",
+   "fennmoor-analytics.sbx_customer_analytics.customer_360_final_FIXED",
    "fennmoor-dw.dw_marketing.dim_campaign",
-   "fennmoor-dw.dw_core.fct_deposit_transactions",
    "fennmoor-dw.dw_marketing.fct_campaign_attribution",
    "fennmoor-dw.dw_core.dim_account",
    "fennmoor-dw.dw_core.dim_product"
   ],
   "sql": {
    "verdict": "correct",
-   "why": "matches on campaign_name=campaign, card_applications",
-   "query": "SELECT\n  dim_campaign.campaign_name AS campaign,\n  COUNT(DISTINCT fct_campaign_attribution.conversion_id) AS card_applications\nFROM `fennmoor-dw.dw_marketing.fct_campaign_attribution` AS fct_campaign_attribution\nJOIN `fennmoor-dw.dw_marketing.dim_campaign` AS dim_campaign\n  ON dim_campaign.campaign_id = fct_campaign_attribution.campaign_id\nWHERE\n  (\n    fct_campaign_attribution.conversion_behavior = 'card_application_submitted'\n  )\nGROUP BY\n  1\nORDER BY\n  card_applications DESC",
+   "why": "matches on campaign_name, card_applications",
+   "query": "SELECT\n  dim_campaign.campaign_name AS campaign_name,\n  COUNT(DISTINCT fct_campaign_attribution.conversion_id) AS card_applications\nFROM `fennmoor-dw.dw_marketing.fct_campaign_attribution` AS fct_campaign_attribution\nJOIN `fennmoor-dw.dw_marketing.dim_campaign` AS dim_campaign\n  ON dim_campaign.campaign_id = fct_campaign_attribution.campaign_id\nWHERE\n  (\n    fct_campaign_attribution.conversion_behavior = 'card_application_submitted'\n  )\nGROUP BY\n  1\nORDER BY\n  card_applications DESC",
    "writer": "compiled",
    "fallback": null
   },
   "cypher": {
    "verdict": "declined",
-   "why": "The graph provided has no nodes for marketing campaigns, campaign attribution, or credit card applications. The tables that hold this data (dw_marketing.fct_campaign_attribution, dw_marketing.dim_campaign, dw_risk.fct_credit_applications) appear only in the example SQL, not as labels in the graph. The available labels (Customer, Account, Product, Branch, Call, CardTransaction, DepositTransaction) cannot link campaigns to card applications, so no faithful Cypher query can be written.",
+   "why": "The graph given has no labels for marketing campaigns, campaign attribution, or credit card applications. Those live in dw_marketing (dim_campaign, fct_campaign_attribution) and dw_risk (fct_credit_applications) tables that are not part of this graph. The Account, Product, and Customer nodes describe opened accounts, not applications or their marketing source, so a query here would answer a different question.",
    "query": null,
    "writer": "free",
    "fallback": null
@@ -338,8 +338,8 @@
   ],
   "cohort": [
    "fennmoor-dw.dw_core.dim_account",
-   "fennmoor-raw.loan_origination.delinquency_snapshot",
    "fennmoor-analytics.looker_scratch.LR_{id}_delinquency_trend",
+   "fennmoor-raw.loan_origination.delinquency_snapshot",
    "fennmoor-raw.loan_origination.loan",
    "fennmoor-dw.dw_core.dim_product",
    "fennmoor-dw.dw_customer.customer_monthly_summary",
@@ -351,13 +351,13 @@
   "sql": {
    "verdict": "wrong",
    "why": "no column holds delinquency_rate (2 of 3 match)",
-   "query": "SELECT\n  dim_account.product_code AS product,\n  dim_branch.branch_name AS branch,\n  COUNT(\n    DISTINCT IF(fct_delinquency_daily.dpd >= 30, fct_delinquency_daily.account_key, NULL)\n  ) AS delinquent_loans,\n  COUNT(\n    IF((\n      dim_account.account_family = 'LOAN'\n    ) AND (\n      dim_account.is_open\n    ), 1, NULL)\n  ) AS open_loans,\n  SAFE_DIVIDE(\n    COUNT(\n      DISTINCT IF(fct_delinquency_daily.dpd >= 30, fct_delinquency_daily.account_key, NULL)\n    ),\n    COUNT(\n      IF((\n        dim_account.account_family = 'LOAN'\n      ) AND (\n        dim_account.is_open\n      ), 1, NULL)\n    )\n  ) AS delinquency_rate\nFROM `fennmoor-dw.dw_risk.fct_delinquency_daily` AS fct_delinquency_daily\nJOIN `fennmoor-dw.dw_core.dim_account` AS dim_account\n  ON dim_account.account_key = fct_delinquency_daily.account_key\nLEFT JOIN `fennmoor-dw.dw_core.dim_branch` AS dim_branch\n  ON dim_branch.branch_id = dim_account.branch_id\nGROUP BY\n  1,\n  2",
+   "query": "SELECT\n  dim_account.product_code AS product,\n  dim_branch.branch_name AS branch,\n  COUNT(\n    DISTINCT IF(fct_delinquency_daily.dpd >= 30, fct_delinquency_daily.account_key, NULL)\n  ) AS delinquent_loans,\n  COUNT(DISTINCT dim_account.account_key) AS open_loans,\n  SAFE_DIVIDE(\n    COUNT(\n      DISTINCT IF(fct_delinquency_daily.dpd >= 30, fct_delinquency_daily.account_key, NULL)\n    ),\n    COUNT(DISTINCT dim_account.account_key)\n  ) AS delinquency_rate\nFROM `fennmoor-dw.dw_risk.fct_delinquency_daily` AS fct_delinquency_daily\nJOIN `fennmoor-dw.dw_core.dim_account` AS dim_account\n  ON dim_account.account_key = fct_delinquency_daily.account_key\nLEFT JOIN `fennmoor-dw.dw_core.dim_branch` AS dim_branch\n  ON dim_branch.branch_id = dim_account.branch_id\nWHERE\n  (\n    dim_account.account_family = 'LOAN'\n  ) AND (\n    dim_account.is_open IS TRUE\n  )\nGROUP BY\n  1,\n  2",
    "writer": "compiled",
    "fallback": null
   },
   "cypher": {
    "verdict": "declined",
-   "why": "Delinquency data is not in the graph. The bank's own SQL takes DPD and snapshot dates from `dw_risk.fct_delinquency_daily`, and no node label or relationship maps to that table. Account, Product and Branch alone give the open-loan denominator (product and branch) but there is nothing to count as delinquent, so a delinquency rate cannot be computed.",
+   "why": "The graph has no delinquency data. Delinquency lives in `dw_risk.fct_delinquency_daily` (SNAPSHOT_DATE, DPD, BUCKET), and no label or relationship maps to that table. Account, Product and Branch could supply the loan denominator per product and branch, but the delinquent-loan numerator cannot be computed, so any query would not return a delinquency rate.",
    "query": null,
    "writer": "free",
    "fallback": null
@@ -374,11 +374,11 @@
    "fennmoor-dw.dw_contact_center.dim_agent",
    "fennmoor-dw.dw_contact_center.fct_csat",
    "fennmoor-analytics.looker_scratch.LR_{id}_customer_facts",
-   "fennmoor-dw.dw_contact_center.fct_agent_daily",
+   "fennmoor-dw.dw_core.fct_account_closures",
    "fennmoor-raw.genesys_cloud.user",
    "fennmoor-dw.dw_staging.stg_genesys__user",
    "fennmoor-raw.genesys_cloud.survey_response",
-   "fennmoor-dw.dw_staging_restricted.stg_wd__worker",
+   "fennmoor-dw.ml_features.feat_customer_daily",
    "fennmoor-dw.dw_contact_center.fct_calls"
   ],
   "sql": {
@@ -390,7 +390,7 @@
   },
   "cypher": {
    "verdict": "declined",
-   "why": "The graph has Agent.tenure_months, but no node or property for customer satisfaction. Satisfaction scores (nps_score, is_detractor) live in `fct_csat`, which the bank's SQL joins to fct_calls, but that table is not modeled as a label or relationship here, and Call has no satisfaction property. Without it, satisfaction by agent tenure can't be computed.",
+   "why": "The graph has agent tenure (Agent.tenure_months), but no customer satisfaction data. Satisfaction scores (nps_score, is_detractor) live in fct_csat, which the example SQL joins to fct_calls, but there is no node label or relationship for that table in the graph provided. Call, Agent, Customer, Queue and ContactCenterSite carry no satisfaction or survey properties, so satisfaction cannot be related to agent tenure without a stand-in that would answer a different question.",
    "query": null,
    "writer": "free",
    "fallback": null
@@ -412,13 +412,13 @@
   ],
   "cohort": [
    "fennmoor-dw.dw_digital.fct_app_sessions",
-   "fennmoor-dw.dw_core.dim_customer",
-   "fennmoor-analytics.sbx_customer_analytics.customer_360_final",
    "fennmoor-raw.amplitude_mobile.EVENTS_318842",
+   "fennmoor-dw.dw_digital.fct_account_opening_funnel",
+   "fennmoor-raw.digital_banking.online_user",
    "fennmoor-dw.dw_digital.fct_digital_logins",
    "fennmoor-dw.dw_digital.fct_web_sessions",
-   "fennmoor-dw.dw_core.fct_deposit_transactions",
-   "fennmoor-analytics.sbx_customer_analytics.customer_360_final_FIXED",
+   "fennmoor-dw.dw_staging.stg_amp__events",
+   "fennmoor-analytics.looker_scratch.LR_{id}_digital_funnel_daily",
    "fennmoor-dw.dw_customer.customer_360"
   ],
   "sql": {
@@ -429,10 +429,10 @@
    "fallback": null
   },
   "cypher": {
-   "verdict": "declined",
-   "why": "The graph has no label for mobile app usage. Weekly app usage lives in the app sessions table (fennmoor-dw.dw_digital.fct_app_sessions), which is not modeled here. Customer.is_digitally_enrolled only marks enrollment, not sessions or weekly activity, and deposit/card transactions do not reliably indicate mobile app use, so any query would answer a different question.",
+   "verdict": "not covered",
+   "why": "none of the cohort's tables is in the virtual graph",
    "query": null,
-   "writer": "free",
+   "writer": null,
    "fallback": null
   },
   "routed": {
@@ -484,25 +484,25 @@
   "question": "What is in the tables whose names start with CC?",
   "compare": [],
   "cohort": [
-   "fennmoor-dw.dw_contact_center.dim_cc_site",
    "fennmoor-raw.gl_erp.CC_EXPENSE_SUMMARY",
    "fennmoor-analytics.sbx_finance.cc_cost_per_call_fy25",
    "fennmoor-analytics.sbx_cx_ops.cc_site_scorecard_2026",
-   "fennmoor-raw.reference_data.contact_center_site",
-   "fennmoor-dw.dw_staging.stg_ref__contact_center_site",
+   "fennmoor-dw.dw_contact_center.dim_cc_site",
    "fennmoor-dw.dw_finance.fct_gl_monthly",
-   "fennmoor-dw.dw_staging.stg_gl__cost_center"
+   "fennmoor-dw.dw_finance.dim_cost_center",
+   "fennmoor-raw.reference_data.contact_center_site",
+   "fennmoor-dw.dw_staging.stg_gl__cc_expense_summary"
   ],
   "sql": {
    "verdict": "not scored",
    "why": "41 rows",
-   "query": "SELECT table_catalog, table_schema, table_name, column_name, data_type FROM (SELECT * FROM `fennmoor-analytics.sbx_cx_ops`.INFORMATION_SCHEMA.COLUMNS UNION ALL SELECT * FROM `fennmoor-analytics.sbx_finance`.INFORMATION_SCHEMA.COLUMNS UNION ALL SELECT * FROM `fennmoor-dw.dw_contact_center`.INFORMATION_SCHEMA.COLUMNS UNION ALL SELECT * FROM `fennmoor-dw.dw_staging`.INFORMATION_SCHEMA.COLUMNS UNION ALL SELECT * FROM `fennmoor-raw.gl_erp`.INFORMATION_SCHEMA.COLUMNS UNION ALL SELECT * FROM `fennmoor-raw.reference_data`.INFORMATION_SCHEMA.COLUMNS) WHERE STARTS_WITH(LOWER(table_name), 'cc') ORDER BY table_catalog, table_schema, table_name, ordinal_position",
+   "query": "SELECT table_catalog, table_schema, table_name, column_name, ordinal_position, data_type FROM `fennmoor-analytics.sbx_cx_ops`.INFORMATION_SCHEMA.COLUMNS WHERE LOWER(table_name) LIKE 'cc%' UNION ALL SELECT table_catalog, table_schema, table_name, column_name, ordinal_position, data_type FROM `fennmoor-analytics.sbx_finance`.INFORMATION_SCHEMA.COLUMNS WHERE LOWER(table_name) LIKE 'cc%' UNION ALL SELECT table_catalog, table_schema, table_name, column_name, ordinal_position, data_type FROM `fennmoor-dw.dw_contact_center`.INFORMATION_SCHEMA.COLUMNS WHERE LOWER(table_name) LIKE 'cc%' UNION ALL SELECT table_catalog, table_schema, table_name, column_name, ordinal_position, data_type FROM `fennmoor-dw.dw_finance`.INFORMATION_SCHEMA.COLUMNS WHERE LOWER(table_name) LIKE 'cc%' UNION ALL SELECT table_catalog, table_schema, table_name, column_name, ordinal_position, data_type FROM `fennmoor-dw.dw_staging`.INFORMATION_SCHEMA.COLUMNS WHERE LOWER(table_name) LIKE 'cc%' UNION ALL SELECT table_catalog, table_schema, table_name, column_name, ordinal_position, data_type FROM `fennmoor-raw.gl_erp`.INFORMATION_SCHEMA.COLUMNS WHERE LOWER(table_name) LIKE 'cc%' UNION ALL SELECT table_catalog, table_schema, table_name, column_name, ordinal_position, data_type FROM `fennmoor-raw.reference_data`.INFORMATION_SCHEMA.COLUMNS WHERE LOWER(table_name) LIKE 'cc%' ORDER BY table_catalog, table_schema, table_name, ordinal_position",
    "writer": "free",
-   "fallback": "The question asks for a description of the tables themselves (their contents and columns), not an aggregate or a list of rows over the bank's data. It can't be expressed as measures, dimensions and filters; it would need a schema metadata query (INFORMATION_SCHEMA) instead."
+   "fallback": "This is a question about the database's own structure (which tables have names starting with CC and what columns they hold), not a measure, breakdown or list of rows over the bank's business data. It could only be answered from INFORMATION_SCHEMA metadata, which this typed request cannot express."
   },
   "cypher": {
    "verdict": "declined",
-   "why": "The question asks about warehouse table names (a metadata question about which tables start with 'CC'), not about the data in them. The graph only models row-level data from dim_cc_site and fct_calls, and has no node or property for table names or INFORMATION_SCHEMA metadata, so table names cannot be filtered in Cypher. The bank's example SQL does this through INFORMATION_SCHEMA, which is outside the graph. Note also that the two tables shown are named dim_cc_site and fct_calls, so neither starts with 'CC'.",
+   "why": "The question asks about warehouse table names (metadata about tables starting with 'CC'), but the graph only models row data of the tables behind ContactCenterSite and Call. It has no labels, properties or relationships for table names or schema metadata (INFORMATION_SCHEMA), so a Cypher query cannot answer this.",
    "query": null,
    "writer": "free",
    "fallback": null
@@ -525,13 +525,14 @@
   "cohort": [
    "fennmoor-dw.dw_core.fct_account_closures",
    "fennmoor-dw.dw_core.dim_merchant",
-   "fennmoor-dw.dw_core.dim_account",
    "fennmoor-dw.dw_core.fct_deposit_transactions",
+   "fennmoor-raw.card_processor.statement",
    "fennmoor-dw.ml_features.feat_customer_daily",
    "fennmoor-analytics.sbx_customer_analytics.churn_cohort_analysis_2026q1",
    "fennmoor-dw.dw_core.dim_card",
-   "fennmoor-dw.dw_core.dim_product",
+   "fennmoor-dw.dw_staging.stg_core__deposit_transaction",
    "fennmoor-raw.card_processor.authorization",
+   "fennmoor-dw.dw_core.dim_account",
    "fennmoor-dw.dw_intermediate.int_account_closures"
   ],
   "sql": {
@@ -544,7 +545,7 @@
   "cypher": {
    "verdict": "correct",
    "why": "matches on account_family, closures",
-   "query": "MATCH (a:Account) WHERE a.close_date IS NOT NULL AND a.account_family IN ['DEPOSIT', 'CARD'] RETURN a.account_family AS account_family, a.close_reason AS close_reason, count(a) AS closures ORDER BY account_family, closures DESC",
+   "query": "MATCH (a:Account) WHERE a.close_reason IS NOT NULL AND a.account_family IN ['DEPOSIT', 'CARD'] RETURN a.account_family AS account_family, a.close_reason AS close_reason, count(a) AS closures ORDER BY account_family, closures DESC",
    "writer": "free",
    "fallback": null
   },

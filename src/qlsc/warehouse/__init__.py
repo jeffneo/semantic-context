@@ -6,7 +6,7 @@ A connector supplies five things, and the pipeline never asks a warehouse for an
   log_groups()           the query log, aggregated inside the warehouse: one record per distinct
                          (query text, principal, statement type, project, week) - see LOG_GROUP
   principal_profiles()   per principal, when it works: hours, weekends, recurring time slots
-  catalog()              physical facts about tables: names, columns, types, partitioning, view SQL,
+  catalog()              physical facts about tables: names, columns, types, partitioning, view SQL, when made,
                          and where each physical dataset sits in the estate's logical names
   is_service_account()   whether a principal is a process rather than a person
   dry_run(sql)           the warehouse's verdict on a query, without running it
@@ -98,7 +98,7 @@ class Warehouse(ABC):
     @abstractmethod
     def catalog(self) -> dict:
         """{"source": str, "project": the physical project,
-        "tables": {(dataset, table): {"type", "columns": {name: type}, "partition", "cluster", "view_sql"?}},
+        "tables": {(dataset, table): {"type", "columns": {name: type}, "partition", "cluster", "created", "view_sql"?}},
         "aliases": {"<project>.<dataset>": "<logical project>.<logical dataset>"}}"""
 
     @abstractmethod
@@ -172,7 +172,7 @@ class Warehouse(ABC):
         dataset = {logical: phys for phys, logical in cat["aliases"].items()}
         by_name = {logical.split(".", 1)[1]: logical for logical in dataset}
         table = {
-            fqn: sorted(t["physical"])[-1]  # a Looker PDT: its newest generation
+            fqn: t["physical"][-1]  # a Looker PDT: its newest generation (extract orders them as made)
             for fqn, t in cat["tables"].items()
             if t.get("physical") and t["kind"] != "WILDCARD"
         }

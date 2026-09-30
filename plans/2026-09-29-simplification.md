@@ -1,6 +1,6 @@
 # A smaller, coherent qlsc: what's sediment, and what to cut (2026-09-29)
 
-Status: agreed 2026-09-29, all of it (decision (c) as clarified: memory keeps its relationships as edges, rewritten from their start node's key column when it's written). Phases 1 and 2 done; phase 3 next.
+Status: agreed 2026-09-29, all of it (decision (c) as clarified: memory keeps its relationships as edges, rewritten from their start node's key column when it's written). Phases 1, 2 and 3 done.
 
 An assessment of the whole repository: `src/qlsc/` (9,800 lines), `parser/` (2,200), `vg-passthrough/`,
 `tests/` (1,400), and the example's `eval/` (4,600). The question is where the code serves the system
@@ -468,3 +468,54 @@ What the evaluations say now:
 - **Entitlements:** 60 asks as three principals, 0 schema leaks, 0 row incidents; the pass-through refuses
   an unsigned, a forged and an expired token; the four broken gateways are caught. Risk's Cypher answered
   6 (7 before), a new sample.
+
+## Phase 3, as built (2026-09-29)
+
+Each bug with a test that failed first, where a unit test can reach it.
+- **DELETE and UPDATE filters** are read as the WHERE of `SELECT 1 FROM <target>`, through the SELECT's own
+  scope analysis: the same operators (`<`, not `LT`) and negation, and the literal slots of the statement's
+  own text (`test_a_delete_or_update_filter_is_classified_as_a_selects`).
+- **A Looker PDT's newest generation** is the last made. The connector reports each table's creation time,
+  extract orders a PDT's generations by it, and `physical_sql` takes the last. On the example it was
+  wrong: `LR_{id}_customer_facts` has two generations, and the name sort read the older
+  (`test_a_pdts_generations_are_ordered_by_when_they_were_made`).
+- **Computations' parse errors** come back with the results (`{computations, errors}`), and `qlsc
+  computations` reports how many statements it couldn't read. On the example, none.
+- **`LLM.cost()`** prices each model at its own list price (`llm.prices`: Haiku 4.5 $1 / $5, Sonnet 5.5
+  $2 / $10 per million tokens, from the pricing page on 2026-09-29); a model not listed shows `$?`.
+- **`robustness.py`'s level-2 sweep** calls `hierarchy.communities`, on the tool's own weights.
+- **The week rule's evidence** leaves out the shapes a question excludes, as the examples do.
+- **The build is deterministic.** Every tie in the naming evidence is broken by name: `cluster.evidence`
+  (table counts, members of equal use, the sample query), `hierarchy.documents` (Variables), variables'
+  joins and filter values, and `virtualize`'s area per table. A shape's default project for Computations
+  is its first table by name, not `collect()`'s. Two builds in a row now give the same fingerprint, with no
+  LLM calls.
+  - **The one round of new names, as planned:** 52 Computation names, 3 variables, 5 level-1 groups and
+    the areas above them (109 → 15 → 4, was 109 → 16 → 5), and 11 of the 14 relationship types of the
+    virtual graph (its labels are the same). 1,185 Computations (1,182): the default project changed three
+    shapes' qualification.
+- **Found on the way:** the catalog read back `qlsc virtualize`'s own views (`fnb_graph`), which exist
+  since the last extract. The connector now leaves out the virtualize dataset: qlsc's own output is never
+  evidence.
+- **The example's evaluations name relationships by their ends** (`REL(Call,Customer)`, `common.typed`),
+  looked up in the model, so a renamed type doesn't break them. (§9's fixtures for hard-coded names, in
+  part.)
+- **Memory** was migrated to the new types once (relationships re-derived; the old types removed).
+  - **A limit, noted:** memory keeps relationships of a type the model no longer has, until a migration
+    like this one. Nothing reads them: the memory route matches types between the labels the model gives
+    them.
+
+Rerun:
+- **Build, twice:** identical. Bottom layer unchanged; alignment agrees on 24 of 30 as before.
+- **Navigation:** combined, round robin: reached 68%, recall 53% (72%, 54% before), within the seeds'
+  spread (65 to 79%, 50 to 68%). On this draw ranking by usage does better (62%); the default isn't
+  changed on one draw.
+- **Robustness:** level 2 on the tool's weights: NMI vs domains 0.64 to 0.72 (0.66 to 0.71 before).
+- **Memory:** all checks pass on the new types.
+- **Not rerun, stale:** the log's 176 questions and entitlements (the user chose to commit without them);
+  those quoted are Phase 2's.
+- **Gold:** 7 / 3 / 7 (6 / 3 / 6 before). **Graph-shaped:** 6 / 8 / 7 (5 / 8 / 7).
+- **Memory entitlements** 0 incidents, **converse** 26 of 26, **distill** 13 of 13, **economics** 50 of 50
+  from memory, the same rows as the SQL; a fetch bills 541 MiB per customer alone, 12 in a batch of 50.
+- **Environment:** the Docker VM's disk filled again during the evaluations, and Neo4j quarantined
+  `memory`; it was restored with its store (the user chose which leftovers to clear, about 3.5 GB).

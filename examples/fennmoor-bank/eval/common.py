@@ -7,6 +7,7 @@ The evaluations are the only code that reads both the spec (the answer key) and 
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from math import log
 from pathlib import Path
@@ -21,6 +22,16 @@ SPEC, BUILD, RESULTS = EXAMPLE / "spec", EXAMPLE / "build", EXAMPLE / "results"
 
 def settings() -> config.Settings:
     return config.load(EXAMPLE / "estate.yaml")
+
+
+def typed(text: str) -> str:
+    """Cypher over the virtual graph's model, with each relationship named by its ends, REL(Start,End):
+    its type, from the model qlsc virtualize wrote. The LLM names the types, so a rebuild may rename them."""
+    model = json.loads((settings().work / "virtual" / "schema.json").read_text())["entities"]
+    types = {
+        (r["start"]["targetEntity"], r["end"]["targetEntity"]): r["label"] for r in model["relationships"]
+    }
+    return re.sub(r"REL\((\w+),\s*(\w+)\)", lambda m: types[(m.group(1), m.group(2))], text)
 
 
 def build(name: str):

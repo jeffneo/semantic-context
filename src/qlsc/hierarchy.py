@@ -50,7 +50,7 @@ def documents(G: Graph, level: int) -> dict[str, str]:
             RETURN s.id AS id, s.name AS name, s.description AS d, vars, cols, collect(DISTINCT t.name) AS tables""")
         return {
             r["id"]: f"{r['name']}. {r['d'] or ''}\nTables: {', '.join(sorted(r['tables'])[:15])}"
-            + (f"\nVariables: {', '.join(v for v in r['vars'] if v)}" if r["vars"] else "")
+            + (f"\nVariables: {', '.join(sorted(v for v in r['vars'] if v))}" if r["vars"] else "")
             + (f"\nColumns: {', '.join(sorted(r['cols'])[:40])}" if r["cols"] else "")
             for r in rows
         }

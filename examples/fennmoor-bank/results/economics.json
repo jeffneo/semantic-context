@@ -3,304 +3,124 @@
   "one at a time": {
    "customers": 5,
    "fetches": 5,
-   "seconds": 30.577,
-   "billed": 2930769920,
-   "billed per customer": 586153984.0,
-   "jobs": 58,
-   "cached": 9,
+   "seconds": 19.546,
+   "billed": 2836398080,
+   "billed per customer": 567279616.0,
+   "jobs": 49,
+   "cached": 10,
    "hidden": 5
   },
   "a batch of 5 (the session's)": {
    "customers": 5,
    "fetches": 1,
-   "seconds": 5.966,
-   "billed": 590348288,
-   "billed per customer": 118069657.6,
-   "jobs": 12,
+   "seconds": 5.34,
+   "billed": 634388480,
+   "billed per customer": 126877696.0,
+   "jobs": 13,
    "cached": 1,
    "hidden": 1
   },
   "a batch of 50": {
    "customers": 50,
    "fetches": 1,
-   "seconds": 19.32,
+   "seconds": 14.984,
    "billed": 642777088,
    "billed per customer": 12855541.76,
    "jobs": 17,
-   "cached": 2,
+   "cached": 1,
    "hidden": 1
   }
  },
  "customers": {
-  "-8522553548344015653": {
-   "nodes": 250,
+  "-8184759929530132369": {
+   "nodes": 450,
    "reads": 15,
    "capped": []
   },
-  "-8516827658002167965": {
-   "nodes": 411,
+  "-8184693656158152476": {
+   "nodes": 138,
    "reads": 15,
    "capped": []
   },
-  "-8515986546922041322": {
-   "nodes": 384,
+  "-8180704299001469721": {
+   "nodes": 326,
    "reads": 15,
    "capped": []
   },
-  "-8510083905847458547": {
-   "nodes": 259,
+  "-8176191375513896444": {
+   "nodes": 463,
    "reads": 15,
    "capped": []
   },
-  "-8506285815963027694": {
-   "nodes": 307,
+  "-8167080191698440242": {
+   "nodes": 483,
    "reads": 15,
    "capped": []
   }
  },
  "questions": [
   {
-   "customer": "-8522553548344015653",
+   "customer": "-8184759929530132369",
    "question": "How many accounts does the customer with customer_key {k} hold, by product line?",
-   "compile_seconds": 8.15,
+   "compile_seconds": 8.58,
    "sql": {
     "ok": true,
-    "seconds": 1.298,
-    "rows": 3,
-    "billed": 20971520,
-    "hidden": false
-   },
-   "memory": {
-    "ok": true,
-    "seconds": 0.0795,
-    "same": true,
-    "rows": 3
-   }
-  },
-  {
-   "customer": "-8522553548344015653",
-   "question": "Card spend by merchant category for the customer with customer_key {k}, last quarter",
-   "compile_seconds": 7.28,
-   "sql": {
-    "ok": true,
-    "seconds": 0.875,
-    "rows": 9,
-    "billed": 74448896,
-    "hidden": false
-   },
-   "memory": {
-    "ok": true,
-    "seconds": 0.0722,
-    "same": true,
-    "rows": 9
-   }
-  },
-  {
-   "customer": "-8522553548344015653",
-   "question": "Number of card purchases by merchant for the customer with customer_key {k}, last quarter",
-   "compile_seconds": 7.14,
-   "sql": {
-    "ok": true,
-    "seconds": 1.865,
-    "rows": 9,
-    "billed": 98566144,
-    "hidden": false
-   },
-   "memory": {
-    "ok": true,
-    "seconds": 0.0457,
-    "same": true,
-    "rows": 9
-   }
-  },
-  {
-   "customer": "-8522553548344015653",
-   "question": "Deposit amounts by transaction type for the customer with customer_key {k}, last quarter",
-   "compile_seconds": 7.58,
-   "sql": {
-    "ok": true,
-    "seconds": 1.086,
-    "rows": 10,
-    "billed": 104857600,
-    "hidden": false
-   },
-   "memory": {
-    "ok": true,
-    "seconds": 0.0223,
-    "same": true,
-    "rows": 10
-   }
-  },
-  {
-   "customer": "-8522553548344015653",
-   "question": "How many calls did the customer with customer_key {k} make last quarter, by queue?",
-   "compile_seconds": 7.64,
-   "sql": {
-    "ok": true,
-    "seconds": 0.965,
-    "rows": 1,
-    "billed": 20971520,
-    "hidden": false
-   },
-   "memory": {
-    "ok": true,
-    "seconds": 0.0581,
-    "same": true,
-    "rows": 1
-   }
-  },
-  {
-   "customer": "-8522553548344015653",
-   "question": "Calls from the customer with customer_key {k} last quarter, by contact center site",
-   "compile_seconds": 7.45,
-   "sql": {
-    "ok": true,
-    "seconds": 0.838,
-    "rows": 1,
-    "billed": 20971520,
-    "hidden": false
-   },
-   "memory": {
-    "ok": true,
-    "seconds": 0.0504,
-    "same": true,
-    "rows": 1
-   }
-  },
-  {
-   "customer": "-8522553548344015653",
-   "question": "Total card spend of the customer with customer_key {k} in June 2026",
-   "compile_seconds": 7.45,
-   "sql": {
-    "ok": true,
-    "seconds": 0.805,
-    "rows": 1,
-    "billed": 19922944,
-    "hidden": false
-   },
-   "memory": {
-    "ok": true,
-    "seconds": 0.047,
-    "same": true,
-    "rows": 1
-   }
-  },
-  {
-   "customer": "-8522553548344015653",
-   "question": "How many of the accounts of the customer with customer_key {k} are maintained at each branch?",
-   "compile_seconds": 7.4,
-   "sql": {
-    "ok": true,
-    "seconds": 1.112,
-    "rows": 3,
-    "billed": 20971520,
-    "hidden": false
-   },
-   "memory": {
-    "ok": true,
-    "seconds": 0.0523,
-    "same": true,
-    "rows": 3
-   }
-  },
-  {
-   "customer": "-8522553548344015653",
-   "question": "Average call handle time in seconds for the customer with customer_key {k}, last quarter",
-   "compile_seconds": 7.25,
-   "sql": {
-    "ok": true,
-    "seconds": 0.738,
-    "rows": 1,
-    "billed": 10485760,
-    "hidden": false
-   },
-   "memory": {
-    "ok": true,
-    "seconds": 0.0507,
-    "same": true,
-    "rows": 1
-   }
-  },
-  {
-   "customer": "-8522553548344015653",
-   "question": "Monthly deposit totals for the customer with customer_key {k}, last quarter",
-   "compile_seconds": 7.98,
-   "sql": {
-    "ok": true,
-    "seconds": 0.813,
-    "rows": 3,
-    "billed": 88080384,
-    "hidden": false
-   },
-   "memory": {
-    "ok": true,
-    "seconds": 0.0862,
-    "same": true,
-    "rows": 3
-   }
-  },
-  {
-   "customer": "-8516827658002167965",
-   "question": "How many accounts does the customer with customer_key {k} hold, by product line?",
-   "compile_seconds": 7.39,
-   "sql": {
-    "ok": true,
-    "seconds": 0.684,
+    "seconds": 1.252,
     "rows": 2,
     "billed": 20971520,
     "hidden": false
    },
    "memory": {
     "ok": true,
-    "seconds": 0.0223,
+    "seconds": 0.0794,
     "same": true,
     "rows": 2
    }
   },
   {
-   "customer": "-8516827658002167965",
+   "customer": "-8184759929530132369",
    "question": "Card spend by merchant category for the customer with customer_key {k}, last quarter",
-   "compile_seconds": 9.04,
+   "compile_seconds": 7.34,
    "sql": {
     "ok": true,
-    "seconds": 0.915,
-    "rows": 8,
+    "seconds": 0.674,
+    "rows": 9,
     "billed": 74448896,
     "hidden": false
    },
    "memory": {
     "ok": true,
-    "seconds": 0.0275,
+    "seconds": 0.0739,
     "same": true,
-    "rows": 8
+    "rows": 9
    }
   },
   {
-   "customer": "-8516827658002167965",
+   "customer": "-8184759929530132369",
    "question": "Number of card purchases by merchant for the customer with customer_key {k}, last quarter",
-   "compile_seconds": 7.72,
+   "compile_seconds": 7.71,
    "sql": {
     "ok": true,
-    "seconds": 0.774,
+    "seconds": 0.763,
     "rows": 9,
     "billed": 57671680,
     "hidden": false
    },
    "memory": {
     "ok": true,
-    "seconds": 0.0488,
+    "seconds": 0.0542,
     "same": true,
     "rows": 9
    }
   },
   {
-   "customer": "-8516827658002167965",
+   "customer": "-8184759929530132369",
    "question": "Deposit amounts by transaction type for the customer with customer_key {k}, last quarter",
-   "compile_seconds": 7.55,
+   "compile_seconds": 7.5,
    "sql": {
     "ok": true,
-    "seconds": 0.665,
-    "rows": 10,
+    "seconds": 0.688,
+    "rows": 11,
     "billed": 104857600,
     "hidden": false
    },
@@ -308,377 +128,665 @@
     "ok": true,
     "seconds": 0.0261,
     "same": true,
-    "rows": 10
+    "rows": 11
    }
   },
   {
-   "customer": "-8516827658002167965",
+   "customer": "-8184759929530132369",
    "question": "How many calls did the customer with customer_key {k} make last quarter, by queue?",
-   "compile_seconds": 7.13,
+   "compile_seconds": 7.24,
    "sql": {
     "ok": true,
-    "seconds": 1.711,
-    "rows": 2,
+    "seconds": 0.703,
+    "rows": 1,
     "billed": 10485760,
     "hidden": false
    },
    "memory": {
     "ok": true,
-    "seconds": 0.0703,
+    "seconds": 0.0444,
     "same": true,
-    "rows": 2
+    "rows": 1
    }
   },
   {
-   "customer": "-8516827658002167965",
+   "customer": "-8184759929530132369",
    "question": "Calls from the customer with customer_key {k} last quarter, by contact center site",
-   "compile_seconds": 7.78,
+   "compile_seconds": 8.4,
    "sql": {
     "ok": true,
-    "seconds": 0.83,
+    "seconds": 0.85,
     "rows": 1,
     "billed": 20971520,
     "hidden": false
    },
    "memory": {
     "ok": true,
-    "seconds": 0.0269,
+    "seconds": 0.0803,
     "same": true,
     "rows": 1
    }
   },
   {
-   "customer": "-8516827658002167965",
+   "customer": "-8184759929530132369",
    "question": "Total card spend of the customer with customer_key {k} in June 2026",
-   "compile_seconds": 7.76,
+   "compile_seconds": 7.6,
    "sql": {
     "ok": true,
-    "seconds": 0.666,
+    "seconds": 0.624,
     "rows": 1,
     "billed": 19922944,
     "hidden": false
    },
    "memory": {
     "ok": true,
-    "seconds": 0.028,
+    "seconds": 0.0619,
     "same": true,
     "rows": 1
    }
   },
   {
-   "customer": "-8516827658002167965",
+   "customer": "-8184759929530132369",
    "question": "How many of the accounts of the customer with customer_key {k} are maintained at each branch?",
-   "compile_seconds": 8.29,
+   "compile_seconds": 7.59,
    "sql": {
     "ok": true,
-    "seconds": 0.677,
-    "rows": 3,
+    "seconds": 0.557,
+    "rows": 2,
     "billed": 20971520,
     "hidden": false
    },
    "memory": {
     "ok": true,
-    "seconds": 0.06,
+    "seconds": 0.0482,
     "same": true,
-    "rows": 3
+    "rows": 2
    }
   },
   {
-   "customer": "-8516827658002167965",
+   "customer": "-8184759929530132369",
    "question": "Average call handle time in seconds for the customer with customer_key {k}, last quarter",
-   "compile_seconds": 8.88,
+   "compile_seconds": 8.14,
    "sql": {
     "ok": true,
-    "seconds": 0.804,
+    "seconds": 1.278,
     "rows": 1,
     "billed": 10485760,
     "hidden": false
    },
    "memory": {
     "ok": true,
-    "seconds": 0.0208,
+    "seconds": 0.058,
     "same": true,
     "rows": 1
    }
   },
   {
-   "customer": "-8516827658002167965",
+   "customer": "-8184759929530132369",
    "question": "Monthly deposit totals for the customer with customer_key {k}, last quarter",
-   "compile_seconds": 7.61,
+   "compile_seconds": 8.68,
    "sql": {
     "ok": true,
-    "seconds": 1.05,
+    "seconds": 0.768,
     "rows": 3,
     "billed": 88080384,
     "hidden": false
    },
    "memory": {
     "ok": true,
-    "seconds": 0.0645,
+    "seconds": 0.0676,
     "same": true,
     "rows": 3
    }
   },
   {
-   "customer": "-8515986546922041322",
+   "customer": "-8184693656158152476",
    "question": "How many accounts does the customer with customer_key {k} hold, by product line?",
-   "compile_seconds": 8.01,
+   "compile_seconds": 7.1,
    "sql": {
     "ok": true,
-    "seconds": 0.683,
-    "rows": 2,
+    "seconds": 0.631,
+    "rows": 1,
     "billed": 20971520,
     "hidden": false
    },
    "memory": {
     "ok": true,
-    "seconds": 0.0737,
+    "seconds": 0.0824,
     "same": true,
-    "rows": 2
+    "rows": 1
    }
   },
   {
-   "customer": "-8515986546922041322",
+   "customer": "-8184693656158152476",
    "question": "Card spend by merchant category for the customer with customer_key {k}, last quarter",
-   "compile_seconds": 7.35,
+   "compile_seconds": 7.42,
    "sql": {
     "ok": true,
-    "seconds": 0.882,
-    "rows": 9,
-    "billed": 74448896,
-    "hidden": false
-   },
-   "memory": {
-    "ok": true,
-    "seconds": 0.0553,
-    "same": true,
-    "rows": 9
-   }
-  },
-  {
-   "customer": "-8515986546922041322",
-   "question": "Number of card purchases by merchant for the customer with customer_key {k}, last quarter",
-   "compile_seconds": 7.73,
-   "sql": {
-    "ok": true,
-    "seconds": 0.725,
-    "rows": 9,
-    "billed": 98566144,
-    "hidden": false
-   },
-   "memory": {
-    "ok": true,
-    "seconds": 0.0543,
-    "same": true,
-    "rows": 9
-   }
-  },
-  {
-   "customer": "-8515986546922041322",
-   "question": "Deposit amounts by transaction type for the customer with customer_key {k}, last quarter",
-   "compile_seconds": 8.42,
-   "sql": {
-    "ok": true,
-    "seconds": 0.681,
-    "rows": 10,
-    "billed": 104857600,
-    "hidden": false
-   },
-   "memory": {
-    "ok": true,
-    "seconds": 0.0204,
-    "same": true,
-    "rows": 10
-   }
-  },
-  {
-   "customer": "-8515986546922041322",
-   "question": "How many calls did the customer with customer_key {k} make last quarter, by queue?",
-   "compile_seconds": 7.24,
-   "sql": {
-    "ok": true,
-    "seconds": 0.817,
-    "rows": 1,
-    "billed": 10485760,
-    "hidden": false
-   },
-   "memory": {
-    "ok": true,
-    "seconds": 0.0445,
-    "same": true,
-    "rows": 1
-   }
-  },
-  {
-   "customer": "-8515986546922041322",
-   "question": "Calls from the customer with customer_key {k} last quarter, by contact center site",
-   "compile_seconds": 7.13,
-   "sql": {
-    "ok": true,
-    "seconds": 0.941,
-    "rows": 1,
-    "billed": 20971520,
-    "hidden": false
-   },
-   "memory": {
-    "ok": true,
-    "seconds": 0.0632,
-    "same": true,
-    "rows": 1
-   }
-  },
-  {
-   "customer": "-8515986546922041322",
-   "question": "Total card spend of the customer with customer_key {k} in June 2026",
-   "compile_seconds": 7.74,
-   "sql": {
-    "ok": true,
-    "seconds": 0.84,
-    "rows": 1,
-    "billed": 19922944,
-    "hidden": false
-   },
-   "memory": {
-    "ok": true,
-    "seconds": 0.0251,
-    "same": true,
-    "rows": 1
-   }
-  },
-  {
-   "customer": "-8515986546922041322",
-   "question": "How many of the accounts of the customer with customer_key {k} are maintained at each branch?",
-   "compile_seconds": 7.34,
-   "sql": {
-    "ok": true,
-    "seconds": 0.647,
-    "rows": 2,
-    "billed": 20971520,
-    "hidden": false
-   },
-   "memory": {
-    "ok": true,
-    "seconds": 0.0208,
-    "same": true,
-    "rows": 2
-   }
-  },
-  {
-   "customer": "-8515986546922041322",
-   "question": "Average call handle time in seconds for the customer with customer_key {k}, last quarter",
-   "compile_seconds": 7.8,
-   "sql": {
-    "ok": true,
-    "seconds": 0.79,
-    "rows": 1,
-    "billed": 10485760,
-    "hidden": false
-   },
-   "memory": {
-    "ok": true,
-    "seconds": 0.0214,
-    "same": true,
-    "rows": 1
-   }
-  },
-  {
-   "customer": "-8515986546922041322",
-   "question": "Monthly deposit totals for the customer with customer_key {k}, last quarter",
-   "compile_seconds": 7.75,
-   "sql": {
-    "ok": true,
-    "seconds": 0.81,
-    "rows": 3,
-    "billed": 132120576,
-    "hidden": false
-   },
-   "memory": {
-    "ok": true,
-    "seconds": 0.0657,
-    "same": true,
-    "rows": 3
-   }
-  },
-  {
-   "customer": "-8510083905847458547",
-   "question": "How many accounts does the customer with customer_key {k} hold, by product line?",
-   "compile_seconds": 7.38,
-   "sql": {
-    "ok": true,
-    "seconds": 0.612,
-    "rows": 3,
-    "billed": 20971520,
-    "hidden": false
-   },
-   "memory": {
-    "ok": true,
-    "seconds": 0.0224,
-    "same": true,
-    "rows": 3
-   }
-  },
-  {
-   "customer": "-8510083905847458547",
-   "question": "Card spend by merchant category for the customer with customer_key {k}, last quarter",
-   "compile_seconds": 8.16,
-   "sql": {
-    "ok": true,
-    "seconds": 0.693,
+    "seconds": 0.724,
     "rows": 8,
     "billed": 74448896,
     "hidden": false
    },
    "memory": {
     "ok": true,
-    "seconds": 0.0285,
+    "seconds": 0.0566,
     "same": true,
     "rows": 8
    }
   },
   {
-   "customer": "-8510083905847458547",
+   "customer": "-8184693656158152476",
    "question": "Number of card purchases by merchant for the customer with customer_key {k}, last quarter",
-   "compile_seconds": 9.31,
+   "compile_seconds": 7.21,
    "sql": {
     "ok": true,
-    "seconds": 0.664,
+    "seconds": 0.808,
     "rows": 9,
-    "billed": 98566144,
+    "billed": 57671680,
     "hidden": false
    },
    "memory": {
     "ok": true,
-    "seconds": 0.0292,
+    "seconds": 0.0596,
     "same": true,
     "rows": 9
    }
   },
   {
-   "customer": "-8510083905847458547",
+   "customer": "-8184693656158152476",
    "question": "Deposit amounts by transaction type for the customer with customer_key {k}, last quarter",
-   "compile_seconds": 7.51,
+   "compile_seconds": 7.72,
    "sql": {
     "ok": true,
-    "seconds": 0.724,
+    "seconds": 1.276,
+    "rows": 0,
+    "billed": 104857600,
+    "hidden": false
+   },
+   "memory": {
+    "ok": true,
+    "seconds": 0.0243,
+    "same": true,
+    "rows": 0
+   }
+  },
+  {
+   "customer": "-8184693656158152476",
+   "question": "How many calls did the customer with customer_key {k} make last quarter, by queue?",
+   "compile_seconds": 7.82,
+   "sql": {
+    "ok": true,
+    "seconds": 0.637,
+    "rows": 3,
+    "billed": 10485760,
+    "hidden": false
+   },
+   "memory": {
+    "ok": true,
+    "seconds": 0.0201,
+    "same": true,
+    "rows": 3
+   }
+  },
+  {
+   "customer": "-8184693656158152476",
+   "question": "Calls from the customer with customer_key {k} last quarter, by contact center site",
+   "compile_seconds": 7.65,
+   "sql": {
+    "ok": true,
+    "seconds": 0.656,
+    "rows": 3,
+    "billed": 20971520,
+    "hidden": false
+   },
+   "memory": {
+    "ok": true,
+    "seconds": 0.0227,
+    "same": true,
+    "rows": 3
+   }
+  },
+  {
+   "customer": "-8184693656158152476",
+   "question": "Total card spend of the customer with customer_key {k} in June 2026",
+   "compile_seconds": 8.64,
+   "sql": {
+    "ok": true,
+    "seconds": 0.669,
+    "rows": 1,
+    "billed": 19922944,
+    "hidden": false
+   },
+   "memory": {
+    "ok": true,
+    "seconds": 0.0224,
+    "same": true,
+    "rows": 1
+   }
+  },
+  {
+   "customer": "-8184693656158152476",
+   "question": "How many of the accounts of the customer with customer_key {k} are maintained at each branch?",
+   "compile_seconds": 7.82,
+   "sql": {
+    "ok": true,
+    "seconds": 0.689,
+    "rows": 1,
+    "billed": 20971520,
+    "hidden": false
+   },
+   "memory": {
+    "ok": true,
+    "seconds": 0.0563,
+    "same": true,
+    "rows": 1
+   }
+  },
+  {
+   "customer": "-8184693656158152476",
+   "question": "Average call handle time in seconds for the customer with customer_key {k}, last quarter",
+   "compile_seconds": 7.49,
+   "sql": {
+    "ok": true,
+    "seconds": 1.754,
+    "rows": 1,
+    "billed": 10485760,
+    "hidden": false
+   },
+   "memory": {
+    "ok": true,
+    "seconds": 0.0492,
+    "same": true,
+    "rows": 1
+   }
+  },
+  {
+   "customer": "-8184693656158152476",
+   "question": "Monthly deposit totals for the customer with customer_key {k}, last quarter",
+   "compile_seconds": 8.33,
+   "sql": {
+    "ok": true,
+    "seconds": 0.96,
+    "rows": 0,
+    "billed": 132120576,
+    "hidden": false
+   },
+   "memory": {
+    "ok": true,
+    "seconds": 0.0631,
+    "same": true,
+    "rows": 0
+   }
+  },
+  {
+   "customer": "-8180704299001469721",
+   "question": "How many accounts does the customer with customer_key {k} hold, by product line?",
+   "compile_seconds": 8.01,
+   "sql": {
+    "ok": true,
+    "seconds": 0.618,
+    "rows": 1,
+    "billed": 20971520,
+    "hidden": false
+   },
+   "memory": {
+    "ok": true,
+    "seconds": 0.0243,
+    "same": true,
+    "rows": 1
+   }
+  },
+  {
+   "customer": "-8180704299001469721",
+   "question": "Card spend by merchant category for the customer with customer_key {k}, last quarter",
+   "compile_seconds": 8.33,
+   "sql": {
+    "ok": true,
+    "seconds": 0.777,
+    "rows": 8,
+    "billed": 74448896,
+    "hidden": false
+   },
+   "memory": {
+    "ok": true,
+    "seconds": 0.0345,
+    "same": true,
+    "rows": 8
+   }
+  },
+  {
+   "customer": "-8180704299001469721",
+   "question": "Number of card purchases by merchant for the customer with customer_key {k}, last quarter",
+   "compile_seconds": 7.69,
+   "sql": {
+    "ok": true,
+    "seconds": 0.706,
+    "rows": 9,
+    "billed": 57671680,
+    "hidden": false
+   },
+   "memory": {
+    "ok": true,
+    "seconds": 0.0664,
+    "same": true,
+    "rows": 9
+   }
+  },
+  {
+   "customer": "-8180704299001469721",
+   "question": "Deposit amounts by transaction type for the customer with customer_key {k}, last quarter",
+   "compile_seconds": 10.16,
+   "sql": {
+    "ok": true,
+    "seconds": 1.022,
+    "rows": 0,
+    "billed": 104857600,
+    "hidden": false
+   },
+   "memory": {
+    "ok": true,
+    "seconds": 0.0217,
+    "same": true,
+    "rows": 0
+   }
+  },
+  {
+   "customer": "-8180704299001469721",
+   "question": "How many calls did the customer with customer_key {k} make last quarter, by queue?",
+   "compile_seconds": 7.34,
+   "sql": {
+    "ok": true,
+    "seconds": 0.637,
+    "rows": 5,
+    "billed": 10485760,
+    "hidden": false
+   },
+   "memory": {
+    "ok": true,
+    "seconds": 0.0334,
+    "same": true,
+    "rows": 5
+   }
+  },
+  {
+   "customer": "-8180704299001469721",
+   "question": "Calls from the customer with customer_key {k} last quarter, by contact center site",
+   "compile_seconds": 7.82,
+   "sql": {
+    "ok": true,
+    "seconds": 0.692,
+    "rows": 3,
+    "billed": 20971520,
+    "hidden": false
+   },
+   "memory": {
+    "ok": true,
+    "seconds": 0.0699,
+    "same": true,
+    "rows": 3
+   }
+  },
+  {
+   "customer": "-8180704299001469721",
+   "question": "Total card spend of the customer with customer_key {k} in June 2026",
+   "compile_seconds": 8.42,
+   "sql": {
+    "ok": true,
+    "seconds": 0.617,
+    "rows": 1,
+    "billed": 19922944,
+    "hidden": false
+   },
+   "memory": {
+    "ok": true,
+    "seconds": 0.0234,
+    "same": true,
+    "rows": 1
+   }
+  },
+  {
+   "customer": "-8180704299001469721",
+   "question": "How many of the accounts of the customer with customer_key {k} are maintained at each branch?",
+   "compile_seconds": 7.72,
+   "sql": {
+    "ok": true,
+    "seconds": 0.676,
+    "rows": 1,
+    "billed": 20971520,
+    "hidden": false
+   },
+   "memory": {
+    "ok": true,
+    "seconds": 0.074,
+    "same": true,
+    "rows": 1
+   }
+  },
+  {
+   "customer": "-8180704299001469721",
+   "question": "Average call handle time in seconds for the customer with customer_key {k}, last quarter",
+   "compile_seconds": 7.94,
+   "sql": {
+    "ok": true,
+    "seconds": 1.157,
+    "rows": 1,
+    "billed": 10485760,
+    "hidden": false
+   },
+   "memory": {
+    "ok": true,
+    "seconds": 0.0612,
+    "same": true,
+    "rows": 1
+   }
+  },
+  {
+   "customer": "-8180704299001469721",
+   "question": "Monthly deposit totals for the customer with customer_key {k}, last quarter",
+   "compile_seconds": 9.6,
+   "sql": {
+    "ok": true,
+    "seconds": 0.927,
+    "rows": 0,
+    "billed": 88080384,
+    "hidden": false
+   },
+   "memory": {
+    "ok": true,
+    "seconds": 0.0655,
+    "same": true,
+    "rows": 0
+   }
+  },
+  {
+   "customer": "-8176191375513896444",
+   "question": "How many accounts does the customer with customer_key {k} hold, by product line?",
+   "compile_seconds": 7.23,
+   "sql": {
+    "ok": true,
+    "seconds": 0.534,
+    "rows": 2,
+    "billed": 20971520,
+    "hidden": false
+   },
+   "memory": {
+    "ok": true,
+    "seconds": 0.023,
+    "same": true,
+    "rows": 2
+   }
+  },
+  {
+   "customer": "-8176191375513896444",
+   "question": "Card spend by merchant category for the customer with customer_key {k}, last quarter",
+   "compile_seconds": 8.56,
+   "sql": {
+    "ok": true,
+    "seconds": 0.654,
+    "rows": 9,
+    "billed": 74448896,
+    "hidden": false
+   },
+   "memory": {
+    "ok": true,
+    "seconds": 0.0248,
+    "same": true,
+    "rows": 9
+   }
+  },
+  {
+   "customer": "-8176191375513896444",
+   "question": "Number of card purchases by merchant for the customer with customer_key {k}, last quarter",
+   "compile_seconds": 7.75,
+   "sql": {
+    "ok": true,
+    "seconds": 0.859,
+    "rows": 9,
+    "billed": 57671680,
+    "hidden": false
+   },
+   "memory": {
+    "ok": true,
+    "seconds": 0.0455,
+    "same": true,
+    "rows": 9
+   }
+  },
+  {
+   "customer": "-8176191375513896444",
+   "question": "Deposit amounts by transaction type for the customer with customer_key {k}, last quarter",
+   "compile_seconds": 7.67,
+   "sql": {
+    "ok": true,
+    "seconds": 0.712,
     "rows": 10,
     "billed": 104857600,
     "hidden": false
    },
    "memory": {
     "ok": true,
-    "seconds": 0.0298,
+    "seconds": 0.0217,
     "same": true,
     "rows": 10
    }
   },
   {
-   "customer": "-8510083905847458547",
+   "customer": "-8176191375513896444",
    "question": "How many calls did the customer with customer_key {k} make last quarter, by queue?",
-   "compile_seconds": 7.2,
+   "compile_seconds": 7.97,
    "sql": {
     "ok": true,
-    "seconds": 0.718,
-    "rows": 2,
+    "seconds": 0.762,
+    "rows": 1,
+    "billed": 10485760,
+    "hidden": false
+   },
+   "memory": {
+    "ok": true,
+    "seconds": 0.0487,
+    "same": true,
+    "rows": 1
+   }
+  },
+  {
+   "customer": "-8176191375513896444",
+   "question": "Calls from the customer with customer_key {k} last quarter, by contact center site",
+   "compile_seconds": 8.39,
+   "sql": {
+    "ok": true,
+    "seconds": 0.626,
+    "rows": 1,
+    "billed": 20971520,
+    "hidden": false
+   },
+   "memory": {
+    "ok": true,
+    "seconds": 0.0304,
+    "same": true,
+    "rows": 1
+   }
+  },
+  {
+   "customer": "-8176191375513896444",
+   "question": "Total card spend of the customer with customer_key {k} in June 2026",
+   "compile_seconds": 8.3,
+   "sql": {
+    "ok": true,
+    "seconds": 0.705,
+    "rows": 1,
+    "billed": 19922944,
+    "hidden": false
+   },
+   "memory": {
+    "ok": true,
+    "seconds": 0.02,
+    "same": true,
+    "rows": 1
+   }
+  },
+  {
+   "customer": "-8176191375513896444",
+   "question": "How many of the accounts of the customer with customer_key {k} are maintained at each branch?",
+   "compile_seconds": 7.77,
+   "sql": {
+    "ok": true,
+    "seconds": 0.727,
+    "rows": 3,
+    "billed": 20971520,
+    "hidden": false
+   },
+   "memory": {
+    "ok": true,
+    "seconds": 0.024,
+    "same": true,
+    "rows": 3
+   }
+  },
+  {
+   "customer": "-8176191375513896444",
+   "question": "Average call handle time in seconds for the customer with customer_key {k}, last quarter",
+   "compile_seconds": 8.81,
+   "sql": {
+    "ok": true,
+    "seconds": 0.627,
+    "rows": 1,
+    "billed": 10485760,
+    "hidden": false
+   },
+   "memory": {
+    "ok": true,
+    "seconds": 0.0212,
+    "same": true,
+    "rows": 1
+   }
+  },
+  {
+   "customer": "-8176191375513896444",
+   "question": "Monthly deposit totals for the customer with customer_key {k}, last quarter",
+   "compile_seconds": 7.92,
+   "sql": {
+    "ok": true,
+    "seconds": 1.377,
+    "rows": 3,
+    "billed": 88080384,
+    "hidden": false
+   },
+   "memory": {
+    "ok": true,
+    "seconds": 0.0665,
+    "same": true,
+    "rows": 3
+   }
+  },
+  {
+   "customer": "-8167080191698440242",
+   "question": "How many accounts does the customer with customer_key {k} hold, by product line?",
+   "compile_seconds": 8.0,
+   "sql": {
+    "ok": true,
+    "seconds": 0.818,
+    "rows": 3,
     "billed": 20971520,
     "hidden": false
    },
@@ -686,277 +794,169 @@
     "ok": true,
     "seconds": 0.0225,
     "same": true,
-    "rows": 2
-   }
-  },
-  {
-   "customer": "-8510083905847458547",
-   "question": "Calls from the customer with customer_key {k} last quarter, by contact center site",
-   "compile_seconds": 7.5,
-   "sql": {
-    "ok": true,
-    "seconds": 0.836,
-    "rows": 1,
-    "billed": 20971520,
-    "hidden": false
-   },
-   "memory": {
-    "ok": true,
-    "seconds": 0.0284,
-    "same": true,
-    "rows": 1
-   }
-  },
-  {
-   "customer": "-8510083905847458547",
-   "question": "Total card spend of the customer with customer_key {k} in June 2026",
-   "compile_seconds": 7.82,
-   "sql": {
-    "ok": true,
-    "seconds": 0.67,
-    "rows": 1,
-    "billed": 19922944,
-    "hidden": false
-   },
-   "memory": {
-    "ok": true,
-    "seconds": 0.0203,
-    "same": true,
-    "rows": 1
-   }
-  },
-  {
-   "customer": "-8510083905847458547",
-   "question": "How many of the accounts of the customer with customer_key {k} are maintained at each branch?",
-   "compile_seconds": 7.18,
-   "sql": {
-    "ok": true,
-    "seconds": 0.691,
-    "rows": 3,
-    "billed": 20971520,
-    "hidden": false
-   },
-   "memory": {
-    "ok": true,
-    "seconds": 0.0644,
-    "same": true,
     "rows": 3
    }
   },
   {
-   "customer": "-8510083905847458547",
-   "question": "Average call handle time in seconds for the customer with customer_key {k}, last quarter",
-   "compile_seconds": 6.73,
-   "sql": {
-    "ok": true,
-    "seconds": 1.807,
-    "rows": 1,
-    "billed": 10485760,
-    "hidden": false
-   },
-   "memory": {
-    "ok": true,
-    "seconds": 0.0205,
-    "same": true,
-    "rows": 1
-   }
-  },
-  {
-   "customer": "-8510083905847458547",
-   "question": "Monthly deposit totals for the customer with customer_key {k}, last quarter",
-   "compile_seconds": 7.78,
-   "sql": {
-    "ok": true,
-    "seconds": 1.088,
-    "rows": 3,
-    "billed": 88080384,
-    "hidden": false
-   },
-   "memory": {
-    "ok": true,
-    "seconds": 0.0239,
-    "same": true,
-    "rows": 3
-   }
-  },
-  {
-   "customer": "-8506285815963027694",
-   "question": "How many accounts does the customer with customer_key {k} hold, by product line?",
-   "compile_seconds": 7.44,
-   "sql": {
-    "ok": true,
-    "seconds": 0.989,
-    "rows": 2,
-    "billed": 20971520,
-    "hidden": false
-   },
-   "memory": {
-    "ok": true,
-    "seconds": 0.0314,
-    "same": true,
-    "rows": 2
-   }
-  },
-  {
-   "customer": "-8506285815963027694",
+   "customer": "-8167080191698440242",
    "question": "Card spend by merchant category for the customer with customer_key {k}, last quarter",
-   "compile_seconds": 7.28,
+   "compile_seconds": 8.42,
    "sql": {
     "ok": true,
-    "seconds": 0.853,
+    "seconds": 0.698,
     "rows": 9,
     "billed": 74448896,
     "hidden": false
    },
    "memory": {
     "ok": true,
-    "seconds": 0.0342,
+    "seconds": 0.0309,
     "same": true,
     "rows": 9
    }
   },
   {
-   "customer": "-8506285815963027694",
+   "customer": "-8167080191698440242",
    "question": "Number of card purchases by merchant for the customer with customer_key {k}, last quarter",
-   "compile_seconds": 7.25,
+   "compile_seconds": 7.73,
    "sql": {
     "ok": true,
-    "seconds": 0.738,
+    "seconds": 0.648,
     "rows": 9,
     "billed": 98566144,
     "hidden": false
    },
    "memory": {
     "ok": true,
-    "seconds": 0.0747,
+    "seconds": 0.0648,
     "same": true,
     "rows": 9
    }
   },
   {
-   "customer": "-8506285815963027694",
+   "customer": "-8167080191698440242",
    "question": "Deposit amounts by transaction type for the customer with customer_key {k}, last quarter",
-   "compile_seconds": 7.85,
+   "compile_seconds": 7.84,
    "sql": {
     "ok": true,
-    "seconds": 1.618,
-    "rows": 0,
+    "seconds": 1.13,
+    "rows": 10,
     "billed": 104857600,
     "hidden": false
    },
    "memory": {
     "ok": true,
-    "seconds": 0.0444,
+    "seconds": 0.0317,
     "same": true,
-    "rows": 0
+    "rows": 10
    }
   },
   {
-   "customer": "-8506285815963027694",
+   "customer": "-8167080191698440242",
    "question": "How many calls did the customer with customer_key {k} make last quarter, by queue?",
-   "compile_seconds": 7.0,
+   "compile_seconds": 7.22,
    "sql": {
     "ok": true,
-    "seconds": 0.875,
-    "rows": 2,
+    "seconds": 0.674,
+    "rows": 1,
     "billed": 10485760,
     "hidden": false
    },
    "memory": {
     "ok": true,
-    "seconds": 0.0494,
+    "seconds": 0.0233,
     "same": true,
-    "rows": 2
+    "rows": 1
    }
   },
   {
-   "customer": "-8506285815963027694",
+   "customer": "-8167080191698440242",
    "question": "Calls from the customer with customer_key {k} last quarter, by contact center site",
-   "compile_seconds": 7.51,
+   "compile_seconds": 7.96,
    "sql": {
     "ok": true,
-    "seconds": 0.9,
-    "rows": 2,
+    "seconds": 0.724,
+    "rows": 1,
     "billed": 20971520,
     "hidden": false
    },
    "memory": {
     "ok": true,
-    "seconds": 0.0248,
+    "seconds": 0.027,
     "same": true,
-    "rows": 2
+    "rows": 1
    }
   },
   {
-   "customer": "-8506285815963027694",
+   "customer": "-8167080191698440242",
    "question": "Total card spend of the customer with customer_key {k} in June 2026",
-   "compile_seconds": 7.21,
+   "compile_seconds": 7.8,
    "sql": {
     "ok": true,
-    "seconds": 0.7,
+    "seconds": 0.872,
     "rows": 1,
     "billed": 19922944,
     "hidden": false
    },
    "memory": {
     "ok": true,
-    "seconds": 0.0215,
+    "seconds": 0.0248,
     "same": true,
     "rows": 1
    }
   },
   {
-   "customer": "-8506285815963027694",
+   "customer": "-8167080191698440242",
    "question": "How many of the accounts of the customer with customer_key {k} are maintained at each branch?",
-   "compile_seconds": 8.0,
+   "compile_seconds": 8.13,
    "sql": {
     "ok": true,
-    "seconds": 0.596,
-    "rows": 2,
+    "seconds": 0.774,
+    "rows": 3,
     "billed": 20971520,
     "hidden": false
    },
    "memory": {
     "ok": true,
-    "seconds": 0.0202,
+    "seconds": 0.059,
     "same": true,
-    "rows": 2
+    "rows": 3
    }
   },
   {
-   "customer": "-8506285815963027694",
+   "customer": "-8167080191698440242",
    "question": "Average call handle time in seconds for the customer with customer_key {k}, last quarter",
-   "compile_seconds": 7.24,
+   "compile_seconds": 8.61,
    "sql": {
     "ok": true,
-    "seconds": 0.932,
+    "seconds": 0.692,
     "rows": 1,
     "billed": 10485760,
     "hidden": false
    },
    "memory": {
     "ok": true,
-    "seconds": 0.0164,
+    "seconds": 0.0236,
     "same": true,
     "rows": 1
    }
   },
   {
-   "customer": "-8506285815963027694",
+   "customer": "-8167080191698440242",
    "question": "Monthly deposit totals for the customer with customer_key {k}, last quarter",
-   "compile_seconds": 7.53,
+   "compile_seconds": 8.79,
    "sql": {
     "ok": true,
-    "seconds": 1.302,
-    "rows": 0,
-    "billed": 88080384,
+    "seconds": 1.014,
+    "rows": 3,
+    "billed": 90177536,
     "hidden": false
    },
    "memory": {
     "ok": true,
-    "seconds": 0.0212,
+    "seconds": 0.0638,
     "same": true,
-    "rows": 0
+    "rows": 3
    }
   }
  ],
@@ -967,31 +967,31 @@
   "same answer": 50,
   "not memory": [],
   "sql latency": {
-   "median": 0.815,
-   "p95": 1.711
+   "median": 0.709,
+   "p95": 1.278
   },
   "memory latency": {
-   "median": 0.031,
-   "p95": 0.075
+   "median": 0.045,
+   "p95": 0.079
   },
   "compile latency": {
-   "median": 7.52,
-   "p95": 8.88
+   "median": 7.83,
+   "p95": 8.81
   },
   "without memory": {
-   "seconds": 44.993,
-   "billed": 2372927488
+   "seconds": 40.417,
+   "billed": 2231369728
   },
   "with memory": {
-   "seconds": 7.9981,
-   "billed": 590348288
+   "seconds": 7.5622,
+   "billed": 634388480
   },
   "sql jobs hidden": 0,
-  "question billed (mean)": 47458549.76,
+  "question billed (mean)": 44627394.56,
   "break-even questions per customer": {
-   "one at a time": 12.350861688024747,
-   "a batch of 5 (the session's)": 2.487847989394609,
-   "a batch of 50": 0.2708793636765356
+   "one at a time": 12.711466165413533,
+   "a batch of 5 (the session's)": 2.843045112781955,
+   "a batch of 50": 0.2880639097744361
   }
  }
 }

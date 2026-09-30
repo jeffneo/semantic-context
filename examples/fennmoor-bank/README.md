@@ -64,7 +64,7 @@ What `build` prints, stage by stage:
 - **variables**: join confidence for all 156 join keys (5 suspect: the planted wrong joins), then 50
   variables over 177 columns; the other 3,948 columns are `:Unjoined`.
 - **cluster**: 109 level-1 groups, median stability 0.95.
-- **hierarchy**: 109 → 16 → 5.
+- **hierarchy**: 109 → 15 → 4.
 - **align**: 79 glossary terms and 58 ontology classes; the catalog's term agrees with the embedding
   match for 24 of 30 bound variables, and the diff (`work/ALIGNMENT.md`) surfaces all three planted wrong
   bindings.

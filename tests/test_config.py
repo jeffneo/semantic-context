@@ -46,3 +46,17 @@ def test_missing_config_is_a_clear_error(tmp_path, monkeypatch):
         assert "QLSC_CONFIG" in str(e)
     else:
         raise AssertionError("expected a ConfigError")
+
+
+def test_an_llm_call_is_priced_at_its_models_rate(tmp_path, monkeypatch):
+    """The query model costs what it costs, not Haiku's rate."""
+    from qlsc.llm import LLM
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+    f = tmp_path / "estate.yaml"
+    f.write_text("business: {name: a bank, kind: bank}\n")
+    s = config.load(f)
+    naming, query = LLM("", s), LLM("", s, s["llm"]["query_model"])
+    for c in (naming, query):
+        c.tokens.update({"in": 1_000_000, "out": 1_000_000})
+    assert naming.cost() == 6.0 and query.cost() == 12.0

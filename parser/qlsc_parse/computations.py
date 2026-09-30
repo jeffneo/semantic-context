@@ -92,15 +92,16 @@ def _conjuncts(where: exp.Expression | None) -> list[exp.Expression]:
     return out
 
 
-def computations(sql: str, catalog: Catalog, default_project: str | None = None) -> list[dict]:
-    """-> [{kind, expression, columns, tables, filters, filter_columns, grain}] for every scope of every
-    statement. `filter_columns` lists each filter's columns, so a caller can drop a filter it knows
-    to be a parameter (its value varies from run to run)."""
+def computations(sql: str, catalog: Catalog, default_project: str | None = None) -> dict:
+    """-> {computations: [{kind, expression, columns, tables, filters, filter_columns, grain}] for every
+    scope of every statement, errors: why a statement couldn't be read}. `filter_columns` lists each
+    filter's columns, so a caller can drop a filter it knows to be a parameter (its value varies from run
+    to run)."""
     try:
         trees = [t for t in sqlglot.parse(sql, read="bigquery") if t is not None]
-    except Exception:
-        return []
-    out = []
+    except Exception as e:  # sqlglot raises several error types
+        return {"computations": [], "errors": [f"parse: {type(e).__name__}: {str(e)[:200]}"]}
+    out, errors = [], []
     for t in trees:
         catalog.canonicalize_tables(t, default_project)
         try:
@@ -113,7 +114,8 @@ def computations(sql: str, catalog: Catalog, default_project: str | None = None)
                 quote_identifiers=False,
             )
             scopes = traverse_scope(t)
-        except Exception:
+        except Exception as e:
+            errors.append(f"qualify: {type(e).__name__}: {str(e)[:200]}")
             continue
         for sc in scopes:
             sel = sc.expression
@@ -172,4 +174,4 @@ def computations(sql: str, catalog: Catalog, default_project: str | None = None)
                         "grain": [],
                     }
                 )
-    return out
+    return {"computations": out, "errors": errors}

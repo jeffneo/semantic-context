@@ -104,14 +104,19 @@ def evidence(G: Graph, variables: dict[str, list[str]]) -> dict[str, str]:
         lines += [f"- {short(c)} {col[c]['type'] or ''}".rstrip() for c in cs[:SHOW_COLUMNS]]
         if len(cs) > SHOW_COLUMNS:
             lines.append(f"- ... and {len(cs) - SHOW_COLUMNS} more")
-        top = joins[v].most_common(8)
+        top = sorted(joins[v].items(), key=lambda x: (-x[1], x[0]))[
+            :8
+        ]  # ties by name: the text is a cache key
         if top:
             lines.append(
                 "joined as: " + "; ".join(f"{short(a)} = {short(b)} ({n} queries)" for (a, b), n in top)
             )
         if values[v]:
             lines.append(
-                "values queries filter on: " + ", ".join(repr(x) for x, _ in values[v].most_common(8))
+                "values queries filter on: "
+                + ", ".join(
+                    repr(x) for x, _ in sorted(values[v].items(), key=lambda x: (-x[1], str(x[0])))[:8]
+                )
             )
         out[v] = "\n".join(lines)
     return out

@@ -31,81 +31,82 @@ import datetime as dt
 import json
 import time
 
-from common import quantiles, settings, write_result
+from common import quantiles, settings, typed, write_result
 
 from qlsc import entitle, memory
 from qlsc.graph import Graph
 
 NAMED = ["0001000025", "0001000021"]  # the graph questions' customers (graph_questions.yaml)
 OTHERS = 18
-CALLERS = """
-MATCH (k:Call)-[:RECEIVED_FROM]->(c:Customer) WHERE k.conversation_date >= $since
+CALLERS = typed("""
+MATCH (k:Call)-[:REL(Call,Customer)]->(c:Customer) WHERE k.conversation_date >= $since
 RETURN DISTINCT c.customer_key AS key ORDER BY key LIMIT $n
-"""
+""")
 BY_CIF = "MATCH (c:Customer) WHERE c.cif_number IN $cifs RETURN c.customer_key AS key, c.cif_number AS cif"
 
 # The same text on memory and on the virtual graph: one source, so no source filter (plan: Collisions).
 # Each reads within the template and its window; `over` names the relationships it needs uncapped.
 QUESTIONS = {
     "accounts by product line": (
-        ["Customer<-OWNED_BY-Account"],
-        """MATCH (a:Account)-[:OWNED_BY]->(c:Customer), (a)-[:CONTAINS]->(p:Product)
+        ["Customer<-REL(Account,Customer)-Account"],
+        """MATCH (a:Account)-[:REL(Account,Customer)]->(c:Customer), (a)-[:REL(Account,Product)]->(p:Product)
 WHERE c.customer_key = $key
 RETURN p.product_line AS product_line, count(a) AS accounts ORDER BY product_line""",
     ),
     "accounts by branch": (
-        ["Customer<-OWNED_BY-Account"],
-        """MATCH (a:Account)-[:OWNED_BY]->(c:Customer), (a)-[:MAINTAINED_AT]->(b:Branch)
+        ["Customer<-REL(Account,Customer)-Account"],
+        """MATCH (a:Account)-[:REL(Account,Customer)]->(c:Customer), (a)-[:REL(Account,Branch)]->(b:Branch)
 WHERE c.customer_key = $key
 RETURN b.branch_name AS branch, count(a) AS accounts ORDER BY branch""",
     ),
     "calls by agent": (
-        ["Customer<-RECEIVED_FROM-Call"],
-        """MATCH (k:Call)-[:RECEIVED_FROM]->(c:Customer), (k)-[:HANDLED_BY]->(g:Agent)
+        ["Customer<-REL(Call,Customer)-Call"],
+        """MATCH (k:Call)-[:REL(Call,Customer)]->(c:Customer), (k)-[:REL(Call,Agent)]->(g:Agent)
 WHERE c.customer_key = $key AND k.conversation_date >= $since
 RETURN g.agent_name AS agent, count(k) AS calls ORDER BY agent""",
     ),
     "calls by site and queue": (
-        ["Customer<-RECEIVED_FROM-Call"],
-        """MATCH (k:Call)-[:RECEIVED_FROM]->(c:Customer), (k)-[:SERVICED_AT]->(x:ContactCenterSite),
-      (k)-[:ROUTED_THROUGH]->(q:Queue)
+        ["Customer<-REL(Call,Customer)-Call"],
+        """MATCH (k:Call)-[:REL(Call,Customer)]->(c:Customer), (k)-[:REL(Call,ContactCenterSite)]->(x:ContactCenterSite),
+      (k)-[:REL(Call,Queue)]->(q:Queue)
 WHERE c.customer_key = $key AND k.conversation_date >= $since
 RETURN x.site_name AS site, q.queue_name AS queue, count(k) AS calls ORDER BY site, queue""",
     ),
     "card spend by merchant category": (
-        ["Customer<-MADE_BY-CardTransaction"],
-        """MATCH (t:CardTransaction)-[:MADE_BY]->(c:Customer), (t)-[:TRANSACTED_AT]->(m:Merchant)
+        ["Customer<-REL(CardTransaction,Customer)-CardTransaction"],
+        """MATCH (t:CardTransaction)-[:REL(CardTransaction,Customer)]->(c:Customer), (t)-[:REL(CardTransaction,Merchant)]->(m:Merchant)
 WHERE c.customer_key = $key AND t.post_date >= $since
 RETURN m.category_group AS category, count(t) AS purchases, sum(t.amount) AS amount ORDER BY category""",
     ),
     "deposits by account product": (
-        ["Customer<-INITIATED_BY-DepositTransaction"],
-        """MATCH (d:DepositTransaction)-[:INITIATED_BY]->(c:Customer), (d)-[:CREDITED_TO]->(a:Account)
+        ["Customer<-REL(DepositTransaction,Customer)-DepositTransaction"],
+        """MATCH (d:DepositTransaction)-[:REL(DepositTransaction,Customer)]->(c:Customer), (d)-[:REL(DepositTransaction,Account)]->(a:Account)
 WHERE c.customer_key = $key AND d.posted_date >= $since
 RETURN a.product_name AS product, d.transaction_type AS type, count(d) AS n, sum(d.amount) AS amount
 ORDER BY product, type""",
     ),
 }
+QUESTIONS = {k: ([typed(x) for x in over], typed(q)) for k, (over, q) in QUESTIONS.items()}
 # The remembered facts: not the Steps each recall leaves, nor their READs (the record of who read what)
 COUNTS = """
 MATCH (n) WHERE NOT n:Step WITH count(n) AS nodes
 MATCH ()-[r]->() WHERE type(r) <> 'READ' RETURN nodes, count(r) AS relationships
 """
-PLANT = """
+PLANT = typed("""
 MATCH (c:Customer {source: $source, customer_key: $key})
 MERGE (k:Call {source: $source, conversation_id: $id})
 SET k.conversation_date = $day, k.customer_key = $key, k.fetched_at = $old, k.holds_until = $old
-MERGE (k)-[:RECEIVED_FROM]->(c)
-"""
+MERGE (k)-[:REL(Call,Customer)]->(c)
+""")
 # A remembered call made to point elsewhere, as a stale copy of a fact that moved would.
-MOVE = """
-MATCH (k:Call {source: $source, conversation_id: $id})-[x:RECEIVED_FROM]->() DELETE x
+MOVE = typed("""
+MATCH (k:Call {source: $source, conversation_id: $id})-[x:REL(Call,Customer)]->() DELETE x
 SET k.customer_key = -1
-"""
-POINTS_AT = """
+""")
+POINTS_AT = typed("""
 MATCH (k:Call {source: $source, conversation_id: $id})
-RETURN k.customer_key AS key, [(k)-[:RECEIVED_FROM]->(c:Customer) | c.customer_key] AS ends
-"""
+RETURN k.customer_key AS key, [(k)-[:REL(Call,Customer)]->(c:Customer) | c.customer_key] AS ends
+""")
 UNPLANT = "MATCH (k:Call {source: $source, conversation_id: $id}) DETACH DELETE k"
 STALE_ID = "qlsc-memory-check-stale"
 # The freshness checks start from no record of the customer's context for this reader, and leave none dated

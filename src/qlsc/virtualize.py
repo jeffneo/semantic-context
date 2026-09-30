@@ -113,7 +113,7 @@ RETURN ta.id AS a, a.name AS ac, tb.id AS b, b.name AS bc, k.confidence AS confi
 GROUPS = """
 MATCH (t:Table)-[:HAS_COLUMN]->(:Column)-[:IS]->{0,1}(u)-[:IN_SEMANTIC]->(g:Semantic {level: 1})
 WHERE t.id IN $tables AND (u:Variable OR u:Unjoined)
-WITH t, g, count(*) AS n ORDER BY n DESC
+WITH t, g, count(*) AS n ORDER BY n DESC, g.name
 RETURN t.id AS table, collect(g.name)[0] AS area
 """
 

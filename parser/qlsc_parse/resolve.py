@@ -773,39 +773,19 @@ def writes_of(ctx: Ctx, t: exp.Expression, root_scopes: dict) -> list[dict]:
 
 
 def dml_filters(ctx: Ctx, t: exp.Expression):
-    """DELETE/UPDATE have no Select scope: their WHERE columns belong to the target."""
+    """DELETE/UPDATE have no Select scope: their WHERE is read as `SELECT 1 FROM <target> WHERE ...`'s, so
+    its columns belong to the target and its predicates are classified as a SELECT's are."""
     tgt = t.this if isinstance(t.this, exp.Table) else None
     where = t.args.get("where")
     if tgt is None or where is None:
         return
     target = fqn(tgt)
     ctx.tables.setdefault(target, (ctx.catalog.get(target) or {}).get("kind", "unknown").lower())
-    for n in where.walk():
-        if isinstance(n, COMPARISONS + (exp.Between, exp.In)):
-            col = n.this if isinstance(n.this, exp.Column) else None
-            if col is None:
-                continue
-            spelled = ctx.catalog.column(target, col.name)
-            if spelled is None:
-                ctx.miss("column", f"{target}.{col.name}", "not in table")
-                continue
-            consts = [x for k, x in n.args.items() if k != "this" and isinstance(x, exp.Expression)]
-            consts += n.expressions if isinstance(n, exp.In) else []
-            ctx.filters.append(
-                {
-                    "table": target,
-                    "column": spelled,
-                    "path": None,
-                    "op": n.key.upper(),
-                    "wrap": [],
-                    "slots": [s for c in consts for s in slots_in(c)],
-                    "clause": "where",
-                    "scope": "main",
-                    "via": "direct",
-                    "_scope": 0,
-                }
-            )
-            add_read(ctx, Origin(target, spelled), "filter", None)
+    sel = exp.Select(expressions=[exp.Literal.number(1)]).from_(tgt.copy()).where(where.this.copy())
+    scopes = traverse_scope(sel)
+    ctx.scope_of.update({id(sc.expression): sc for sc in scopes})
+    for sc in scopes:
+        analyze_scope(ctx, sc)
 
 
 def dedupe_filters(fs: list[dict]) -> list[dict]:

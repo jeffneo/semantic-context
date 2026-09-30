@@ -12,6 +12,9 @@ llm:
                                      # can't turn thinking off; between_tools is its lowest, no thinking before a single
                                      # answer, as the query model ran on Sonnet 5
   concurrency: 6
+  prices:                            # list prices, $ per million tokens in and out (platform.claude.com pricing, 2026-09-29): what a run's summary reports
+    - {model: claude-haiku-4-5-20251001, in: 1, out: 5}
+    - {model: claude-sonnet-5-5, in: 2, out: 10}
 
 entitlements:                         # qlsc ask --as: the gateway (plans/2026-09-27-entitlements.md). The estate's config names its principals
   allowlist_seconds: 900              # how long a principal's allowlist is reused: well under a policy change's reach, long enough for a session

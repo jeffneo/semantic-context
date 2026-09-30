@@ -56,7 +56,8 @@ def extract_log(wh: Warehouse, work) -> None:
 def build_catalog(physical: dict, rules: list[dict], warehouse: str, dialect: str) -> dict:
     """The connector's physical tables -> the snapshot the parser and the graph use, keyed by canonical name
     (qlsc_parse.catalog.canonical): logical names, shard families (2+ tables sharing a prefix with a date
-    suffix) as one wildcard table, volatile identifiers canonicalized (a Looker PDT generation -> LR_{id}_name)."""
+    suffix) as one wildcard table, volatile identifiers canonicalized (a Looker PDT generation -> LR_{id}_name,
+    its generations in the order they were made)."""
     project, aliases = physical["project"], physical["aliases"]
     families = defaultdict(list)
     for ds, name in physical["tables"]:
@@ -69,7 +70,7 @@ def build_catalog(physical: dict, rules: list[dict], warehouse: str, dialect: st
         if len(names) >= 2 and f"{project}.{ds}" in aliases
     }
     compiled = [(re.compile(r["pattern"]), r["replace"]) for r in rules]
-    tables = {}
+    tables, made = {}, {}  # made: a volatile name's creation time
     for (ds, name), t in sorted(physical["tables"].items()):
         if f"{project}.{ds}" not in aliases:
             continue
@@ -91,6 +92,7 @@ def build_catalog(physical: dict, rules: list[dict], warehouse: str, dialect: st
             entry["view_sql"] = t["view_sql"]
         if fqn.rsplit(".", 1)[1] != name:
             entry["physical"] = [name]
+            made[name] = t.get("created") or ""
             if fqn in tables:
                 prev = tables[fqn]
                 prev["columns"].update(entry["columns"])
@@ -101,6 +103,8 @@ def build_catalog(physical: dict, rules: list[dict], warehouse: str, dialect: st
         if e["kind"] == "WILDCARD":
             e["columns"]["_TABLE_SUFFIX"] = "STRING"
             e["shards"].sort()
+        if "physical" in e:  # a Looker PDT's generations, oldest first: its ids aren't in time order
+            e["physical"].sort(key=lambda n: (made[n], n))
     body = {
         "rules": rules,
         "aliases": aliases,

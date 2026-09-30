@@ -160,11 +160,8 @@ def main() -> int:
         rows = H.knn(G, 1, k, vecs, use, write=False)
         for g2 in (1.5, 3.0, 4.5):
             parts = []
-            for seed in (1, 2, 3):
-                G.project_pairs(
-                    "robust", [{"a": x["a"], "b": x["b"], "w": max(x["score"], 1e-3)} for x in rows]
-                )
-                parts.append({m: k for k, ms in G.leiden("robust", g2, seed).items() for m in ms})
+            for seed in (1, 2, 3):  # the tool's own level-2 step, on the tool's weights
+                parts.append({m: k for k, ms in H.communities(G, 1, rows, g2, seed).items() for m in ms})
             tp = {
                 t: parts[0][c.most_common(1)[0][0]]
                 for t, c in members.items()

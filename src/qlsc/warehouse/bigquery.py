@@ -126,7 +126,7 @@ GROUP BY 1, 2
 COLUMNS_SQL = """
 SELECT c.table_schema, c.table_name, t.table_type, c.column_name, c.ordinal_position,
        c.data_type, c.is_partitioning_column = 'YES' AS is_partition,
-       c.clustering_ordinal_position
+       c.clustering_ordinal_position, t.creation_time
 FROM `{project}.{ds}.INFORMATION_SCHEMA.COLUMNS` c
 JOIN `{project}.{ds}.INFORMATION_SCHEMA.TABLES` t USING (table_schema, table_name)
 """
@@ -178,6 +178,7 @@ class BigQuery(Warehouse):
     def catalog(self) -> dict:
         project, prefix = self.cfg["project"], self.cfg["dataset_prefix"]
         exclude = set(self.cfg.get("exclude_datasets", []))
+        exclude.add(self.settings.get("virtualize", {}).get("dataset"))  # qlsc's own views, never evidence
         datasets = sorted(
             d.dataset_id
             for d in self.client.list_datasets()
@@ -190,7 +191,13 @@ class BigQuery(Warehouse):
         for r in self._query(union(COLUMNS_SQL) + "ORDER BY 1, 2, 5"):
             t = tables.setdefault(
                 (r["table_schema"], r["table_name"]),
-                {"type": r["table_type"], "columns": {}, "partition": None, "cluster": []},
+                {
+                    "type": r["table_type"],
+                    "columns": {},
+                    "partition": None,
+                    "cluster": [],
+                    "created": r["creation_time"].isoformat() if r["creation_time"] else None,
+                },
             )
             t["columns"][r["column_name"]] = r["data_type"]
             if r["is_partition"]:

@@ -385,6 +385,16 @@ def test_delete_filter():
     assert r["writes"] == [{"table": "p.raw.account", "mode": "DELETE", "columns": []}]
 
 
+def test_a_delete_or_update_filter_is_classified_as_a_selects():
+    """The same operators and negation as a SELECT's WHERE: one classifier."""
+    where = "WHERE BAL_DT < DATE '2026-06-01' AND NOT (BAL > 5) AND CIF_NO NOT IN ('a', 'b')"
+    select = R(f"SELECT 1 FROM `p.raw.account` {where}")
+    ops = lambda r: sorted((f["column"], f["op"]) for f in r["filters"])
+    assert ops(R(f"DELETE FROM `p.raw.account` {where}")) == ops(select)
+    assert ops(R(f"UPDATE `p.raw.account` SET BAL = 0 {where}")) == ops(select)
+    assert ("BAL_DT", "<") in ops(select) and ("BAL", "NOT >") in ops(select)
+
+
 def test_negated_predicates():
     r = R(
         "SELECT 1 FROM `p.dw.fct_txn` WHERE mcc IS NOT NULL AND mcc NOT IN ('1', '2') "
@@ -554,7 +564,7 @@ def test_computations_over_base_columns():
         "FROM `p.dw.fct_txn` t JOIN `p.dw.dim_customer` c ON t.customer_key = c.customer_key "
         "WHERE c.segment IN ('affluent', 'private') AND t.post_date >= '2026-04-01' GROUP BY 1, 3",
         CAT,
-    )
+    )["computations"]
     kinds = {(c["kind"], c["expression"]) for c in got}
     assert ("measure", "SUM(fct_txn.amount_cents)") in kinds
     assert ("dimension", "CASE WHEN fct_txn.amount_cents > 100 THEN 'big' ELSE 'small' END") in kinds
@@ -565,3 +575,10 @@ def test_computations_over_base_columns():
         "CASE WHEN fct_txn.amount_cents > 100 THEN 'big' ELSE 'small' END",
         "dim_customer.segment",
     ]
+
+
+def test_a_statement_computations_cant_read_is_an_error_not_nothing():
+    from qlsc_parse.computations import computations
+
+    assert computations("SELEC nothing FROM", CAT)["errors"]
+    assert not computations("SELECT SUM(amount_cents) FROM `p.dw.fct_txn`", CAT)["errors"]

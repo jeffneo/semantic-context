@@ -35,19 +35,19 @@ from __future__ import annotations
 
 import json
 
-from common import settings, write_result
+from common import settings, typed, write_result
 
 from qlsc import converse, distill, entitle, memory
 
 TITLE = "distill check: "
-CARD_CUSTOMERS = """
-MATCH (t:CardTransaction)-[:MADE_BY]->(c:Customer) WHERE t.post_date >= $since
+CARD_CUSTOMERS = typed("""
+MATCH (t:CardTransaction)-[:REL(CardTransaction,Customer)]->(c:Customer) WHERE t.post_date >= $since
 RETURN DISTINCT c.customer_key AS key ORDER BY key LIMIT $n
-"""
-KS_NE_CUSTOMERS = """
-MATCH (d:DepositTransaction)-[:INITIATED_BY]->(c:Customer) WHERE d.posted_date >= $since AND c.state_code IN ['KS', 'NE']
+""")
+KS_NE_CUSTOMERS = typed("""
+MATCH (d:DepositTransaction)-[:REL(DepositTransaction,Customer)]->(c:Customer) WHERE d.posted_date >= $since AND c.state_code IN ['KS', 'NE']
 RETURN DISTINCT c.customer_key AS key ORDER BY key LIMIT $n
-"""
+""")
 FORGET = """
 MATCH (c:Conversation) WHERE c.title STARTS WITH $title
 OPTIONAL MATCH (x)-[:PART_OF]->(c)

@@ -1,15 +1,15 @@
 {
  "conversations": {
   "marketing-1": {
-   "id": "b2fcda69-e714-4706-93dd-21afa88cdc2b",
+   "id": "05b706cd-a088-44de-a19a-79fe745ef8cf",
    "as": "qlsc-marketing@jeffdavis-bq-testproj.iam.gserviceaccount.com"
   },
   "marketing-2": {
-   "id": "0a3649cd-aa42-4131-92c4-00993dfbeb18",
+   "id": "60a482f3-3c41-4d3f-b3f5-62b871d9ace3",
    "as": "qlsc-marketing@jeffdavis-bq-testproj.iam.gserviceaccount.com"
   },
   "risk-1": {
-   "id": "c7e6fd93-cfd6-4b61-88ff-5d4aabe024ac",
+   "id": "b9be5f63-ab43-4ca9-97b1-3f28c0d37be9",
    "as": "qlsc-risk@jeffdavis-bq-testproj.iam.gserviceaccount.com"
   }
  },
@@ -45,7 +45,7 @@
    "ok": true,
    "tool": "ask",
    "status": "ok",
-   "fingerprint": "ask {\"dimensions\": [{\"column\": \"dw_core.dim_merchant.mcc_description\"}], \"filters\": [{\"column\": \"dw_core.fct_card_transactions.customer_key\", \"op\": \"=\"}], \"measures\": [{\"computation\": \"ddb1443582c2c1c5\"}], \"period\": {\"column\": \"dw_core.fct_card_transactions.post_date\", \"from\": \"?\", \"to\": \"?\"}}",
+   "fingerprint": "ask {\"dimensions\": [{\"column\": \"dw_core.dim_merchant.category_group\"}], \"filters\": [{\"column\": \"dw_core.fct_card_transactions.customer_key\", \"op\": \"=\"}], \"measures\": [{\"computation\": \"ddb1443582c2c1c5\"}], \"period\": {\"column\": \"dw_core.fct_card_transactions.post_date\", \"from\": \"?\", \"to\": \"?\"}}",
    "origin": null,
    "anchor": [],
    "tables": [
@@ -119,8 +119,8 @@
   "marketing-2 finds marketing-1's notes": {
    "ok": true,
    "noted": [
-    "  noted: interested in: a travel rewards card (since 2026-09-30)",
     "  noted: prefers contact channel: email, not phone (since 2026-09-30)",
+    "  noted: interested in: a travel rewards card (since 2026-09-30)",
     "  noted: Ana (person), daughter of",
     "  decided: offer a travel rewards card, by email (on 2026-09-30)",
     "  in 1 conversation, the last 2026-09-30: Card offer for customer 8322097816940277129"
@@ -176,37 +176,37 @@
   "facts": [
    {
     "origin": "user",
-    "predicate": "interested in",
-    "valid_from": "2026-09-30T00:56:07.619678000+00:00",
-    "value": "a travel rewards card"
+    "predicate": "prefers contact channel",
+    "valid_from": "2026-09-30T03:31:53.121442000+00:00",
+    "value": "email, not phone"
    },
    {
     "origin": "user",
-    "predicate": "prefers contact channel",
-    "valid_from": "2026-09-30T00:56:07.556502000+00:00",
-    "value": "email, not phone"
+    "predicate": "interested in",
+    "valid_from": "2026-09-30T03:31:53.188151000+00:00",
+    "value": "a travel rewards card"
    }
   ],
   "related": [
    {
-    "name": "Ana",
     "predicate": "daughter of",
+    "name": "Ana",
     "type": "person"
    }
   ],
   "decisions": [
    {
     "revisit": [],
-    "valid_from": "2026-09-30T00:56:07.879750000+00:00",
+    "valid_from": "2026-09-30T03:31:53.455023000+00:00",
     "choice": "offer a travel rewards card, by email",
     "outcomes": []
    }
   ],
   "conversations": [
    {
-    "id": "b2fcda69-e714-4706-93dd-21afa88cdc2b",
     "title": "Card offer for customer 8322097816940277129",
-    "updated_at": "2026-09-30T00:56:07.758036000+00:00"
+    "updated_at": "2026-09-30T03:31:53.324971000+00:00",
+    "id": "05b706cd-a088-44de-a19a-79fe745ef8cf"
    }
   ]
  }

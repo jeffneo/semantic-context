@@ -151,11 +151,13 @@ RETURN t.id AS t, c.name AS c, collect(v)[..$n] AS vals
 """
 
 # The dimension Computations over some tables that truncate to weeks, for the week the log's queries
-# mean on each column (Sunday or Monday; compile.week_starts).
+# mean on each column (Sunday or Monday; compile.week_starts): the shapes that compute each, but those
+# excluded (an evaluation's own question).
 WEEKS = """
 MATCH (c:Computation {kind: 'dimension'}) WHERE size(c.tables) = 1 AND c.tables[0] IN $tables
   AND toUpper(c.expression) CONTAINS 'WEEK'
-RETURN c.tables[0] AS table, c.expression AS expression, c.shapes AS shapes ORDER BY c.id
+RETURN c.tables[0] AS table, c.expression AS expression,
+       COUNT { (s:QueryShape)-[:COMPUTES]->(c) WHERE NOT s.id IN $exclude } AS shapes ORDER BY c.id
 """
 
 # The trusted joins between some tables: identity-preserving, of a confidence that builds Variables,
@@ -497,7 +499,7 @@ def compiled_request(G: Graph, s: Settings, tr: dict) -> tuple[dict, compiler.Ca
         if found:
             retry = prompt("compile_check", notes="\n".join(f"- {n}" for n in found))
             request = llm.call(text + "\n\n" + retry, compiler.SCHEMA, max_tokens=3000)
-        starts = compiler.week_starts(G.rows(WEEKS, tables=list(tables)))
+        starts = compiler.week_starts(G.rows(WEEKS, tables=list(tables), exclude=tr.get("exclude", [])))
         found += compiler.weeks(request, cat, starts, tr["question"])
     return request, cat, found
 
