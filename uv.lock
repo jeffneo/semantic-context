@@ -1031,11 +1031,10 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "gunicorn", marker = "extra == 'serve'", specifier = ">=23" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8" },
     { name = "sqlglot", extras = ["c"], specifier = "==30.19.0" },
 ]
-provides-extras = ["serve", "test"]
+provides-extras = ["test"]
 
 [[package]]
 name = "rdflib"

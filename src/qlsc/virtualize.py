@@ -228,7 +228,6 @@ def names(s: Settings, node: dict, rels: list[dict], areas: dict, var_names: dic
             relationships="\n".join(rel_lines),
         ),
         NAMES_SCHEMA,
-        "record_model",
     )
     by_table = {short(t): t for t in node}
     labels = {by_table.get(x.get("table"), x.get("table")): x.get("label") for x in out.get("nodes", [])}
@@ -256,7 +255,7 @@ def names(s: Settings, node: dict, rels: list[dict], areas: dict, var_names: dic
             problems="\n".join(f"- {i}: {why}" for i, why in bad.items()),
             taken=", ".join(sorted(t for i, t in types.items() if i not in bad and t)),
         )
-        again = llm.call(request + "\n\n" + retry, NAMES_SCHEMA, "record_model")
+        again = llm.call(request + "\n\n" + retry, NAMES_SCHEMA)
         types |= {x.get("id"): x.get("type") for x in again.get("relationships", []) if x.get("id") in bad}
     for i in type_problems(types, rels):  # last resort: the start label and the column
         r = next(r for r in rels if r["id"] == i)

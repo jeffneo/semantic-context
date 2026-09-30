@@ -13,11 +13,11 @@
      between tables, so a table reached only through a shared variable is not part of the cohort.
   5. The log's evidence: the queries closest to the question (their SQL's embedding), skipping any
      that read a sandbox (a table only people write) or a frozen table, and the tables they read, which
-     join the cohort; then the joins between all of them. (examples_by: runs instead takes the most-run
-     queries over the cohort.)
-  6. The SQL: the LLM writes one query from that cohort (prompts/sql_*.md) and the warehouse dry-runs
-     it - valid or not, and how many bytes it would scan - at no cost. A failed dry run goes back to
-     the LLM once.
+     join the cohort; then the joins between all of them.
+  6. The SQL: the LLM fills one typed request from the cohort's options and qlsc/compile.py compiles
+     it (prompts/compile_*.md); what doesn't fit a request the LLM writes as SQL (prompts/sql_*.md). The
+     warehouse dry-runs it - valid or not, and how many bytes it would scan - at no cost. A failed dry
+     run goes back to the LLM once.
      Or, with --cypher, a Cypher query over the virtual graph `qlsc virtualize` wrote: the cohort's
      tables that are labels there, and one hop of relationships around them (prompts/cypher_*.md).
      Virtual Graph's EXPLAIN is the check (it rejects what its Cypher subset lacks) and shows the SQL it
@@ -52,25 +52,6 @@ SQL_SCHEMA = {
     "type": "object",
     "required": ["sql", "explanation"],
     "properties": {"sql": {"type": "string"}, "explanation": {"type": "string"}},
-}
-
-DECOMPOSE_SCHEMA = {
-    "type": "object",
-    "required": ["measures", "groupings", "filters", "entities", "period"],
-    "properties": {
-        "measures": {"type": "array", "items": {"type": "string"}},
-        "groupings": {"type": "array", "items": {"type": "string"}},
-        "filters": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "required": ["subject", "value"],
-                "properties": {"subject": {"type": "string"}, "value": {"type": "string"}},
-            },
-        },
-        "entities": {"type": "array", "items": {"type": "string"}},
-        "period": {"type": "string"},
-    },
 }
 
 CYPHER_SCHEMA = {
@@ -131,16 +112,6 @@ RETURN a.id AS a, x.name AS ac, b.id AS b, y.name AS bc, v.name AS variable,
 ORDER BY queries DESC LIMIT 8
 """
 
-QUERIES = """
-MATCH (s:QueryShape {succeeded: true})-[:REFERENCES]->(t:Table) WHERE t.id IN $tables
-WITH s, count(DISTINCT t) AS hit WHERE hit >= 2
-MATCH (p:Principal)-[r:RAN]->(s)
-WITH s, hit, collect(DISTINCT split(p.id, '@')[0]) AS who, collect(DISTINCT p.kind) AS kinds, sum(r.jobs) AS jobs
-RETURN s.id AS id, s.sample_sql AS sql, hit, who, kinds, jobs,
-       [(s)-[:REFERENCES]->(t:Table) WHERE t.in_catalog | t.id] AS tables
-ORDER BY hit DESC, jobs DESC LIMIT $n
-"""
-
 # Every query shape that computes something, with who runs it and the tables it reads: the candidates
 # for the examples closest to a question.
 SHAPES = """
@@ -154,30 +125,14 @@ ORDER BY id
 # Tables no example may read: a sandbox, or a frozen table (qlsc/load.py LIVENESS).
 DISTRUSTED = "MATCH (t:Table) WHERE t.frozen OR t.sandbox RETURN t.id AS t"
 
-# The Computations closest to the question: what the business computes, as its queries define it.
-# Only trusted ones (no sandbox or frozen table), and never one computed only by an excluded shape.
+# The Computations closest to the question, the compiled request's options: what the business computes,
+# as its queries define it. Only trusted ones (no sandbox or frozen table), and never one computed only by an excluded shape.
 DEFINITIONS = """
 CALL db.index.vector.queryNodes('computation_embedding', $pool, $v) YIELD node AS c, score
 WHERE score >= $min AND c.trusted AND NOT c.health_check AND c.same_as IS NULL AND c.kind IN $kinds
   AND EXISTS { MATCH (s:QueryShape)-[:COMPUTES]->(c) WHERE NOT s.id IN $exclude }
 RETURN c {.id, .name, .kind, .expression, .filters, .grain, .tables, .shapes, .production, .jobs} AS c, score
 ORDER BY score DESC LIMIT $k
-"""
-
-# The designed models' terms linked to the cohort (qlsc align): catalog glossary terms its columns are
-# bound to, and ontology classes its Variables or groups were matched to, closest to the question first.
-# An experiment (navigate.concepts): designed models are aligned afterwards, not inputs to the method.
-GLOSSARY = """
-MATCH (t:Table)-[:HAS_COLUMN]->(col:Column) WHERE t.id IN $tables
-OPTIONAL MATCH (col)-[:IS]->(v:Variable)
-WITH collect(DISTINCT col) + [x IN collect(DISTINCT v) WHERE x IS NOT NULL]
-     + COLLECT { MATCH (g:Semantic {level: 1}) WHERE g.name IN $groups RETURN g } AS xs
-UNWIND xs AS x
-MATCH (x)-[:MEANS]->(c:Concept) WHERE c.definition IS NOT NULL
-WITH c, collect(DISTINCT CASE WHEN x:Column THEN x.id END)[..4] AS columns
-RETURN c.name AS name, c.definition AS definition, c.source AS source, columns,
-       vector.similarity.cosine(c.embedding, $v) AS sim
-ORDER BY sim DESC, name LIMIT $k
 """
 
 COLUMNS = """
@@ -195,19 +150,12 @@ WITH t, c, v, count(*) AS shapes ORDER BY shapes DESC, v
 RETURN t.id AS t, c.name AS c, collect(v)[..$n] AS vals
 """
 
-# The columns the log's queries filter on a value, most-used first: a question's "affluent" leads to
-# the segment column that holds it, whatever the question calls the column.
-VALUE_COLUMNS = """
-MATCH (t:Table)-[:HAS_COLUMN]->(c:Column)<-[f:FILTERS]-(:QueryShape)
-WHERE any(x IN f.values WHERE toLower(toString(x)) = toLower($value))
-RETURN t.id AS t, c.name AS c, count(*) AS n ORDER BY n DESC, t LIMIT $k
-"""
-
-# The log's texts that truncate a column to weeks, for the week its queries mean (Sunday or Monday).
-WEEK_TEXTS = """
-MATCH (t:Table {id: $table})-[:HAS_COLUMN]->(c:Column {name: $column})<-[:READS]-(q:QueryShape)
-WHERE toLower(q.sample_sql) CONTAINS 'week'
-RETURN q.sample_sql AS sql
+# The dimension Computations over some tables that truncate to weeks, for the week the log's queries
+# mean on each column (Sunday or Monday; compile.week_starts).
+WEEKS = """
+MATCH (c:Computation {kind: 'dimension'}) WHERE size(c.tables) = 1 AND c.tables[0] IN $tables
+  AND toUpper(c.expression) CONTAINS 'WEEK'
+RETURN c.tables[0] AS table, c.expression AS expression, c.shapes AS shapes ORDER BY c.id
 """
 
 # The trusted joins between some tables: identity-preserving, of a confidence that builds Variables,
@@ -323,40 +271,6 @@ def column_text(name: str, typ: str, values: list | None) -> str:
     return f"{name} {typ}".strip() + seen
 
 
-def definitions_text(definitions: list[dict], kind: str) -> str:
-    """The Computations for the prompt, after the examples; nothing at all when there are none, so a
-    request without them is the same text as before they existed."""
-    if not definitions:
-        return ""
-    lines = [
-        f"\n\nHow the {kind}'s queries compute some things near this question. Use one only if it computes "
-        "exactly what the question asks; otherwise ignore it and write your own:"
-    ]
-    for d in definitions:
-        with_ = f", with {' AND '.join(d['filters'])}" if d["filters"] else ""
-        who = "production" if d["production"] else "people"
-        lines.append(
-            f"- {d['name']} ({d['kind']}): {d['expression']}{with_}; on {', '.join(d['tables'])}; "
-            f"{d['shapes']} queries, {who}"
-        )
-    return "\n".join(lines)
-
-
-def glossary_text(terms: list[dict]) -> str:
-    """The designed models' terms for the prompt; nothing at all when there are none."""
-    if not terms:
-        return ""
-    lines = ["\n\nBusiness terms from the catalog and the ontology, for what the words in the question mean:"]
-    for t in terms:
-        cols = (
-            f" (columns: {', '.join(short(c.rsplit('.', 1)[0]) + '.' + c.rsplit('.', 1)[1] for c in t['columns'])})"
-            if t["columns"]
-            else ""
-        )
-        lines.append(f"- {t['name']}: {t['definition']}{cols}")
-    return "\n".join(lines)
-
-
 def example_sql(examples: list[dict]) -> str:
     return "\n\n".join(" ".join(q["sql"].split())[:1500] for q in examples) or "(none)"
 
@@ -453,31 +367,6 @@ def similar(
     return out
 
 
-def decompose(s: Settings, question: str) -> dict:
-    """The question's parts: measures, groupings, filters (subject and value), entities, period."""
-    llm = LLM(prompt("decompose_system", **s.business), s)
-    return llm.call(question, DECOMPOSE_SCHEMA, "record_parts", max_tokens=800)
-
-
-def merge_cohorts(found: list[tuple[dict, dict, list[str]]], k: int) -> tuple[dict, dict, list[str]]:
-    """Several anchors' cohorts as one: groups and tables pooled, the top tables taken from each
-    anchor's list in turn, so every part of the question is represented."""
-    groups, tables, top = {}, {}, []
-    for g, t, _ in found:
-        for name, x in g.items():
-            groups.setdefault(name, x)
-        for tid, x in t.items():
-            tables.setdefault(tid, x)
-    queues = [list(t) for _, _, t in found]
-    while len(top) < k and any(queues):
-        for q in queues:
-            while q and q[0] in top:
-                q.pop(0)
-            if q and len(top) < k:
-                top.append(q.pop(0))
-    return groups, tables, top
-
-
 def trace(
     G: Graph,
     s: Settings,
@@ -490,94 +379,22 @@ def trace(
     `exclude` names query shapes never to offer as examples (an evaluation leaves out the query a
     question was written from).
 
-    `anchors: parts` breaks the question into its parts first (an LLM call, prompts/decompose_system.md),
-    and navigates from each part: every entity, grouping, measure and filter subject opens its own
-    groups; every filter value finds the columns the log filters on it; every measure finds the measure
-    Computations closest to it.
-
     `allow` (the entitlement gateway, qlsc/entitle.py) restricts everything to what a principal may read,
     and the answer then runs as them."""
     p = s["navigate"]
     emb = Embedder(s)
     v = emb.embed([question])[0]
-    parts, value_tables = None, []
-    kinds = ["measure", "dimension", "population"]
-    definitions = []
-    if p["anchors"] == "parts":
-        parts = decompose(s, question)
-        texts = (
-            parts["entities"]
-            + parts["groupings"]
-            + parts["measures"]
-            + [f["subject"] for f in parts["filters"]]
-        )
-        vecs = emb.embed(texts) if texts else []
-        small = {**p, "groups": p["anchor_groups"], "tables": p["anchor_tables"]}
-        found = [cohort(G, x, small, allow=allow) for x in vecs] or [cohort(G, v, p, allow=allow)]
-        groups, tables, top = merge_cohorts(found, p["tables"])
-        for f in parts["filters"]:
-            for r in G.rows(VALUE_COLUMNS, value=f["value"], k=p["anchor_values"]):
-                if r["t"] not in top + value_tables and (allow is None or allow.readable(r["t"])):
-                    value_tables.append(r["t"])
-        if p["computations"]:
-            per = [(m, "measure") for m in parts["measures"]] + [
-                (f["subject"] + " " + f["value"], "population") for f in parts["filters"]
-            ]
-            pvecs = emb.embed([t for t, _ in per]) if per else []
-            for (_, kind), x in zip(per, pvecs):
-                for r in G.rows(
-                    DEFINITIONS,
-                    pool=50,
-                    k=p["anchor_computations"],
-                    v=x,
-                    kinds=[kind],
-                    exclude=sorted(exclude),
-                    min=p["computation_min_similarity"],
-                ):
-                    if r["c"]["id"] not in {d["id"] for d in definitions}:
-                        definitions.append(r["c"] | {"similarity": r["score"]})
-            definitions = definitions[: p["computations"]]
-    else:
-        groups, tables, top = cohort(G, v, p, allow=allow)
-        if p["computations"]:
-            definitions = [
-                r["c"] | {"similarity": r["score"]}
-                for r in G.rows(
-                    DEFINITIONS,
-                    pool=p["computations"] * 10,
-                    k=p["computations"],
-                    v=v,
-                    kinds=kinds,
-                    exclude=sorted(exclude),
-                    min=p["computation_min_similarity"],
-                )
-            ]
-    if p["examples_by"] == "similarity":
-        shapes = [x for x in G.rows(SHAPES, statements=p["example_statements"]) if x["id"] not in exclude]
-        vecs = emb.embed([shape_text(x["sql"], p["example_chars"]) for x in shapes])
-        distrusted = {r["t"] for r in G.rows(DISTRUSTED)}
-        keep = entitle.readable_shapes(G, allow, shapes) if allow else None
-        examples = similar(v, shapes, vecs, distrusted, p["examples"], keep)
-    else:
-        examples = G.rows(QUERIES, tables=top, n=p["examples"] * (3 if allow else 1))
-        if allow:
-            keep = entitle.readable_shapes(G, allow, examples)
-            examples = [e for e in examples if e["id"] in keep][: p["examples"]]
+    groups, tables, top = cohort(G, v, p, allow=allow)
+    shapes = [x for x in G.rows(SHAPES, statements=p["example_statements"]) if x["id"] not in exclude]
+    vecs = emb.embed([shape_text(x["sql"], p["example_chars"]) for x in shapes])
+    distrusted = {r["t"] for r in G.rows(DISTRUSTED)}
+    keep = entitle.readable_shapes(G, allow, shapes) if allow else None
+    examples = similar(v, shapes, vecs, distrusted, p["examples"], keep)
     if allow:  # who ran a query, as a kind of principal, never a name
         examples = [e | {"who": e["kinds"]} for e in examples]
-        definitions = [d for d in definitions if entitle.computation_ok(allow, d)]
-    added = list(value_tables)
+    added = []
     if p["example_tables"]:
-        added += [
-            t for t in dict.fromkeys(t for e in examples for t in e.get("tables", [])) if t not in top + added
-        ]
-    if p["computation_tables"]:
-        added += [
-            t for t in dict.fromkeys(t for d in definitions for t in d["tables"]) if t not in top + added
-        ]
-    glossary = []
-    if p["concepts"]:
-        glossary = G.rows(GLOSSARY, tables=top + added, groups=list(groups), v=v, k=p["concepts"])
+        added = [t for t in dict.fromkeys(t for e in examples for t in e["tables"]) if t not in top]
     hits, joins = G.rows(HITS, hits=p["hits"], v=v), G.rows(JOINS, tables=top + added)
     if allow:
         added = [t for t in added if allow.readable(t)]
@@ -587,14 +404,9 @@ def trace(
             if allow.semantics.get(h["name"], "none") != "none"
         ]
         joins = [j for j in joins if allow.column(j["a"], j["ac"]) and allow.column(j["b"], j["bc"])]
-        glossary = [
-            g | {"columns": [c for c in g["columns"] if allow.column(*c.rsplit(".", 1))]} for g in glossary
-        ]
     return {
         "question": question,
         "exclude": sorted(exclude),
-        "glossary": glossary,
-        "parts": parts,
         "hits": hits,
         "groups": groups,
         "tables": tables,
@@ -603,24 +415,21 @@ def trace(
         "top": top + added,
         "joins": joins,
         "examples": examples,
-        "definitions": definitions,
         "allow": allow,
     }
 
 
 def answer_sql(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int | None = None) -> dict:
-    """Step 6, by the writer configured (navigate.writer): the compiler, falling back to free SQL when
-    the question doesn't compile; or free SQL. -> {writer, sql, explanation, dry_run, result?, ...}"""
-    if s["navigate"]["writer"] == "compiled":
-        out = answer_compiled(G, s, tr, execute, rows)
-        if "sql" in out:
-            return out
-        return answer_free(G, s, tr, execute, rows) | {
-            "writer": "free",
-            "fallback": out["fallback"],
-            "request": out.get("request"),
-        }
-    return answer_free(G, s, tr, execute, rows) | {"writer": "free"}
+    """Step 6: the compiler, falling back to free SQL when the question doesn't compile.
+    -> {writer, sql, explanation, dry_run, result?, ...}"""
+    out = answer_compiled(G, s, tr, execute, rows)
+    if "sql" in out:
+        return out
+    return answer_free(G, s, tr, execute, rows) | {
+        "writer": "free",
+        "fallback": out["fallback"],
+        "request": out.get("request"),
+    }
 
 
 def unique_check(s: Settings):
@@ -681,18 +490,15 @@ def compiled_request(G: Graph, s: Settings, tr: dict) -> tuple[dict, compiler.Ca
         examples=example_sql(tr["examples"]),
         **s.business,
     )
-    request = llm.call(text, compiler.SCHEMA, "record_request", max_tokens=3000)
+    request = llm.call(text, compiler.SCHEMA, max_tokens=3000)
     found: list[str] = []
     if p["compile_checks"]:
         found = compiler.check(request, cat, tr["question"], values, p["compile_check_chars"])
         if found:
             retry = prompt("compile_check", notes="\n".join(f"- {n}" for n in found))
-            request = llm.call(text + "\n\n" + retry, compiler.SCHEMA, "record_request", max_tokens=3000)
-        usage = lambda t, col: compiler.week_usage(
-            [r["sql"] for r in G.rows(WEEK_TEXTS, table=t, column=col)], col
-        )
-        found += compiler.weeks(request, cat, usage, tr["question"])
-        found += compiler.open_period(request, today(s).isoformat(), tr["question"])
+            request = llm.call(text + "\n\n" + retry, compiler.SCHEMA, max_tokens=3000)
+        starts = compiler.week_starts(G.rows(WEEKS, tables=list(tables)))
+        found += compiler.weeks(request, cat, starts, tr["question"])
     return request, cat, found
 
 
@@ -752,16 +558,14 @@ def answer_free(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: in
         tables=tables,
         joins=joins_txt,
         examples=example_sql(tr["examples"]),
-        definitions=definitions_text(tr.get("definitions", []), s.business["kind"]),
-        glossary=glossary_text(tr.get("glossary", [])),
         today=calendar(today(s)),
         **s.business,
     )
-    out = llm.call(request, SQL_SCHEMA, "record_sql", max_tokens=3000)
+    out = llm.call(request, SQL_SCHEMA, max_tokens=3000)
     res = wh.dry_run(out["sql"])
     if res["ok"] is False:
         fix = prompt("sql_fix", error=res["error"], warehouse=wh.name)
-        out = llm.call(request + "\n\n" + fix, SQL_SCHEMA, "record_sql", max_tokens=3000)
+        out = llm.call(request + "\n\n" + fix, SQL_SCHEMA, max_tokens=3000)
         res = wh.dry_run(out["sql"])
     answer = {"warehouse": wh.name, "sql": out["sql"], "tables": sql_tables(out["sql"], wh.dialect),
               "explanation": out["explanation"], "dry_run": res}  # fmt: skip
@@ -770,14 +574,6 @@ def answer_free(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: in
         answer["result"] = wh.run(out["sql"], p["maximum_bytes_billed"], rows or p["rows_shown"])
         answer["result"]["seconds"] = time.time() - t0
     return answer
-
-
-def refused(s: Settings, tr: dict, answer: dict) -> str | None:
-    """Why the gateway won't let the virtual graph answer this principal (entitle.check_cypher), or None."""
-    allow, check = tr.get("allow"), answer["check"]
-    if allow is None or "error" in check:
-        return None
-    return entitle.check_cypher(s, allow, answer["tables"], check["sql"])
 
 
 def sql_tables(sql: str, dialect: str) -> list[str]:
@@ -803,9 +599,8 @@ def answered(a: dict) -> bool:
 
 
 # The router's rule (plans/2026-09-26-router.md, as revised), in order: memory, when it holds the whole answer;
-# the compiled SQL, when the request compiles (compiled Cypher is the same plan with less: no outer join's
-# null group, no HAVING pushed down, so it never wins there); free Cypher, when it answers, which reaches the
-# neighbourhoods and paths a request can't express; free SQL, always.
+# the compiled SQL, when the request compiles; free Cypher, when it answers, which reaches the neighbourhoods
+# and paths a request can't express; free SQL, always.
 ROUTES = ("memory", "sql", "cypher", "free")
 
 
@@ -890,13 +685,11 @@ def answer_memory(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: 
 def answer_routed(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int | None = None) -> dict:
     """Step 6 by the router (`route`), running only what it needs. -> the chosen route's answer, with `route`
     ('memory' | 'sql' | 'cypher'), and why the compiled request didn't serve (`fallback`, `not_memory`)."""
-    p = s["navigate"]
     candidates: dict = {}
-    if p["writer"] == "compiled":
-        if p["memory_route"]:
-            candidates["memory"] = lambda: answer_memory(G, s, tr, execute, rows)
-        candidates["sql"] = lambda: answer_compiled(G, s, tr, execute, rows)
-    candidates["cypher"] = lambda: answer_cypher(G, s, tr, execute, rows, writer="free")
+    if s["navigate"]["memory_route"]:
+        candidates["memory"] = lambda: answer_memory(G, s, tr, execute, rows)
+    candidates["sql"] = lambda: answer_compiled(G, s, tr, execute, rows)
+    candidates["cypher"] = lambda: answer_cypher(G, s, tr, execute, rows)
     candidates["free"] = lambda: answer_free(G, s, tr, execute, rows) | {"writer": "free"}
     name, a, tried = route(candidates)
     extra = {"route": "sql" if name == "free" else name}
@@ -907,15 +700,13 @@ def answer_routed(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: 
     return a | extra
 
 
-def answer_cypher(
-    G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int | None = None, writer: str | None = None
-) -> dict:
-    """Step 6 over the virtual graph, by the writer configured (navigate.writer): the compiler, falling
-    back to free Cypher when the question doesn't compile; or free Cypher, from the cohort's labels.
-    Checked with Virtual Graph's EXPLAIN; step 7, the answer, with `execute`.
-    -> {writer, start, around, cypher, explanation, check, result?} | {skipped: why}
+def answer_cypher(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int | None = None) -> dict:
+    """Step 6 over the virtual graph: free Cypher, from the cohort's labels and one hop around them
+    (the compiler's Cypher is the memory route's: over the virtual graph it is the compiled SQL's plan
+    with less, so the router never takes it). Checked with Virtual Graph's EXPLAIN; step 7, the answer,
+    with `execute`. -> {writer, start, around, cypher, explanation, check, result?} | {skipped: why}
        | {start, around, declined: why}"""
-    p, instance = s["navigate"], s.get("virtualize", {}).get("neo4j")
+    instance = s.get("virtualize", {}).get("neo4j")
     labels = {r["table"]: r["label"] for r in G.rows(LABELS)}
     path = s.work / "virtual" / "schema.json"
     if not (labels and instance and path.exists()):
@@ -927,68 +718,7 @@ def answer_cypher(
     start = [labels[t] for t in tr["top"] if t in labels]
     if not start:
         return {"skipped": "none of the cohort's tables is in the virtual graph"}
-    fallback = {}
-    if (writer or p["writer"]) == "compiled":
-        out = cypher_compiled(G, s, tr, labels, model["entities"], instance, execute, rows)
-        if "fallback" not in out:
-            return out
-        fallback = {"fallback": out["fallback"], "request": out.get("request")}
-    return (
-        cypher_free(G, s, tr, labels, model, start, instance, execute, rows) | {"writer": "free"} | fallback
-    )
-
-
-def cypher_compiled(
-    G: Graph,
-    s: Settings,
-    tr: dict,
-    labels: dict,
-    model: dict,
-    instance: dict,
-    execute: bool,
-    rows: int | None,
-) -> dict:
-    """The compiler's Cypher: the same request as the SQL route's, over the Virtual Graph model.
-    -> {writer: compiled, request, cypher, check, result?} | {fallback: why, request?}"""
-    p = s["navigate"]
-    request, cat, found = compiled_request(G, s, tr)
-    try:
-        plan = compiler.plan(request, cat, unique_check(s), p["compile_hops"])
-        cypher = compiler.render_cypher(plan, labels, model)
-    except compiler.Unfit as e:
-        return {"fallback": str(e), "request": request}
-    named = re.findall(r"\(\w+:(\w+)\)", cypher)
-    table = {label: t for t, label in labels.items()}
-    answer = {
-        "writer": "compiled",
-        "warehouse": connect(s).name,
-        "request": request,
-        "start": [(x, table[x]) for x in dict.fromkeys(named)],
-        "around": [],
-        "cypher": cypher,
-        "tables": compiler.plan_tables(plan),
-        "explanation": request.get("reason", ""),
-        "checks": found,
-    }
-    try:
-        with Graph(s, instance) as V:
-            sent, params = entitle.signing(s, tr.get("allow"), cypher)
-            check = explain(V, sent, model["nodes"], model["relationships"], params)
-            if "error" in check:
-                return {
-                    "fallback": f"the compiled Cypher failed its check: {check['error'][:200]}",
-                    "request": request,
-                }
-            answer["check"] = check
-            if why := refused(s, tr, answer):
-                return answer | {"refused": why}
-            if execute:
-                answer["result"] = capped_result(V, sent, p, rows, params)
-    except ServiceUnavailable:
-        answer["error"] = f"the Virtual Graph instance is not running at {instance['uri']}"
-    except Neo4jError as e:
-        answer["error"] = e.message
-    return answer
+    return cypher_free(G, s, tr, labels, model, start, instance, execute, rows) | {"writer": "free"}
 
 
 def capped_result(V: Graph, cypher: str, p: dict, rows: int | None, params: dict | None = None) -> dict:
@@ -1043,8 +773,6 @@ def cypher_free(
         nodes=node_txt,
         relationships=rel_txt or "(none)",
         examples=example_sql(tr["examples"]),
-        definitions=definitions_text(tr.get("definitions", []), s.business["kind"]),
-        glossary=glossary_text(tr.get("glossary", [])),
         today=calendar(today(s)),  # Virtual Graph has no date(): relative periods need literals
         **s.business,
     )
@@ -1055,22 +783,22 @@ def cypher_free(
     }
     try:
         with Graph(s, instance) as V:
-            out = llm.call(request, CYPHER_SCHEMA, "record_cypher", max_tokens=3000)
+            out = llm.call(request, CYPHER_SCHEMA, max_tokens=3000)
             if not out["answerable"]:
                 return answer | {"declined": out["explanation"]}
-            sent, params = entitle.signing(s, tr.get("allow"), out["cypher"])
+            sent, params = entitle.signing(s, tr.get("allow"), out["cypher"], V)
             check = explain(V, sent, nodes, rels, params)
             if "error" in check:
                 fix = prompt("cypher_fix", error=check["error"])
-                out = llm.call(request + "\n\n" + fix, CYPHER_SCHEMA, "record_cypher", max_tokens=3000)
-                sent, params = entitle.signing(s, tr.get("allow"), out["cypher"])
+                out = llm.call(request + "\n\n" + fix, CYPHER_SCHEMA, max_tokens=3000)
+                sent, params = entitle.signing(s, tr.get("allow"), out["cypher"], V)
                 check = explain(V, sent, nodes, rels, params)
             answer |= {"cypher": out["cypher"], "tables": cypher_tables(out["cypher"], labels),
                        "explanation": out["explanation"], "check": check}  # fmt: skip
-            if why := refused(s, tr, answer):
-                return answer | {"refused": why}
             if execute and "error" not in check:
                 answer["result"] = capped_result(V, sent, p, rows, params)
+    except entitle.Unenforced as e:
+        return answer | {"refused": str(e)}
     except ServiceUnavailable:
         answer["error"] = f"the Virtual Graph instance is not running at {instance['uri']}"
     except Neo4jError as e:
@@ -1107,15 +835,10 @@ def print_trace(tr: dict) -> None:
             + f"  ({j['queries']} queries)"
         )
     for q in tr["examples"]:
-        if "similarity" in q:
-            print(
-                f"\n   a query {q['similarity']:.2f} like the question, {q['jobs']} runs by "
-                f"{', '.join(q['who'][:4])}, reads {', '.join(short(t) for t in q['tables'][:4])}:"
-            )
-        else:
-            print(
-                f"\n   a query that reads {q['hit']} of them, {q['jobs']} runs by {', '.join(q['who'][:4])}:"
-            )
+        print(
+            f"\n   a query {q['similarity']:.2f} like the question, {q['jobs']} runs by "
+            f"{', '.join(q['who'][:4])}, reads {', '.join(short(t) for t in q['tables'][:4])}:"
+        )
         print(textwrap.indent(textwrap.shorten(" ".join(q["sql"].split()), 600), "     "))
 
 

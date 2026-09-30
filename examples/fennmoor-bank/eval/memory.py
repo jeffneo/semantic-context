@@ -12,9 +12,10 @@ For 20 customers (the two the graph questions name, then 18 who called in the wi
   3. freshness, on the first customer:
      - within its lifetime, recall reads memory;
      - past it, recall fetches again;
-     - a planted stale fact (a call whose relationship's holds_until has passed) is never read, and a
-       refetch removes it;
-     - a changed template (a 30-day window) is a different context, fetched again.
+     - a planted stale fact (a call whose holds_until has passed) is never read, nor its relationship;
+     - a relationship is its start node's column: a remembered call moved to point elsewhere points at the
+       customer again once a refetch writes it;
+     - a changed template (this quarter's facts only) is a different context, fetched again.
   4. a batch: the 20 remembered together, in one batch (qlsc remember Customer KEY...), give each customer the
      context it got alone (its nodes, properties, relationships, and each read's keys, rows and cap), and
      read back from memory as that.
@@ -93,10 +94,18 @@ MATCH ()-[r]->() WHERE type(r) <> 'READ' RETURN nodes, count(r) AS relationships
 PLANT = """
 MATCH (c:Customer {source: $source, customer_key: $key})
 MERGE (k:Call {source: $source, conversation_id: $id})
-SET k.conversation_date = $day, k.fetched_at = $old, k.holds_until = $old
-MERGE (k)-[x:RECEIVED_FROM]->(c) SET x.fetched_at = $old, x.holds_until = $old
+SET k.conversation_date = $day, k.customer_key = $key, k.fetched_at = $old, k.holds_until = $old
+MERGE (k)-[:RECEIVED_FROM]->(c)
 """
-PLANTED = "MATCH (k:Call {source: $source, conversation_id: $id})-[x:RECEIVED_FROM]->() RETURN count(x) AS n"
+# A remembered call made to point elsewhere, as a stale copy of a fact that moved would.
+MOVE = """
+MATCH (k:Call {source: $source, conversation_id: $id})-[x:RECEIVED_FROM]->() DELETE x
+SET k.customer_key = -1
+"""
+POINTS_AT = """
+MATCH (k:Call {source: $source, conversation_id: $id})
+RETURN k.customer_key AS key, [(k)-[:RECEIVED_FROM]->(c:Customer) | c.customer_key] AS ends
+"""
 UNPLANT = "MATCH (k:Call {source: $source, conversation_id: $id}) DETACH DELETE k"
 STALE_ID = "qlsc-memory-check-stale"
 # The freshness checks start from no record of the customer's context for this reader, and leave none dated
@@ -151,7 +160,6 @@ def main() -> int:
     keys = [named[c] for c in NAMED] + [k for k in callers if k not in named.values()][:OTHERS]
     res: dict = {
         "window_since": str(since),
-        "window_days": s["memory"]["window_days"],
         "cap": s["memory"]["cap"],
         "customers": {},
         "freshness": {},
@@ -225,15 +233,22 @@ def main() -> int:
             "served": leaked,
             "ok": served.origin == "memory" and not leaked,
         }
-        memory.recall(s, "Customer", key, force=True, m=m)
-        left = M.value(PLANTED, source=m.source, id=STALE_ID)
-        f["a refetch removes it"] = {"relationships left": left, "ok": left == 0}
         M.run(UNPLANT, source=m.source, id=STALE_ID)
-        configured = s["memory"]["window_days"]
-        s["memory"]["window_days"] = 30
+        call = sorted(k for lb, k in ctx.nodes if lb == "Call")[0]
+        M.run(MOVE, source=m.source, id=call)
+        moved = M.rows(POINTS_AT, source=m.source, id=call)[0]
+        memory.recall(s, "Customer", key, force=True, m=m)
+        back = M.rows(POINTS_AT, source=m.source, id=call)[0]
+        f["a refetch rewrites a relationship from its column"] = {
+            "moved": moved,
+            "after": back,
+            "ok": moved["ends"] == [] and back == {"key": key, "ends": [key]},
+        }
+        configured = s["memory"]["window_quarters"]
+        s["memory"]["window_quarters"] = 0
         other = memory.recall(s, "Customer", key, m=m)
         f["a changed template"] = {"origin": other.origin, "ok": other.origin == "virtual graph"}
-        s["memory"]["window_days"] = configured
+        s["memory"]["window_quarters"] = configured
         memory.recall(s, "Customer", key, force=True, m=m)  # back to the configured template
         M.run(FORGET_FUTURE, now=dt.datetime.now(dt.UTC))
         for name, x in f.items():
@@ -283,8 +298,8 @@ def report(res: dict) -> int:
         "# Memory: remembered contexts against the virtual graph",
         "",
         "Phase 1 of plans/2026-09-27-agentic-memory.md: `qlsc remember` fetches a customer's context from the "
-        "virtual graph (the node, its relationships, their dimensions; facts from the last "
-        f"{res['window_days']} days, since {res['window_since']}, at most {res['cap']} per relationship) into the "
+        "virtual graph (the node, its relationships, their dimensions; facts "
+        f"since {res['window_since']}, at most {res['cap']} per relationship) into the "
         "`memory` database; "
         "`qlsc recall` reads it back while it holds. Read as the data source.",
         "",

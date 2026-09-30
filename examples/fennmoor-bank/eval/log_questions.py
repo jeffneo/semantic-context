@@ -110,9 +110,7 @@ def write(limit: int | None = None) -> int:
     llm = LLM(text("question_system", **s.business), s, s["llm"]["query_model"])
     with Graph(s) as G:
         shapes = candidates(G)[:limit]
-    ask = lambda x: llm.call(
-        text("question_request", sql=x["sql"], jobs=x["jobs"], who=who(x)), SCHEMA, "record_question", 1500
-    )
+    ask = lambda x: llm.call(text("question_request", sql=x["sql"], jobs=x["jobs"], who=who(x)), SCHEMA, 1500)
     with ThreadPoolExecutor(s["llm"]["concurrency"]) as pool:
         answers = list(pool.map(ask, shapes))
     out = {}

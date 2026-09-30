@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import datetime as dt
 import re
-from collections import deque
+from collections import Counter, deque
 from dataclasses import dataclass, field
 
 import sqlglot
@@ -451,28 +451,35 @@ def check(request: dict, cat: Catalogue, question: str, values: dict, chars: int
     return notes
 
 
-WEEK_TRUNC = (
-    r"DATE_TRUNC\s*\(\s*(?:DATE\s*\(\s*)?[\w.`]*\b{col}\b[^,]*,\s*(ISOWEEK|WEEK\s*\(\s*(\w+)\s*\)|WEEK)\b"
-)
+def week_starts(computations: list[dict]) -> dict[tuple[str, str], str]:
+    """How the log's queries truncate each column to weeks, from the dimension Computations that do
+    ({table, expression, shapes}): {(table, column): 'week' (BigQuery's, from Sunday) | 'week_monday'},
+    by the most shapes; a column split evenly has none."""
+    votes: dict[tuple[str, str], Counter] = {}
+    for c in computations:
+        try:
+            e = sqlglot.parse_one(c["expression"], read="bigquery")
+        except sqlglot.errors.ParseError:
+            continue
+        unit = e.args.get("unit") if isinstance(e, exp.DateTrunc | exp.TimestampTrunc) else None
+        cols = list(e.find_all(exp.Column))
+        if unit is None or len(cols) != 1:
+            continue
+        day = unit.this.name.upper() if isinstance(unit, exp.WeekStart) else unit.name.upper()
+        grain = {"MONDAY": "week_monday", "ISOWEEK": "week_monday", "SUNDAY": "week"}.get(day)
+        if grain:
+            votes.setdefault((c["table"], cols[0].name), Counter())[grain] += c["shapes"]
+    out = {}
+    for k, v in votes.items():
+        (a, n), *rest = v.most_common()
+        if not rest or rest[0][1] < n:
+            out[k] = a
+    return out
 
 
-def week_usage(texts: list[str], column: str) -> str:
-    """How the log's queries truncate a column to weeks: 'week' (BigQuery's, from Sunday),
-    'week_monday', or '' when they don't, or split evenly."""
-    rx = re.compile(WEEK_TRUNC.format(col=re.escape(column)), re.I)
-    monday = sunday = 0
-    for text in texts:
-        for unit, day in rx.findall(text or ""):
-            if unit.upper() == "ISOWEEK" or day.upper() == "MONDAY":
-                monday += 1
-            elif not day or day.upper() == "SUNDAY":
-                sunday += 1
-    return "week_monday" if monday > sunday else "week" if sunday > monday else ""
-
-
-def weeks(request: dict, cat: Catalogue, usage, question: str) -> list[str]:
-    """A week grain as the log's queries truncate that column (usage(table, column) -> week_usage),
-    unless the question names the day weeks start on. Changes the request; returns what changed."""
+def weeks(request: dict, cat: Catalogue, starts: dict[tuple[str, str], str], question: str) -> list[str]:
+    """A week grain as the log's queries truncate that column (week_starts), unless the question names
+    the day weeks start on. Changes the request; returns what changed."""
     if re.search(r"\b(monday|sunday|iso)\b", question, re.I):
         return []
     out = []
@@ -482,23 +489,11 @@ def weeks(request: dict, cat: Catalogue, usage, question: str) -> list[str]:
                 t, col, _ = cat.column(d["column"])
             except Unfit:
                 continue
-            logged = usage(t, col)
+            logged = starts.get((t, col))
             if logged and logged != d["grain"]:
                 out.append(f"{d['alias']}: {d['grain']} -> {logged}, as the log truncates {short(t)}.{col}")
                 d["grain"] = logged
     return out
-
-
-def open_period(request: dict, today: str, question: str) -> list[str]:
-    """A period that ends today, in a question that names no end ("on or after April 22"), is open:
-    the data may run past today, and the question asked for all of it. Changes the request; returns
-    what changed."""
-    period = request.get("period") or {}
-    end = str(period.get("to") or "").strip()
-    if end != today or today in question:
-        return []
-    period["to"] = ""
-    return [f"period: the end {today} is today, which the question doesn't name: left open"]
 
 
 # ---- the plan
@@ -928,8 +923,8 @@ def compile_cypher(
 def render_cypher(p: Plan, labels: dict[str, str], model: dict, guard=None) -> str:
     """The plan over the Virtual Graph: each table a label (`labels`: table id -> label), each join a
     relationship, each column a property. Raises Unfit for what the graph can't express. `guard`, for
-    another target of the same model (memory: qlsc/memory.py), adds its conditions on every node
-    (guard.node(variable, label)) and relationship (guard.relationship(variable)) the query matches."""
+    another target of the same model (memory: qlsc/memory.py), adds its conditions on every node the query
+    matches (guard.node(variable, label)): a relationship there holds as long as its nodes do."""
     if len(p.blocks) != 1:
         raise Unfit("several fact tables: Virtual Graph has no CALL subquery to combine them")
     b = p.blocks[0]
@@ -971,26 +966,23 @@ def render_cypher(p: Plan, labels: dict[str, str], model: dict, guard=None) -> s
             needed.add(alias(a))
     lines = [f"MATCH ({alias(b.fact)}:{labels[b.fact]})"]
     walked = [(a, ac, t, tc, outer) for a, ac, t, tc, outer in b.joins if alias(t) in needed]
-    rels = [f"r{i}" if guard else "" for i in range(len(walked))]
     # With a guard the target is a standard database (memory), which has OPTIONAL MATCH: an outer join that
     # nothing filters on keeps its null group there, as the SQL's does, and its guard goes in its own WHERE.
     optional: set[str] = set()
     for a, _, t, _, outer in walked:
         if guard and (alias(a) in optional or (outer and not any(f"{alias(t)}." in w for w in where))):
             optional.add(alias(t))
-    inner = [(j, r) for j, r in zip(walked, rels) if alias(j[2]) not in optional]
-    lines += [f"MATCH {relationship(a, ac, t, tc, labels, model, r)}" for (a, ac, t, tc, _), r in inner]
+    inner = [j for j in walked if alias(j[2]) not in optional]
+    lines += [f"MATCH {relationship(a, ac, t, tc, labels, model)}" for a, ac, t, tc, _ in inner]
     if guard:
-        matched = [(alias(b.fact), labels[b.fact])] + [(alias(j[2]), labels[j[2]]) for j, _ in inner]
-        where += [g for v, lb in matched for g in guard.node(v, lb)] + [
-            g for _, r in inner for g in guard.relationship(r)
-        ]
+        matched = [(alias(b.fact), labels[b.fact])] + [(alias(j[2]), labels[j[2]]) for j in inner]
+        where += [g for v, lb in matched for g in guard.node(v, lb)]
     if where:
         lines.append("WHERE " + "\n  AND ".join(f"({w})" for w in where))
-    for (a, ac, t, tc, _), r in zip(walked, rels):
+    for a, ac, t, tc, _ in walked:
         if alias(t) in optional:
-            conditions = guard.node(alias(t), labels[t]) + guard.relationship(r)
-            lines.append(f"OPTIONAL MATCH {relationship(a, ac, t, tc, labels, model, r)}")
+            conditions = guard.node(alias(t), labels[t])
+            lines.append(f"OPTIONAL MATCH {relationship(a, ac, t, tc, labels, model)}")
             lines.append("WHERE " + " AND ".join(f"({c})" for c in conditions))
     tail = []
     if p.order:
@@ -1021,9 +1013,8 @@ def render_cypher(p: Plan, labels: dict[str, str], model: dict, guard=None) -> s
     return "\n".join(lines + tail)
 
 
-def relationship(a: str, ac: str, t: str, tc: str, labels: dict[str, str], model: dict, var: str = "") -> str:
-    """A join step as a relationship: forwards, from the pointing column to the key, or back; `var` names
-    it."""
+def relationship(a: str, ac: str, t: str, tc: str, labels: dict[str, str], model: dict) -> str:
+    """A join step as a relationship: forwards, from the pointing column to the key, or back."""
     step = lambda *x: tuple(str(v).lower() for v in x)
     for r in model["relationships"]:
         key = r["end"]["keys"][0]
@@ -1031,9 +1022,9 @@ def relationship(a: str, ac: str, t: str, tc: str, labels: dict[str, str], model
             r["start"]["targetEntity"], r["end"]["targetEntity"], key["relationshipColumn"], key["nodeColumn"]
         )
         if have == step(labels[a], labels[t], ac, tc):
-            return f"({alias(a)})-[{var}:{r['label']}]->({alias(t)}:{labels[t]})"
+            return f"({alias(a)})-[:{r['label']}]->({alias(t)}:{labels[t]})"
         if have == step(labels[t], labels[a], tc, ac):
-            return f"({alias(a)})<-[{var}:{r['label']}]-({alias(t)}:{labels[t]})"
+            return f"({alias(a)})<-[:{r['label']}]-({alias(t)}:{labels[t]})"
     raise Unfit(f"no relationship for the join {short(a)}.{ac} = {short(t)}.{tc}")
 
 

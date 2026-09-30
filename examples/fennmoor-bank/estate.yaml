@@ -42,7 +42,6 @@ virtualize:                           # qlsc virtualize: the Virtual Graph spike
   dataset: fnb_graph                  # the views the virtual graph reads, one dataset of their own
   maximum_bytes_billed: 1000000000    # per query Virtual Graph sends to BigQuery
   credentials_file: /nvg_home/credentials.json
-  passthrough: true                   # the JDBC pass-through runs in the container: every Cypher query is signed for its principal
   driver_properties:                  # passed to the Google BigQuery JDBC driver as they are
     OAuthType: 3                      # application-default credentials: the impersonated qlsc-bq account, no key file
     Labels: "app=neo4j-virtual-graph,graph=fennmoor"   # on every BigQuery job it sends: find them in INFORMATION_SCHEMA.JOBS
@@ -54,7 +53,7 @@ virtualize:                           # qlsc virtualize: the Virtual Graph spike
            fct_calls, dim_agent, dim_queue, dim_cc_site]
 
 navigate:
-  today: 2026-07-01                 # the day after the log window: the gold questions' "last quarter" is 2026 Q2, "last year" 2025
+  today: 2026-07-13                 # the filled data's last day (lagged tables such as loan decisions run past the log window, which ends 2026-06-29), so a period to today holds all of it; the gold questions' "last quarter" is 2026 Q2, "last year" 2025
 
 work_dir: work
 

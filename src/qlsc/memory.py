@@ -9,19 +9,19 @@ semantic layer it came from.
   template    what to fetch for a label, from the virtual graph's model:
                 hop 0   the node itself;
                 hop 1   every relationship touching it. Into it is the many side: windowed by the start
-                        table's partition column (the last memory.window_days) and the memory.cap most
+                        table's partition column (from memory.window_quarters back) and the memory.cap most
                         recent;
                 hop 2+  to memory.hops, the relationships out of what was fetched (to-one: a fact's
-                        dimensions), keyed by the nodes already fetched.
-              Virtual Graph has no OPTIONAL MATCH, so each relationship is its own read. A hop's reads run
-              concurrently, each signed for the pass-through.
-  keyed       Virtual Graph writes a traversal as the start's table joined to itself and to the end's. A
-              relationship that is a column of its start node's table (a fact's customer_key) is read by that
-              column instead: into the anchor, the facts by their own column; out of a hop's facts, the
-              dimensions they name, by key, and only those not fetched yet. The same rows, without rescanning
-              the fact table or billing the far one (BigQuery bills a minimum per table a query references).
-              The anchor's own read still gates the context: none, or none the reader may see, and the
-              context is empty.
+                        dimensions).
+              A hop at a time, its reads concurrently, each signed for the pass-through.
+  one read    every relationship is a column of its start node's table (a fact's customer_key: qlsc
+              virtualize writes them so), so every read is the nodes of a label whose property is in $keys:
+              the anchor by its key; the facts into it by their own column; a to-one end by its key, from the
+              column the nodes already fetched hold, and only those not fetched yet. Nothing traverses a
+              relationship: Virtual Graph writes a traversal as the start's table joined to itself and to the
+              end's, rescanning the fact table and billing the far one (BigQuery bills a minimum per table a
+              query references). The anchor's own read gates the context: none, or none the reader may see,
+              and the context is empty.
   batch       many anchors' contexts fetched together (qlsc remember LABEL KEY...): each read keyed on
               what all of them fetched, once. A warehouse bills the columns it scans, not the rows it returns,
               so a batch costs about what one context does. Each anchor keeps its own context, exactly the one
@@ -29,17 +29,21 @@ semantic layer it came from.
               ordered by anchor, the cap and one more per anchor), the dimensions its own facts name, and its
               own recall step.
   properties  the columns the log's queries read or filter on (memory.properties: used), with each node's
-              key and partition column; or every column (all)
+              key, partition column and the columns its relationships are; or every column (all)
   identity    the virtual graph's labels, relationship types and keys, with `source` (the virtual graph's
               dataset) on every node: a node key (source, key) per label, so two sources never merge
-  provenance  on every node and relationship: fetched_at, holds_until, fetched_by, fetched_with (the read's
-              Cypher). Each node -[:FROM]-> a stub of its layer Table, which -[:HAS_COLUMN]-> stubs of the
-              Columns remembered: ids that survive a rebuild, and a name
+  relationships  derived when a node is written, from its column: a written node's relationships of each
+              type are replaced from it, and a written node gains those of the nodes already remembered that
+              point at it. So a relationship has no state of its own: it holds as long as its two nodes do,
+              and a fact that points elsewhere now points elsewhere in memory once it is fetched again
+  provenance  on every node: fetched_at, holds_until, fetched_by, fetched_with (the read's Cypher). Each node
+              -[:FROM]-> a stub of its layer Table, which -[:HAS_COLUMN]-> stubs of the Columns remembered:
+              ids that survive a rebuild, and a name
   freshness   a fact holds for its table's write cadence: the median gap between the log's write days. A
               frozen table's facts hold for good. A context holds until its first fact expires; recall
-              reads memory while it holds, and fetches again once it doesn't (or once the template changed)
-  refetch     a read's relationships that the new fetch didn't return are removed: the fact left the window,
-              or points elsewhere now. Nodes stay, stale by their holds_until, and are never read as fresh
+              reads memory while it holds, and fetches again once it doesn't (or once the template changed).
+              A node a fetch no longer returns (it left the window) stays, stale by its holds_until, and is
+              never read as fresh
   entitlements  `--as <principal>` fetches as them: the template is the virtual graph's model as the gateway
               restricts it for them (entitle.model: readable tables, no hidden columns), and each read is
               signed for them, so the warehouse applies their tables, columns and rows. A remembered row has
@@ -47,18 +51,16 @@ semantic layer it came from.
               - every recall is a Step, owned by its reader: (:Step {tool: 'recall', owner})-[:READ]->. A
                 fetch's step READ the anchor (the context record: when, with which template, until when it
                 holds) and every node of a table with a row access policy it fetched, until it holds for them.
-                Such a node is read from memory only by a principal whose own step read it and still holds;
-                a relationship, only between nodes the reader may see. Any other fact is the same whoever
-                reads it, and is shared;
-              - a refetch removes a relationship it didn't return only where it could have: not one to a
-                row-policied node the reader can't see;
+                Such a node is read from memory only by a principal whose own step read it and still holds,
+                and so is a relationship to it: a relationship to a node the reader can't see says only the
+                key its start node holds, which they read. Any other fact is the same whoever reads it, and is
+                shared;
               - a recall reads memory only for a context the reader's own step fetched, with their template
                 as it is now: a table or column they lost changes it, and it is fetched again. Every read,
                 from memory too, leaves its step: who read what, and when.
 
-Each read's Cypher is written once for either target: the virtual graph, or memory, where the same read adds
-`source` and freshness. So a context read back from memory can be compared with the virtual graph's, read for
-read.
+Each read's Cypher is one for either target: the virtual graph, or memory, where the same read adds `source`
+and freshness. So a context read back from memory can be compared with the virtual graph's, read for read.
 """
 
 from __future__ import annotations
@@ -129,26 +131,24 @@ WITH n
 MATCH (t:Table {{id: $table}})
 MERGE (n)-[:FROM]->(t)
 """
-EDGES = """
-UNWIND $rows AS r
-MATCH (a:`{start}` {{source: $source, `{start_key}`: r.start}})
-MATCH (b:`{end}` {{source: $source, `{end_key}`: r.end}})
-MERGE (a)-[x:`{type}`]->(b)
-SET x.fetched_at = $at, x.holds_until = $until, x.fetched_by = $by, x.fetched_with = $cypher
+# A relationship is a column of its start node (qlsc virtualize writes each as its start table's key column),
+# so memory derives it when a node is written: a written start node's relationships of the type are replaced
+# from its column, and a written end node gains those of the start nodes already remembered that point at it.
+# No state of its own: it holds as long as its two nodes do.
+OUT_OF = """
+UNWIND $keys AS k
+MATCH (a:`{start}` {{source: $source, `{start_key}`: k}})
+CALL (a) {{ MATCH (a)-[x:`{type}`]->() DELETE x }}
+WITH a MATCH (b:`{end}` {{source: $source, `{end_key}`: a.`{fk}`}})
+MERGE (a)-[:`{type}`]->(b)
 """
-# A read's relationships the new fetch didn't return, around the nodes it was keyed on. Where the other end is
-# of a row-policied table, only those the reader may see: an absent row they can't see says nothing ($open,
-# else $visible, the other ends this fetch read).
-PRUNE_INTO = """
-MATCH (o:`{start}`)-[x:`{type}`]->(v:`{end}` {{source: $source}})
-WHERE v.`{end_key}` IN $keys AND x.fetched_at < $at AND ($open OR o.`{start_key}` IN $visible)
-DELETE x
+INTO = """
+UNWIND $keys AS k
+MATCH (b:`{end}` {{source: $source, `{end_key}`: k}})
+MATCH (a:`{start}` {{source: $source, `{fk}`: k}})
+MERGE (a)-[:`{type}`]->(b)
 """
-PRUNE_OUT_OF = """
-MATCH (v:`{start}` {{source: $source}})-[x:`{type}`]->(o:`{end}`)
-WHERE v.`{start_key}` IN $keys AND x.fetched_at < $at AND ($open OR o.`{end_key}` IN $visible)
-DELETE x
-"""
+FK_INDEX = "CREATE INDEX {name} IF NOT EXISTS FOR (n:`{label}`) ON (n.source, n.`{fk}`)"
 # The recall itself, as a Step its reader owns. A fetch's step READ the anchor (the context record) and every
 # row-policied node it fetched; a read of memory's step READ the anchor only, for the record.
 STEP = """
@@ -214,8 +214,9 @@ def ident(name: str) -> str:
 @dataclass(frozen=True)
 class Read:
     """One read of a template. Hop 0 fetches the anchor itself. A relationship read fetches `label` nodes
-    across `type`, keyed on the `via` nodes: inward when the fetched nodes point at them (the many side),
-    else outward (to-one)."""
+    across `type`, from the `via` nodes: inward when the fetched nodes point at them (the many side: the
+    nodes whose `fk` is a via node's key), else outward (to-one: the nodes whose key a via node's `fk`
+    holds)."""
 
     hop: int
     label: str
@@ -225,8 +226,7 @@ class Read:
     via: str | None = None
     inward: bool = False
     window: str | None = None  # the fetched nodes' partition property (inward reads)
-    via_window: str | None = None  # the via nodes' partition property (outward reads: prunes partitions)
-    fk: str | None = None  # the start node's property holding the end's key: on the virtual graph, read by it
+    fk: str | None = None  # the start node's property holding the end's key
 
     @property
     def name(self) -> str:
@@ -322,9 +322,10 @@ def model(G: Graph, s: Settings, schema: dict | None = None, allow: entitle.Allo
         for r in entities["relationships"]
         if r["start"]["targetEntity"] in nodes and r["end"]["targetEntity"] in nodes
     ]
-    for r in rels:  # the column a relationship joins on is fetched with its start node, to follow it by key
-        if r["fk"]:
-            nodes[r["start"]]["props"][r["fk"]] = nodes[r["start"]]["readable"][r["fk"]]
+    for r in rels:  # the column a relationship joins on is fetched with its start node: the relationship
+        if not r["fk"]:
+            raise Unsupported(f"{r['type']}: a relationship that isn't a column of {r['start']}'s own table")
+        nodes[r["start"]]["props"][r["fk"]] = nodes[r["start"]]["readable"][r["fk"]]
     policied = {label for label, t in tables.items() if t["id"] in policied_tables}
     return Model(
         f"{schema['catalog']}.{schema['schema']}",
@@ -340,8 +341,8 @@ def model(G: Graph, s: Settings, schema: dict | None = None, allow: entitle.Allo
 
 def foreign_key(r: dict, nodes: dict, label_of_view: dict) -> str | None:
     """The start node's property that holds the end node's key, when the relationship is a column of the
-    start node's own table (a fact's customer_key, an account's branch_id): then the relationship can be read
-    by that property, without joining its table to itself and to the end's. None otherwise."""
+    start node's own table (a fact's customer_key, an account's branch_id), as qlsc virtualize writes every
+    relationship. None otherwise."""
     a, b = r["start"]["targetEntity"], r["end"]["targetEntity"]
     if a not in nodes or b not in nodes or label_of_view.get(r.get("table"), a) != a:
         return None
@@ -364,39 +365,19 @@ def template(m: Model, anchor: str, hops: int) -> list[Read]:
     if anchor not in m.nodes:
         raise Unsupported(f"no label {anchor} in the virtual graph")
     reads = [Read(0, anchor)]
-    for r in sorted(m.rels, key=lambda r: (r["type"], r["start"], r["end"])):
+    ordered = sorted(m.rels, key=lambda r: (r["type"], r["start"], r["end"]))
+    for r in ordered:
+        ends = dict(type=r["type"], start=r["start"], end=r["end"], via=anchor, fk=r["fk"])
         if r["start"] == anchor:
-            reads.append(Read(1, r["end"], r["type"], r["start"], r["end"], via=anchor))
+            reads.append(Read(1, r["end"], **ends))
         elif r["end"] == anchor:
-            window = m.nodes[r["start"]]["partition"]
-            reads.append(
-                Read(
-                    1,
-                    r["start"],
-                    r["type"],
-                    r["start"],
-                    r["end"],
-                    via=anchor,
-                    inward=True,
-                    window=window,
-                    fk=r.get("fk"),
-                )
-            )
+            reads.append(Read(1, r["start"], **ends, inward=True, window=m.nodes[r["start"]]["partition"]))
     used = {x.type for x in reads}
     frontier = {x.label for x in reads[1:]}
     for hop in range(2, hops + 1):
         new = [
-            Read(
-                hop,
-                r["end"],
-                r["type"],
-                r["start"],
-                r["end"],
-                via=r["start"],
-                via_window=m.nodes[r["start"]]["partition"],
-                fk=r.get("fk"),
-            )
-            for r in sorted(m.rels, key=lambda r: (r["type"], r["start"], r["end"]))
+            Read(hop, r["end"], r["type"], r["start"], r["end"], via=r["start"], fk=r["fk"])
+            for r in ordered
             if r["type"] not in used and r["start"] in frontier
         ]
         used |= {x.type for x in new}
@@ -408,63 +389,32 @@ def template(m: Model, anchor: str, hops: int) -> list[Read]:
 def digest(m: Model, reads: list[Read], p: dict) -> str:
     """What a remembered context was fetched with: a changed template, window or cap fetches it again."""
     what = [[r.name, r.window, sorted(m.nodes[r.label]["props"])] for r in reads] + [
-        p["window_days"],
+        p["window_quarters"],
         p["cap"],
         p["properties"],
     ]
     return hashlib.sha256(json.dumps(what).encode()).hexdigest()[:16]
 
 
-def keyed(r: Read, memory: bool) -> bool:
-    """Whether the read follows its relationship by the start node's key column rather than traversing it: on
-    the virtual graph, which writes a traversal as the start's table joined to itself and to the end's, so
-    each read would scan its fact table twice and bill the far table too. Into the anchor, the facts are
-    read by their own column (a card transaction's customer_key); out of a hop's facts, their dimensions by
-    key, from the keys the facts already hold, and only those not fetched yet. Memory has the relationships
-    themselves, and traverses them."""
-    return not memory and r.fk is not None and (r.inward or r.hop >= 2)
-
-
 def cypher(m: Model, r: Read, memory: bool = False) -> str:
-    """A read's Cypher: over the virtual graph, or (memory) the same read over memory: only its source's
-    nodes, only facts that still hold at $now, and a node of a row-policied table only if the reader's own
-    step ($by) read it and that read still holds. On the virtual graph a read with a key column reads by it
-    (keyed): the same rows. A read into the anchors is ordered by anchor, then the most recent first, so a
-    batch's is read in pages (run_batch)."""
+    """A read's Cypher, the same for either target: the nodes of its label whose property is in $keys. The
+    anchor by its key; the facts that point at the via nodes by their own column (a card transaction's
+    customer_key), windowed and ordered by via node, then the most recent first, so a batch's is read in
+    pages (run_batch); a to-one end by its key, from the column the via nodes hold. On the virtual graph no
+    read traverses a relationship: Virtual Graph writes a traversal as the start's table joined to itself and
+    to the end's. Over memory, the same read is guarded: its source's nodes, those that still hold at $now,
+    and a node of a row-policied table only if the reader's own step ($by) read it and that read still
+    holds."""
     n = m.nodes[r.label]
-    guard = Guard(m)
     ret = ", ".join(f"n.`{p}` AS `{p}`" for p in sorted(n["props"]))
-    if keyed(r, memory) and r.inward:
-        where = [f"n.`{r.fk}` IN $keys"] + ([f"n.`{r.window}` >= $since"] if r.window else [])
-        recent = f"n.`{r.window}` DESC, " if r.window else ""
-        return (
-            f"MATCH (n:`{r.label}`)\nWHERE "
-            + "\n  AND ".join(where)
-            + f"\nRETURN n.`{r.fk}` AS _via, {ret}\nORDER BY n.`{r.fk}`, {recent}n.`{n['key']}`\nLIMIT $limit"
-        )
-    if r.type is None or keyed(r, memory):
-        where = [f"n.`{n['key']}` IN $keys"] + (guard.node("n", r.label) if memory else [])
-        return f"MATCH (n:`{r.label}`)\nWHERE " + " AND ".join(where) + f"\nRETURN {ret}"
-    vk = m.key(r.via)
-    if r.inward:
-        match = f"MATCH (n:`{r.label}`)-[x:`{r.type}`]->(v:`{r.via}`)"
-    else:
-        match = f"MATCH (v:`{r.via}`)-[x:`{r.type}`]->(n:`{r.label}`)"
-    where = [f"v.`{vk}` IN $keys"]
-    if r.window:
-        where.append(f"n.`{r.window}` >= $since")
-    if r.via_window:
-        where.append(f"v.`{r.via_window}` >= $since")
-    if memory:
-        where += guard.relationship("x") + guard.node("n", r.label) + guard.node("v", r.via)
-    recent = f"n.`{r.window}` DESC, " if r.window and r.inward else ""
-    order = f"v.`{vk}`, {recent}n.`{n['key']}`"
-    limit = "\nLIMIT $limit" if r.inward else ""
-    return (
-        f"{match}\nWHERE "
-        + "\n  AND ".join(where)
-        + f"\nRETURN v.`{vk}` AS _via, {ret}\nORDER BY {order}{limit}"
-    )
+    prop = r.fk if r.inward else n["key"]
+    where = [f"n.`{prop}` IN $keys"] + ([f"n.`{r.window}` >= $since"] if r.window else [])
+    where += Guard(m).node("n", r.label) if memory else []
+    match = f"MATCH (n:`{r.label}`)\nWHERE " + "\n  AND ".join(where)
+    if not r.inward:
+        return f"{match}\nRETURN {ret}"
+    recent = f"n.`{r.window}` DESC, " if r.window else ""
+    return f"{match}\nRETURN n.`{r.fk}` AS _via, {ret}\nORDER BY n.`{r.fk}`, {recent}n.`{n['key']}`\nLIMIT $limit"
 
 
 @dataclass
@@ -504,9 +454,11 @@ class Context:
 
 
 def window_start(s: Settings) -> dt.date:
+    """The first day of the quarter memory.window_quarters before today's."""
     today = s["navigate"].get("today") or dt.date.today()
     today = today if isinstance(today, dt.date) else dt.date.fromisoformat(str(today))
-    return today - dt.timedelta(days=s["memory"]["window_days"])
+    month = today.year * 12 + (today.month - 1) // 3 * 3 - 3 * s["memory"]["window_quarters"]
+    return dt.date(month // 12, month % 12 + 1, 1)
 
 
 def run_reads(
@@ -519,12 +471,12 @@ def run_reads(
 def run_batch(
     s: Settings, m: Model, reads: list[Read], anchor_keys: list, target: Graph, memory: bool, now: dt.datetime
 ) -> dict:
-    """Every read of the template for every anchor at once, a hop at a time (hop 0 with hop 1: both are keyed
-    on the anchors), each hop's reads concurrently, each keyed on the union of what the anchors fetched. A
-    warehouse bills the columns it scans, not the rows it returns, so a read for many anchors costs about what
-    one does. Each anchor keeps its own context: its own rows (capped per anchor, the most recent), and the
-    dimensions its own facts name. An anchor with no node, or none the reader may see, has an empty context.
-    -> anchor key -> Context"""
+    """Every read of the template for every anchor at once, a hop at a time (hop 0 first: a to-one read out of
+    the anchors is keyed on the column they hold), each hop's reads concurrently, each keyed on the union of
+    what the anchors fetched. A warehouse bills the columns it scans, not the rows it returns, so a read for
+    many anchors costs about what one does. Each anchor keeps its own context: its own rows (capped per
+    anchor, the most recent), and the ends its own nodes point at. An anchor with no node, or none the
+    reader may see, has an empty context. -> anchor key -> Context"""
     p = s["memory"]
     anchor = reads[0].label
     origin = "memory" if memory else "virtual graph"
@@ -542,14 +494,14 @@ def run_batch(
         # what each anchor's read is keyed on: a copy, as the hop's other reads add to what was fetched
         keys = {a: set(fetched[a].get(r.via or anchor, ())) for a in live}
         ask = set().union(set(), *keys.values())
-        if keyed(r, memory) and not r.inward:  # the dimensions those facts name, not fetched yet
+        if r.type and not r.inward:  # the ends those nodes point at, not fetched yet
             ask = (
                 {store[(r.via, k)].get(r.fk) for k in ask} - {None} - {k for lb, k in store if lb == r.label}
             )
         ask = sorted(ask, key=str)
-        sent, extra = (q, {}) if memory else entitle.signing(s, m.allow, q)
+        sent, extra = (q, {}) if memory else entitle.signing(s, m.allow, q, target)
         t, rows = time.time(), []
-        if not r.inward:  # to-one: a row per key at most
+        if not r.inward:  # a row per key at most
             for i in range(0, len(ask), p["keys_per_read"]):  # a warehouse limits a query's parameters
                 rows += target.rows(sent, **base, keys=ask[i : i + p["keys_per_read"]], **extra)
             return r, q, keys, rows, time.time() - t
@@ -578,7 +530,7 @@ def run_batch(
     def owned(r: Read, keys: dict, rows: list[dict]) -> dict:
         """Each anchor's rows of a read, in the read's order, with the node each one was reached from."""
         key, got = m.key(r.label), {a: [] for a in live}
-        if keyed(r, memory) and not r.inward:  # dimensions: those the anchor's own facts name
+        if r.type and not r.inward:  # to-one: the ends the anchor's own nodes point at
             for row in rows:
                 store[(r.label, row[key])] = row
             for a in live:
@@ -598,14 +550,10 @@ def run_batch(
                 got[a].append((row, via))
         return got
 
-    last = max(r.hop for r in reads)
-    groups = [[r for r in reads if r.hop <= 1]] + [
-        [r for r in reads if r.hop == h] for h in range(2, last + 1)
-    ]
-    for group in groups:
+    for hop in range(max(r.hop for r in reads) + 1):
         with ThreadPoolExecutor(max_workers=p["workers"]) as pool:
-            results = list(pool.map(one, group))
-        if group[0].hop == 0:
+            results = list(pool.map(one, [r for r in reads if r.hop == hop]))
+        if hop == 0:
             live &= {row[m.key(anchor)] for row in results[0][3]}
         for r, q, keys, rows, seconds in results:
             key = m.key(r.label)
@@ -617,11 +565,10 @@ def run_batch(
                     ctx.nodes[(r.label, row[key])] = row
                     ctx.fetched_with.setdefault((r.label, row[key]), q)
                     fetched[a].setdefault(r.label, set()).add(row[key])
-                    if r.type and not (keyed(r, memory) and not r.inward):
-                        start, end = (row[key], via) if r.inward else (via, row[key])
-                        ctx.edges.add((r.type, r.start, start, r.end, end))
-                if r.type and keyed(r, memory) and not r.inward:  # each fact it was keyed on, to the one
-                    for v in keys[a]:  # it names
+                    if r.inward:
+                        ctx.edges.add((r.type, r.start, row[key], r.end, via))
+                if r.type and not r.inward:  # each node it was keyed on, to the one it points at
+                    for v in keys[a]:
                         f = store[(r.via, v)].get(r.fk)
                         if (r.label, f) in ctx.nodes:
                             ctx.edges.add((r.type, r.start, v, r.end, f))
@@ -662,25 +609,26 @@ def memory_graph(s: Settings) -> Graph:
 
 
 def ensure(s: Settings, m: Model) -> None:
-    """The memory database on the semantic layer's instance, and its keys: (source, key) per label, and the
-    stubs' ids."""
+    """The memory database on the semantic layer's instance, and its keys: (source, key) per label, (source,
+    column) per relationship (to derive it from the end node), and the stubs' ids."""
     with Graph(s, {"database": "system"}) as system:
         system.run(CREATE_DATABASE, name=s["memory"]["database"])
     with memory_graph(s) as M:
         for label, n in sorted(m.nodes.items()):
             M.run(NODE_KEY.format(name=f"memory_{label}", label=label, key=n["key"]))
+        for r in sorted(m.rels, key=lambda r: r["type"]):
+            M.run(FK_INDEX.format(name=f"memory_{r['start']}_{r['fk']}", label=r["start"], fk=r["fk"]))
         for q in STUB_KEYS:
             M.run(q)
 
 
-def write(s: Settings, m: Model, ctx: Context, reads: list[Read], template_id: str, at: dt.datetime) -> float:
-    """The context into memory, in one transaction: stubs, nodes, relationships, the reads' stale
-    relationships removed, and the recall's Step: its READ of the anchor is the context record, and its READ
-    of each row-policied node lets the reader see it until it holds for them. -> seconds"""
+def write(s: Settings, m: Model, ctx: Context, template_id: str, at: dt.datetime) -> float:
+    """The context into memory, in one transaction: stubs, nodes, the relationships their columns make, and
+    the recall's Step: its READ of the anchor is the context record, and its READ of each row-policied node
+    lets the reader see it until it holds for them. -> seconds"""
     t0 = time.time()
     by = m.reader
     by_label: dict[str, list[dict]] = {}
-    done = {x["read"]: x for x in ctx.reads}
     for (label, key), props in ctx.nodes.items():
         by_label.setdefault(label, []).append(
             {"key": key, "props": props, "cypher": ctx.fetched_with[(label, key)]}
@@ -707,33 +655,13 @@ def write(s: Settings, m: Model, ctx: Context, reads: list[Read], template_id: s
             q = NODES.format(label=label, key=m.key(label))
             table = m.tables.get(label, {}).get("id")
             t.run(q, rows=rows, source=m.source, at=at, until=until[label], by=by, table=table).consume()
-        for r in reads:
-            if r.type is None or r.name not in done:
-                continue
-            ends = dict(start=r.start, end=r.end, type=r.type, start_key=m.key(r.start), end_key=m.key(r.end))
-            rows = [
-                {"start": a, "end": b} for (ty, st, a, en, b) in sorted(ctx.edges, key=str) if ty == r.type
-            ]
-            # a relationship holds as long as the table that holds it: the start node's
-            t.run(
-                EDGES.format(**ends),
-                rows=rows,
-                source=m.source,
-                at=at,
-                until=until[r.start],
-                by=by,
-                cypher=done[r.name]["cypher"],
-            ).consume()
-            # only around the nodes this read was keyed on, and only where an absent row says it's gone
-            other = r.start if r.inward else r.end
-            t.run(
-                (PRUNE_INTO if r.inward else PRUNE_OUT_OF).format(**ends),
-                keys=done[r.name]["keys"],
-                source=m.source,
-                at=at,
-                open=other not in m.policied,
-                visible=fetched.get(other, []),
-            ).consume()
+        for r in sorted(m.rels, key=lambda r: r["type"]):
+            ends = dict(start=r["start"], end=r["end"], type=r["type"], fk=r["fk"],
+                        start_key=m.key(r["start"]), end_key=m.key(r["end"]))  # fmt: skip
+            if r["start"] in fetched:
+                t.run(OUT_OF.format(**ends), keys=fetched[r["start"]], source=m.source).consume()
+            if r["end"] in fetched:
+                t.run(INTO.format(**ends), keys=fetched[r["end"]], source=m.source).consume()
         record(t, m, ctx, template_id, at, step, "virtual graph", context_until, seen_until[ctx.label])
         for label in sorted(m.policied & set(by_label)):
             t.run(
@@ -798,7 +726,7 @@ def find(s: Settings, m: Model, label: str, prop: str, value, now: dt.datetime, 
             hits = []
     if not hits:
         with virtual_graph(s) as V:
-            q, extra = entitle.signing(s, m.allow, FIND.format(label=label, prop=prop, key=key))
+            q, extra = entitle.signing(s, m.allow, FIND.format(label=label, prop=prop, key=key), V)
             hits = [r["key"] for r in V.rows(q, value=value, **extra)]
     if len(hits) != 1:
         raise Unsupported(
@@ -882,7 +810,7 @@ def recall_batch(
             ensure(s, m)
         for key, ctx in fetched.items():
             if ctx.nodes:
-                ctx.seconds += write(s, m, ctx, reads, template_id, now)
+                ctx.seconds += write(s, m, ctx, template_id, now)
             out[key] = ctx
     return {key: out[key] for key in keys}
 
@@ -1016,9 +944,10 @@ CREATE (s)-[:READ {{context: true}}]->(a)
 
 
 class Guard:
-    """Memory's conditions on a query over the virtual graph's model (compile.render_cypher's guard): its
-    source's nodes, facts that still hold at $now, and a row-policied node only if the reader's ($by) own
-    step read it and that read still holds. The same as memory's own reads (cypher())."""
+    """Memory's conditions on a query over the virtual graph's model (compile.render_cypher's guard), on every
+    node: its source's, still holding at $now, and a row-policied node only if the reader's ($by) own step
+    read it and that read still holds. A relationship holds as long as its nodes do. The same as memory's
+    own reads (cypher())."""
 
     def __init__(self, m: Model):
         self.m = m
@@ -1030,9 +959,6 @@ class Guard:
                 f"EXISTS {{ (:Step {{owner: $by}})-[seen:READ]->({v}) WHERE seen.holds_until > $now }}"
             )
         return out
-
-    def relationship(self, r: str) -> list[str]:
-        return [f"({r}.holds_until IS NULL OR {r}.holds_until > $now)"]
 
 
 def literal_value(v) -> str | None:

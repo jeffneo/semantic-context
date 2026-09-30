@@ -1,4 +1,4 @@
-# The method's defaults: models, the parser service, and every parameter that shapes the result.
+# The method's defaults: models, the parser, and every parameter that shapes the result.
 # An estate's config file overrides any of these (see examples/fennmoor-bank/estate.yaml).
 # Every value is read by the code. How each was chosen, and how sensitive the result is to it:
 # docs/design.md#parameters and the example's results/robustness.md.
@@ -11,7 +11,6 @@ llm:
   query_thinking: between_tools      # the thinking setting sent with the query model's calls (null: none sent). Sonnet 5.5
                                      # can't turn thinking off; between_tools is its lowest, no thinking before a single
                                      # answer, as the query model ran on Sonnet 5
-  query_effort: null                 # with query_thinking: adaptive, how hard the query model reasons (low | medium | high | max). null: not sent. Part of the LLM cache key when set
   concurrency: 6
 
 entitlements:                         # qlsc ask --as: the gateway (plans/2026-09-27-entitlements.md). The estate's config names its principals
@@ -22,7 +21,7 @@ entitlements:                         # qlsc ask --as: the gateway (plans/2026-0
 memory:                               # qlsc remember / recall: an entity's context from the virtual graph, kept (plans/2026-09-27-agentic-memory.md)
   database: memory                    # on the semantic layer's instance (config neo4j), beside it: a rebuild never touches it
   hops: 2                             # the entity's relationships, then their to-one dimensions (a call's agent, a purchase's merchant)
-  window_days: 92                     # facts (the many side of a relationship) from the last N days, by their table's partition column: a full quarter, the period questions ask for most (90 missed a quarter's first day)
+  window_quarters: 1                  # facts (the many side of a relationship) from the first day of the quarter this many before today's, by their table's partition column: 1, last quarter (the period questions ask for most) and this one so far
   cap: 200                            # at most this many facts per relationship, the most recent; a capped read is flagged on the context
   properties: used                    # used: the columns the log's queries read or filter on, keys and partition columns | all
   unknown_hold_days: 1                # how long a fact holds when the log shows no cadence for its table (fewer than two write days)
@@ -47,10 +46,8 @@ embeddings:                           # Azure OpenAI: AZURE_OPENAI_API_KEY, _END
   deployment: text-embedding-3-large
   dimensions: 512
 
-parser:                               # the qlsc-parse service (parser/)
-  url: http://localhost:8090
-  batch_size: 200
-  concurrency: 8
+parse:                                # qlsc parse: the parser (parser/, qlsc_parse), in-process
+  workers: 8                          # processes fingerprinting and resolving the log's texts: the parse is CPU-bound
 
 load:
   max_values_per_filter: 50         # literal values kept per FILTERS edge, the most-run first
@@ -103,24 +100,14 @@ navigate:
   cypher_max_rows: 100000           # ask --cypher --run: rows read from Virtual Graph, streamed; more is reported as truncated, not held in memory
   rows_shown: 20                    # ask --run: rows of the answer printed
   examples: 3                       # queries from the log shown to the query writer
-  examples_by: similarity           # similarity: closest to the question, none reading a sandbox or frozen table | runs: most-run over the cohort
   example_tables: true              # the tables those queries read join the cohort (found Q05's and Q08's missing tables)
   example_statements: [SELECT, CREATE_TABLE_AS_SELECT, MERGE, CREATE_VIEW]   # statements that compute something
   example_chars: 3000               # of each query's SQL, comments removed, that is embedded
   today: null                       # the date questions are asked on (YYYY-MM-DD), for "last quarter" and the like: both routes get its calendar and write literal dates. null: the real date. An estate whose data stops (a synthetic one) pins it, which also keeps answers reproducible from day to day
-  writer: compiled                  # both routes' writer: free (the LLM writes SQL or Cypher) | compiled (the LLM fills one typed request, qlsc/compile.py compiles it to SQL or to Cypher over the Virtual Graph; free writing when it doesn't fit)
   memory_route: true                # the router answers from memory when it holds the whole answer: one entity, whose context the reader holds fresh (qlsc/memory.py answerable)
   compile_computations: 12          # compiled: Computations offered as the request's options, closest to the question first
   compile_hops: 2                   # compiled: the longest join path from the fact table
-  compile_checks: true              # compiled: check the request against the question (a Computation's restriction it doesn't state, a value it states that the request leaves out) and ask once more with what was found; a week grain follows the log's truncation of that column; a period ending today that the question doesn't end is left open
+  compile_checks: true              # compiled: check the request against the question (a Computation's restriction it doesn't state, a value it states that the request leaves out) and ask once more with what was found; a week grain follows how the log's Computations truncate that column
   compile_check_chars: 4            # compiled: the shortest value checked; shorter codes ('A', 'Y') match words by accident
-  anchors: question                 # question: one embedding of the whole question | parts: the question broken into measures, groupings, filters and entities (an LLM call), each navigated from
-  anchor_groups: 2                  # parts: level-1 groups each part opens
-  anchor_tables: 3                  # parts: tables each part contributes to the cohort
-  anchor_values: 2                  # parts: columns the log filters on a filter's value, whose tables join the cohort
-  anchor_computations: 2            # parts: Computations each measure (or filter) finds
-  computations: 0                   # Computations (qlsc computations) closest to the question, given to the query writer as definitions; 0: none
-  concepts: 0                       # experiment: designed-model terms (catalog glossary, ontology) linked to the cohort, given to the query writer; 0: none (designed models are aligned, not inputs)
   computation_min_similarity: 0.8   # vector score below which a Computation isn't offered: a distant one misleads more than it helps
-  computation_tables: true          # the tables those Computations read join the cohort
   filter_values: 8                  # values the log filters a text column on, shown with it to the LLM (spelled as the data has them)

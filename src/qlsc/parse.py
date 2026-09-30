@@ -1,14 +1,14 @@
-"""Parse: fingerprint every distinct query text and resolve one per shape, through the parser service.
+"""Parse: fingerprint every distinct query text and resolve one per shape, with the parser (parser/,
+qlsc_parse) in a pool of processes (parse.workers).
 
 Inputs (qlsc/extract.py):  <work>/log_groups.ndjson.gz, <work>/catalog.json
 Outputs:
-  <work>/texts.ndjson.gz    per distinct text: shape id, literal values, annotations
+  <work>/texts.ndjson.gz    per distinct text: shape id, literal values
   <work>/shapes.ndjson.gz   per shape: usage statistics and the parse record
   <work>/PARSE_HEALTH.md    resolution health, cross-check against the warehouse's own references
   <work>/REVIEW_SAMPLE.md   20 shapes across workloads, SQL next to what was extracted
 
 A shape is a query text with its literals taken out: the same query run for different dates or ids.
-The service must be up: docker compose up -d parser
 """
 
 from __future__ import annotations
@@ -16,47 +16,44 @@ from __future__ import annotations
 import gzip
 import json
 import time
-import urllib.request
+import traceback
 from collections import Counter, defaultdict
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 from qlsc import health
-from qlsc.config import ConfigError, Settings
+from qlsc.config import Settings
 from qlsc.names import text_id
+from qlsc_parse import COMPILED, PARSER_ID, Catalog, fingerprint, resolve
 
-# ------------------------------------------------------------------------ service
+# ------------------------------------------------------------------------ the pool
+
+_catalog: Catalog | None = None  # each worker process's, loaded once
 
 
-class Parser:
-    def __init__(self, url: str, catalog_version: str, batch: int, concurrency: int):
-        self.url, self.version, self.batch, self.conc = url.rstrip("/"), catalog_version, batch, concurrency
-        self.server_ms = 0.0
+def _load(path: str) -> None:
+    global _catalog
+    _catalog = Catalog.load(path)
 
-    def health(self) -> dict:
-        with urllib.request.urlopen(self.url + "/healthz", timeout=10) as r:
-            return json.loads(r.read())
 
-    def _post(self, path: str, items: list[dict]) -> list[dict]:
-        body = ("\n".join(json.dumps(i) for i in items) + "\n").encode()
-        req = urllib.request.Request(
-            self.url + path,
-            data=body,
-            method="POST",
-            headers={"Content-Type": "application/x-ndjson", "X-Catalog-Version": self.version},
-        )
-        with urllib.request.urlopen(req, timeout=600) as r:
-            self.server_ms += float(r.headers.get("X-Elapsed-Ms", 0))
-            return [json.loads(line) for line in r.read().decode().splitlines() if line.strip()]
+def _guarded(fn, item: dict, *args) -> tuple[str, dict]:
+    try:
+        return item["id"], fn(item["sql"], _catalog, item["project"], *args)
+    except Exception as e:  # a bug on one item must not fail the run
+        return item["id"], {"status": "error", "error": f"crash: {type(e).__name__}: {e}",
+                            "trace": traceback.format_exc()[-800:]}  # fmt: skip
 
-    def run(self, path: str, items: list[dict]) -> dict:
-        batches = [items[i : i + self.batch] for i in range(0, len(items), self.batch)]
-        out = {}
-        with ThreadPoolExecutor(self.conc) as ex:
-            for res in ex.map(lambda b: self._post(path, b), batches):
-                for r in res:
-                    out[r["id"]] = r
-        return out
+
+def _fingerprint(item: dict) -> tuple[str, dict]:
+    return _guarded(fingerprint, item)
+
+
+def _resolve(item: dict) -> tuple[str, dict]:
+    return _guarded(resolve, item, item["id"])
+
+
+def pooled(fn, items: list[dict], pool: ProcessPoolExecutor) -> dict[str, dict]:
+    return dict(pool.map(fn, items, chunksize=64))
 
 
 # ---------------------------------------------------------------------- helpers
@@ -94,33 +91,28 @@ def shape_stats(groups: list[dict], text_shape: dict[str, str]) -> dict[str, dic
                 "cache_hits": 0,
                 "bytes_billed": 0,
                 "bytes_processed": 0,
-                "slot_ms": 0,
                 "texts": set(),
                 "principals": Counter(),
                 "statement_types": Counter(),
                 "projects": Counter(),
-                "weeks": Counter(),
-                "week_bytes": Counter(),
                 "error_reasons": Counter(),
                 "first_seen": g["first_seen"],
                 "last_seen": g["last_seen"],
             },
         )
-        for k in ("jobs", "errors", "cache_hits", "bytes_billed", "bytes_processed", "slot_ms"):
+        for k in ("jobs", "errors", "cache_hits", "bytes_billed", "bytes_processed"):
             s[k] += g[k] or 0
         s["texts"].add(g["text_id"])
         s["principals"][g["user_email"]] += g["jobs"]
         s["statement_types"][g["statement_type"]] += g["jobs"]
         s["projects"][g["project_id"]] += g["jobs"]
-        s["weeks"][g["week"]] += g["jobs"]
-        s["week_bytes"][g["week"]] += g["bytes_billed"] or 0
         if g["error_reason"]:
             s["error_reasons"][g["error_reason"]] += g["errors"]
         s["first_seen"] = min(s["first_seen"], g["first_seen"])
         s["last_seen"] = max(s["last_seen"], g["last_seen"])
     for s in S.values():
         s["texts"] = len(s["texts"])
-        for k in ("principals", "statement_types", "projects", "weeks", "week_bytes", "error_reasons"):
+        for k in ("principals", "statement_types", "projects", "error_reasons"):
             s[k] = dict(s[k].most_common())
     return S
 
@@ -131,11 +123,8 @@ def shape_stats(groups: list[dict], text_shape: dict[str, str]) -> dict[str, dic
 def run(s: Settings, sample: float | None = None) -> None:
     work = s.work
     cat = json.loads((work / "catalog.json").read_text())
-    pc = s["parser"]
-    P = Parser(pc["url"], cat["version"], pc["batch_size"], pc["concurrency"])
-    h = P.health()
-    if h["catalog"] != cat["version"]:
-        raise ConfigError(f"the parser holds catalog {h['catalog']}, {work} has {cat['version']}: restart it")
+    workers = s["parse"]["workers"]
+    pool = ProcessPoolExecutor(workers, initializer=_load, initargs=(str(work / "catalog.json"),))
 
     groups, texts = load_groups(work, sample)
     jobs = sum(g["jobs"] for g in groups)
@@ -156,8 +145,8 @@ def run(s: Settings, sample: float | None = None) -> None:
     }
     items += [{"id": k, **v} for k, v in views.items()]
     t0 = time.perf_counter()
-    fps = P.run("/v1/fingerprint", items)
-    fp_wall, fp_server = time.perf_counter() - t0, P.server_ms
+    fps = pooled(_fingerprint, items, pool)
+    fp_wall = time.perf_counter() - t0
     text_shape = {tid: f["shape_id"] for tid, f in fps.items() if f.get("shape_id")}
 
     # representative per shape: the text with the most successful jobs, then the shortest
@@ -184,16 +173,14 @@ def run(s: Settings, sample: float | None = None) -> None:
         )
 
     # resolve one representative per shape
-    P.server_ms = 0.0
     t0 = time.perf_counter()
-    recs = P.run(
-        "/v1/resolve",
-        [
-            {"id": sid, "sql": sql_of(tid), "project": project_of(tid), "shape_id": sid}
-            for sid, tid in rep.items()
-        ],
-    )
-    res_wall, res_server = time.perf_counter() - t0, P.server_ms
+    with pool:
+        recs = pooled(
+            _resolve,
+            [{"id": sid, "sql": sql_of(tid), "project": project_of(tid)} for sid, tid in rep.items()],
+            pool,
+        )
+    res_wall = time.perf_counter() - t0
 
     stats = shape_stats(groups, text_shape)
     with gzip.open(work / "texts.ndjson.gz", "wt") as f:
@@ -204,7 +191,6 @@ def run(s: Settings, sample: float | None = None) -> None:
                         "text_id": tid,
                         "shape_id": fp.get("shape_id"),
                         "literals": fp.get("literals"),
-                        "annotations": fp.get("annotations"),
                         "error": fp.get("error"),
                     }
                 )
@@ -213,7 +199,7 @@ def run(s: Settings, sample: float | None = None) -> None:
     shapes = []
     for sid, tid in rep.items():
         origin = "catalog_view" if all(t.startswith("catalog:") for t in by_shape[sid]) else "log"
-        rec = {k: v for k, v in recs[sid].items() if k != "id"}
+        rec = recs[sid]
         shapes.append(
             {
                 "shape_id": sid,
@@ -231,11 +217,11 @@ def run(s: Settings, sample: float | None = None) -> None:
     timing = {
         "fingerprint_items": len(items),
         "fingerprint_wall_s": fp_wall,
-        "fingerprint_server_ms": fp_server,
         "resolve_items": len(rep),
         "resolve_wall_s": res_wall,
-        "resolve_server_ms": res_server,
-        "workers": h,
+        "parser": PARSER_ID,
+        "compiled": COMPILED,
+        "workers": workers,
         "sample": sample,
         "jobs": jobs,
         "groups": len(groups),

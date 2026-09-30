@@ -473,15 +473,6 @@ def test_scaling_constant_in_lineage():
     assert "/100" in fn["spend_usd"] and "/100" not in fn["raw_sum"]
 
 
-def test_columns_compared():
-    r = R(
-        "SELECT CORR(a.BAL, t.amount_cents) FROM `p.raw.account` a JOIN `p.dw.fct_txn` t ON a.CIF_NO = t.txn_id"
-    )
-    assert [({c["left"]["column"], c["right"]["column"]}, c["ops"]) for c in r["comparisons"]] == [
-        ({"BAL", "amount_cents"}, ["CORR"])
-    ]
-
-
 # ------------------------------------------------------------- health, names
 
 
@@ -520,30 +511,14 @@ def test_physical_names_map_to_logical_and_shards_to_wildcard():
     assert r["tables"] == [{"id": "p.ga.events_*", "kind": "wildcard"}]
 
 
-def test_family_ignores_identifiers():
-    a = R(
-        "SELECT COUNT(*) AS row_count FROM `p.raw.account` WHERE BAL_DT >= DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)"
-    )
-    b = R(
-        "SELECT COUNT(*) AS row_count FROM `p.dw.fct_txn` WHERE post_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 2 DAY)"
-    )
-    c = R("SELECT MAX(post_date) FROM `p.dw.fct_txn`")
-    assert a["family_id"] == b["family_id"] != c["family_id"]
-
-
 def test_output_summary():
     probe = R(
         "SELECT COUNT(*) AS failures, COUNT(*) != 0 AS should_warn FROM "
         "(SELECT cif_number FROM `p.dw.dim_customer` GROUP BY 1 HAVING COUNT(*) > 1) dbt_internal_test"
     )
-    assert probe["output"] == {"columns": 2, "aggregate_only": True, "grouped": False, "root_from": None}
+    assert probe["output"] == {"aggregate_only": True, "grouped": False}
     rows = R("SELECT segment, COUNT(*) FROM `p.dw.dim_customer` GROUP BY 1")
-    assert rows["output"] == {
-        "columns": 2,
-        "aggregate_only": False,
-        "grouped": True,
-        "root_from": "p.dw.dim_customer",
-    }
+    assert rows["output"] == {"aggregate_only": False, "grouped": True}
     assert "output" not in R("CREATE TABLE `p.dw.x` AS SELECT 1 AS a")
 
 
@@ -568,11 +543,6 @@ def test_fingerprint_canonicalizes_volatile_names():
     c = fingerprint("SELECT 1 FROM `p.ga.events_20260401`", CAT, "p")
     d = fingerprint("SELECT 1 FROM `p.ga.events_20260402`", CAT, "p")
     assert a["shape_id"] == b["shape_id"] and c["shape_id"] == d["shape_id"]
-
-
-def test_fingerprint_annotations():
-    f = fingerprint('-- Looker Query Context \'{"user_id":113,"history_slug":"2b3"}\'\nSELECT 1', CAT, "p")
-    assert f["annotations"] == [{"source": "Looker Query Context", "user_id": 113, "history_slug": "2b3"}]
 
 
 def test_computations_over_base_columns():

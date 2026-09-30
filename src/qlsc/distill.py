@@ -273,7 +273,6 @@ def distill(s: Settings, now: dt.datetime | None = None) -> list[dict]:
                     examples="\n".join(f"- {x}" for x in examples),
                 ),
                 NAME_SCHEMA,
-                "record_skill",
             )
             name, description, trigger = out["name"], out["description"], out["trigger"]
             leaked = sorted(x for t in group for x in literals(t) if x in f"{name} {description} {trigger}")

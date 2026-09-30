@@ -9,11 +9,10 @@ shapes.ndjson.gz. Target: the config's `neo4j.database`. Seven labels:
   (:QueryShape)-[:REFERENCES]->(:Table)     with the partition/shard pruning seen for that table
   (:QueryShape)-[:READS]->(:Column)         roles: project/filter/group/join/order/window/unnest, aggregates
   (:QueryShape)-[:FILTERS]->(:Column)       operator, and the literal values it was run with: values,
-                                            value_jobs, value_first_seen, value_last_seen (parallel lists)
+                                            and value_jobs (parallel lists)
   (:QueryShape)-[:USES_JOIN]->(:JoinKey)-[:ON {side}]->(:Column)   one JoinKey per join predicate a = b
   (:QueryShape)-[:WRITES]->(:Table)
   (:Column)-[:FLOWS]->(:Column)             column lineage from write statements and view SQL
-  (:Column)-[:COMPARED]->(:Column)          two columns compared in one expression (CORR, a - b, a > b)
   (:Table)-[:DERIVED_FROM]->(:Table)        a statement read the one and wrote the other
 
 Every Table gets `frozen` and `sandbox` (LIVENESS), the flags the stages read.
@@ -74,8 +73,6 @@ class Assets:
                 "name": n,
                 "kind": t["kind"].lower(),
                 "partition_column": t.get("partition"),
-                "cluster_columns": t.get("cluster") or [],
-                "physical_names": t.get("physical") or t.get("shards") or [],
                 "in_catalog": True,
             }
             for c, typ in t["columns"].items():
@@ -92,8 +89,6 @@ class Assets:
                 "name": n,
                 "kind": kind,
                 "partition_column": None,
-                "cluster_columns": [],
-                "physical_names": [],
                 "in_catalog": False,
             }
         return fqn
@@ -111,10 +106,9 @@ def succeeded(shape: dict) -> bool:
     return shape["origin"] == "catalog_view" or st.get("jobs", 0) > st.get("errors", 0)
 
 
-def shape_node(s: dict, texts: dict) -> dict:
+def shape_node(s: dict) -> dict:
     r, st = s["record"], s.get("stats") or {}
     out = r.get("output") or {}
-    weeks = sorted((st.get("weeks") or {}).items())
     return {
         "id": s["shape_id"],
         "origin": s["origin"],
@@ -127,42 +121,31 @@ def shape_node(s: dict, texts: dict) -> dict:
         "texts": st.get("texts", 0),
         "bytes_billed": st.get("bytes_billed", 0),
         "bytes_processed": st.get("bytes_processed", 0),
-        "slot_ms": st.get("slot_ms", 0),
         "first_seen": st.get("first_seen"),
         "last_seen": st.get("last_seen"),
-        "weeks": [w for w, _ in weeks],
-        "week_jobs": [n for _, n in weeks],
-        "week_bytes": [(st.get("week_bytes") or {}).get(w, 0) for w, _ in weeks],
-        "family_id": r.get("family_id"),
-        "output_columns": out.get("columns"),
         "output_aggregate_only": out.get("aggregate_only"),
         "output_grouped": out.get("grouped"),
-        "root_from": out.get("root_from"),
         "error_reasons": json.dumps(st.get("error_reasons") or {}),
         "sample_sql": s["sample_sql"],
-        "select_star": bool(r.get("scan", {}).get("select_star")),
-        "limit": r.get("scan", {}).get("limit"),
         "parser": r.get("parser"),
         "catalog": r.get("catalog"),
-        "annotations": json.dumps((texts.get(s["sample_text_id"]) or {}).get("annotations") or []),
         "unresolved": sorted({f"{u['kind']}:{u['name']} ({u['reason']})" for u in r.get("unresolved", [])}),
     }
 
 
 class Evidence:
-    """What each shape's parse record says: references, reads, filters, joins, comparisons, writes, lineage."""
+    """What each shape's parse record says: references, reads, filters, joins, writes, lineage."""
 
     def __init__(self):
         self.shapes, self.refs, self.reads, self.filters, self.writes, self.uses = ([] for _ in range(6))
         self.joinkeys: dict[str, dict] = {}
         self.flows: dict[tuple, dict] = {}
-        self.compared: dict[tuple, dict] = {}
         self.derived: dict[tuple, dict] = {}
 
-    def add(self, s: dict, texts: dict, assets: Assets) -> None:
+    def add(self, s: dict, assets: Assets) -> None:
         r, sid, jobs = s["record"], s["shape_id"], (s.get("stats") or {}).get("jobs", 0)
         ok = succeeded(s)
-        self.shapes.append(shape_node(s, texts))
+        self.shapes.append(shape_node(s))
         pruning = r.get("scan", {}).get("partition_filter") or {}
         for t in r.get("tables", []):
             if t["kind"] == "unknown" and not ok:
@@ -199,12 +182,6 @@ class Evidence:
             )
         for j in r.get("joins", []):
             self._join(sid, j, assets)
-        for c in r.get("comparisons", []):
-            a = assets.column(c["left"]["table"], c["left"]["column"])
-            b = assets.column(c["right"]["table"], c["right"]["column"])
-            e = self.compared.setdefault((a, b), {"a": a, "b": b, "ops": set(), "shapes": set()})
-            e["ops"].update(c["ops"])
-            e["shapes"].add(sid)
         for w in r.get("writes", []):
             self._write(sid, jobs, w, r, assets)
 
@@ -379,12 +356,9 @@ def filter_values(
     for g in groups:
         if not g["query"]:
             continue
-        t = text_stats.setdefault(
-            text_id(g["query"]), {"jobs": 0, "ok": 0, "first": g["first_seen"], "last": g["last_seen"]}
-        )
+        t = text_stats.setdefault(text_id(g["query"]), {"jobs": 0, "ok": 0})
         t["jobs"] += g["jobs"]
         t["ok"] += g["jobs"] - g["errors"]
-        t["first"], t["last"] = min(t["first"], g["first_seen"]), max(t["last"], g["last_seen"])
     texts_of: dict[str, list[str]] = defaultdict(list)
     for tid, sid in text_shape.items():
         texts_of[sid].append(tid)
@@ -403,17 +377,12 @@ def filter_values(
                     if slot >= len(lits):
                         continue
                     for v in lits[slot] if isinstance(lits[slot], list) else [lits[slot]]:
-                        e = values.setdefault((s["shape_id"], i), {}).setdefault(
-                            str(v), {"jobs": 0, "first": ts["first"], "last": ts["last"]}
-                        )
+                        e = values.setdefault((s["shape_id"], i), {}).setdefault(str(v), {"jobs": 0})
                         e["jobs"] += ts["ok"]
-                        e["first"], e["last"] = min(e["first"], ts["first"]), max(e["last"], ts["last"])
     for f in ev.filters:
         vs = sorted((values.get((f["shape"], f.pop("i"))) or {}).items(), key=lambda x: -x[1]["jobs"])[:limit]
         f["values"] = [v for v, _ in vs]
         f["value_jobs"] = [e["jobs"] for _, e in vs]
-        f["value_first_seen"] = [e["first"] for _, e in vs]
-        f["value_last_seen"] = [e["last"] for _, e in vs]
 
 
 def sets(d: dict, *keys) -> dict:
@@ -438,7 +407,7 @@ def write(
     G.batch(
         "Table",
         """UNWIND $rows AS r MERGE (t:Table {id: r.id})
-                        SET t += r {.name, .kind, .partition_column, .cluster_columns, .physical_names, .in_catalog}
+                        SET t += r {.name, .kind, .partition_column, .in_catalog}
                         WITH t, r MATCH (d:Dataset {id: r.dataset}) MERGE (t)-[:IN_DATASET]->(d)""",
         list(tables),
     )
@@ -484,8 +453,7 @@ def write(
         "FILTERS",
         """UNWIND $rows AS r MATCH (s:QueryShape {id: r.shape}), (c:Column {id: r.col})
                           CREATE (s)-[:FILTERS {path: r.path, op: r.op, clause: r.clause, scope: r.scope, wrap: r.wrap,
-                                  values: r.values, value_jobs: r.value_jobs, value_first_seen: r.value_first_seen,
-                                  value_last_seen: r.value_last_seen}]->(c)""",
+                                  values: r.values, value_jobs: r.value_jobs}]->(c)""",
         ev.filters,
     )
     G.batch(
@@ -517,12 +485,6 @@ def write(
         [sets(e, "kinds", "fns", "paths", "shapes") for e in ev.flows.values()],
     )
     G.batch(
-        "COMPARED",
-        """UNWIND $rows AS r MATCH (a:Column {id: r.a}), (b:Column {id: r.b})
-                           MERGE (a)-[x:COMPARED]->(b) SET x.ops = r.ops, x.shapes = r.shapes""",
-        [sets(e, "ops", "shapes") for e in ev.compared.values()],
-    )
-    G.batch(
         "DERIVED_FROM",
         """UNWIND $rows AS r MATCH (a:Table {id: r.tgt}), (b:Table {id: r.src})
                                MERGE (a)-[x:DERIVED_FROM]->(b) SET x.modes = r.modes, x.shapes = r.shapes, x.jobs = r.jobs""",
@@ -549,7 +511,7 @@ def run(s: Settings, reset_graph: bool = False) -> None:
 
     assets, ev = Assets(cat_data), Evidence()
     for shape in shapes:
-        ev.add(shape, texts, assets)
+        ev.add(shape, assets)
     people, ran, loaded, write_days = principals(
         groups,
         profiles,

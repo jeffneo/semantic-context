@@ -18,12 +18,12 @@ NODES = {
     "Merchant": {"table": "dim_merchant", "key": "merchant_id", "partition": None,
                  "props": {"merchant_id": "STRING"}},
 }  # fmt: skip
-RELS = [
-    {"type": "OWNED_BY", "start": "Account", "end": "Customer"},
-    {"type": "CONTAINS", "start": "Account", "end": "Product"},
-    {"type": "MADE_BY", "start": "Txn", "end": "Customer"},
-    {"type": "AT", "start": "Txn", "end": "Merchant"},
-    {"type": "CHARGED_TO", "start": "Txn", "end": "Account"},
+RELS = [  # each a column of its start node's table (fk), as qlsc virtualize writes them
+    {"type": "OWNED_BY", "start": "Account", "end": "Customer", "fk": "customer_key"},
+    {"type": "CONTAINS", "start": "Account", "end": "Product", "fk": "product_code"},
+    {"type": "MADE_BY", "start": "Txn", "end": "Customer", "fk": "customer_key"},
+    {"type": "AT", "start": "Txn", "end": "Merchant", "fk": "merchant_id"},
+    {"type": "CHARGED_TO", "start": "Txn", "end": "Account", "fk": "account_key"},
 ]
 M = memory.Model("p.graph", NODES, RELS, {})
 
@@ -41,7 +41,7 @@ def test_the_template_is_the_neighbourhood_then_its_dimensions():
     by = {r.name: r for r in reads}
     txn = by["Customer<-MADE_BY-Txn"]
     assert txn.inward and txn.window == "post_date"  # the many side, windowed by its partition
-    assert by["Txn-AT->Merchant"].via_window == "post_date"  # keyed on windowed facts: their partitions only
+    assert not by["Txn-AT->Merchant"].inward and by["Txn-AT->Merchant"].window is None  # to-one
     assert [r.name for r in memory.template(M, "Customer", hops=1)][-1] == "Customer<-OWNED_BY-Account"
 
 
@@ -61,38 +61,38 @@ def test_the_same_read_over_either_target():
     r = memory.template(M, "Customer", hops=2)[1]
     vg, mem = memory.cypher(M, r), memory.cypher(M, r, memory=True)
     g = memory.Guard(M)
-    # over memory, the read is guarded: every node and the relationship; the virtual graph's is not
-    assert guarded(mem, g, "n", "Txn") and guarded(mem, g, "v", "Customer") and g.relationship("x")[0] in mem
-    assert "$source" not in vg and "$now" not in vg
+    # over memory, the read is guarded; the virtual graph's is not
+    assert guarded(mem, g, "n", "Txn") and "$source" not in vg and "$now" not in vg
     # the rest is the same read: same filter, order and limit
     assert vg.split("RETURN")[1] == mem.split("RETURN")[1]
+    assert mem.startswith(vg.split("\nRETURN")[0])
     # signed for the pass-through, the predicate goes in its WHERE, over all of it
-    assert "WHERE $qlsc_principal IS NOT NULL AND (v.`customer_key` IN $keys" in entitle.signed(vg)
+    assert "WHERE $qlsc_principal IS NOT NULL AND (n.`customer_key` IN $keys" in entitle.signed(vg)
 
 
-def test_on_the_virtual_graph_a_relationship_is_read_by_its_key_column():
-    rels = [r | {"fk": {"MADE_BY": "customer_key", "AT": "merchant_id"}.get(r["type"])} for r in RELS]
-    m = memory.Model("p.graph", NODES, rels, {})
-    reads = {r.name: r for r in memory.template(m, "Customer", hops=2)}
+def test_every_read_is_a_labels_nodes_by_a_property():
+    reads = {r.name: r for r in memory.template(M, "Customer", hops=2)}
     into, out = reads["Customer<-MADE_BY-Txn"], reads["Txn-AT->Merchant"]
+    # the anchor by its key
+    assert memory.cypher(M, reads["Customer"]).startswith(
+        "MATCH (n:`Customer`)\nWHERE n.`customer_key` IN $keys"
+    )
     # into the anchor: the facts by their own column, windowed and capped; no traversal to join
-    vg = memory.cypher(m, into)
+    vg = memory.cypher(M, into)
     assert vg.startswith("MATCH (n:`Txn`)\nWHERE n.`customer_key` IN $keys\n  AND n.`post_date` >= $since")
-    assert "RETURN n.`customer_key` AS _via" in vg and vg.endswith("LIMIT $limit") and "-[x:" not in vg
+    assert "RETURN n.`customer_key` AS _via" in vg and vg.endswith("LIMIT $limit")
     # out of the facts: the dimensions by key (the keys the facts hold)
     assert (
-        memory.cypher(m, out)
+        memory.cypher(M, out)
         == "MATCH (n:`Merchant`)\nWHERE n.`merchant_id` IN $keys\nRETURN n.`merchant_id` AS `merchant_id`"
     )
-    # memory has the relationships, and traverses them; a read without a key column traverses everywhere
-    assert "-[x:`MADE_BY`]->" in memory.cypher(m, into, memory=True)
-    assert "-[x:`CHARGED_TO`]->" in memory.cypher(m, reads["Txn-CHARGED_TO->Account"])
+    assert not any("-[" in memory.cypher(M, r, mem) for r in reads.values() for mem in (False, True))
 
 
 def test_a_read_into_the_anchors_is_ordered_by_anchor_then_the_most_recent():
     r = memory.template(M, "Customer", hops=2)[1]
     for q in (memory.cypher(M, r), memory.cypher(M, r, memory=True)):  # so a batch's is read in pages
-        assert q.endswith("ORDER BY v.`customer_key`, n.`post_date` DESC, n.`txn_id`\nLIMIT $limit")
+        assert q.endswith("ORDER BY n.`customer_key`, n.`post_date` DESC, n.`txn_id`\nLIMIT $limit")
 
 
 def test_a_key_column_is_one_of_the_start_nodes_own_table():
@@ -123,10 +123,10 @@ def test_freshness_from_the_write_cadence():
 
 
 def test_a_changed_template_is_a_different_context():
-    p = {"window_days": 90, "cap": 200, "properties": "used"}
+    p = {"window_quarters": 1, "cap": 200, "properties": "used"}
     reads = memory.template(M, "Customer", hops=2)
     assert memory.digest(M, reads, p) == memory.digest(M, reads, dict(p))
-    assert memory.digest(M, reads, p) != memory.digest(M, reads, p | {"window_days": 30})
+    assert memory.digest(M, reads, p) != memory.digest(M, reads, p | {"window_quarters": 0})
     assert memory.digest(M, reads, p) != memory.digest(M, reads[:-1], p)
 
 
@@ -141,7 +141,7 @@ def test_identifiers_only():
 
 def test_a_row_policied_node_needs_the_readers_own_read():
     """Customer's table has a row policy: a customer is read from memory only if the reader's own step READ
-    it and that read still holds, and so is a relationship to one; a purchase's merchant is anyone's."""
+    it and that read still holds; a purchase's merchant is anyone's."""
     import dataclasses
 
     m = dataclasses.replace(M, reader="p@x", policied={"Customer"})
@@ -150,7 +150,6 @@ def test_a_row_policied_node_needs_the_readers_own_read():
     assert not any("Step" in c for c in g.node("n", "Merchant"))
     reads = {r.name: r for r in memory.template(m, "Customer", hops=2)}
     assert guarded(memory.cypher(m, reads["Customer"], memory=True), g, "n", "Customer")
-    assert guarded(memory.cypher(m, reads["Customer<-MADE_BY-Txn"], memory=True), g, "v", "Customer")
     assert "Step" not in memory.cypher(m, reads["Txn-AT->Merchant"], memory=True)
     # the virtual graph's read is the same whoever reads: the warehouse applies their rules
     assert memory.cypher(m, reads["Customer<-MADE_BY-Txn"]) == memory.cypher(
@@ -187,9 +186,10 @@ def test_a_virtual_graph_label_never_takes_one_memory_reserves():
     assert {"Message", "Decision", "Skill", "Table"} <= memory.RESERVED_LABELS
 
 
-def test_the_memory_route_guards_every_node_and_relationship():
-    """Phase 5: the compiler's Cypher, run on memory, carries memory's conditions: its source, facts that
-    still hold, and a row-policied node only if the reader's own step read it."""
+def test_the_memory_route_guards_every_node():
+    """Phase 5: the compiler's Cypher, run on memory, carries memory's conditions on every node: its source,
+    facts that still hold, and a row-policied node only if the reader's own step read it. A relationship
+    holds as long as its nodes do."""
     import dataclasses
 
     import sqlglot
@@ -199,9 +199,7 @@ def test_the_memory_route_guards_every_node_and_relationship():
     assert g.node("c", "Customer")[-1] == (
         "EXISTS { (:Step {owner: $by})-[seen:READ]->(c) WHERE seen.holds_until > $now }"
     )
-    assert len(g.node("t", "Txn")) == 2 and g.relationship("r0") == [
-        "(r0.holds_until IS NULL OR r0.holds_until > $now)"
-    ]
+    assert len(g.node("t", "Txn")) == 2
     value = lambda sql: memory.literal_value(sqlglot.parse_one(sql, read="bigquery").expression)
     assert value("x.k = -9222608688654483010") == "-9222608688654483010"
     assert value("x.d >= DATE '2026-04-01'") == "2026-04-01" and value("x.s = 'KS'") == "KS"
@@ -209,49 +207,36 @@ def test_the_memory_route_guards_every_node_and_relationship():
 
 class FakeVirtualGraph:
     """A virtual graph over a few rows: it answers the reads memory.cypher writes (a label's nodes by a
-    property, or a relationship walked from its start's column), ordered and limited as they ask."""
+    property), ordered and limited as they ask."""
 
     def __init__(self, m: memory.Model, rows: dict[str, list[dict]]):
         self.m, self.data = m, rows
-        self.fk = {r["type"]: r.get("fk") for r in m.rels}
         self.queries = 0
 
     def rows(self, q: str, keys: list, since, limit: int, **_) -> list[dict]:
         import re
 
         self.queries += 1
+        q = q.replace("$qlsc_principal IS NOT NULL AND (", "")  # signed for the pass-through
         window = re.search(r"n\.`(\w+)` >= \$since", q)
         inside = lambda r: not window or r[window.group(1)] >= since
-        if m := re.match(r"MATCH \(n:`(\w+)`\)\nWHERE n\.`(\w+)` IN \$keys", q):
-            label, prop = m.groups()
-            got = [dict(r) for r in self.data[label] if r[prop] in keys and inside(r)]
-            if "_via" not in q:
-                return got
-            key, w = self.m.key(label), window.group(1) if window else None
-            got.sort(key=lambda r: (r[prop], *([-r[w].toordinal()] if w else []), r[key]))
-            return [r | {"_via": r[prop]} for r in got][:limit]
-        m = re.match(r"MATCH \(v:`(\w+)`\)-\[x:`(\w+)`\]->\(n:`(\w+)`\)", q)  # outward, to one
-        via, rel, label = m.groups()
-        vk, key = self.m.key(via), self.m.key(label)
-        fk = next(r for r in self.m.rels if r["type"] == rel).get("fk") or key
-        by_key = {r[key]: r for r in self.data[label]}
-        return [
-            dict(by_key[v[fk]]) | {"_via": v[vk]}
-            for v in self.data[via]
-            if v[vk] in keys and v.get(fk) in by_key
-        ]
+        label, prop = re.match(r"MATCH \(n:`(\w+)`\)\nWHERE n\.`(\w+)` IN \$keys", q).groups()
+        got = [dict(r) for r in self.data[label] if r[prop] in keys and inside(r)]
+        if "_via" not in q:
+            return got
+        key, w = self.m.key(label), window.group(1) if window else None
+        got.sort(key=lambda r: (r[prop], *([-r[w].toordinal()] if w else []), r[key]))
+        return [r | {"_via": r[prop]} for r in got][:limit]
 
 
-def test_a_batch_gives_each_anchor_the_context_it_gets_alone():
+def test_a_batch_gives_each_anchor_the_context_it_gets_alone(tmp_path):
     import datetime as dt
 
     d = lambda day: dt.date(2026, 6, day)
-    rels = [r | {"fk": {"MADE_BY": "customer_key", "AT": "merchant_id", "OWNED_BY": "customer_key",
-                        "CONTAINS": "product_code", "CHARGED_TO": "account_key"}[r["type"]]} for r in RELS]  # fmt: skip
     nodes = {k: v | {"props": dict(v["props"])} for k, v in NODES.items()}
     nodes["Txn"]["props"] |= {"customer_key": "INTEGER", "merchant_id": "STRING", "account_key": "INTEGER"}
     nodes["Account"]["props"] |= {"customer_key": "INTEGER"}
-    m = memory.Model("p.graph", nodes, rels, {})
+    m = memory.Model("p.graph", nodes, RELS, {})
     data = {
         "Customer": [{"customer_key": k, "segment": "mass"} for k in (1, 2, 3)],
         "Account": [{"account_key": 10, "customer_key": 1, "product_code": "CHK"},
@@ -265,8 +250,12 @@ def test_a_batch_gives_each_anchor_the_context_it_gets_alone():
             {"txn_id": "e", "customer_key": 2, "post_date": d(2), "amount": 4.0, "merchant_id": "m2", "account_key": 20},
         ],
     }  # fmt: skip
-    s = {"memory": {"cap": 2, "keys_per_read": 1000, "workers": 2, "window_days": 92},
-         "navigate": {"today": "2026-07-01"}}  # fmt: skip
+
+    class Settings(dict):
+        work = tmp_path  # the pass-through's key
+
+    s = Settings(memory={"cap": 2, "keys_per_read": 1000, "workers": 2, "window_quarters": 1},
+                 navigate={"today": "2026-07-01"}, entitlements={"token_seconds": 300})  # fmt: skip
     reads, now = memory.template(m, "Customer", hops=2), dt.datetime(2026, 7, 1, tzinfo=dt.UTC)
     vg = FakeVirtualGraph(m, data)
     batch = memory.run_batch(s, m, reads, [1, 2, 3, 99], vg, False, now)

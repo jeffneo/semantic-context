@@ -31,15 +31,13 @@ import java.util.Properties;
  * (Rewrite), and the statement run on a connection for that principal: the same URL with
  * ServiceAccountImpersonationEmail=<principal>, which the real driver honours from the application-default
  * credentials it already uses. Unsigned, forged or expired statements are refused; metadata calls (how
- * Virtual Graph checks its schema) go to the base connection. QLSC_PASSTHROUGH=off passes everything
- * through as the real driver would.
+ * Virtual Graph checks its schema) go to the base connection.
  */
 public final class Passthrough {
     private Passthrough() {}
 
     static final String REAL_JAR = env("QLSC_REAL_DRIVER", "/var/lib/neo4j/qlsc/google-cloud-bigquery-jdbc-1.0.0-all.jar");
     static final String KEY_FILE = env("QLSC_PASSTHROUGH_KEY_FILE", "/nvg_home/passthrough.key");
-    static final boolean ENFORCE = !"off".equalsIgnoreCase(env("QLSC_PASSTHROUGH", "enforce"));
     static final String REAL_CLASS = "com.google.cloud.bigquery.jdbc.BigQueryDriver";
 
     private static Driver real;
@@ -62,7 +60,7 @@ public final class Passthrough {
                 URL jar = Path.of(REAL_JAR).toUri().toURL();
                 ClassLoader loader = new ChildFirst(new URL[] {jar}, Passthrough.class.getClassLoader());
                 real = (Driver) loader.loadClass(REAL_CLASS).getDeclaredConstructor().newInstance();
-                log("the real driver from " + REAL_JAR + (ENFORCE ? "; enforcing principal tokens" : "; not enforcing (off)"));
+                log("the real driver from " + REAL_JAR + "; enforcing principal tokens");
             } catch (Exception e) {
                 throw new SQLException("qlsc pass-through: can't load the real BigQuery driver from " + REAL_JAR, e);
             }
@@ -83,7 +81,7 @@ public final class Passthrough {
 
     public static Connection connect(String url, Properties info) throws SQLException {
         Connection base = real().connect(url, info);
-        if (base == null || !ENFORCE) return base;
+        if (base == null) return base;
         return (Connection) Proxy.newProxyInstance(
                 Passthrough.class.getClassLoader(), new Class<?>[] {Connection.class}, new Conn(url, info, base));
     }

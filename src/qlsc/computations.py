@@ -171,7 +171,7 @@ def merge(G: Graph, s: Settings, rows: dict[str, dict], named: dict[str, dict]) 
     same_as = {}
     for b in batches:
         text = "\n\n".join(f"set {i}:\n" + "\n".join(show(c) for c in g) for i, g in enumerate(b))
-        out = llm.call(prompt("computation_merge", n=len(b), sets=text), MERGE_SCHEMA, "record_sets", 4000)
+        out = llm.call(prompt("computation_merge", n=len(b), sets=text), MERGE_SCHEMA, 4000)
         for item in out.get("sets", []):
             for group in item.get("same", []):
                 group = [c for c in group if c in rows]

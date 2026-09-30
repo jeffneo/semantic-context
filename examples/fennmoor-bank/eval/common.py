@@ -32,7 +32,8 @@ def write_result(name: str, markdown: list[str], data: dict, where: Path = RESUL
     """An evaluation's report (.md) and its data (.json): in results/, which the docs quote, unless
     `where` says otherwise (an experiment's, in work/)."""
     where.mkdir(parents=True, exist_ok=True)
-    (where / f"{name}.json").write_text(json.dumps(data, indent=1, default=list))
+    as_list = lambda x: sorted(x, key=str) if isinstance(x, set | frozenset) else list(x)  # a set, in order
+    (where / f"{name}.json").write_text(json.dumps(data, indent=1, default=as_list))
     (where / f"{name}.md").write_text("\n".join(markdown) + "\n")
     return where / f"{name}.md"
 
@@ -131,8 +132,8 @@ def ari(a: dict, b: dict) -> float:
 
 
 def overrides(s, argv: list[str]) -> tuple[list[str], str]:
-    """`param=value` arguments set settings: a navigation parameter (writer=free), or any section's
-    (llm.query_effort=high). The rest are returned, with a suffix naming the result file after the values
+    """`param=value` arguments set settings: a navigation parameter (tables=10), or any section's
+    (memory.cap=100). The rest are returned, with a suffix naming the result file after the values
     that differ from the configured ones, so a run with overrides never writes over the baseline, and one
     that sets the defaults is the baseline."""
     import re

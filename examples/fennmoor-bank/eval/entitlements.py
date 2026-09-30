@@ -5,10 +5,9 @@ For each test principal (the estate's entitlements.principals, set up by entitle
 question and a few probes, by both routes and the router, through the gateway (`qlsc ask --as`):
   1. rows: a SQL answer is what the principal's own read of the same query returns (run again as them,
      on a client built here), and where the estate's own read differs, the answer is the principal's: the
-     row policy applied. A Cypher answer, with the pass-through on (virtualize.passthrough), ran as the
-     principal: every job Virtual Graph ran for it is theirs in BigQuery's own job log, read here as the
-     owner. Without it, the answer reads no table the warehouse filters per reader (the table's row
-     policies, read here). Either way, a dry run of Virtual Graph's SQL as the principal passes.
+     row policy applied. A Cypher answer ran as the principal, through the pass-through: every job
+     Virtual Graph ran for it is theirs in BigQuery's own job log, read here as the owner. The pass-through
+     itself refuses a query without the gateway's token, a forged one and an expired one.
   2. schema: no response, and no prompt sent to the LLM, names a table the principal can't read, a column
      hidden from them, a value the log filters either on, or a principal of the log. The oracle's allowlist
      is built here by dry runs as the principal: a different mechanism from the gateway's permission checks.
@@ -62,11 +61,6 @@ CONTROLS = {
     ),
     "hidden columns and their filter values shown": (["marketing"], ["P2", "P5"], "schema"),
     "SQL run as the estate, not the principal": (["risk"], ["P1", "P6"], "rows"),
-    "the Cypher gate off (option A skipped)": (["risk"], ["P1", "P6"], "rows"),
-}
-# With the JDBC pass-through the gate's row-policy refusal no longer applies (the virtual graph reads as the
-# principal), so its control is this one instead: the gateway signing every query as the data source.
-PASSTHROUGH_CONTROLS = {
     "the gateway signs as the data source, not the principal": (["risk"], ["P1", "P6"], "rows"),
 }
 VG_JOBS = """
@@ -156,21 +150,6 @@ class Oracle:
                 return got
             time.sleep(5)
         return set()
-
-    def row_policies(self, tables: list[str]) -> set[str]:
-        """Tables with row access policies, read afresh from the warehouse (not the gateway's cache)."""
-        out = set()
-        for t in tables:
-            ref = self.estate._physical_ref(t)
-            if ref is None:
-                continue
-            got = self.estate.client._connection.api_request(
-                method="GET",
-                path=f"/projects/{ref.project}/datasets/{ref.dataset_id}/tables/{ref.table_id}/rowAccessPolicies",
-            )
-            if got.get("rowAccessPolicies"):
-                out.add(t)
-        return out
 
 
 _OWNER = {}
@@ -306,9 +285,9 @@ def ask(G, s, question: str, allow, oracle: Oracle, marks: list, keep: Path | No
     prompts: list[str] = []
     call = llm.LLM.call
 
-    def recorded(self, user, schema, tool, max_tokens=8000):
+    def recorded(self, user, schema, max_tokens=8000):
         prompts.append(self.system + "\n" + user)
-        return call(self, user, schema, tool, max_tokens)
+        return call(self, user, schema, max_tokens)
 
     llm.LLM.call = recorded
     try:
@@ -379,19 +358,11 @@ def rows_check(route: str, a: dict, oracle: Oracle) -> dict:
     labels = {x for x in re.findall(r"\(\s*\w*\s*:\s*(\w+)", a["cypher"])}
     table = {r["label"]: r["table"] for r in GRAPH_LABELS}
     tables = sorted(table[x] for x in labels if x in table)
-    if entitle.passthrough(oracle.s):  # the warehouse's own job log: as whom Virtual Graph read
-        readers = oracle.vg_readers(a["since"])
-        if not readers:
-            return {"verdict": "unverified", "why": "no Virtual Graph job in the warehouse's log for it"}
-        if readers != {oracle.who}:
-            return {"verdict": "INCIDENT", "why": f"the virtual graph read as {', '.join(sorted(readers))}"}
-    else:
-        filtered = oracle.row_policies(tables)
-        if filtered:
-            return {
-                "verdict": "INCIDENT",
-                "why": f"the virtual graph read every row of {', '.join(sorted(filtered))}",
-            }
+    readers = oracle.vg_readers(a["since"])  # the warehouse's own job log: as whom Virtual Graph read
+    if not readers:
+        return {"verdict": "unverified", "why": "no Virtual Graph job in the warehouse's log for it"}
+    if readers != {oracle.who}:
+        return {"verdict": "INCIDENT", "why": f"the virtual graph read as {', '.join(sorted(readers))}"}
     unreadable = [t for t in tables if t not in oracle.readable]  # the oracle's own allowlist
     props = set(re.findall(r"\b\w+\.(\w+)\b", a["cypher"]))
     hidden = sorted(c for t, c in oracle.hidden if t in tables and c in props)
@@ -404,14 +375,6 @@ def rows_check(route: str, a: dict, oracle: Oracle) -> dict:
 
 
 GRAPH_LABELS: list = []
-
-
-def controls(s) -> dict:
-    out = dict(CONTROLS)
-    if entitle.passthrough(s):
-        del out["the Cypher gate off (option A skipped)"]
-        out |= PASSTHROUGH_CONTROLS
-    return out
 
 
 def driver_probes(s) -> dict:
@@ -464,11 +427,9 @@ def broken(name: str):
         patch(entitle.Allowlist, "shown", lambda self, t, c: t in self.tables)
     elif name.startswith("SQL run as the estate"):
         patch(entitle, "warehouse", lambda s, allow: connect(s))
-    elif name.startswith("the Cypher gate off"):
-        patch(entitle, "check_cypher", lambda *a, **k: None)
     elif name.startswith("the gateway signs as the data source"):
         real = entitle.signing
-        patch(entitle, "signing", lambda s, allow, cypher: real(s, None, cypher))
+        patch(entitle, "signing", lambda s, allow, cypher, V: real(s, None, cypher, V))
     return lambda: [setattr(o, a, v) for o, a, v in reversed(saved)]
 
 
@@ -487,8 +448,7 @@ def main() -> int:
     gold = yaml.safe_load((SPEC / "questions.yaml").read_text())["questions"]
     questions = {q: gold[q]["question"] for q in sorted(gold)} | PROBES
     res = {"runs": {}, "controls": {}}
-    if entitle.passthrough(s):
-        res["driver"] = driver_probes(s)
+    res["driver"] = driver_probes(s)
     with Graph(s) as G:
         GRAPH_LABELS.extend(G.rows(navigate.LABELS))
         tables = [r["t"] for r in G.rows(LAYER_TABLES)]
@@ -513,7 +473,7 @@ def main() -> int:
                 f"the gateway {'agrees' if agree else 'DISAGREES'}; {len(marks)} canaries",
                 flush=True,
             )
-            for control, (whom, probes, check) in controls(s).items():
+            for control, (whom, probes, check) in CONTROLS.items():
                 if name not in whom:
                     continue
                 undo = broken(control)

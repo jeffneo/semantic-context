@@ -79,7 +79,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--sample", type=float, help="parse only this fraction of distinct texts, e.g. 0.05")
     p.set_defaults(func=build)
 
-    p = sub.add_parser("parse", help="fingerprint and resolve the log through the parser service")
+    p = sub.add_parser("parse", help="fingerprint and resolve the log with the parser")
     p.add_argument("--sample", type=float, help="fraction of distinct texts, e.g. 0.05")
     p.set_defaults(func=lambda s, a: parse.run(s, a.sample))
 

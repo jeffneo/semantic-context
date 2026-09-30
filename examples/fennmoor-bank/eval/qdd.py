@@ -9,7 +9,7 @@ Writes <work>/qdd/<name>.md and .json. Prints a line per question as it goes.
 Usage: uv run examples/fennmoor-bank/eval/qdd.py <name> [--all | --offset=N] [--route=cypher] [param=value ...]
   (--all: every log question; --offset: which of each STEP questions to take, for a second sample;
    --route=cypher: the Cypher route over the Virtual Graph instead of SQL)
-  e.g. qdd.py base     qdd.py free writer=free     qdd.py effort llm.query_effort=high
+  e.g. qdd.py base     qdd.py wider tables=10     qdd.py fewer compile_computations=6
 Each question records the query model's uncached calls: their API seconds and tokens.
 """
 

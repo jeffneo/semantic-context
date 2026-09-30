@@ -1,6 +1,6 @@
 # A smaller, coherent qlsc: what's sediment, and what to cut (2026-09-29)
 
-Status: agreed 2026-09-29, all of it (decision (c) as clarified: memory keeps its relationships as edges, rewritten from their start node's key column when it's written). Phase 1 done; phases 2 and 3 next.
+Status: agreed 2026-09-29, all of it (decision (c) as clarified: memory keeps its relationships as edges, rewritten from their start node's key column when it's written). Phases 1 and 2 done; phase 3 next.
 
 An assessment of the whole repository: `src/qlsc/` (9,800 lines), `parser/` (2,200), `vg-passthrough/`,
 `tests/` (1,400), and the example's `eval/` (4,600). The question is where the code serves the system
@@ -390,3 +390,81 @@ Left for phases 2 and 3, found on the way:
   still open.
 - **Environment:** the Docker VM's disk filled during a rebuild. Most of it is another project's volume.
   Neo4j quarantined `bigquery` and set it read-only, and both were restored. About 4 GB is free now.
+
+## Phase 2, as built (2026-09-29)
+
+Each decision as agreed. (c) keeps memory's relationships as edges.
+
+- **(a) Navigate's experiments, gone.** `anchors: parts` (`decompose`, `merge_cohorts`, `VALUE_COLUMNS`,
+  four `anchor_*` settings, `prompts/decompose_system.md`), the definitions and the glossary given to the
+  free writer (`navigate.computations`, `concepts`, `computation_tables`), `examples_by: runs`, and
+  `llm.query_effort`. The free prompts lose their two always-empty slots, so their text, and the cache, are
+  unchanged. `DEFINITIONS` stays: it's the compiled request's options.
+- **(h) Compiled Cypher over the virtual graph, gone,** with `navigate.writer`. SQL is always the compiled
+  request, falling back to free SQL; `--cypher` is free Cypher, which is what the router already ran.
+  `render_cypher` stays, for the memory route. The evaluations' Cypher column is now the router's own
+  candidate, so "routed" scores what `ask` does.
+- **(e) The fixture-fitted rules.** `compile.open_period` is gone, and the example's `today` is pinned at the
+  data's last day, 2026-07-13 (its lagged tables, loan decisions and campaign attributions, run twelve days
+  past the log window). The week convention comes from the dimension Computations that truncate a column
+  to weeks, parsed with sqlglot (`compile.week_starts`), not from regexes over the log's SQL text.
+  - **A consequence:** memory's window was `window_days: 92` from today, which covered last quarter only
+    from 2026-07-01. It's now `window_quarters: 1`, from last quarter's first day, so "last quarter" is
+    answerable from memory on any day of this one.
+  - **Every query prompt changed** (its calendar), so every query-model call missed the cache once.
+- **(g) One LLM call mode.** Haiku 4.5 takes structured outputs (checked on every schema it's sent). The
+  forced tool, the runtime discovery of which model needs which, the `tool=` argument and the nested-array
+  repair are gone. The cache key is unchanged, so no cached answer was lost: the rebuild made no calls.
+- **(b) The parser in-process.** `qlsc parse` runs `qlsc_parse` in a pool of processes (`parse.workers`).
+  Its output is byte-identical to the service's (texts and shapes), in 13.6 s against 17. The service,
+  `__main__.py`, the Dockerfile, the compose entry, the HTTP client, the catalog handshake, the three
+  `parser.*` settings and the `serve` extra are gone, and the container and image were removed.
+- **(f) The bottom layer trimmed.** Gone from load and the parser's record: `COMPARED` (8 relationships),
+  and on QueryShape `family_id`, `root_from`, `output_columns`, `slot_ms`, `select_star`, `limit`,
+  `annotations` and the week lists (`weeks` too: nothing read it without its counts). Gone from Table:
+  `physical_names` and `cluster_columns`. Gone from FILTERS: `value_first_seen` and `value_last_seen`. The
+  record keeps `scan.select_star` and `limit`: PARSE_HEALTH reads them. **Kept:** USES_JOIN's `scopes`,
+  which `eval/bottom_layer.py` reads (the finding was wrong there). The rebuild's fingerprint differs from
+  the last build's only in the 8 COMPARED relationships.
+- **(d) The pass-through required.** The gateway signs every virtual-graph query. Before it reads for a
+  principal, it checks once that the virtual graph refuses an unsigned query (`entitle.enforced`), and
+  raises `Unenforced` if it doesn't: Cypher is refused (the router goes to SQL), and so is a principal's
+  recall. Option A (`check_cypher`, `probes`), `virtualize.passthrough` and the `QLSC_PASSTHROUGH` switch
+  (in the driver and the compose file) are gone; the jar is the one switch. The entitlements eval loses
+  option A's control and its row-policy oracle, so four broken gateways, not five. Checked live: the
+  instance refuses an unsigned query, and a test covers both kinds of instance.
+- **(c) Memory's relationships derived from nodes.** Every read, on both targets, is the nodes of a label
+  whose property is in `$keys`; hop 0 runs before hop 1. A written node's relationships are replaced from
+  its column (`OUT_OF`), and a written node gains those of remembered nodes that point at it (`INTO`, on a
+  (source, column) index). Gone: relationship provenance and freshness, `PRUNE_INTO`/`PRUNE_OUT_OF` with
+  their entitlement logic, `Guard.relationship` (and the compiler's relationship guard), the traversal
+  read form, `keyed()` and `via_window`. A relationship that isn't a column of its start node is
+  `Unsupported` (none is: `virtualize` writes them so). The memory database's existing relationships were
+  re-derived once, from their start nodes (178,077 had provenance; none now).
+  - **Checked:** eval/memory (20 contexts the same as the virtual graph's, node for node and relationship
+    for relationship; 110 of 110 questions the same; idempotence; freshness, with a new check that a
+    refetch rewrites a moved relationship from its column; the batch), eval/memory_entitlements (0
+    incidents, the three controls caught).
+  - **Slower to fetch:** a context's median fetch went from 2.6 to 3.8 s (the extra round trip, and a
+    freshly restarted instance), and the batch of 20 from 7.7 to 9.7 s.
+
+What the evaluations say now:
+- **Gold:** 6 / 3 / 6 (SQL / Cypher / routed), as before; the Cypher column is now free Cypher.
+- **Graph-shaped:** 5 / 8 / 7. Routed lost one: G03's free Cypher left out `is_purchase` this time (a new
+  sample, since the prompt changed), where before it kept it.
+- **Economics:** 50 of 50 answers from memory match the SQL (49 of 49 before). A fetch bills 559 MiB per
+  customer alone (12.4 questions to break even), 113 in a batch of 5, 12 in a batch of 50.
+- **Converse** 26 of 26, **distill** 13 of 13, **bottom layer** and **navigation** unchanged.
+- **The log's 176 questions:** 128 / 33 / 128 (SQL / Cypher / routed), against 133 / 38 (compiled Cypher) /
+  133. Worse, and said so. Every query prompt changed (the calendar), so these are new samples: of the six
+  lost, four are the LLM choosing differently (an extra grouping, another table, a filter added, a JSON
+  path), one is a LIMIT 500 cutting through tied counts, and one is the week rule. That one
+  (L42c41a99) is a principled change: the old regex missed the seven Looker dashboards that truncate
+  `fct_calls.conversation_date` to Monday weeks (over 1,700 jobs), and found only Sunday truncations, the
+  question's own query among them. The Computations say Monday. One question was gained. The SQL compiled
+  for 156 (117 correct), against 154 (121). Cypher is now free Cypher, 33 against compiled Cypher's 38.
+  - **Noticed:** both week rules count the question's own shape. The evaluation leaves it out of the
+    examples, not out of this evidence: a small leak for Phase 3.
+- **Entitlements:** 60 asks as three principals, 0 schema leaks, 0 row incidents; the pass-through refuses
+  an unsigned, a forged and an expired token; the four broken gateways are caught. Risk's Cypher answered
+  6 (7 before), a new sample.

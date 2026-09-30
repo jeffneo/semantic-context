@@ -97,9 +97,9 @@ def write(shapes, groups, fps, cat, timing, work: Path):
     views = [s for s in shapes if s["origin"] == "catalog_view"]
     wh = cat.get("warehouse", "the warehouse")
     L = ["# Parse health", ""]
-    w = timing["workers"]
     L += [
-        f"Parser `{w['parser']}` ({'compiled' if w.get('compiled') else 'pure Python'}), catalog "
+        f"Parser `{timing['parser']}` ({'compiled' if timing['compiled'] else 'pure Python'}, "
+        f"{timing['workers']} processes), catalog "
         f"`{cat['version']}`"
         + (f", **sample {timing['sample']:.0%} of distinct texts**" if timing["sample"] else ""),
         "",
@@ -117,8 +117,8 @@ def write(shapes, groups, fps, cat, timing, work: Path):
         f"| Jobs per shape | {timing['jobs'] / max(len(log), 1):,.0f} |",
         "",
     ]
-    fp = timing["fingerprint_server_ms"] / max(timing["fingerprint_items"], 1)
-    res = timing["resolve_server_ms"] / max(timing["resolve_items"], 1)
+    fp = timing["fingerprint_wall_s"] * 1e3 * timing["workers"] / max(timing["fingerprint_items"], 1)
+    res = timing["resolve_wall_s"] * 1e3 * timing["workers"] / max(timing["resolve_items"], 1)
     L += [
         "## Throughput",
         "",

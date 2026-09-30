@@ -26,7 +26,6 @@ from .fingerprint import literal_slots
 
 KIND_RANK = {"direct": 0, "passthrough": 1, "rename": 2, "unnest": 3, "transform": 4, "aggregate": 5}
 COMPARISONS = (exp.EQ, exp.NEQ, exp.GT, exp.GTE, exp.LT, exp.LTE, exp.Like, exp.ILike)
-COMPARED = (exp.Corr, exp.CovarPop, exp.CovarSamp, exp.Sub)
 EXPECTED_MISSES = {"transient", "system table"}
 CLAUSE_ROLE = {
     "expressions": "project",
@@ -67,7 +66,6 @@ class Ctx:
     scan: dict = field(default_factory=lambda: {"select_star": False, "limit": None, "partition_filter": {}})
     memo: dict = field(default_factory=dict)
     scope_of: dict = field(default_factory=dict)
-    comparisons: dict = field(default_factory=dict)
 
     def miss(self, kind: str, name: str, reason: str):
         self.unresolved.setdefault((kind, name), reason)
@@ -547,21 +545,6 @@ def analyze_scope(ctx: Ctx, sc: Scope):
         agg = next((fn_name(a) for a in chain if isinstance(a, exp.AggFunc)), None)
         for o in trace_column(ctx, sc, col):
             add_read(ctx, o, role, agg)
-    # columns compared with each other: CORR(a.x, b.y), a.x - b.y, a.x > b.y
-    for n in sel.walk(prune=lambda x: isinstance(x, (exp.Subquery, exp.Select)) and x is not sel):
-        if isinstance(n, COMPARED) or (
-            isinstance(n, (exp.GT, exp.GTE, exp.LT, exp.LTE, exp.NEQ))
-            and not is_constant(n.this)
-            and not is_constant(n.expression)
-        ):
-            L, R = side(ctx, sc, n.this), side(ctx, sc, n.expression)
-            if not L or not R or (L[1].table == R[1].table and L[1].name == R[1].name):
-                continue
-            for o1, _ in L[0]:
-                for o2, _ in R[0]:
-                    if (o1.table, o1.column) != (o2.table, o2.column):
-                        a, b = sorted([(o1.table, o1.column), (o2.table, o2.column)])
-                        ctx.comparisons.setdefault((a, b), set()).add(type(n).__name__.upper())
     # GROUP BY ALL groups by every projection that is not an aggregate
     g = sel.args.get("group")
     if g is not None and g.args.get("all"):
@@ -836,22 +819,6 @@ def dedupe_filters(fs: list[dict]) -> list[dict]:
     return out
 
 
-def family_id(tree: exp.Expression) -> str:
-    """Structure with every identifier and literal blanked: one monitor query stamped
-    across 70 tables, or one dbt test type across all models, is one family."""
-    import hashlib
-
-    t = tree.copy()
-    for n in t.walk():
-        n.comments = None
-        if isinstance(n, exp.Identifier):
-            n.set("this", "_")
-            n.set("quoted", False)
-    for s_ in literal_slots(t):
-        s_.replace(exp.Placeholder())
-    return hashlib.sha256(t.sql(dialect="bigquery").encode()).hexdigest()[:16]
-
-
 def output_summary(t: exp.Expression) -> dict | None:
     """Shape of what a query returns: a single row of aggregates is how health checks look."""
     body = t
@@ -863,14 +830,7 @@ def output_summary(t: exp.Expression) -> dict | None:
         return None
     ps = body.expressions
     agg_only = bool(ps) and all(p.find(exp.AggFunc) is not None or is_constant(p) for p in ps)
-    frm = body.args.get("from_")
-    root = frm.this if frm is not None else None
-    return {
-        "columns": len(ps),
-        "aggregate_only": agg_only,
-        "grouped": body.args.get("group") is not None,
-        "root_from": fqn(root) if isinstance(root, exp.Table) else None,
-    }
+    return {"aggregate_only": agg_only, "grouped": body.args.get("group") is not None}
 
 
 # --------------------------------------------------------------------------------- main
@@ -889,7 +849,6 @@ def resolve(
 
     ctx = Ctx(catalog)
     writes, errors, offset = [], [], 0
-    rec["family_id"] = family_id(trees[0])
     for t in trees:
         slots = literal_slots(t)
         for i, s in enumerate(slots):
@@ -975,14 +934,6 @@ def resolve(
             ],
             "joins": [{**v, "scopes": sorted(v["scopes"])} for v in ctx.joins.values()],
             "filters": dedupe_filters(ctx.filters),
-            "comparisons": [
-                {
-                    "left": {"table": a[0], "column": a[1]},
-                    "right": {"table": b[0], "column": b[1]},
-                    "ops": sorted(ops),
-                }
-                for (a, b), ops in sorted(ctx.comparisons.items())
-            ],
             "writes": writes,
             "scan": ctx.scan,
             "unresolved": [

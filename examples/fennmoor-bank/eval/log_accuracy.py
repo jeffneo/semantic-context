@@ -13,7 +13,7 @@ The answers are compared with the reference on its `compare` columns, by match.p
 
 Writes results/log_accuracy.md and .json.
 Usage: uv run examples/fennmoor-bank/eval/log_accuracy.py [N] [param=value ...]   (N: only the first N questions;
-       param=value: an override, e.g. writer=free; one that differs from the defaults is written to
+       param=value: an override, e.g. tables=10; one that differs from the defaults is written to
        log_accuracy_<overrides>.*)
        uv run examples/fennmoor-bank/eval/log_accuracy.py --report   (the last run, over the questions kept now)
 """

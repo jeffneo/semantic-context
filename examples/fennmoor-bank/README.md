@@ -22,7 +22,7 @@ every command from the repository root.
 
 ## 1. Set up
 
-Follow the root [README](../../README.md#use-it) for Neo4j, the parse service and `.env`. Point `.env`
+Follow the root [README](../../README.md#use-it) for Neo4j and `.env`. Point `.env`
 at this estate:
 
 ```

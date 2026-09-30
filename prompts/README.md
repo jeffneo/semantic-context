@@ -21,11 +21,10 @@ warehouse connector.
 | `computation_merge.md` | `qlsc computations` | the candidate sets to judge |
 | `name_batch.md` | all four | a batch of objects to name, with their evidence |
 | `name_retry.md` | all four | one object again, after a rejected answer |
-| `decompose_system.md` | `qlsc ask` (`navigate.anchors: parts`) | system prompt: break a question into measures, groupings, filters, entities and period |
 | `sql_system.md` | `qlsc ask` | system prompt: write one query from the cohort the semantic layer found |
 | `sql_request.md` | `qlsc ask` | the question, with the cohort's tables, joins and example SQL |
-| `compile_system.md` | `qlsc ask` (`navigate.writer: compiled`) | system prompt: turn a question into a typed request (measures, dimensions, filters, period) the compiler turns into SQL or Cypher |
-| `compile_request.md` | `qlsc ask` (`navigate.writer: compiled`) | the question, with the tables, joins, Computations and example SQL to choose from |
+| `compile_system.md` | `qlsc ask` (the compiled request) | system prompt: turn a question into a typed request (measures, dimensions, filters, period) the compiler turns into SQL or Cypher |
+| `compile_request.md` | `qlsc ask` (the compiled request) | the question, with the tables, joins, Computations and example SQL to choose from |
 | `compile_check.md` | `qlsc ask` (`navigate.compile_checks`) | one retry of the request, with what the checks found: a Computation's restriction the question doesn't state, a value it states that the request leaves out |
 | `sql_fix.md` | `qlsc ask` | one fix after a failed dry run |
 | `cypher_system.md` | `qlsc ask --cypher` | system prompt: write one Cypher query over the virtual graph, within the subset Virtual Graph runs |

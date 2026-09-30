@@ -1,4 +1,4 @@
-"""T1: fingerprint one query text into a shape id, its literal values and annotations.
+"""T1: fingerprint one query text into a shape id and its literal values.
 
 A shape is the query with comments dropped, every literal replaced by a slot, and
 volatile table names canonicalized - so the Looker query run by 166 users, or the
@@ -15,16 +15,12 @@ filter records ("wrapup_code_name IN slots 4,5") can be joined back to the value
 from __future__ import annotations
 
 import hashlib
-import json
-import re
 
 import sqlglot
 from sqlglot import exp
 from sqlglot.optimizer.normalize_identifiers import normalize_identifiers
 
 from .catalog import Catalog
-
-JSON_IN_COMMENT = re.compile(r"\{.*\}", re.S)
 
 
 def is_literal(n: exp.Expression) -> bool:
@@ -54,24 +50,6 @@ def literal_value(n: exp.Expression):
     return n.this
 
 
-def annotations(tree: exp.Expression) -> list[dict]:
-    """JSON objects found in comments: Looker query context, dbt node metadata, ..."""
-    out = []
-    for n in tree.walk():
-        for c in n.comments or ():
-            m = JSON_IN_COMMENT.search(c)
-            if not m:
-                continue
-            try:
-                obj = json.loads(m.group(0))
-            except ValueError:
-                continue
-            if isinstance(obj, dict):
-                head = c[: m.start()].strip().strip("'\"").strip()
-                out.append({"source": head or None, **obj})
-    return out
-
-
 def shape_sql(trees: list[exp.Expression], catalog: Catalog | None, default_project: str | None) -> str:
     parts = []
     for t in trees:
@@ -95,11 +73,9 @@ def fingerprint(sql: str, catalog: Catalog | None = None, default_project: str |
     if not trees:
         return {"shape_id": None, "error": "empty"}
     lits = [literal_value(s) for t in trees for s in literal_slots(t)]
-    notes = [a for t in trees for a in annotations(t)]
     canon = shape_sql(trees, catalog, default_project)
     return {
         "shape_id": hashlib.sha256(canon.encode()).hexdigest(),
         "literals": lits,
-        "annotations": notes,
         "statements": len(trees),
     }

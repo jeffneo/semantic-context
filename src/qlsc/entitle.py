@@ -14,15 +14,14 @@ Navigation (`navigate.trace(allow=...)`) then shows only what the allowlist admi
 columns, the groups (a partly readable one without its name), the Semantic hits (likewise), the joins,
 the examples (only those whose every table and column is readable; who ran them as a kind, not a name),
 the Computations, and filter values (never from a tagged column). SQL runs as the principal, so the
-warehouse enforces tables, columns and rows exactly. The Cypher route runs as the virtual graph's single
-identity, so it is allowed only where that can't show more (option A, `check_cypher`): every table and
-column it reads readable by the principal, as a dry run of Virtual Graph's own SQL as the principal
-confirms (a probe per table of the columns it reads there), and no table with a row policy.
+warehouse enforces tables, columns and rows exactly.
 
-With the JDBC pass-through (option C, plans/2026-09-28-jdbc-passthrough.md; the estate's
-virtualize.passthrough), every Cypher query carries a signed token naming whom it is for (`sign`): the
-driver in Virtual Graph's JVM verifies it and runs Virtual Graph's SQL as that principal, so the warehouse
-filters its rows too, and the row-policy refusal no longer applies. A query with no token is refused there.
+So does Cypher, through the JDBC pass-through (plans/2026-09-28-jdbc-passthrough.md): every query to the
+virtual graph carries a signed token naming whom it is for (`signing`), and the driver in Virtual Graph's
+JVM verifies it and runs Virtual Graph's SQL as that principal. A query with no token is refused there.
+The pass-through is required: before the virtual graph reads on a principal's behalf, the gateway checks
+once that it refuses an unsigned query (`enforced`), and refuses the read if it doesn't, so a virtual
+graph running the plain driver (reading everything as its own identity) fails closed.
 """
 
 from __future__ import annotations
@@ -37,8 +36,7 @@ import secrets
 import time
 from dataclasses import asdict, dataclass, field
 
-import sqlglot
-from sqlglot import exp
+from neo4j.exceptions import Neo4jError
 
 from qlsc.config import Settings
 from qlsc.graph import Graph
@@ -199,53 +197,7 @@ def model(allow: Allowlist, entities: dict, labels: dict[str, str]) -> dict:
     return {"nodes": nodes, "relationships": rels}
 
 
-def probes(sql: str, dialect: str = "bigquery") -> list[str]:
-    """One query per table Virtual Graph's SQL reads, selecting the columns it reads there: a dry run of
-    each, as the principal, is the warehouse's verdict on those columns. Built this way, not by filling
-    in the SQL's parameters, because a query the warehouse can prove empty (NULL for a value, LIMIT 0)
-    skips its column checks: BigQuery returns nothing, and checks nothing."""
-    tree = sqlglot.parse_one(sql, read=dialect)
-    tables = {(t.alias or t.name): t for t in tree.find_all(exp.Table)}
-    cols: dict[str, set[str]] = {k: set() for k in tables}
-    for c in tree.find_all(
-        exp.Column
-    ):  # Virtual Graph qualifies every column; a bare name is an output alias
-        if c.table in cols and c.name:
-            cols[c.table].add(c.name)
-    out = []
-    for key, t in sorted(tables.items()):
-        ref = exp.Table(this=t.this.copy(), db=t.args.get("db"), catalog=t.args.get("catalog"))
-        select = ", ".join(f"`{c}`" for c in sorted(cols[key])) or "1"
-        out.append(f"SELECT {select} FROM {ref.sql(dialect=dialect)} LIMIT 1")
-    return list(dict.fromkeys(out))
-
-
-def check_cypher(s: Settings, allow: Allowlist, tables: list[str], external_sql: list[str]) -> str | None:
-    """Option A: why the virtual graph may not answer this principal's query, or None. The virtual graph
-    reads as one identity, so it may answer only where that shows nothing more than the principal's own
-    read would: no table the warehouse filters per reader, and the principal allowed every table and
-    column Virtual Graph's SQL reads (a dry run of it, as the principal)."""
-    filtered = sorted(t for t in tables if t in allow.rows)
-    if filtered and not passthrough(s):  # without the pass-through, Virtual Graph reads every row
-        return f"the warehouse filters the rows of {', '.join(filtered)} per reader, and the virtual graph reads them all"
-    person = warehouse(s, allow)
-    for sql in external_sql:
-        try:
-            checks = probes(sql)
-        except sqlglot.errors.ParseError:
-            return "the virtual graph's SQL couldn't be read, so what it reads couldn't be checked"
-        for probe in checks:
-            res = person._dry_run(probe)
-            if res["ok"] is not True:
-                return f"{allow.principal} may not read what the virtual graph's SQL reads: {res.get('error', '')[:200]}"
-    return None
-
-
 # ---- the JDBC pass-through: the gateway's signed statement of whom a query is for
-
-
-def passthrough(s: Settings) -> bool:
-    return bool(s.get("virtualize", {}).get("passthrough"))
 
 
 def key(s: Settings) -> bytes:
@@ -287,9 +239,39 @@ def signed(cypher: str) -> str:
     return f"{cypher[: where[1]]} $qlsc_principal IS NOT NULL AND ({body})\n{cypher[end:]}"
 
 
-def signing(s: Settings, allow: Allowlist | None, cypher: str) -> tuple[str, dict]:
-    """(the query to send to the virtual graph, its parameters): signed for the principal, or for the data
-    source when no one is named, when the estate runs the pass-through; as it is otherwise."""
-    if not passthrough(s):
-        return cypher, {}
+class Unenforced(Exception):
+    """The virtual graph doesn't refuse an unsigned query: it would read as its own identity."""
+
+
+# A query without the gateway's token: the pass-through refuses it before any SQL runs. (Not a bare 1:
+# the pass-through lets Virtual Graph's own key checks through unsigned.)
+UNSIGNED = "MATCH (n:`{label}`) RETURN count(n) AS n"
+_ENFORCED: dict[str, bool] = {}
+
+
+def enforced(s: Settings, V: Graph) -> bool:
+    """Whether the virtual graph refuses an unsigned query, as the pass-through does: asked once per
+    instance."""
+    uri = s["virtualize"]["neo4j"]["uri"]
+    if uri not in _ENFORCED:
+        label = json.loads((s.work / "virtual" / "schema.json").read_text())["entities"]["nodes"][0]["label"]
+        try:
+            V.rows(UNSIGNED.format(label=label))
+            _ENFORCED[uri] = False
+        except Neo4jError as e:
+            if "pass-through: refused" not in (e.message or ""):
+                raise
+            _ENFORCED[uri] = True
+    return _ENFORCED[uri]
+
+
+def signing(s: Settings, allow: Allowlist | None, cypher: str, V: Graph | None = None) -> tuple[str, dict]:
+    """(the query to send to the virtual graph `V`, its parameters): signed for the principal, or for the
+    data source when no one is named. On a principal's behalf only where the pass-through runs: else
+    Unenforced."""
+    if allow is not None and (V is None or not enforced(s, V)):
+        raise Unenforced(
+            f"the virtual graph at {s['virtualize']['neo4j']['uri']} runs an unsigned query, so it would read as "
+            f"its own identity, not as {allow.principal}: it needs the JDBC pass-through (vg-passthrough/)"
+        )
     return signed(cypher), {"qlsc_principal": token(s, allow.principal if allow else "")}

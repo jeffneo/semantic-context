@@ -92,8 +92,8 @@
      "fennmoor-raw.gl_erp.journal_line.cost_center_id"
     ],
     "types": [
-     "INNER",
-     "IN"
+     "IN",
+     "INNER"
     ],
     "vias": [
      "direct",

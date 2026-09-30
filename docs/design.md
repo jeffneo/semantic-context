@@ -117,9 +117,9 @@ single, suspect, self), `identity`, `production`, `people`, `confidence_reason`.
    `Attested Computation` concept filed under its top business area, the tables it reads as `BigQuery
    Table` concepts, provenance (`sources`, with each query's runs and who ran it) and lifecycle
    (`status`: stable if production computes it, draft if only people do, deprecated on a sandbox or
-   frozen table) from the log. Unverified, as inferred definitions are. Offering the closest
-   Computations to the query writer (`navigate.computations`) is off by default: in a quick test it
-   didn't help (see the accuracy plan).
+   frozen table) from the log. Unverified, as inferred definitions are. The closest Computations are the
+   compiled request's options (`navigate.compile_computations`). Given to the free writer as
+   definitions they didn't help, and that was dropped (see the accuracy plan).
 6. **Align.** Catalog bindings are exact; embedding matches are `status: 'proposed'`. The diff lists
    agreement, conflicts (the catalog equating what production keeps apart, or contradicting itself),
    what is designed but unused, and what is used but undesigned.
@@ -144,28 +144,24 @@ any. `tests/test_config.py` fails if one is not read by the code. Sensitivity on
 | `hierarchy.k` | 5 | Enough neighbours to connect a level, few enough to stay specific | k 3 to 8 at gamma 3: NMI vs spec domains 0.70 to 0.71 |
 | `hierarchy.gamma` | 3, divided by L − 1 | High at level 2 (~100 nodes), plain modularity near the top | gamma 1.5 merges too far (NMI 0.68, less stable) |
 | `align.floor_term`, `floor_class` | 0.52, 0.40 (raw cosine) | Where the best matches turn wrong on inspection | |
-| `navigate.examples`, `examples_by`, `example_tables` | 3, similarity, true | The most-run queries over the cohort held a question's defining logic for 4 of 10 gold questions; the 3 closest by embedding, for 9. Their tables found what navigation missed | SQL route, Sonnet 5: 4 of 10 with the most-run examples, 4 with the closest, 6 with the closest and their tables |
-| `llm.query_model`, `query_thinking` | claude-sonnet-5-5, between_tools | Writing SQL needs a stronger model than naming. Sonnet 5.5 takes no forced tool (answers come as structured outputs) and can't turn thinking off; between_tools, its lowest, keeps a single answer unthought, as Sonnet 5 ran | Given the answer key's own tables, Haiku 4.5 answered 1 of 10 gold questions, Sonnet 5 answered 4. Full set, compiled: Sonnet 5.5 133 of 176 (the free writer on Sonnet 5, 129); not yet run free on 5.5, so the model's share is unmeasured |
-| `llm.query_effort` | null | With `query_thinking: adaptive`, how hard the query model reasons. High effort gained nothing on the free writer's quick test, for more latency and tokens | free writer, 69 questions: 55 without, 55 with high effort (5 moved); 3.1 s and 331 output tokens per question without, 3.8 s and 433 with |
+| `navigate.examples`, `example_tables` | 3, true | The 3 queries closest to the question by embedding held a question's defining logic for 9 of 10 gold questions (the most-run queries over the cohort, for 4). Their tables found what navigation missed | SQL route, Sonnet 5: 4 of 10 with the most-run examples, 4 with the closest, 6 with the closest and their tables |
+| `llm.query_model`, `query_thinking` | claude-sonnet-5-5, between_tools | Writing SQL needs a stronger model than naming. Every model's answers are structured outputs. Sonnet 5.5 can't turn thinking off; between_tools, its lowest, keeps a single answer unthought, as Sonnet 5 ran | Given the answer key's own tables, Haiku 4.5 answered 1 of 10 gold questions, Sonnet 5 answered 4. Full set, compiled: Sonnet 5.5 133 of 176, 128 on a new day's samples (the free writer on Sonnet 5, 129); not yet run free on 5.5, so the model's share is unmeasured |
 | `entitlements.allowlist_seconds`, `workers` | 900, 8 | A principal's allowlist (the tables, columns and row policies the warehouse reports for them) is reused for a session, well inside a policy change's reach; its checks run concurrently, one per table | building one over the layer's 177 tables: about 10 s |
-| `memory.hops`, `window_days`, `cap` | 2, 92, 200 | A context is an entity's relationships and their to-one dimensions (a call's agent, a purchase's merchant). The many side is windowed by its partition column (which also prunes the warehouse's partitions) and capped, so a context stays small. 92 days is a full quarter, the period questions ask for most (90 missed a quarter's first day, so "last quarter" could never be answered from memory); a capped read is flagged | a customer: 15 reads, 4 to 780 nodes; 7 of 20 customers hit the cap on card or deposit transactions (eval/memory.py) |
+| `memory.hops`, `window_quarters`, `cap` | 2, 1, 200 | A context is an entity's relationships and their to-one dimensions (a call's agent, a purchase's merchant). The many side is windowed by its partition column (which also prunes the warehouse's partitions) and capped, so a context stays small. The window starts on last quarter's first day, the period questions ask for most, so "last quarter" can be answered from memory on any day of this one (a count of days did only on some); a capped read is flagged | a customer: 15 reads, 4 to 780 nodes; 7 of 20 customers hit the cap on card or deposit transactions (eval/memory.py) |
 | `memory.keys_per_read` | 1000 | A read keyed on more nodes is split: each key is one of the SQL's parameters, and BigQuery takes 10,000 at most. A batch of 50 customers stays within it | eval/economics.py: a batch of 50 |
 | `memory.properties` | used | The columns the log's queries read or filter on, with keys and partition columns: what anyone asks of these tables, not every column | Customer: 14 of 23 columns |
 | `memory.unknown_hold_days`, `workers` | 1, 6 | A table whose cadence the log doesn't show holds a day, the shortest cadence here; a hop's reads run concurrently | every table the virtual graph serves is written daily |
-| `navigate.memory_route` | true | The router answers from memory when memory holds the whole answer: one entity whose context the reader holds fresh, every table in it, the period inside the window, nothing capped. It changes nothing when no context is fresh | 50 questions about 5 customers: 49 from memory, all the same rows as the SQL, a median 0.052 s against 0.86 s; a fetch one at a time bills what 13.5 questions' SQL does, in a batch of 50 a third of one question's per customer (results/economics.md) |
+| `navigate.memory_route` | true | The router answers from memory when memory holds the whole answer: one entity whose context the reader holds fresh, every table in it, the period inside the window, nothing capped. It changes nothing when no context is fresh | 50 questions about 5 customers: 50 from memory, all the same rows as the SQL, a median 0.031 s against 0.82 s; a fetch one at a time bills what 12.4 questions' SQL does, in a batch of 50 a third of one question's per customer (results/economics.md) |
 | `memory.tool_result_rows` | 20 | An ask's ToolCall keeps the first rows of its answer, enough for the agent to cite, with the total counted | the example's ask: 10 rows |
 | `distill.min_steps`, `min_support`, `min_success` | 2, 3, 0.7 | A procedure is two tool calls or more (one is just using a tool). A skill needs three tasks, most of them successful, as a Computation needs repeated use | the check's failing pattern (0 of 3 successful) and one-offs (1 each) yield no skill |
 | `distill.similarity`, `gamma`, `seed` | 0.5, 1.0, 42 | Tasks join when half of what they did and read is shared; seeded Leiden, as the build's. The same threshold decides which skill a task followed | the LLM compiles one kind of question slightly differently each time; half-overlap keeps the variants together |
 | `distill.offers`, `offer_similarity` | 3, 0.45 | At most three approved skills offered to a new task, by the raw cosine of its request (masked) to a skill's trigger | see results/distill.md |
 | `distill.retire_below`, `negative` | 0.6, [wrong, unhelpful, declined, rejected] | An approved skill whose followers succeed less often is retired; these ratings and outcomes make a task a failure | |
 | `entitlements.token_seconds` | 300 | How long a principal token signed for the JDBC pass-through holds: one question's queries, never a session's. Virtual Graph reads within seconds of signing | a Cypher answer takes about 3 to 30 s |
-| `navigate.anchors` | question | `parts` breaks the question into measures, groupings, filters and entities, and navigates from each; in a quick test it was about even (gold 7 of 10 both, a log sample 23 of 30 against 22), so the single embedding stays the default | see the accuracy plan, 2026-09-27 |
-| `navigate.computations`, `computation_min_similarity` | 0, 0.8 | As first built, the closest Computations misled more than they helped: a close look-alike displaced what a question needed. With a similarity floor, equivalents merged and parameters left out of definitions, they were a wash on the full set: a close definition still gets over-applied. Off | all 176 log questions: 129 without, 130 with 5 definitions (4 gained, 3 lost); gold 7 either way |
-| `navigate.writer` | compiled | `compiled`: the LLM fills one typed request (measures, possibly from several facts, per-entity two-step measures, derived measures, HAVING, dimensions, filters, period, or a list of rows) from the layer's options; qlsc/compile.py resolves it into a plan and renders SQL, or Cypher over the Virtual Graph (one fact only; no OPTIONAL MATCH, so an outer join's null group is lost; a SUM keeps SQL's NULL over no values, where Cypher's `sum()` gives 0). Joins along the log's trusted joins with the log's join type, never multiplying the fact's rows; Computations exactly as defined. Free writing for what doesn't fit. Level with the free writer; its misses are now the request's choices, not the SQL | SQL, two log samples of 59: free 47, first compiler 48, wider request 45, with the request checks 48; gold 7 each. Cypher, 40 questions: free 10, compiled and checked 12. Full set on Sonnet 5.5: 133 of 176 (compiles 154, 121 correct), gold 6, graph-shaped 5; Cypher 38, 3, 8 (plans/2026-09-28-compiler.md, -compiler-2.md) |
-| `navigate.compile_checks`, `compile_check_chars` | true, 4 | Before compiling, a Computation's filter on a value the question doesn't say, and a value the question says that the request leaves out (of a table it reads, no word its own tables and columns name), send the request back once with notes; a week grain follows the log's truncation of that column; a period ending today that the question doesn't end is left open (the data may run past today). Advisory, so a false alarm costs one LLM call | quick tests: fire on 5 of 73 questions; SQL 45 → 48 of 59 (three answers regained, none lost); Cypher 11 → 12 of 40 |
-| router (`qlsc ask --route`) | a rule | Compiled SQL when the request compiles; otherwise free Cypher when it answers (not declined, checked, run); otherwise free SQL. Compiled Cypher is the same plan with less, so it never wins where SQL compiles; free Cypher reaches the neighbourhood and path questions a request can't express. No decider model is needed for this choice | full set: 133 of 176 (SQL alone 133), gold 6 (SQL 6), graph-shaped 8 (SQL 5, Cypher 8) (plans/2026-09-26-router.md, revised) |
-| `navigate.concepts` | 0 | Designed models are aligned, not inputs; giving the writer their terms is an experiment | all 176 log questions: 130 without, 133 with 6 terms (5 gained, 2 lost); gold 7 either way |
-| `navigate.today` | null (the real date); the Fennmoor estate pins 2026-07-01 | Relative periods need a day. An estate whose data stops pins it, so "last quarter" has rows and a new day doesn't rewrite every query | Unpinned, a new day missed the LLM cache and changed three gold Cypher verdicts |
+| the compiled request (`navigate.compile_computations`, `compile_hops`, `computation_min_similarity`) | 12, 2, 0.8 | The LLM fills one typed request (measures, possibly from several facts, per-entity two-step measures, derived measures, HAVING, dimensions, filters, period, or a list of rows) from the layer's options: the cohort's tables, the trusted joins, and the closest Computations above the similarity floor (a distant one misleads more than it helps). qlsc/compile.py resolves it into a plan and renders SQL; the memory route renders the same plan as Cypher over the virtual graph's model. Joins along the log's trusted joins with the log's join type, never multiplying the fact's rows; Computations exactly as defined. Free writing for what doesn't fit. Over the virtual graph, compiled Cypher was the compiled SQL's plan with less (one fact only; no OPTIONAL MATCH, so an outer join's null group is lost), so the router never took it, and it was dropped: `--cypher` is free Cypher | SQL, two log samples of 59: free 47, first compiler 48, wider request 45, with the request checks 48; gold 7 each. Full set on Sonnet 5.5: 133 of 176 (compiles 154, 121 correct); after the simplification (a new day, so new samples) 128 (compiles 156, 117 correct), gold 6, graph-shaped 5 (plans/2026-09-28-compiler.md, -compiler-2.md, 2026-09-29-simplification.md) |
+| `navigate.compile_checks`, `compile_check_chars` | true, 4 | Before compiling, a Computation's filter on a value the question doesn't say, and a value the question says that the request leaves out (of a table it reads, no word its own tables and columns name), send the request back once with notes; a week grain follows how the log's Computations truncate that column. Advisory, so a false alarm costs one LLM call | quick tests: fire on 5 of 73 questions; SQL 45 → 48 of 59 (three answers regained, none lost); Cypher 11 → 12 of 40 |
+| router (`qlsc ask --route`) | a rule | Compiled SQL when the request compiles; otherwise free Cypher when it answers (not declined, checked, run); otherwise free SQL. Free Cypher reaches the neighbourhood and path questions a request can't express. No decider model is needed for this choice | full set: 128 of 176 (SQL alone 128), gold 6 (SQL 6), graph-shaped 7 (SQL 5, Cypher 8) (plans/2026-09-26-router.md, revised) |
+| `navigate.today` | null (the real date); the Fennmoor estate pins 2026-07-13 | Relative periods need a day. An estate whose data stops pins it to the data's last day, so "last quarter" has rows, a period to today holds all of them, and a new day doesn't rewrite every query. Fennmoor pinned the day after the log window at first, while its lagged tables (loan decisions, campaign attributions) run twelve days past it; a rule leaving a period that ended today open made up for it, and went with the new day | Unpinned, a new day missed the LLM cache and changed three gold Cypher verdicts |
 | `navigate.filter_values` | 8 | Enough for a code list (segments, families, statuses); more adds noise from free-text filters | Q12 and Q14 went from guessed values to the data's |
 | `navigate.maximum_bytes_billed`, `rows_shown` | 1 GB, 20 | `ask --run`: the gold questions run so far each bill under 100 MiB at the example's scale; a query over it fails rather than runs | |
 | `navigate.mode`, `rank` | combined, round_robin | The direct level-1 search guards against a group filed under the wrong parent; round robin keeps a hub table from crowding out the closest group's core table | [results/navigation.md](../examples/fennmoor-bank/results/navigation.md); over seeds, recall 59% ± 7 ([results/seeds.md](../examples/fennmoor-bank/results/seeds.md)) |
@@ -200,8 +196,7 @@ clean grouping and barely move NMI against the spec (0.850 vs 0.853).
     column they read is readable, and their text names nothing hidden (a metadata query reads no table
     and may name any in its literals); who ran them, as a kind. Never a tagged column's filter values.
   - **SQL** runs as the principal: the warehouse enforces everything, exactly.
-  - **Cypher, through the JDBC pass-through** (`vg-passthrough/`, when the estate sets
-    `virtualize.passthrough`):
+  - **Cypher, through the JDBC pass-through** (`vg-passthrough/`), which is required:
     - **Signing.** The gateway signs every query it sends to the virtual graph with
       `$qlsc_principal`: an HMAC token for the principal, or for the data source when none is named.
     - **Running as the principal.** A driver standing in for BigQuery's, in Virtual Graph's own JVM,
@@ -210,14 +205,18 @@ clean grouping and barely move NMI against the spec (0.850 vs 0.853).
     - **Refusals.** An unsigned, forged or expired statement is refused. The exceptions are metadata,
       and Virtual Graph's startup check that a key is unique.
 
-    The gateway still restricts the model to what the principal may read, and dry-runs each table's
-    columns as them first.
-  - **Cypher without it (option A):** Virtual Graph reads as one identity. So the gateway allows Cypher
-    only where no table in the query has a row policy, and the same dry runs pass. A refused Cypher
-    answer sends the router to SQL.
+    - **Failing closed.** Before the virtual graph reads on a principal's behalf, the gateway checks once
+      that it refuses an unsigned query. A virtual graph running the plain driver reads everything as its
+      own identity, so the gateway refuses it any principal's read: Cypher is refused (the router goes to
+      SQL), and so is a principal's recall. The jar mounted as the driver is the one switch.
+
+    The gateway still restricts the model to what the principal may read. A second path without the
+    pass-through (option A: Cypher only where no table has a row policy, with dry runs of each table's
+    columns) was dropped: memory never consulted it, so a principal's recall would have read a
+    row-policied table as the virtual graph's own identity.
   - **Checked by an oracle** built on different mechanisms: the allowlist by dry runs, SQL answers
     rerun as the principal, Cypher answers checked against BigQuery's job log (every job ran as the
-    principal), canaries scanned in every response and prompt, the driver probed directly, and five
+    principal), canaries scanned in every response and prompt, the driver probed directly, and four
     broken gateways the checks must catch (`eval/entitlements.py`).
 - **Memory** (plans/2026-09-27-agentic-memory.md; the model, plans/2026-09-29-context-memory-model.md):
   `qlsc remember` and `recall` keep an entity's context, fetched from the virtual graph, in a `memory`
@@ -230,43 +229,45 @@ clean grouping and barely move NMI against the spec (0.850 vs 0.853).
     - then, to `memory.hops`, the to-one relationships out of what was fetched (a fact's dimensions).
 
     Its properties are the columns the log's queries read or filter on.
-  - **One Cypher, two targets.** Each read is written once, for the virtual graph (signed for the
-    pass-through) or for memory, where it adds `source` and freshness. So a remembered context can be
-    checked read for read against a fresh fetch.
-  - **Keyed reads on the virtual graph.** Virtual Graph writes a traversal as the start's table joined
-    to itself and to the end's, so every read rescanned its fact table and billed the far table too. A
-    relationship that is a column of its start node's table is read by that column instead: the facts
-    into the anchor by their own `customer_key`, and their dimensions by the keys they hold, only those
-    not fetched yet. The same rows, checked both ways for each principal. The anchor's own read still
-    gates the context. Memory has the relationships themselves, and traverses them.
+  - **One read, two targets.** `qlsc virtualize` writes every relationship as a column of its start
+    node's table, so every read is the nodes of a label whose property is in `$keys`: the anchor by its
+    key, the facts into it by their own `customer_key`, a to-one end by the key the nodes already
+    fetched hold (only those not fetched yet). A hop at a time, so hop 0 runs before hop 1. Nothing
+    traverses a relationship: Virtual Graph writes a traversal as the start's table joined to itself and
+    to the end's, rescanning the fact table and billing the far one. The same read runs on memory, where
+    it adds `source` and freshness, so a remembered context can be checked read for read against a fresh
+    fetch. The anchor's own read gates the context.
+  - **Relationships are derived when a node is written,** from its column: a written node's
+    relationships of each type are replaced from it, and it gains those of the nodes already remembered
+    that point at it. So a relationship keeps no state of its own. It holds as long as its two nodes do,
+    and the memory route traverses it.
   - **Batches** (`qlsc remember LABEL KEY...`). Many anchors' contexts are fetched together, each read
     keyed on what all of them fetched. The warehouse bills the columns it scans, not the rows it returns,
     so a batch costs about what one context does. Each anchor still gets exactly the context it gets
     alone, with its own recall step: checked for 20 customers, and as each principal. The cap stays per
     anchor: a read into the anchors is ordered by anchor, then the most recent, and read in pages of
     (cap + 1) × anchors rows, again for the anchors a page left incomplete. Keys past
-    `memory.keys_per_read` split a read. A fetch costs 577 MiB per customer alone, 13 in a batch of 50.
+    `memory.keys_per_read` split a read. A fetch costs 559 MiB per customer alone, 12 in a batch of 50.
   - **Identity:** the virtual graph's labels, types and keys, with `source` on every node. A node key
     is (source, key) per label.
-  - **Provenance:** on every node and relationship, `fetched_at`, `holds_until`, `fetched_by` and
-    `fetched_with` (the read's Cypher). Every node links `FROM` a stub of its layer Table, and the
+  - **Provenance:** on every node, `fetched_at`, `holds_until`, `fetched_by` and `fetched_with` (the
+    read's Cypher). Every node links `FROM` a stub of its layer Table, and the
     stub links to stubs of the Columns kept. A stub holds an id that survives a rebuild, and a name.
   - **Freshness from usage:** a fact holds for its table's write cadence in the log, and a frozen
     table's facts hold for good.
     - `recall` reads memory while the context holds. It fetches again once it doesn't, or once the
       template changed.
-    - A refetch removes the relationships a read no longer returns. Nodes stay, and a stale one is never
-      read as fresh.
+    - A node a fetch no longer returns (it left the window) stays, and a stale one is never read as
+      fresh, nor are its relationships. A fact that points elsewhere now is rewritten when it's fetched.
   - **Every recall is a Step its reader owns:** `(:Step {tool: 'recall', owner})-[:READ]->`. Every read
     leaves a record of who read what, and when, from memory too.
   - **Entitlements** (`--as <principal>`): a remembered row has left the warehouse's enforcement.
     - **The fetch is theirs.** The template is the virtual graph's model as the gateway restricts it for
       them, and every read is signed for them. BigQuery applies their tables, columns and rows.
     - **A node of a table with a row access policy** is read from memory only by a principal whose own
-      recall step `READ` it, while that read holds. A relationship is read only between nodes the reader
-      may see. One row stays one node, so identity is still (source, key).
-    - **Pruning.** A refetch removes a relationship it didn't return only where it could have: not one
-      to a row-policied node the reader can't see.
+      recall step `READ` it, while that read holds, and so is a relationship to it. One row stays one
+      node, so identity is still (source, key). A relationship to a node the reader can't see says only
+      the key its start node holds, which they read.
     - **Everything else is shared,** since it's the same whoever reads it.
     - **The context record is the reader's own recall step** (its `READ` of the anchor, with the
       template it used). A recall reads memory only for that, with their template as it is now. A table

@@ -13,8 +13,7 @@ from qlsc.compile import (
     check,
     compile_cypher,
     compile_sql,
-    open_period,
-    week_usage,
+    week_starts,
     weeks,
 )
 
@@ -528,28 +527,20 @@ def test_checks_find_an_unstated_restriction_and_a_stated_value_left_out():
 
 
 def test_a_week_grain_follows_the_log():
-    texts = [
-        "select date_trunc(post_date, week) as wk, count(*) from t group by 1",
-        "SELECT DATE_TRUNC(t.post_date, WEEK) FROM t",
-        "select date_trunc(post_date, week(monday)) from t",
+    T = "p.dw.fct_txn"
+    dims = [
+        {"table": T, "expression": "DATE_TRUNC(fct_txn.post_date, WEEK)", "shapes": 2},
+        {"table": T, "expression": "DATE_TRUNC(fct_txn.post_date, WEEK(MONDAY))", "shapes": 1},
+        {"table": T, "expression": "DATE_TRUNC(DATE(fct_txn.ts), ISOWEEK)", "shapes": 1},
+        {"table": T, "expression": "DATE_TRUNC(fct_txn.even, WEEK)", "shapes": 1},
+        {"table": T, "expression": "DATE_TRUNC(fct_txn.even, WEEK(MONDAY))", "shapes": 1},
     ]
-    assert week_usage(texts, "post_date") == "week" and week_usage(texts, "other") == ""
-    assert week_usage(["select date_trunc(date(ts), isoweek) from t"], "ts") == "week_monday"
+    starts = week_starts(dims)
+    assert starts == {(T, "post_date"): "week", (T, "ts"): "week_monday"}  # a tie says nothing
     request = req(dimensions=[{"alias": "w", "column": "dw.fct_txn.post_date", "grain": "week_monday"}])
-    usage = lambda t, c: week_usage(texts, c)
-    assert weeks(request, CAT, usage, "Spend by week") and request["dimensions"][0]["grain"] == "week"
+    assert weeks(request, CAT, starts, "Spend by week") and request["dimensions"][0]["grain"] == "week"
     request["dimensions"][0]["grain"] = "week_monday"
-    assert weeks(request, CAT, usage, "Spend by week starting Monday") == []
-
-
-def test_a_period_ending_today_that_the_question_doesnt_end_is_open():
-    request = req(period={"column": "dw.fct_txn.post_date", "from": "2026-04-22", "to": "2026-07-01"})
-    assert (
-        open_period(request, "2026-07-01", "Decisions on or after 2026-04-22")
-        and request["period"]["to"] == ""
-    )
-    request = req(period={"column": "dw.fct_txn.post_date", "from": "2026-04-22", "to": "2026-07-01"})
-    assert open_period(request, "2026-07-01", "Decisions from 2026-04-22 to 2026-07-01") == []
+    assert weeks(request, CAT, starts, "Spend by week starting Monday") == []
 
 
 def test_on_memory_an_outer_join_keeps_its_null_group():
@@ -559,7 +550,6 @@ def test_on_memory_an_outer_join_keeps_its_null_group():
 
     class Guard:
         node = staticmethod(lambda v, label: [f"{v}.ok"])
-        relationship = staticmethod(lambda r: [f"{r}.ok"])
 
     b = Block(fact="p.dw.acct", joins=[("p.dw.acct", "branch_id", "p.dw.branch", "branch_id", True)],
               where=["acct.owner = 7"], dims=[("branch", "branch.name")], measures=[("n", "COUNT(acct.id)")])  # fmt: skip
@@ -577,7 +567,7 @@ def test_on_memory_an_outer_join_keeps_its_null_group():
     virtual = render_cypher(p, labels, model)
     assert "MATCH (acct)-[:AT]->(branch:Branch)" in virtual and "OPTIONAL" not in virtual
     mem = render_cypher(p, labels, model, guard=Guard())
-    assert "OPTIONAL MATCH (acct)-[r0:AT]->(branch:Branch)\nWHERE (branch.ok) AND (r0.ok)" in mem
+    assert "OPTIONAL MATCH (acct)-[:AT]->(branch:Branch)\nWHERE (branch.ok)" in mem
     assert mem.index("(acct.ok)") < mem.index(
         "OPTIONAL MATCH"
     )  # the main WHERE before it, the fact's guard in it

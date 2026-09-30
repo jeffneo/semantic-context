@@ -57,14 +57,40 @@ def test_the_virtual_graph_as_they_may_see_it():
     assert [r["label"] for r in m["relationships"]] == ["MADE_BY"]
 
 
-def test_probes_of_what_virtual_graphs_sql_reads():
-    sql = (
-        "SELECT `c`.`segment` AS `seg`, count(distinct `c`.`customer_key`) AS `n` "
-        "FROM `p`.`fnb_graph`.`fct_card_transactions` AS `unnamed0` "
-        "JOIN `p`.`fnb_graph`.`dim_customer` AS `c` ON `c`.`customer_key` = `unnamed0`.`customer_key` "
-        "WHERE `c`.`state_code` IN unnest([? /*param_0*/, ?]) GROUP BY `seg` LIMIT ? /*param_1*/"
-    )
-    assert entitle.probes(sql) == [
-        "SELECT `customer_key`, `segment`, `state_code` FROM `p`.`fnb_graph`.`dim_customer` LIMIT 1",
-        "SELECT `customer_key` FROM `p`.`fnb_graph`.`fct_card_transactions` LIMIT 1",
-    ]
+def test_a_virtual_graph_that_runs_unsigned_queries_is_refused_a_principal(tmp_path):
+    """Without the pass-through, the virtual graph reads as its own identity: nothing is sent on a
+    principal's behalf. The estate's own reads still go."""
+    from neo4j.exceptions import Neo4jError
+
+    (tmp_path / "virtual").mkdir()
+    (tmp_path / "virtual" / "schema.json").write_text('{"entities": {"nodes": [{"label": "Customer"}]}}')
+
+    class Settings(dict):
+        work = tmp_path
+
+    class VirtualGraph:
+        def __init__(self, enforcing):
+            self.enforcing = enforcing
+
+        def rows(self, q, **_):
+            if self.enforcing:
+                raise Neo4jError._hydrate_neo4j(
+                    code="Neo.DatabaseError.General.UnknownError",
+                    message="qlsc pass-through: refused, the query carries no principal token",
+                )
+            return [{"n": 1}]
+
+    for uri, enforcing in (("bolt://plain", False), ("bolt://passthrough", True)):
+        s = Settings(virtualize={"neo4j": {"uri": uri}}, entitlements={"token_seconds": 300})
+        V = VirtualGraph(enforcing)
+        sent, params = entitle.signing(s, None, "MATCH (c:Customer) RETURN c", V)
+        assert "$qlsc_principal IS NOT NULL" in sent and params["qlsc_principal"]
+        if enforcing:
+            assert entitle.signing(s, ALLOW, "MATCH (c:Customer) RETURN c", V)[1]["qlsc_principal"]
+        else:
+            try:
+                entitle.signing(s, ALLOW, "MATCH (c:Customer) RETURN c", V)
+            except entitle.Unenforced:
+                pass
+            else:
+                raise AssertionError("signed for a principal on a virtual graph that doesn't enforce it")
