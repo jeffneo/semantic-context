@@ -36,9 +36,8 @@ from __future__ import annotations
 import dataclasses
 import datetime as dt
 import json
-from decimal import Decimal
 
-from common import settings, write_result
+from common import native, settings, write_result
 from entitlements import Oracle
 from memory import compare
 
@@ -57,20 +56,6 @@ AGENT = """
 MATCH (k:Call)-[:HANDLED_BY]->(g:Agent) WHERE k.conversation_date >= $since
 RETURN g.agent_user_id AS key, count(k) AS calls ORDER BY calls DESC, key LIMIT 1
 """
-
-
-def native(v):
-    """A value from Neo4j or BigQuery, comparable across the two."""
-    v = v.to_native() if hasattr(v, "to_native") else v
-    if isinstance(v, Decimal):
-        v = float(v)
-    if isinstance(v, float):
-        return float(f"{v:.9g}")
-    if isinstance(v, dt.datetime):  # Virtual Graph returns a TIMESTAMP without its zone: it is UTC
-        return (v if v.tzinfo else v.replace(tzinfo=dt.UTC)).astimezone(dt.UTC).isoformat()
-    if isinstance(v, dt.date):
-        return v.isoformat()
-    return v
 
 
 def literal(v) -> str:

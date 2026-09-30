@@ -157,7 +157,7 @@ def merge(G: Graph, s: Settings, rows: dict[str, dict], named: dict[str, dict]) 
     """Computations that compute the same thing, written differently: near neighbours by embedding,
     confirmed by the LLM (prompts/computation_merge_system.md). Each confirmed set keeps its most-run
     member; the others point at it (`same_as`) and navigation skips them."""
-    p = s.params["computations"]
+    p = s["computations"]
     sets = components(
         [(r["a"], r["b"]) for r in G.rows(NEAR, k=p["merge_neighbours"], min=p["merge_similarity"])]
     )
@@ -205,16 +205,13 @@ def evidence(c: dict) -> str:
 
 
 def run(s: Settings, names: bool = True) -> None:
-    p = s.params["computations"]
+    p = s["computations"]
     t0 = time.time()
     with Graph(s) as G:
         G.run("CREATE CONSTRAINT computation_id IF NOT EXISTS FOR (n:Computation) REQUIRE n.id IS UNIQUE")
         G.delete("(n:Computation)")
         found = extract(G, s)
-        everything = [r["t"] for r in G.rows(navigate.ALL_TABLES)]
-        distrusted = {r["t"] for r in G.rows(navigate.PERSONAL)} | {
-            r["t"] for r in G.rows(navigate.FROZEN, tables=everything)
-        }
+        distrusted = {r["t"] for r in G.rows(navigate.DISTRUSTED)}
         rows = [
             {**c, "trusted": not set(c["tables"]) & distrusted, "shape_count": len(c["shapes"])}
             for c in sorted(found.values(), key=lambda c: c["id"])

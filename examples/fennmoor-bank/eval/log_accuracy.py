@@ -9,11 +9,12 @@ and navigation may offer those. That is the log doing its job, and it is how que
 usage in real life; the results say how often it happened (`sibling`: an example read exactly the
 tables the reference reads).
 
-The answers are compared with the reference on its `compare` columns, by execution.py's matcher.
+The answers are compared with the reference on its `compare` columns, by match.py's ruler.
 
 Writes results/log_accuracy.md and .json.
 Usage: uv run examples/fennmoor-bank/eval/log_accuracy.py [N] [param=value ...]   (N: only the first N questions;
-       param=value: a navigation override, e.g. writer=compiled, written to log_accuracy_<overrides>.*)
+       param=value: an override, e.g. writer=free; one that differs from the defaults is written to
+       log_accuracy_<overrides>.*)
        uv run examples/fennmoor-bank/eval/log_accuracy.py --report   (the last run, over the questions kept now)
 """
 
@@ -25,46 +26,24 @@ from collections import Counter
 
 import yaml
 from common import RESULTS, overrides, settings, write_result
-from execution import ROUTES, ROWS, compare
 from log_questions import QUESTIONS, answers_dir
+from match import LLMUsage, both_routes, cell, route_table
 
-from qlsc import llm
 from qlsc.graph import Graph
-from qlsc.navigate import answer_cypher, answer_sql, pick, trace
+from qlsc.navigate import LABELS, trace
 from qlsc.warehouse import connect
 
-VIRTUAL = "MATCH (t:Table) WHERE t.graph_label IS NOT NULL RETURN t.id AS t"
 TOKENS = lambda s: s.work / "log_accuracy_tokens.json"  # the query writer's tokens, from the last full run
-MADE: list = []  # every LLM client the routes create, for the token count
-
-
-def counted(init):
-    def wrapper(self, *a, **k):
-        init(self, *a, **k)
-        MADE.append(self)
-
-    return wrapper
-
-
-def verdict_of(a: dict, ref: dict, items: list[list[str]]) -> tuple[str, str]:
-    got = a.get("result")
-    if "skipped" in a:
-        return "not covered", a["skipped"]
-    if "declined" in a:
-        return "declined", a["declined"]
-    if got is None or not got.get("ok", True):
-        failure = (got or {}).get("error") or a.get("error") or a.get("check", {}).get("error")
-        return "failed", str(failure or a.get("dry_run", {}).get("error"))[:160]
-    return compare(ref, got, items)
 
 
 def main() -> int:
-    llm.LLM.__init__ = counted(llm.LLM.__init__)
+    usage = LLMUsage()
     s = settings()
     argv, suffix = overrides(s, sys.argv[1:])
     qs = yaml.safe_load(QUESTIONS.read_text())
-    answers = json.loads((RESULTS / "log_answers.json").read_text())
-    kept = {q for q, r in answers.items() if r["verdict"] == "kept"}
+    kept = {
+        q for q, r in json.loads((RESULTS / "log_answers.json").read_text()).items() if r["verdict"] == "kept"
+    }
     name = "log_accuracy" + suffix
     if argv == ["--report"]:  # the last run's answers, over the questions kept now
         res = {q: r for q, r in json.loads((RESULTS / f"{name}.json").read_text()).items() if q in kept}
@@ -76,42 +55,19 @@ def main() -> int:
     with Graph(s) as G:
         for i, qid in enumerate(wanted, 1):
             q = qs[qid]
-            ref = json.loads((answers_dir(s) / f"{qid}.json").read_text())
-            items = [[c] for c in q["compare"]]
+            ref = {"name": qid, "items": [[c] for c in q["compare"]],
+                   "result": json.loads((answers_dir(s) / f"{qid}.json").read_text())}  # fmt: skip
             tr = trace(G, s, q["question"], exclude=frozenset({q["shape"]}))
-            sibling = any(set(e.get("tables", [])) == set(q["tables"]) for e in tr["examples"])
-            out = {
+            res[qid] = {
                 "question": q["question"],
                 "who": q["who"],
                 "tables": q["tables"],
                 "found": sorted(set(q["tables"]) & set(tr["top"])),
-                "sibling": sibling,
-            }
-            answers = {}
-            for route, answer in (("sql", answer_sql), ("cypher", answer_cypher)):
-                a = answers[route] = answer(G, s, tr, execute=True, rows=ROWS)
-                v, why = verdict_of(a, ref, items)
-                out[route] = {
-                    "verdict": v,
-                    "why": why,
-                    "query": a.get("sql") or a.get("cypher"),
-                    "writer": a.get("writer"),
-                    "fallback": a.get("fallback"),
-                }
-                print(
-                    f"{i}/{len(wanted)} {qid} {route:6} {v:12} {(a.get('writer') or '')[:8]:8} {why[:90]}",
-                    flush=True,
-                )
-                if "fresh login" in why:  # the credentials expired mid-run: every answer from here would fail
-                    raise SystemExit(f"stopped at {qid}: {why}")
-            chosen = pick(answers["sql"], answers["cypher"])
-            out["routed"] = {"route": chosen, "verdict": out[chosen]["verdict"]}
-            res[qid] = out
+                "sibling": any(set(e.get("tables", [])) == set(q["tables"]) for e in tr["examples"]),
+            } | both_routes(G, s, tr, [ref], f"{i}/{len(wanted)} {qid}")
             if i % 10 == 0:  # partial results, so a stopped run still shows where it got to
                 (RESULTS / f"{name}.partial.json").write_text(json.dumps(res, indent=1, default=str))
-    tokens = Counter()
-    for c in MADE:
-        tokens.update(c.tokens)
+    tokens = Counter({"in": usage.spent()["tokens_in"], "out": usage.spent()["tokens_out"]})
     TOKENS(s).write_text(json.dumps(tokens))
     (RESULTS / f"{name}.partial.json").unlink(missing_ok=True)
     return report(s, res, tokens, name)
@@ -119,40 +75,25 @@ def main() -> int:
 
 def report(s, res: dict, tokens: dict, name: str = "log_accuracy") -> int:
     with Graph(s) as G:
-        virtual = {r["t"] for r in G.rows(VIRTUAL)}
+        virtual = {r["table"] for r in G.rows(LABELS)}
     L = ["# Execution accuracy over the log's questions", ""]
     L.append(
         f"{len(res)} questions written from the log's own queries (`eval/log_questions.yaml`), each "
         "through `qlsc ask` by both routes, with its own query never offered as an example. Compared "
-        "with the query's result on the columns the question asks for (execution.py's matcher)."
+        "with the query's result on the columns the question asks for (match.py's ruler)."
     )
     n = lambda route, v, sub=res: sum(1 for r in sub.values() if r[route]["verdict"] == v)
+    L += ["", *route_table(res)]
+    routed = [r["routed"] for r in res.values()]
+    compiled = [r for r in res.values() if r["sql"].get("writer") == "compiled"]
     L += [
         "",
-        "| route | correct | wrong | empty | failed | declined | not covered | of |",
-        "|---|---|---|---|---|---|---|---|",
+        f"Routed: SQL for {sum(r['route'] == 'sql' for r in routed)}, Cypher for "
+        f"{sum(r['route'] == 'cypher' for r in routed)} (compiled SQL when the question compiles, else "
+        "free Cypher when it answers, else free SQL).",
+        f"The SQL compiled for {len(compiled)} of {len(res)}: "
+        f"{sum(r['sql']['verdict'] == 'correct' for r in compiled)} correct.",
     ]
-    for route in ROUTES:
-        L.append(
-            f"| {route} | {n(route, 'correct')} | {n(route, 'wrong')} | {n(route, 'empty')} | "
-            f"{n(route, 'failed')} | {n(route, 'declined')} | {n(route, 'not covered')} | {len(res)} |"
-        )
-    routed = [r["routed"] for r in res.values() if "routed" in r]
-    if routed:
-        L.append(
-            f"| routed | {sum(r['verdict'] == 'correct' for r in routed)} | "
-            f"{sum(r['verdict'] == 'wrong' for r in routed)} | {sum(r['verdict'] == 'empty' for r in routed)} | "
-            f"{sum(r['verdict'] == 'failed' for r in routed)} | | | {len(routed)} |"
-        )
-        compiled = [r for r in res.values() if r["sql"].get("writer") == "compiled"]
-        L += [
-            "",
-            f"Routed: SQL for {sum(r['route'] == 'sql' for r in routed)}, Cypher for "
-            f"{sum(r['route'] == 'cypher' for r in routed)} (compiled SQL when the question compiles, else "
-            "free Cypher when it answers, else free SQL).",
-            f"The SQL compiled for {len(compiled)} of {len(res)}: "
-            f"{sum(r['sql']['verdict'] == 'correct' for r in compiled)} correct.",
-        ]
     either = sum(1 for r in res.values() if "correct" in (r["sql"]["verdict"], r["cypher"]["verdict"]))
     all_found = [q for q, r in res.items() if set(r["found"]) == set(r["tables"])]
     L += [
@@ -181,7 +122,6 @@ def report(s, res: dict, tokens: dict, name: str = "log_accuracy") -> int:
     ):
         L.append(f"| {label} | {len(sub)} | {n('sql', 'correct', sub)} | {n('cypher', 'correct', sub)} |")
     L += ["", "| question | sql | cypher |", "|---|---|---|"]
-    cell = lambda x: f"{x['verdict']}: {x['why']}".replace("|", "/")
     L += [f"| {q}. {r['question']} | {cell(r['sql'])} | {cell(r['cypher'])} |" for q, r in res.items()]
     print(f"-> {write_result(name, L, res)}")
     return 0

@@ -2,7 +2,7 @@
 
 Every run is deterministic for a given seed, but a seed is one draw among equally valid groupings. For
 each seed, level 1 (qlsc cluster) and the levels above (qlsc hierarchy) are rebuilt with
-parameters.cluster.seed and parameters.hierarchy.seed set to it, and graded:
+cluster.seed and hierarchy.seed set to it, and graded:
 
   levels       Semantic groups per level
   stability    median Semantic.stability of the level-1 groups
@@ -39,7 +39,7 @@ SEEDS = list(range(1, 11))
 def rebuild(s, seed: int) -> None:
     """Level 1 and the levels above with one seed; their output goes to a buffer, not the screen."""
     s = copy.deepcopy(s)
-    s["parameters"]["cluster"]["seed"] = s["parameters"]["hierarchy"]["seed"] = seed
+    s["cluster"]["seed"] = s["hierarchy"]["seed"] = seed
     with contextlib.redirect_stdout(io.StringIO()):
         cluster.run(s)
         hierarchy.run(s)
@@ -62,7 +62,7 @@ def partition(G: Graph, level: int) -> dict[str, str]:
 def grade(G: Graph, s, subject: dict, domain: dict, questions: dict, vecs: dict, canon) -> dict:
     levels = {r["l"]: r["n"] for r in G.rows("MATCH (x:Semantic) RETURN x.level AS l, count(*) AS n")}
     stab = sorted(r["v"] for r in G.rows("MATCH (x:Semantic {level: 1}) RETURN x.stability AS v"))
-    nav = navigation.grade(G, s.params["navigate"], questions, vecs, canon)["combined/round_robin"]
+    nav = navigation.grade(G, s["navigate"], questions, vecs, canon)["combined/round_robin"]
     return {
         "levels": [levels[k] for k in sorted(levels)],
         "stability": stab[len(stab) // 2],
@@ -116,7 +116,7 @@ def main() -> int:
     ap.add_argument("--seeds", type=int, nargs="+", default=SEEDS)
     a = ap.parse_args()
     s = settings()
-    configured = s.params["cluster"]["seed"]
+    configured = s["cluster"]["seed"]
     wh = build("warehouse.json")
     names = Names(s, wh)
     subject = {names.table(t["fqn"]): t["subject"] for t in wh["tables"]}

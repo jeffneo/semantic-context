@@ -95,18 +95,10 @@ DATA_SOURCE = "data source"  # fetched_by when no principal is named: the estate
 TABLES = """
 MATCH (t:Table) WHERE t.graph_label IS NOT NULL
 RETURN t.graph_label AS label, t.id AS id, t.name AS name, t.partition_column AS partition,
-       t.write_days AS write_days,
+       t.write_days AS write_days, t.frozen AS frozen,
        [(t)-[:HAS_COLUMN]->(c:Column)
         WHERE $all OR c.graph_key OR c.name = t.partition_column
            OR EXISTS { (:QueryShape)-[:READS|FILTERS]->(c) } | {id: c.id, name: c.name}] AS columns
-"""
-
-# Nothing writes it and no production process reads it (navigate's FROZEN, over every table served).
-FROZEN = """
-MATCH (t:Table) WHERE t.graph_label IS NOT NULL AND t.write_days IS NULL
-  AND NOT EXISTS { MATCH (:Principal {kind: 'service_account'})-[:RAN]->(:QueryShape {succeeded: true})-[:REFERENCES]->(x:Table)
-                   WHERE x = t OR (x.kind = 'view' AND (x)-[:DERIVED_FROM*1..3]->(t)) }
-RETURN t.graph_label AS label
 """
 
 CREATE_DATABASE = "CREATE DATABASE $name IF NOT EXISTS WAIT"
@@ -289,11 +281,7 @@ def model(G: Graph, s: Settings, schema: dict | None = None, allow: entitle.Allo
     what the principal may read."""
     schema = schema or json.loads((s.work / "virtual" / "schema.json").read_text())
     p = s["memory"]
-    frozen = {r["label"] for r in G.rows(FROZEN)}
-    tables = {
-        r["label"]: {**r, "frozen": r["label"] in frozen}
-        for r in G.rows(TABLES, all=p["properties"] == "all")
-    }
+    tables = {r["label"]: r for r in G.rows(TABLES, all=p["properties"] == "all")}
     policied_tables = row_policied(s, sorted(t["id"] for t in tables.values()))
     entities, every = schema["entities"], {n["label"] for n in schema["entities"]["nodes"]}
     if allow is not None:
@@ -444,9 +432,7 @@ def cypher(m: Model, r: Read, memory: bool = False) -> str:
     (keyed): the same rows. A read into the anchors is ordered by anchor, then the most recent first, so a
     batch's is read in pages (run_batch)."""
     n = m.nodes[r.label]
-    src = " {source: $source}" if memory else ""
-    fresh = lambda v: f"({v}.holds_until IS NULL OR {v}.holds_until > $now)"
-    seen = lambda v: f"EXISTS {{ (:Step {{owner: $by}})-[r:READ]->({v}) WHERE r.holds_until > $now }}"
+    guard = Guard(m)
     ret = ", ".join(f"n.`{p}` AS `{p}`" for p in sorted(n["props"]))
     if keyed(r, memory) and r.inward:
         where = [f"n.`{r.fk}` IN $keys"] + ([f"n.`{r.window}` >= $since"] if r.window else [])
@@ -457,23 +443,20 @@ def cypher(m: Model, r: Read, memory: bool = False) -> str:
             + f"\nRETURN n.`{r.fk}` AS _via, {ret}\nORDER BY n.`{r.fk}`, {recent}n.`{n['key']}`\nLIMIT $limit"
         )
     if r.type is None or keyed(r, memory):
-        where = [f"n.`{n['key']}` IN $keys"]
-        if memory:
-            where += [fresh("n")] + ([seen("n")] if r.label in m.policied else [])
-        return f"MATCH (n:`{r.label}`{src})\nWHERE " + " AND ".join(where) + f"\nRETURN {ret}"
+        where = [f"n.`{n['key']}` IN $keys"] + (guard.node("n", r.label) if memory else [])
+        return f"MATCH (n:`{r.label}`)\nWHERE " + " AND ".join(where) + f"\nRETURN {ret}"
     vk = m.key(r.via)
     if r.inward:
-        match = f"MATCH (n:`{r.label}`{src})-[x:`{r.type}`]->(v:`{r.via}`{src})"
+        match = f"MATCH (n:`{r.label}`)-[x:`{r.type}`]->(v:`{r.via}`)"
     else:
-        match = f"MATCH (v:`{r.via}`{src})-[x:`{r.type}`]->(n:`{r.label}`{src})"
+        match = f"MATCH (v:`{r.via}`)-[x:`{r.type}`]->(n:`{r.label}`)"
     where = [f"v.`{vk}` IN $keys"]
     if r.window:
         where.append(f"n.`{r.window}` >= $since")
     if r.via_window:
         where.append(f"v.`{r.via_window}` >= $since")
     if memory:
-        where += [fresh("x"), fresh("n")]
-        where += [seen("n")] * (r.label in m.policied) + [seen("v")] * (r.via in m.policied)
+        where += guard.relationship("x") + guard.node("n", r.label) + guard.node("v", r.via)
     recent = f"n.`{r.window}` DESC, " if r.window and r.inward else ""
     order = f"v.`{vk}`, {recent}n.`{n['key']}`"
     limit = "\nLIMIT $limit" if r.inward else ""
@@ -521,7 +504,7 @@ class Context:
 
 
 def window_start(s: Settings) -> dt.date:
-    today = s.params["navigate"].get("today") or dt.date.today()
+    today = s["navigate"].get("today") or dt.date.today()
     today = today if isinstance(today, dt.date) else dt.date.fromisoformat(str(today))
     return today - dt.timedelta(days=s["memory"]["window_days"])
 

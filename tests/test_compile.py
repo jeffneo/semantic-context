@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import datetime as dt
+
 import pytest
+from sqlglot.executor import env, execute
 
 from qlsc.compile import (
     Catalogue,
@@ -13,7 +16,6 @@ from qlsc.compile import (
     open_period,
     week_usage,
     weeks,
-    within,
 )
 
 TABLES = {
@@ -72,78 +74,113 @@ def flat(sql: str) -> str:
     return " ".join(sql.split()).replace("( ", "(").replace(" )", ")")
 
 
+# ---- the SQL, run: the compiled queries over a few rows (sqlglot's executor, with BigQuery's functions
+# the compiler writes), so the tests say what the answer is, not how the SQL is spelled
+
+D = dt.date
+ROWS_ = {
+    "fct_txn": [  # customer 3 has no customer row; customer 4 never buys
+        {"txn_id": "t1", "customer_key": 1, "amount": 10.0, "is_purchase": True, "post_date": D(2026, 4, 2)},
+        {"txn_id": "t2", "customer_key": 1, "amount": 5.0, "is_purchase": False, "post_date": D(2026, 5, 3)},
+        {"txn_id": "t3", "customer_key": 2, "amount": 20.0, "is_purchase": True, "post_date": D(2026, 5, 10)},
+        {"txn_id": "t4", "customer_key": 3, "amount": 7.0, "is_purchase": True, "post_date": D(2026, 6, 1)},
+        {
+            "txn_id": "t5",
+            "customer_key": 2,
+            "amount": 100.0,
+            "is_purchase": True,
+            "post_date": D(2026, 3, 15),
+        },
+        {"txn_id": "t6", "customer_key": 4, "amount": 1.0, "is_purchase": False, "post_date": D(2026, 4, 20)},
+    ],
+    "dim_customer": [
+        {"customer_key": 1, "segment": "affluent", "branch_id": 10},
+        {"customer_key": 2, "segment": "mass", "branch_id": 20},
+        {"customer_key": 4, "segment": "mass", "branch_id": 20},
+    ],
+    "dim_branch": [{"branch_id": 10, "region": "North"}, {"branch_id": 20, "region": "South"}],
+    "fct_calls": [{"call_id": "k1", "customer_key": 1}, {"call_id": "k2", "customer_key": 1}],
+    "fct_costs": [
+        {"branch_id": 10, "month_start": D(2026, 4, 1), "cost": 50.0},
+        {"branch_id": 20, "month_start": D(2026, 4, 1), "cost": 40.0},
+    ],  # fmt: skip
+}
+for r in ROWS_["fct_txn"]:
+    r["posted_at"] = dt.datetime.combine(r["post_date"], dt.time(10))
+
+
+def _trunc(unit, v):
+    return {"MONTH": v.replace(day=1), "YEAR": v.replace(month=1, day=1), "DAY": v}[str(unit).upper()]
+
+
+env.ENV.update(
+    SAFEDIVIDE=lambda a, b: None if a is None or not b else a / b,
+    DATETRUNC=_trunc,
+    DATE=lambda v: v.date() if isinstance(v, dt.datetime) else v,
+)
+
+
+def run(sql: str) -> list[tuple]:
+    """The compiled SQL's answer over ROWS_, sorted."""
+    got = execute(sql, dialect="bigquery", tables={"p": {"dw": ROWS_}})
+    return sorted(got.rows, key=lambda r: tuple((x is None, x) for x in r))
+
+
 def test_computation_joined_two_hops_with_period():
-    sql = flat(
-        compile_sql(
-            req(
-                measures=[{"alias": "spend", "computation": "c1"}],
-                dimensions=[
-                    {"alias": "region", "column": "dw.dim_branch.region"},
-                    {"alias": "month", "column": "dw.fct_txn.post_date", "grain": "month"},
-                ],
-                filters=[{"computation": "c2"}],
-                period={"column": "dw.fct_txn.posted_at", "from": "2026-04-01", "to": "2026-06-30"},
-            ),
-            CAT,
-            unique,
-        )
+    """A Computation's measure and population, a dimension two joins away, a month grain, a period on a
+    timestamp: the affluent customer's purchases in the quarter, by region and month."""
+    sql = compile_sql(
+        req(
+            measures=[{"alias": "spend", "computation": "c1"}],
+            dimensions=[
+                {"alias": "region", "column": "dw.dim_branch.region"},
+                {"alias": "month", "column": "dw.fct_txn.post_date", "grain": "month"},
+            ],
+            filters=[{"computation": "c2"}],
+            period={"column": "dw.fct_txn.posted_at", "from": "2026-04-01", "to": "2026-06-30"},
+        ),
+        CAT,
+        unique,
     )
-    assert "SUM(fct_txn.amount) AS spend" in sql
-    assert (
-        "JOIN `p.dw.dim_customer` AS dim_customer ON dim_customer.customer_key = fct_txn.customer_key" in sql
-    )
-    assert "JOIN `p.dw.dim_branch` AS dim_branch ON dim_branch.branch_id = dim_customer.branch_id" in sql
-    assert "DATE_TRUNC(fct_txn.post_date, MONTH) AS month" in sql
-    assert "(fct_txn.is_purchase)" in sql and "(dim_customer.segment = 'affluent')" in sql
-    assert "DATE(fct_txn.posted_at) >= CAST('2026-04-01' AS DATE)" in sql
-    assert "GROUP BY 1, 2" in sql
+    assert run(sql) == [("North", D(2026, 4, 1), 10.0)]
 
 
 def test_measures_with_different_filters_share_one_query():
-    sql = flat(
-        compile_sql(
-            req(
-                measures=[
-                    {"alias": "spend", "computation": "c1"},
-                    {"alias": "txns", "aggregate": "COUNT"},
-                    {"alias": "share", "ratio_of": ["spend", "txns"]},
-                ],
-            ),
-            CAT,
-            unique,
-        )
+    """Spend counts purchases only; the count of transactions counts every one; the share divides them."""
+    sql = compile_sql(
+        req(
+            measures=[
+                {"alias": "spend", "computation": "c1"},
+                {"alias": "txns", "aggregate": "COUNT"},
+                {"alias": "share", "ratio_of": ["spend", "txns"]},
+            ],
+        ),
+        CAT,
+        unique,
     )
-    assert (
-        "SUM(CASE WHEN (fct_txn.is_purchase) THEN fct_txn.amount ELSE NULL END) AS spend" in sql
-        or "SUM(IF(" in sql
-    )
-    assert "COUNT(*) AS txns" in sql
-    assert "SAFE_DIVIDE(" in sql and "WHERE" not in sql  # the purchase filter belongs to spend only
+    assert run(sql) == [(137.0, 6, 137.0 / 6)]
 
 
 def test_conditions_are_typed_from_the_column():
-    sql = flat(
-        compile_sql(
-            req(
-                measures=[
-                    {
-                        "alias": "n",
-                        "aggregate": "COUNT_DISTINCT",
-                        "column": "dw.fct_txn.customer_key",
-                        "where": [{"column": "dw.fct_txn.is_purchase", "op": "IS TRUE", "values": []}],
-                    }
-                ],
-                filters=[
-                    {"column": "dw.dim_customer.segment", "op": "IN", "values": ["affluent", "private"]},
-                    {"column": "dw.fct_txn.amount", "op": ">=", "values": ["100"]},
-                ],
-            ),
-            CAT,
-            unique,
-        )
+    sql = compile_sql(
+        req(
+            measures=[
+                {
+                    "alias": "n",
+                    "aggregate": "COUNT_DISTINCT",
+                    "column": "dw.fct_txn.customer_key",
+                    "where": [{"column": "dw.fct_txn.is_purchase", "op": "IS TRUE", "values": []}],
+                }
+            ],
+            filters=[
+                {"column": "dw.dim_customer.segment", "op": "IN", "values": ["affluent", "private"]},
+                {"column": "dw.fct_txn.amount", "op": ">=", "values": ["10"]},  # a number, as text
+            ],
+        ),
+        CAT,
+        unique,
     )
-    assert "dim_customer.segment IN ('affluent', 'private')" in sql
-    assert "fct_txn.amount >= 100" in sql
+    assert run(sql) == [(1,)]
 
 
 def test_what_cannot_compile_falls_back():
@@ -164,58 +201,45 @@ def test_what_cannot_compile_falls_back():
         )
 
 
-def test_within_wraps_each_aggregate():
-    assert within("COUNT(*)", ["t.a"]) == "COUNT(IF(t.a, 1, NULL))"
-    assert within("SAFE_DIVIDE(COUNTIF(t.x), COUNT(*))", ["t.a"]).count("IF(t.a") == 2
-
-
 def test_an_open_ended_period_and_a_count_of_rows():
     cat = Catalogue(TABLES, JOINS, {})
-    sql = flat(
-        compile_sql(
-            req(
-                measures=[{"alias": "calls", "aggregate": "COUNT"}],
-                dimensions=[{"alias": "cust", "column": "dw.fct_calls.customer_key"}],
-            ),
-            cat,
-            unique,
-        )
+    calls = compile_sql(
+        req(
+            measures=[{"alias": "calls", "aggregate": "COUNT"}],
+            dimensions=[{"alias": "cust", "column": "dw.fct_calls.customer_key"}],
+        ),
+        cat,
+        unique,
     )
-    assert "COUNT(*) AS calls FROM `p.dw.fct_calls` AS fct_calls" in sql  # the fact, from the dimension
-    sql = flat(
-        compile_sql(
-            req(
-                measures=[{"alias": "n", "aggregate": "COUNT", "column": "dw.fct_txn.txn_id"}],
-                period={"column": "dw.fct_txn.post_date", "from": "2026-04-15", "to": ""},
-            ),
-            cat,
-            unique,
-        )
+    assert run(calls) == [(1, 2)]  # a count of rows is of the table the dimension names
+    since = compile_sql(
+        req(
+            measures=[{"alias": "n", "aggregate": "COUNT", "column": "dw.fct_txn.txn_id"}],
+            period={"column": "dw.fct_txn.post_date", "from": "2026-04-15", "to": ""},
+        ),
+        cat,
+        unique,
     )
-    assert "fct_txn.post_date >= CAST('2026-04-15' AS DATE)" in sql and "<=" not in sql
+    assert run(since) == [(4,)]  # "since April 15": no end
 
 
 def test_conditions_inside_a_measure_stay_inside_it():
-    sql = flat(
-        compile_sql(
-            req(
-                measures=[
-                    {
-                        "alias": "clicks",
-                        "aggregate": "COUNT",
-                        "where": [{"column": "dw.fct_txn.is_purchase", "op": "IS TRUE", "values": []}],
-                    }
-                ],
-                dimensions=[{"alias": "cust", "column": "dw.fct_txn.customer_key"}],
-            ),
-            CAT,
-            unique,
-        )
+    """ "Count only purchases": a customer with none still shows, with zero."""
+    sql = compile_sql(
+        req(
+            measures=[
+                {
+                    "alias": "purchases",
+                    "aggregate": "COUNT",
+                    "where": [{"column": "dw.fct_txn.is_purchase", "op": "IS TRUE", "values": []}],
+                }
+            ],
+            dimensions=[{"alias": "cust", "column": "dw.fct_txn.customer_key"}],
+        ),
+        CAT,
+        unique,
     )
-    assert (
-        "COUNT(IF(fct_txn.is_purchase IS TRUE, 1, NULL)) AS clicks" in sql and "WHERE" not in sql
-    )  # zeros stay
-    assert within("COUNT(DISTINCT t.x)", ["t.a"]) == "COUNT(DISTINCT IF(t.a, t.x, NULL))"
+    assert run(sql) == [(1, 1), (2, 2), (3, 1), (4, 0)]
 
 
 # ---- the wider request, and Cypher from the same plan (plans/2026-09-28-compiler-2.md)
@@ -259,6 +283,8 @@ wide_unique = lambda t, c: (t, c) in WIDE_UNIQUE
 
 
 def test_two_facts_are_two_blocks_joined_on_the_dimensions():
+    """Spend (through customers to branches) and cost (by branch) are two facts: each aggregated on its
+    own, then joined on the branch, so neither multiplies the other."""
     request = req(
         measures=[
             {"alias": "spend", "computation": "c1"},
@@ -270,11 +296,8 @@ def test_two_facts_are_two_blocks_joined_on_the_dimensions():
     )
     with pytest.raises(Unfit, match="filter|multiply"):  # the segment filter can't apply to costs
         compile_sql(request, WIDE_CAT, wide_unique)
-    sql = flat(compile_sql(request | {"filters": []}, WIDE_CAT, wide_unique))
-    assert "WITH fct_txn_1 AS" in sql and "fct_costs_2 AS" in sql
-    assert "fct_costs.branch_id AS branch" in sql  # the costs' own column
-    assert "dim_branch.branch_id AS branch" in sql  # the column a join equates it to
-    assert "FULL JOIN fct_costs_2 USING (branch)" in sql and "SAFE_DIVIDE(spend, cost)" in sql
+    sql = compile_sql(request | {"filters": []}, WIDE_CAT, wide_unique)
+    assert run(sql) == [(10, 10.0, 50.0, 0.2), (20, 120.0, 40.0, 3.0)]
 
 
 def test_a_distinct_count_moves_the_fact_to_the_finer_table():
@@ -317,46 +340,39 @@ def test_a_latest_value_is_summed_per_entity_in_two_steps():
     assert "SUM(balance) AS balance" in sql and sql.count("GROUP BY") == 2
 
 
-def test_having_difference_list_and_pdt_alias():
-    sql = flat(
-        compile_sql(
-            req(
-                measures=[
-                    {
-                        "alias": "q1",
-                        "aggregate": "SUM",
-                        "column": "dw.fct_txn.amount",
-                        "where": [{"column": "dw.fct_txn.post_date", "op": "<", "values": ["2026-04-01"]}],
-                    },
-                    {
-                        "alias": "q2",
-                        "aggregate": "SUM",
-                        "column": "dw.fct_txn.amount",
-                        "where": [{"column": "dw.fct_txn.post_date", "op": ">=", "values": ["2026-04-01"]}],
-                    },
-                    {"alias": "change", "difference_of": ["q2", "q1"]},
-                ],
-                dimensions=[{"alias": "cust", "column": "dw.fct_txn.customer_key"}],
-                having=[{"alias": "q2", "op": ">", "value": 5000}],
-            ),
-            WIDE_CAT,
-            wide_unique,
-        )
+def test_having_difference_and_a_list():
+    before = {"column": "dw.fct_txn.post_date", "op": "<", "values": ["2026-04-01"]}
+    after = {"column": "dw.fct_txn.post_date", "op": ">=", "values": ["2026-04-01"]}
+    sql = compile_sql(
+        req(
+            measures=[
+                {"alias": "q1", "aggregate": "SUM", "column": "dw.fct_txn.amount", "where": [before]},
+                {"alias": "q2", "aggregate": "SUM", "column": "dw.fct_txn.amount", "where": [after]},
+                {"alias": "change", "difference_of": ["q2", "q1"]},
+            ],
+            dimensions=[{"alias": "cust", "column": "dw.fct_txn.customer_key"}],
+            having=[{"alias": "q2", "op": ">", "value": 15}],
+        ),
+        WIDE_CAT,
+        wide_unique,
     )
-    assert ") - (" in sql and "HAVING" in sql and "> 5000" in sql
-    sql = flat(
-        compile_sql(
-            req(
-                dimensions=[{"alias": "k", "column": "dw.dim_customer.customer_key"}],
-                filters=[{"computation": "c2"}],
-                order=[{"alias": "k", "desc": False}],
-                limit=5,
-            ),
-            WIDE_CAT,
-            wide_unique,
-        )
+    assert run(sql) == [(2, 100.0, 20.0, -80.0)]  # only customer 2 bought more than 15 from April
+    listing = compile_sql(
+        req(
+            dimensions=[{"alias": "k", "column": "dw.dim_customer.customer_key"}],
+            filters=[{"column": "dw.dim_customer.segment", "op": "=", "values": ["mass"]}],
+            order=[{"alias": "k", "desc": False}],
+            limit=1,
+        ),
+        WIDE_CAT,
+        wide_unique,
     )
-    assert sql.startswith("SELECT DISTINCT dim_customer.customer_key AS k") and "LIMIT 5" in sql
+    assert run(listing) == [(2,)]
+
+
+def test_a_computation_on_a_looker_table_drops_in_under_its_alias():
+    """A Looker PDT's name (LR_{id}_facts) isn't an identifier: its alias is, and the Computation's
+    expression is rewritten to it."""
     sql = flat(compile_sql(req(measures=[{"alias": "s", "computation": "c4"}]), WIDE_CAT, wide_unique))
     assert "AVG(LR_id_facts.score)" in sql and "AS LR_id_facts" in sql
 
@@ -476,7 +492,9 @@ def test_cypher_reads_an_outer_joins_key_on_the_fact():
             MODEL,
         )
     )
-    assert cypher == "MATCH (fct_txn:Txn) RETURN fct_txn.customer_key AS c, count(fct_txn.txn_id) AS n"
+    # the customer is read on the transaction itself: no relationship walked, so a transaction with no
+    # customer keeps its (null) group, as the SQL's LEFT JOIN does
+    assert "MADE_BY" not in cypher and "fct_txn.customer_key AS c" in cypher
 
 
 # ---- checks on the request (plans/2026-09-28-compiler-2.md, next)
@@ -498,11 +516,13 @@ def test_checks_find_an_unstated_restriction_and_a_stated_value_left_out():
     values = {("p.dw.fct_calls", "media_type"): ["voice", "chat"]}
     transfers = req(measures=[{"alias": "t", "computation": "v1"}])
     notes = check(transfers, cat, "How many calls were transferred, by media type?", values, 4)
-    assert len(notes) == 1 and "doesn't say 'voice'" in notes[0]
+    assert (
+        len(notes) == 1 and "'voice'" in notes[0]
+    )  # the Computation's restriction the question didn't state
     assert check(transfers, cat, "How many voice calls were transferred?", values, 4) == []
     count = req(measures=[{"alias": "n", "aggregate": "COUNT_DISTINCT", "column": "dw.fct_calls.call_id"}])
     notes = check(count, cat, "How many voice calls did we take?", values, 4)
-    assert len(notes) == 1 and "says 'voice'" in notes[0]
+    assert len(notes) == 1 and "'voice'" in notes[0]  # the value the question states, left out
     grouped = count | {"dimensions": [{"alias": "m", "column": "dw.fct_calls.media_type"}]}
     assert check(grouped, cat, "Voice and chat calls by media type", values, 4) == []
 

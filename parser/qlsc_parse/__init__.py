@@ -1,7 +1,7 @@
 """qlsc-parse: turns SQL text from a query log into shapes and parse records.
 
 T1 `fingerprint` (per distinct text, cheap) and T2 `resolve` (per shape, against a
-catalog snapshot). Stateless; see plans/M1_PARSER.md for the contract.
+catalog snapshot). Stateless: the parse record is load's input (src/qlsc/load.py).
 """
 
 import sqlglot

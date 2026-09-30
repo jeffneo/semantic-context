@@ -28,10 +28,9 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-import statistics
 import time
 
-from common import settings, write_result
+from common import quantiles, settings, write_result
 
 from qlsc import entitle, memory
 from qlsc.graph import Graph
@@ -137,18 +136,6 @@ def ask(s, G: Graph, q: str, key, virtual: bool) -> tuple[list[dict], float]:
     t = time.time()
     rows = G.rows(sent, **params, **extra)
     return rows, time.time() - t
-
-
-def quantiles(xs: list[float]) -> dict:
-    xs = sorted(xs)
-    return (
-        {
-            "median": round(statistics.median(xs), 3),
-            "p95": round(xs[min(len(xs) - 1, round(0.95 * (len(xs) - 1)))], 3),
-        }
-        if xs
-        else {}
-    )
 
 
 def main() -> int:

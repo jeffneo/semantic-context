@@ -36,7 +36,9 @@ import textwrap
 import time
 from decimal import Decimal
 
+import sqlglot
 from neo4j.exceptions import Neo4jError, ServiceUnavailable
+from sqlglot import exp
 
 from qlsc import compile as compiler
 from qlsc import entitle, memory
@@ -118,14 +120,7 @@ WHERE t.id IN $tables AND c.name IN $cols
 RETURN t.id AS t, count(DISTINCT p) AS n
 """
 
-# Nothing wrote it in the log window and no production process reads it (directly or through a
-# view): people may still query it, but it is not being kept current.
-FROZEN = """
-MATCH (t:Table) WHERE t.id IN $tables AND t.kind IN ['table', 'wildcard'] AND t.write_days IS NULL
-  AND NOT EXISTS { MATCH (:Principal {kind: 'service_account'})-[:RAN]->(:QueryShape {succeeded: true})-[:REFERENCES]->(x:Table)
-                   WHERE x = t OR (x.kind = 'view' AND (x)-[:DERIVED_FROM*1..3]->(t)) }
-RETURN t.id AS t
-"""
+FROZEN = "MATCH (t:Table) WHERE t.id IN $tables AND t.frozen RETURN t.id AS t"  # qlsc/load.py LIVENESS
 
 JOINS = """
 MATCH (a:Table)-[:HAS_COLUMN]->(x:Column)<-[:ON]-(k:JoinKey)-[:ON]->(y:Column)<-[:HAS_COLUMN]-(b:Table)
@@ -156,16 +151,8 @@ RETURN s.id AS id, s.sample_sql AS sql, who, kinds, jobs, [(s)-[:REFERENCES]->(t
 ORDER BY id
 """
 
-# Tables only people write, never a production process (a load or a service account): sandboxes and
-# personal copies, which an example query must not lead the writer to.
-PERSONAL = """
-MATCH (p:Principal)-[:RAN]->(:QueryShape {succeeded: true})-[:WRITES]->(t:Table)
-WITH t, collect(DISTINCT p.kind) AS kinds WHERE NOT 'service_account' IN kinds
-  AND NOT EXISTS { MATCH (:Principal {kind: 'service_account'})-[:LOADED]->(t) }
-RETURN t.id AS t
-"""
-
-ALL_TABLES = "MATCH (t:Table) RETURN t.id AS t"
+# Tables no example may read: a sandbox, or a frozen table (qlsc/load.py LIVENESS).
+DISTRUSTED = "MATCH (t:Table) WHERE t.frozen OR t.sandbox RETURN t.id AS t"
 
 # The Computations closest to the question: what the business computes, as its queries define it.
 # Only trusted ones (no sandbox or frozen table), and never one computed only by an excluded shape.
@@ -417,7 +404,7 @@ def calendar(today: dt.date) -> str:
 
 def today(s: Settings) -> dt.date:
     """The date questions are asked on: the estate's pinned date, else the real one."""
-    pinned = s.params["navigate"]["today"]
+    pinned = s["navigate"]["today"]
     return dt.date.fromisoformat(str(pinned)) if pinned else dt.date.today()
 
 
@@ -510,7 +497,7 @@ def trace(
 
     `allow` (the entitlement gateway, qlsc/entitle.py) restricts everything to what a principal may read,
     and the answer then runs as them."""
-    p = s.params["navigate"]
+    p = s["navigate"]
     emb = Embedder(s)
     v = emb.embed([question])[0]
     parts, value_tables = None, []
@@ -568,8 +555,7 @@ def trace(
     if p["examples_by"] == "similarity":
         shapes = [x for x in G.rows(SHAPES, statements=p["example_statements"]) if x["id"] not in exclude]
         vecs = emb.embed([shape_text(x["sql"], p["example_chars"]) for x in shapes])
-        everything = [r["t"] for r in G.rows(ALL_TABLES)]
-        distrusted = {r["t"] for r in G.rows(PERSONAL)} | {r["t"] for r in G.rows(FROZEN, tables=everything)}
+        distrusted = {r["t"] for r in G.rows(DISTRUSTED)}
         keep = entitle.readable_shapes(G, allow, shapes) if allow else None
         examples = similar(v, shapes, vecs, distrusted, p["examples"], keep)
     else:
@@ -625,7 +611,7 @@ def trace(
 def answer_sql(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int | None = None) -> dict:
     """Step 6, by the writer configured (navigate.writer): the compiler, falling back to free SQL when
     the question doesn't compile; or free SQL. -> {writer, sql, explanation, dry_run, result?, ...}"""
-    if s.params["navigate"]["writer"] == "compiled":
+    if s["navigate"]["writer"] == "compiled":
         out = answer_compiled(G, s, tr, execute, rows)
         if "sql" in out:
             return out
@@ -659,7 +645,7 @@ def compiled_request(G: Graph, s: Settings, tr: dict) -> tuple[dict, compiler.Ca
     call, cached, whichever route it is compiled for; with navigate.compile_checks, a second when the
     checks find something, and a week grain set as the log truncates the column.
     -> (request, catalogue, what the checks found and changed)"""
-    p = s.params["navigate"]
+    p = s["navigate"]
     v = Embedder(s).embed([tr["question"]])[0]
     offered = {
         r["c"]["id"]: r["c"]
@@ -679,7 +665,7 @@ def compiled_request(G: Graph, s: Settings, tr: dict) -> tuple[dict, compiler.Ca
     ids = list(dict.fromkeys(tr["top"] + [t for c in offered.values() for t in c["tables"]]))
     tables = {r["t"]: {c["name"]: c["type"] for c in r["cols"]} for r in columns(G, ids, allow)}
     offered = {k: c for k, c in offered.items() if set(c["tables"]) <= set(tables)}
-    joins = G.rows(TRUSTED_JOINS, tables=list(tables), usable=s.params["variables"]["joins"])
+    joins = G.rows(TRUSTED_JOINS, tables=list(tables), usable=s["variables"]["joins"])
     if allow:
         joins = [j for j in joins if allow.column(j["a"], j["ac"]) and allow.column(j["b"], j["bc"])]
     cat = compiler.Catalogue(tables, joins, offered)
@@ -713,11 +699,12 @@ def compiled_request(G: Graph, s: Settings, tr: dict) -> tuple[dict, compiler.Ca
 def answer_compiled(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int | None = None) -> dict:
     """The compiler (qlsc/compile.py): the LLM fills a typed request from the layer's options, code
     compiles it. -> {writer: compiled, request, sql, ...} | {fallback: why, request?}"""
-    p = s.params["navigate"]
+    p = s["navigate"]
     wh = entitle.warehouse(s, tr.get("allow"))
     request, cat, found = compiled_request(G, s, tr)
     try:
-        sql = compiler.compile_sql(request, cat, unique_check(s), dialect=wh.dialect, hops=p["compile_hops"])
+        plan = compiler.plan(request, cat, unique_check(s), p["compile_hops"])
+        sql = compiler.render_sql(plan, wh.dialect)
     except compiler.Unfit as e:
         return {"fallback": str(e), "request": request, "checks": found}
     res = wh.dry_run(sql)
@@ -728,6 +715,7 @@ def answer_compiled(G: Graph, s: Settings, tr: dict, execute: bool = False, rows
         "warehouse": wh.name,
         "request": request,
         "sql": sql,
+        "tables": compiler.plan_tables(plan),
         "explanation": request.get("reason", ""),
         "checks": found,
         "dry_run": res,
@@ -742,7 +730,7 @@ def answer_compiled(G: Graph, s: Settings, tr: dict, execute: bool = False, rows
 def answer_free(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int | None = None) -> dict:
     """Step 6: the cohort -> one query, dry-run in the warehouse; step 7, the answer, with `execute`.
     -> {sql, explanation, dry_run, result?}"""
-    p = s.params["navigate"]
+    p = s["navigate"]
     wh = entitle.warehouse(s, tr.get("allow"))
     top = tr["top"]
     cols = columns(G, top, tr.get("allow"))
@@ -775,7 +763,8 @@ def answer_free(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: in
         fix = prompt("sql_fix", error=res["error"], warehouse=wh.name)
         out = llm.call(request + "\n\n" + fix, SQL_SCHEMA, "record_sql", max_tokens=3000)
         res = wh.dry_run(out["sql"])
-    answer = {"warehouse": wh.name, "sql": out["sql"], "explanation": out["explanation"], "dry_run": res}
+    answer = {"warehouse": wh.name, "sql": out["sql"], "tables": sql_tables(out["sql"], wh.dialect),
+              "explanation": out["explanation"], "dry_run": res}  # fmt: skip
     if execute and res["ok"]:
         t0 = time.time()
         answer["result"] = wh.run(out["sql"], p["maximum_bytes_billed"], rows or p["rows_shown"])
@@ -783,14 +772,27 @@ def answer_free(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: in
     return answer
 
 
-def refused(s: Settings, tr: dict, cypher: str, check: dict, labels: dict[str, str]) -> str | None:
+def refused(s: Settings, tr: dict, answer: dict) -> str | None:
     """Why the gateway won't let the virtual graph answer this principal (entitle.check_cypher), or None."""
-    allow = tr.get("allow")
+    allow, check = tr.get("allow"), answer["check"]
     if allow is None or "error" in check:
         return None
+    return entitle.check_cypher(s, allow, answer["tables"], check["sql"])
+
+
+def sql_tables(sql: str, dialect: str) -> list[str]:
+    """The tables a query names, as it names them (the graph's ids)."""
+    try:
+        tree = sqlglot.parse_one(sql, read=dialect)
+    except sqlglot.errors.ParseError:
+        return []
+    return sorted({".".join(p for p in (t.catalog, t.db, t.name) if p) for t in tree.find_all(exp.Table)})
+
+
+def cypher_tables(cypher: str, labels: dict[str, str]) -> list[str]:
+    """The tables whose labels a Cypher query matches (`labels`: table -> label)."""
     table = {label: t for t, label in labels.items()}
-    named = {x for x in re.findall(r"\(\s*\w*\s*:\s*(\w+)", cypher) if x in table}
-    return entitle.check_cypher(s, allow, sorted(table[x] for x in named), check["sql"])
+    return sorted({table[x] for x in re.findall(r"\(\s*\w*\s*:\s*`?(\w+)", cypher) if x in table})
 
 
 def answered(a: dict) -> bool:
@@ -800,14 +802,44 @@ def answered(a: dict) -> bool:
     return (a.get("result") or {}).get("ok", True) is not False and bool(a.get("sql") or a.get("cypher"))
 
 
+# The router's rule (plans/2026-09-26-router.md, as revised), in order: memory, when it holds the whole answer;
+# the compiled SQL, when the request compiles (compiled Cypher is the same plan with less: no outer join's
+# null group, no HAVING pushed down, so it never wins there); free Cypher, when it answers, which reaches the
+# neighbourhoods and paths a request can't express; free SQL, always.
+ROUTES = ("memory", "sql", "cypher", "free")
+
+
+def stands(route: str, a: dict | None) -> bool:
+    """Whether the router takes this route's answer."""
+    if a is None:
+        return False
+    if route == "memory":
+        return "cypher" in a
+    if route == "sql":
+        return a.get("writer") == "compiled" and "sql" in a
+    if route == "cypher":
+        return answered(a)
+    return True
+
+
+def route(candidates: dict) -> tuple[str, dict, dict]:
+    """The first candidate, in ROUTES order, whose answer stands. A candidate is an answer, or a function
+    that computes one, so the router runs only what it needs. -> (route, answer, every answer computed)"""
+    tried: dict = {}
+    for name in ROUTES:
+        if name in candidates:
+            a = candidates[name]
+            tried[name] = a = a() if callable(a) else a
+            if stands(name, a):
+                return name, a, tried
+    raise ValueError("no route: free SQL must be a candidate")
+
+
 def pick(sql: dict, cypher: dict | None) -> str:
-    """The router's rule (plans/2026-09-26-router.md, as revised): the compiled SQL when the question
-    compiles, since compiled Cypher is the same plan with less (no outer join's null group, no HAVING
-    pushed down); otherwise free Cypher when it answers, which reaches the neighbourhoods and paths a
-    request can't express; otherwise free SQL. -> 'sql' | 'cypher'"""
-    if sql.get("writer") == "compiled":
-        return "sql"
-    return "cypher" if cypher is not None and answered(cypher) else "sql"
+    """The route the router takes, given both answers already computed (the evaluations run both): 'sql'
+    (compiled or free) | 'cypher'."""
+    name = route({"sql": sql, "cypher": cypher, "free": sql})[0]
+    return "cypher" if name == "cypher" else "sql"
 
 
 def answer_memory(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int | None = None) -> dict:
@@ -815,7 +847,7 @@ def answer_memory(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: 
     its whole answer (qlsc/memory.py `answerable`: one entity, whose context the reader holds fresh), as the
     compiler's Cypher over the virtual graph's model with memory's guard on every node and relationship, run
     on memory. -> {writer: compiled, route: memory, request, cypher, anchor, result?} | {fallback: why}"""
-    p = s.params["navigate"]
+    p = s["navigate"]
     request, cat, found = compiled_request(G, s, tr)
     try:
         plan = compiler.plan(request, cat, unique_check(s), p["compile_hops"])
@@ -841,6 +873,7 @@ def answer_memory(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: 
         "route": "memory",
         "request": request,
         "cypher": cypher,
+        "tables": compiler.plan_tables(plan),
         "anchor": f"{route['label']} {route['key']}",
         "why": route["why"],
         "explanation": request.get("reason", ""),
@@ -855,29 +888,23 @@ def answer_memory(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: 
 
 
 def answer_routed(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int | None = None) -> dict:
-    """Step 6 by the router (`pick`), running only what it needs: memory, when it holds the whole answer
-    (navigate.memory_route); the compiled SQL; failing that, free Cypher; failing that, free SQL.
-    -> the chosen route's answer, with `route`."""
-    if s.params["navigate"]["writer"] == "compiled":
-        if s.params["navigate"]["memory_route"]:
-            a = answer_memory(G, s, tr, execute, rows)
-            if "cypher" in a:
-                return a
-            memory_why = a["fallback"]
-        a = answer_compiled(G, s, tr, execute, rows)
-        if "sql" in a:
-            return (
-                a
-                | {"route": "sql"}
-                | ({"not_memory": memory_why} if s.params["navigate"]["memory_route"] else {})
-            )
-        fallback = {"fallback": a["fallback"], "request": a.get("request")}
-    else:
-        fallback = {}
-    c = answer_cypher(G, s, tr, execute, rows, writer="free")
-    if pick({}, c) == "cypher":
-        return c | fallback | {"route": "cypher"}
-    return answer_free(G, s, tr, execute, rows) | {"writer": "free", "route": "sql"} | fallback
+    """Step 6 by the router (`route`), running only what it needs. -> the chosen route's answer, with `route`
+    ('memory' | 'sql' | 'cypher'), and why the compiled request didn't serve (`fallback`, `not_memory`)."""
+    p = s["navigate"]
+    candidates: dict = {}
+    if p["writer"] == "compiled":
+        if p["memory_route"]:
+            candidates["memory"] = lambda: answer_memory(G, s, tr, execute, rows)
+        candidates["sql"] = lambda: answer_compiled(G, s, tr, execute, rows)
+    candidates["cypher"] = lambda: answer_cypher(G, s, tr, execute, rows, writer="free")
+    candidates["free"] = lambda: answer_free(G, s, tr, execute, rows) | {"writer": "free"}
+    name, a, tried = route(candidates)
+    extra = {"route": "sql" if name == "free" else name}
+    if name != "memory" and "memory" in tried:
+        extra["not_memory"] = tried["memory"]["fallback"]
+    if name in ("cypher", "free") and "sql" in tried:
+        extra |= {"fallback": tried["sql"]["fallback"], "request": tried["sql"].get("request")}
+    return a | extra
 
 
 def answer_cypher(
@@ -888,7 +915,7 @@ def answer_cypher(
     Checked with Virtual Graph's EXPLAIN; step 7, the answer, with `execute`.
     -> {writer, start, around, cypher, explanation, check, result?} | {skipped: why}
        | {start, around, declined: why}"""
-    p, instance = s.params["navigate"], s.get("virtualize", {}).get("neo4j")
+    p, instance = s["navigate"], s.get("virtualize", {}).get("neo4j")
     labels = {r["table"]: r["label"] for r in G.rows(LABELS)}
     path = s.work / "virtual" / "schema.json"
     if not (labels and instance and path.exists()):
@@ -923,10 +950,11 @@ def cypher_compiled(
 ) -> dict:
     """The compiler's Cypher: the same request as the SQL route's, over the Virtual Graph model.
     -> {writer: compiled, request, cypher, check, result?} | {fallback: why, request?}"""
-    p = s.params["navigate"]
+    p = s["navigate"]
     request, cat, found = compiled_request(G, s, tr)
     try:
-        cypher = compiler.compile_cypher(request, cat, unique_check(s), labels, model, hops=p["compile_hops"])
+        plan = compiler.plan(request, cat, unique_check(s), p["compile_hops"])
+        cypher = compiler.render_cypher(plan, labels, model)
     except compiler.Unfit as e:
         return {"fallback": str(e), "request": request}
     named = re.findall(r"\(\w+:(\w+)\)", cypher)
@@ -938,6 +966,7 @@ def cypher_compiled(
         "start": [(x, table[x]) for x in dict.fromkeys(named)],
         "around": [],
         "cypher": cypher,
+        "tables": compiler.plan_tables(plan),
         "explanation": request.get("reason", ""),
         "checks": found,
     }
@@ -951,7 +980,7 @@ def cypher_compiled(
                     "request": request,
                 }
             answer["check"] = check
-            if why := refused(s, tr, cypher, check, labels):
+            if why := refused(s, tr, answer):
                 return answer | {"refused": why}
             if execute:
                 answer["result"] = capped_result(V, sent, p, rows, params)
@@ -987,7 +1016,7 @@ def cypher_free(
     rows: int | None,
 ) -> dict:
     """The LLM writes Cypher from the cohort's labels and one hop around them."""
-    p = s.params["navigate"]
+    p = s["navigate"]
     nodes, rels = model_slice(model, start)
     table = {label: t for t, label in labels.items()}
     values = filter_values(
@@ -1036,8 +1065,9 @@ def cypher_free(
                 out = llm.call(request + "\n\n" + fix, CYPHER_SCHEMA, "record_cypher", max_tokens=3000)
                 sent, params = entitle.signing(s, tr.get("allow"), out["cypher"])
                 check = explain(V, sent, nodes, rels, params)
-            answer |= {"cypher": out["cypher"], "explanation": out["explanation"], "check": check}
-            if why := refused(s, tr, out["cypher"], check, labels):
+            answer |= {"cypher": out["cypher"], "tables": cypher_tables(out["cypher"], labels),
+                       "explanation": out["explanation"], "check": check}  # fmt: skip
+            if why := refused(s, tr, answer):
                 return answer | {"refused": why}
             if execute and "error" not in check:
                 answer["result"] = capped_result(V, sent, p, rows, params)

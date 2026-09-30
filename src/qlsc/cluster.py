@@ -10,7 +10,7 @@ The weight is the number of distinct statements that do either.
   1. GDS projection, undirected, weighted. Columns of transient ingestion tables (a loader's per-run
      merge sources) and lineage out of them are load plumbing, not use, and are left out. Every other
      unit is projected; one nothing reads with anything is an isolated node.
-  2. Leiden, weighted, seeded and single-threaded (parameters.cluster: gamma above 1 gives more,
+  2. Leiden, weighted, seeded and single-threaded (cluster: gamma above 1 gives more,
      smaller groups).
   3. Every community of 2 or more is a (:Semantic {id, level: 1, size, tables}) with
      (:Variable|Unjoined)-[:IN_SEMANTIC]->(:Semantic); the id is 'sem:' + the smallest member id.
@@ -196,7 +196,7 @@ def size_buckets(sizes: list[int]) -> str:
 
 
 def run(s: Settings, names: bool = True) -> None:
-    p = s.params["cluster"]
+    p = s["cluster"]
     t0 = time.time()
     with Graph(s) as G:
         G.run("CREATE CONSTRAINT semantic_id IF NOT EXISTS FOR (n:Semantic) REQUIRE n.id IS UNIQUE")

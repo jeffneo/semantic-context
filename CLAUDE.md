@@ -44,10 +44,10 @@ uv run ruff check . && uv run ruff format .
 uv run --no-project --with 'sqlglot[c]==30.19.0' --with pytest pytest parser/tests -q
 uv run examples/fennmoor-bank/eval/{bottom_layer,navigation,robustness,seeds}.py   # -> results/
 uv run examples/fennmoor-bank/eval/answers.py         # the gold questions' reference answers, from the filled data
-uv run examples/fennmoor-bank/eval/execution.py [param=value ...]  # ask's answers to the gold questions, by SQL, Cypher and the router
+uv run examples/fennmoor-bank/eval/execution.py [param=value ...]  # ask's answers to the gold questions, by SQL, Cypher and the router (match.py's ruler)
 uv run examples/fennmoor-bank/eval/log_questions.py write|run   # 176 questions written from the log's own queries
 uv run examples/fennmoor-bank/eval/log_accuracy.py [param=value ...]  # ask's answers to them (about an hour, about $6 of LLM calls)
-uv run examples/fennmoor-bank/eval/qdd.py <name> [--route=cypher] [param=value ...]   # a quick A/B of one setting: 40 questions, minutes
+uv run examples/fennmoor-bank/eval/qdd.py <name> [--route=cypher] [param=value ...]   # a quick A/B of one setting: 40 questions, minutes; an experiment, in <work>/qdd/
 uv run examples/fennmoor-bank/eval/graph_accuracy.py [param=value ...]  # ten graph-shaped questions, both routes
 uv run examples/fennmoor-bank/eval/entitlements.py [--controls-only]  # the gateway, with the warehouse as the oracle (about an hour)
 uv run examples/fennmoor-bank/eval/memory.py            # remembered contexts against the virtual graph; freshness (minutes)

@@ -241,18 +241,18 @@ against a second. A stale fact is never read.
 It runs the compiler's Cypher on memory, with memory's own conditions on every node and relationship. It's
 exact, including an outer join's null group: memory has `OPTIONAL MATCH`, which the virtual graph lacks.
 
-**What it saves** (`eval/economics.py`, 50 questions about 5 customers): 48 of 49 compiled questions were
-answered from memory with the SQL's rows, in a median 0.044 s against 0.78 s. BigQuery bills the columns it
+**What it saves** (`eval/economics.py`, 50 questions about 5 customers): 49 of 49 compiled questions were
+answered from memory with the SQL's rows, in a median 0.052 s against 0.86 s. BigQuery bills the columns it
 scans, not the rows it returns, so contexts are fetched in batches: `qlsc remember Customer KEY...` reads
 many customers' contexts together, each still exactly its own.
 
 | fetched | MiB billed per customer | break-even: questions per customer |
 |---|---|---|
-| one at a time | 560 | 13.2 |
-| in a batch of 5 | 124 | 2.9 |
+| one at a time | 577 | 13.5 |
+| in a batch of 5 | 117 | 2.7 |
 | in a batch of 50 | 13 | 0.3 |
 
-The session with memory billed 620 MiB against 2,078 without, in 7.7 s of query time against 42.6 s.
+The session with memory billed 583 MiB against 2,096 without, in 7.7 s of query time against 44.0 s.
 
 The agent's side is the Context Memory model ([plan](plans/2026-09-29-context-memory-model.md)).
 `qlsc converse <conversation.yaml>` records a conversation:

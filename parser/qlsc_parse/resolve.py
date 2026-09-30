@@ -21,12 +21,12 @@ from sqlglot.optimizer.qualify import qualify
 from sqlglot.optimizer.scope import Scope, traverse_scope
 
 from . import PARSER_ID
-from .catalog import Catalog, fqn, is_system
+from .catalog import Catalog, fqn, is_system, transient
 from .fingerprint import literal_slots
 
 KIND_RANK = {"direct": 0, "passthrough": 1, "rename": 2, "unnest": 3, "transform": 4, "aggregate": 5}
 COMPARISONS = (exp.EQ, exp.NEQ, exp.GT, exp.GTE, exp.LT, exp.LTE, exp.Like, exp.ILike)
-COMPARED = tuple(getattr(exp, n) for n in ("Corr", "CovarPop", "CovarSamp", "Sub") if hasattr(exp, n))
+COMPARED = (exp.Corr, exp.CovarPop, exp.CovarSamp, exp.Sub)
 EXPECTED_MISSES = {"transient", "system table"}
 CLAUSE_ROLE = {
     "expressions": "project",
@@ -37,7 +37,6 @@ CLAUSE_ROLE = {
     "order": "order",
     "joins": "join",
     "from_": "from",
-    "from": "from",
 }
 
 
@@ -54,8 +53,6 @@ class Origin:
 
     def via(self, kind: str, fns=(), control: bool = False) -> Origin:
         k = kind if KIND_RANK[kind] > KIND_RANK[self.kind] else self.kind
-        if self.kind == "direct" and kind in ("passthrough", "rename"):
-            k = kind
         return Origin(self.table, self.column, k, tuple(fns) + self.fns, self.path, self.control or control)
 
 
@@ -194,17 +191,9 @@ def trace_expr(ctx: Ctx, sc: Scope, e: exp.Expression) -> list[Origin]:
     if isinstance(body, exp.Column):
         kind, fns = "passthrough", ()
     else:
-        agg = [a for a in body.find_all(exp.AggFunc)]
-        kind = "aggregate" if agg or isinstance(body, exp.AggFunc) else "transform"
+        kind = "aggregate" if body.find(exp.AggFunc) else "transform"
         fns = tuple(
-            dict.fromkeys(
-                [
-                    fn_name(n)
-                    for n in body.walk()
-                    if isinstance(n, (exp.Func, exp.Cast)) and not isinstance(n, exp.Column)
-                ]
-                + arith_tags(body)
-            )
+            dict.fromkeys([fn_name(n) for n in body.walk() if isinstance(n, exp.Func)] + arith_tags(body))
         )
     out = []
     for c in cols:
@@ -330,7 +319,7 @@ def _base(ctx: Ctx, t: exp.Table, col: exp.Column) -> list[Origin]:
     if entry is None:
         # A per-run table (Fivetran staging) never has a catalog entry; keep its column
         # names as written. Any other unknown table is already listed as unresolved.
-        return [Origin(name, col.name, "direct", (), field_path(col))] if "{" in t.name else []
+        return [Origin(name, col.name, "direct", (), field_path(col))] if transient(t.name) else []
     spelled = ctx.catalog.column(name, col.name)
     if spelled is None:
         ctx.miss("column", f"{name}.{col.name}", "not in table")
@@ -389,10 +378,7 @@ def _derived(ctx: Ctx, src: Scope, col: exp.Column) -> list[Origin]:
         if star is None:
             ctx.miss("column", f"{scope_label(src)}.{col.name}", "not projected")
         return []
-    origins = trace_expr(ctx, src, p)
-    if isinstance(p, exp.Alias) and isinstance(p.this, exp.Column) and p.this.name.lower() != p.alias.lower():
-        origins = [o.via("rename") for o in origins]
-    return origins
+    return _renamed(p, trace_expr(ctx, src, p))
 
 
 # ----------------------------------------------------------------------------- analysis
@@ -425,26 +411,7 @@ def add_join(ctx: Ctx, sc: Scope, l_expr, r_expr, jtype: str, op: str = "="):
         return False  # same source on both sides: a filter, not a join
     for o1, w1 in lo:
         for o2, w2 in ro:
-            a = {
-                "table": o1.table,
-                "column": o1.column,
-                "path": o1.path,
-                "wrap": list(o1.fns[::-1]) + w1,
-                "via": o1.kind,
-            }
-            b = {
-                "table": o2.table,
-                "column": o2.column,
-                "path": o2.path,
-                "wrap": list(o2.fns[::-1]) + w2,
-                "via": o2.kind,
-            }
-            if (b["table"], b["column"]) < (a["table"], a["column"]):
-                a, b = b, a
-            k = (a["table"], a["column"], a["path"], b["table"], b["column"], b["path"], jtype, op)
-            ctx.joins.setdefault(k, {"left": a, "right": b, "type": jtype, "op": op, "scopes": set()})[
-                "scopes"
-            ].add(scope_label(sc))
+            record_join(ctx, sc, o1, w1, o2, w2, jtype, op)
     return True
 
 
@@ -482,18 +449,18 @@ def neg_op(op: str) -> str:
     return {"IS NULL": "IS NOT NULL", "=": "!=", "!=": "="}.get(op, "NOT " + op)
 
 
-def predicates(ctx: Ctx, sc: Scope, clause_node: exp.Expression, clause: str, in_join: bool):
-    """Classify comparisons in a WHERE / HAVING / QUALIFY / ON clause."""
+def predicates(ctx: Ctx, sc: Scope, clause_node: exp.Expression, clause: str, join_type: str | None = None):
+    """Classify comparisons in a WHERE / HAVING / QUALIFY / ON clause; an equality between two columns is
+    a join, of the ON clause's join type (`join_type`), else a WHERE join."""
     for n in clause_node.walk(
         bfs=False, prune=lambda x: isinstance(x, (exp.Subquery, exp.Select)) and x is not clause_node
     ):
         if isinstance(n, exp.Subquery):
             continue
         neg = negated(n)
-
-        def add_filter(ctx_, sc_, col_expr, consts, op, clause_):
-            _add_filter(ctx_, sc_, col_expr, consts, neg_op(op) if neg else op, clause_)
-
+        add_filter = lambda col_expr, consts, op, neg=neg: _add_filter(
+            ctx, sc, col_expr, consts, neg_op(op) if neg else op, clause
+        )
         if isinstance(n, exp.In):
             q = n.args.get("query")
             if q is not None:
@@ -505,14 +472,14 @@ def predicates(ctx: Ctx, sc: Scope, clause_node: exp.Expression, clause: str, in
                     if L and R:
                         for o1, w1 in L[0]:
                             for o2 in R:
-                                _pair(ctx, sc, o1, w1, o2, [], "IN")
+                                record_join(ctx, sc, o1, w1, o2, [], "IN")
             elif n.expressions and all(is_constant(x) for x in n.expressions):
-                add_filter(ctx, sc, n.this, n.expressions, "IN", clause)
+                add_filter(n.this, n.expressions, "IN")
         elif isinstance(n, exp.Between):
             if is_constant(n.args["low"]) and is_constant(n.args["high"]):
-                add_filter(ctx, sc, n.this, [n.args["low"], n.args["high"]], "BETWEEN", clause)
+                add_filter(n.this, [n.args["low"], n.args["high"]], "BETWEEN")
         elif isinstance(n, exp.Is):
-            add_filter(ctx, sc, n.this, [], "IS NULL" if isinstance(n.expression, exp.Null) else "IS", clause)
+            add_filter(n.this, [], "IS NULL" if isinstance(n.expression, exp.Null) else "IS")
         elif isinstance(n, COMPARISONS):
             l, r = n.this, n.expression
             op = {
@@ -526,32 +493,28 @@ def predicates(ctx: Ctx, sc: Scope, clause_node: exp.Expression, clause: str, in
                 exp.ILike: "ILIKE",
             }[type(n)]
             if is_constant(r):
-                add_filter(ctx, sc, l, [r], op, clause)
+                add_filter(l, [r], op)
             elif is_constant(l):
-                add_filter(ctx, sc, r, [l], {">": "<", "<": ">", ">=": "<=", "<=": ">="}.get(op, op), clause)
+                add_filter(r, [l], {">": "<", "<": ">", ">=": "<=", "<=": ">="}.get(op, op))
             elif isinstance(n, exp.EQ):
-                add_join(ctx, sc, l, r, "ON" if in_join else "WHERE")
+                add_join(ctx, sc, l, r, join_type or "WHERE")
 
 
-def _pair(ctx, sc, o1, w1, o2, w2, jtype):
-    a = {
-        "table": o1.table,
-        "column": o1.column,
-        "path": o1.path,
-        "wrap": list(o1.fns[::-1]) + w1,
-        "via": o1.kind,
+def record_join(ctx: Ctx, sc: Scope, o1: Origin, w1: list, o2: Origin, w2: list, jtype: str, op: str = "="):
+    """One join predicate between two base columns, each with the functions wrapped around it, sides in
+    a fixed order; the scopes it appears in accumulate."""
+    end = lambda o, w: {
+        "table": o.table,
+        "column": o.column,
+        "path": o.path,
+        "wrap": list(o.fns[::-1]) + w,
+        "via": o.kind,
     }
-    b = {
-        "table": o2.table,
-        "column": o2.column,
-        "path": o2.path,
-        "wrap": list(o2.fns[::-1]) + w2,
-        "via": o2.kind,
-    }
+    a, b = end(o1, w1), end(o2, w2)
     if (b["table"], b["column"]) < (a["table"], a["column"]):
         a, b = b, a
-    k = (a["table"], a["column"], a["path"], b["table"], b["column"], b["path"], jtype, "=")
-    ctx.joins.setdefault(k, {"left": a, "right": b, "type": jtype, "op": "=", "scopes": set()})["scopes"].add(
+    k = (a["table"], a["column"], a["path"], b["table"], b["column"], b["path"], jtype, op)
+    ctx.joins.setdefault(k, {"left": a, "right": b, "type": jtype, "op": op, "scopes": set()})["scopes"].add(
         scope_label(sc)
     )
 
@@ -612,19 +575,11 @@ def analyze_scope(ctx: Ctx, sc: Scope):
         on = j.args.get("on")
         if on is not None:
             jt = " ".join(p for p in (j.side, j.kind) if p).upper() or "INNER"
-            before = len(ctx.joins)
-            predicates(ctx, sc, on, "on", True)
-            # retag ON equalities with the join type
-            for k in list(ctx.joins)[before:]:
-                if ctx.joins[k]["type"] == "ON":
-                    v = ctx.joins.pop(k)
-                    v["type"] = jt
-                    nk = k[:6] + (jt, k[7])
-                    ctx.joins.setdefault(nk, {**v, "scopes": set()})["scopes"] |= v["scopes"]
+            predicates(ctx, sc, on, "on", jt)
     for clause in ("where", "having", "qualify"):
         node = sel.args.get(clause)
         if node is not None:
-            predicates(ctx, sc, node, clause, False)
+            predicates(ctx, sc, node, clause)
     # partition / shard pruning for each base table read in this scope
     for name, src in sc.sources.items():
         if not isinstance(src, exp.Table) or is_system(src):
@@ -780,15 +735,7 @@ def writes_of(ctx: Ctx, t: exp.Expression, root_scopes: dict) -> list[dict]:
                 if c.table and c.table.lower() == tgt_alias.lower():
                     continue
                 if src_sc is not None:
-                    p = (
-                        projection(src_sc.expression, c.name)
-                        if isinstance(src_sc.expression, exp.Select)
-                        else None
-                    )
-                    if p is not None:
-                        out += _renamed(p, trace_expr(ctx, src_sc, p))
-                    else:
-                        out += _derived(ctx, src_sc, c)
+                    out += _derived(ctx, src_sc, c)
                 elif isinstance(using, exp.Table):
                     out += _base(ctx, using, exp.column(c.name, fqn(using)))
             if isinstance(v, exp.Column):
@@ -905,7 +852,7 @@ def family_id(tree: exp.Expression) -> str:
     return hashlib.sha256(t.sql(dialect="bigquery").encode()).hexdigest()[:16]
 
 
-def output_summary(t: exp.Expression, scope_of: dict) -> dict | None:
+def output_summary(t: exp.Expression) -> dict | None:
     """Shape of what a query returns: a single row of aggregates is how health checks look."""
     body = t
     while isinstance(body, exp.Subquery):
@@ -916,7 +863,7 @@ def output_summary(t: exp.Expression, scope_of: dict) -> dict | None:
         return None
     ps = body.expressions
     agg_only = bool(ps) and all(p.find(exp.AggFunc) is not None or is_constant(p) for p in ps)
-    frm = body.args.get("from_") or body.args.get("from")
+    frm = body.args.get("from_")
     root = frm.this if frm is not None else None
     return {
         "columns": len(ps),
@@ -963,8 +910,8 @@ def resolve(
             if tb.args.get("db") and not is_system(tb) and catalog.get(fqn(tb)) is None:
                 # a canonicalized per-run name (staging table, PDT generation) is not
                 # expected in a catalog snapshot
-                ctx.miss("table", fqn(tb), "transient" if "{" in tb.name else "not in catalog")
-                ctx.tables.setdefault(fqn(tb), "transient" if "{" in tb.name else "unknown")
+                ctx.miss("table", fqn(tb), "transient" if transient(tb.name) else "not in catalog")
+                ctx.tables.setdefault(fqn(tb), "transient" if transient(tb.name) else "unknown")
             if is_system(tb):
                 ctx.tables.setdefault(fqn(tb), "system")
         try:
@@ -991,7 +938,7 @@ def resolve(
             continue
         ctx.scope_of = {id(s.expression): s for s in scopes}
         if statement_type(t) == "SELECT":
-            rec.setdefault("output", output_summary(t, ctx.scope_of))
+            rec.setdefault("output", output_summary(t))
         for sc in scopes:
             analyze_scope(ctx, sc)
         if isinstance(t, (exp.Delete, exp.Update)):

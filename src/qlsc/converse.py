@@ -296,7 +296,7 @@ class Conversation:
             "total": res.get("total"),
         }
         error = None if res.get("ok") else (res.get("error") or a.get("declined") or "no answer")
-        tables = self.read_tables(a)
+        tables = [x for x in a.get("tables") or [] if x in self.tables]  # the layer's, which have stubs
         step = self._new_step("ask")
         self._attach(step, {"question": question}, out, "error" if error else "ok", error, time.time() - t0,
                      fingerprint(a, tables))  # fmt: skip
@@ -310,15 +310,6 @@ class Conversation:
             computations=named,
         )
         return a
-
-    def read_tables(self, a: dict) -> list[str]:
-        """The layer's tables a query reads: named in the SQL, or labels in the Cypher (the virtual graph's, or
-        memory's)."""
-        if a.get("route") in ("cypher", "memory"):
-            labels = set(re.findall(r":`?([A-Z][A-Za-z0-9_]*)", a.get("cypher") or ""))
-            return sorted(t["id"] for label, t in self.m.tables.items() if label in labels)
-        sql = a.get("sql") or ""
-        return sorted(t for t in self.tables if f"`{t}`" in sql)
 
     # ---- knowledge: what the agent learns, and decides
 

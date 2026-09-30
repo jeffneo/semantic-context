@@ -52,76 +52,75 @@ parser:                               # the qlsc-parse service (parser/)
   batch_size: 200
   concurrency: 8
 
-parameters:
-  load:
-    max_values_per_filter: 50         # literal values kept per FILTERS edge, the most-run first
+load:
+  max_values_per_filter: 50         # literal values kept per FILTERS edge, the most-run first
 
-  variables:
-    # Join confidence that builds variables (qlsc/joins.py). Suspect joins (two id spaces production
-    # keeps apart) and self joins stay in the graph as evidence and build nothing.
-    joins: [production, corroborated, single]
+variables:
+  # Join confidence that builds variables (qlsc/joins.py). Suspect joins (two id spaces production
+  # keeps apart) and self joins stay in the graph as evidence and build nothing.
+  joins: [production, corroborated, single]
 
-  computations:                       # qlsc computations: measures, derived dimensions and populations from the log
-    batch: 25                         # computations named per LLM call (short evidence each)
-    merge_similarity: 0.92            # vector score (cosine 0.84) above which two of one kind, over the same tables, are candidates to merge; the LLM confirms (0.95 missed duplicates such as two Average Call Handle Times)
-    merge_neighbours: 6               # nearest neighbours looked at per computation
-    merge_batch: 10                   # candidate sets per LLM call
+computations:                       # qlsc computations: measures, derived dimensions and populations from the log
+  batch: 25                         # computations named per LLM call (short evidence each)
+  merge_similarity: 0.92            # vector score (cosine 0.84) above which two of one kind, over the same tables, are candidates to merge; the LLM confirms (0.95 missed duplicates such as two Average Call Handle Times)
+  merge_neighbours: 6               # nearest neighbours looked at per computation
+  merge_batch: 10                   # candidate sets per LLM call
 
-  okf:                                # qlsc okf: the Computations as an Open Knowledge Format bundle
-    sources: 5                        # query shapes listed as a computation's sources (most run first)
-    joins: 8                          # joins listed on a table's concept (most used first)
+okf:                                # qlsc okf: the Computations as an Open Knowledge Format bundle
+  sources: 5                        # query shapes listed as a computation's sources (most run first)
+  joins: 8                          # joins listed on a table's concept (most used first)
 
-  cluster:                            # level 1: Leiden over what queries read together
-    gamma: 4.0                        # resolution; above 1 gives more, smaller groups
-    lineage: true                     # column lineage (FLOWS) counts as usage, alongside co-reads
-    seed: 42
-    stability_runs: 10                # reruns behind Semantic.stability: half new seeds, half resamples
-    stability_sample: 0.8             # share of the statements a resampled run keeps
+cluster:                            # level 1: Leiden over what queries read together
+  gamma: 4.0                        # resolution; above 1 gives more, smaller groups
+  lineage: true                     # column lineage (FLOWS) counts as usage, alongside co-reads
+  seed: 42
+  stability_runs: 10                # reruns behind Semantic.stability: half new seeds, half resamples
+  stability_sample: 0.8             # share of the statements a resampled run keeps
 
-  hierarchy:                          # levels 2 and up
-    k: 5                              # K_SIM neighbours per node
-    gamma: 3.0                        # building level L, Leiden runs at gamma / (L - 1)
-    min_level: 3                      # a level this small is the top
-    seed: 42
+hierarchy:                          # levels 2 and up
+  k: 5                              # K_SIM neighbours per node
+  gamma: 3.0                        # building level L, Leiden runs at gamma / (L - 1)
+  min_level: 3                      # a level this small is the top
+  seed: 42
 
-  align:
-    # Floors on the raw cosine of text-embedding-3-large, where the best matches turn wrong on
-    # inspection. Neo4j's vector.similarity.cosine reports (1 + cos) / 2: 0.52 is 0.76 there, 0.40 is 0.70.
-    floor_term: 0.52                  # variable -> catalog term
-    floor_class: 0.40                 # semantic group -> ontology class
+align:
+  # Floors on the raw cosine of text-embedding-3-large, where the best matches turn wrong on
+  # inspection. Neo4j's vector.similarity.cosine reports (1 + cos) / 2: 0.52 is 0.76 there, 0.40 is 0.70.
+  floor_term: 0.52                  # variable -> catalog term
+  floor_class: 0.40                 # semantic group -> ontology class
 
-  virtualize:                         # a Neo4j Virtual Graph model of the rows (qlsc/virtualize.py)
-    joins: [production, corroborated, single]   # confidence of the joins that make a column a node's key
-    min_degree: 2                     # trusted joins that must converge on a column; below it, the unique side keys the node
+virtualize:                         # a Neo4j Virtual Graph model of the rows (qlsc/virtualize.py)
+  joins: [production, corroborated, single]   # confidence of the joins that make a column a node's key
+  min_degree: 2                     # trusted joins that must converge on a column; below it, the unique side keys the node
 
-  navigate:
-    hits: 5                           # closest Semantic nodes, any level
-    groups: 4                         # level-1 groups opened
-    tables: 8                         # tables in the cohort
-    mode: combined                    # traversal (through the hierarchy) | flat (level 1 only) | combined
-    rank: round_robin                 # round_robin (each group in turn) | usage (most-queried first)
-    maximum_bytes_billed: 1000000000  # ask --run: the most one answer may bill (1 GB); a bigger query fails rather than runs
-    cypher_max_rows: 100000           # ask --cypher --run: rows read from Virtual Graph, streamed; more is reported as truncated, not held in memory
-    rows_shown: 20                    # ask --run: rows of the answer printed
-    examples: 3                       # queries from the log shown to the query writer
-    examples_by: similarity           # similarity: closest to the question, none reading a sandbox or frozen table | runs: most-run over the cohort
-    example_tables: true              # the tables those queries read join the cohort (found Q05's and Q08's missing tables)
-    example_statements: [SELECT, CREATE_TABLE_AS_SELECT, MERGE, CREATE_VIEW]   # statements that compute something
-    example_chars: 3000               # of each query's SQL, comments removed, that is embedded
-    today: null                       # the date questions are asked on (YYYY-MM-DD), for "last quarter" and the like: both routes get its calendar and write literal dates. null: the real date. An estate whose data stops (a synthetic one) pins it, which also keeps answers reproducible from day to day
-    writer: compiled                  # both routes' writer: free (the LLM writes SQL or Cypher) | compiled (the LLM fills one typed request, qlsc/compile.py compiles it to SQL or to Cypher over the Virtual Graph; free writing when it doesn't fit)
-    memory_route: true                # the router answers from memory when it holds the whole answer: one entity, whose context the reader holds fresh (qlsc/memory.py answerable)
-    compile_computations: 12          # compiled: Computations offered as the request's options, closest to the question first
-    compile_hops: 2                   # compiled: the longest join path from the fact table
-    compile_checks: true              # compiled: check the request against the question (a Computation's restriction it doesn't state, a value it states that the request leaves out) and ask once more with what was found; a week grain follows the log's truncation of that column; a period ending today that the question doesn't end is left open
-    compile_check_chars: 4            # compiled: the shortest value checked; shorter codes ('A', 'Y') match words by accident
-    anchors: question                 # question: one embedding of the whole question | parts: the question broken into measures, groupings, filters and entities (an LLM call), each navigated from
-    anchor_groups: 2                  # parts: level-1 groups each part opens
-    anchor_tables: 3                  # parts: tables each part contributes to the cohort
-    anchor_values: 2                  # parts: columns the log filters on a filter's value, whose tables join the cohort
-    anchor_computations: 2            # parts: Computations each measure (or filter) finds
-    computations: 0                   # Computations (qlsc computations) closest to the question, given to the query writer as definitions; 0: none
-    concepts: 0                       # experiment: designed-model terms (catalog glossary, ontology) linked to the cohort, given to the query writer; 0: none (designed models are aligned, not inputs)
-    computation_min_similarity: 0.8   # vector score below which a Computation isn't offered: a distant one misleads more than it helps
-    computation_tables: true          # the tables those Computations read join the cohort
-    filter_values: 8                  # values the log filters a text column on, shown with it to the LLM (spelled as the data has them)
+navigate:
+  hits: 5                           # closest Semantic nodes, any level
+  groups: 4                         # level-1 groups opened
+  tables: 8                         # tables in the cohort
+  mode: combined                    # traversal (through the hierarchy) | flat (level 1 only) | combined
+  rank: round_robin                 # round_robin (each group in turn) | usage (most-queried first)
+  maximum_bytes_billed: 1000000000  # ask --run: the most one answer may bill (1 GB); a bigger query fails rather than runs
+  cypher_max_rows: 100000           # ask --cypher --run: rows read from Virtual Graph, streamed; more is reported as truncated, not held in memory
+  rows_shown: 20                    # ask --run: rows of the answer printed
+  examples: 3                       # queries from the log shown to the query writer
+  examples_by: similarity           # similarity: closest to the question, none reading a sandbox or frozen table | runs: most-run over the cohort
+  example_tables: true              # the tables those queries read join the cohort (found Q05's and Q08's missing tables)
+  example_statements: [SELECT, CREATE_TABLE_AS_SELECT, MERGE, CREATE_VIEW]   # statements that compute something
+  example_chars: 3000               # of each query's SQL, comments removed, that is embedded
+  today: null                       # the date questions are asked on (YYYY-MM-DD), for "last quarter" and the like: both routes get its calendar and write literal dates. null: the real date. An estate whose data stops (a synthetic one) pins it, which also keeps answers reproducible from day to day
+  writer: compiled                  # both routes' writer: free (the LLM writes SQL or Cypher) | compiled (the LLM fills one typed request, qlsc/compile.py compiles it to SQL or to Cypher over the Virtual Graph; free writing when it doesn't fit)
+  memory_route: true                # the router answers from memory when it holds the whole answer: one entity, whose context the reader holds fresh (qlsc/memory.py answerable)
+  compile_computations: 12          # compiled: Computations offered as the request's options, closest to the question first
+  compile_hops: 2                   # compiled: the longest join path from the fact table
+  compile_checks: true              # compiled: check the request against the question (a Computation's restriction it doesn't state, a value it states that the request leaves out) and ask once more with what was found; a week grain follows the log's truncation of that column; a period ending today that the question doesn't end is left open
+  compile_check_chars: 4            # compiled: the shortest value checked; shorter codes ('A', 'Y') match words by accident
+  anchors: question                 # question: one embedding of the whole question | parts: the question broken into measures, groupings, filters and entities (an LLM call), each navigated from
+  anchor_groups: 2                  # parts: level-1 groups each part opens
+  anchor_tables: 3                  # parts: tables each part contributes to the cohort
+  anchor_values: 2                  # parts: columns the log filters on a filter's value, whose tables join the cohort
+  anchor_computations: 2            # parts: Computations each measure (or filter) finds
+  computations: 0                   # Computations (qlsc computations) closest to the question, given to the query writer as definitions; 0: none
+  concepts: 0                       # experiment: designed-model terms (catalog glossary, ontology) linked to the cohort, given to the query writer; 0: none (designed models are aligned, not inputs)
+  computation_min_similarity: 0.8   # vector score below which a Computation isn't offered: a distant one misleads more than it helps
+  computation_tables: true          # the tables those Computations read join the cohort
+  filter_values: 8                  # values the log filters a text column on, shown with it to the LLM (spelled as the data has them)

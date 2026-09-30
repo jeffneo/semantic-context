@@ -35,11 +35,9 @@ import datetime as dt
 import json
 import time
 
-from common import settings, write_result
+from common import native, quantiles, settings, write_result
 from entitlements import owner_client
 from google.cloud import bigquery
-from memory import quantiles
-from memory_entitlements import native
 
 from qlsc import entitle, memory, navigate
 from qlsc.graph import Graph
@@ -124,10 +122,10 @@ def main() -> int:
     s = settings()
     since_window = memory.window_start(s)
     m = memory.reader_model(s, None)
-    p = s.params["navigate"]
+    p = s["navigate"]
     with memory.virtual_graph(s) as V:
         q, e = entitle.signing(s, None, CANDIDATES)
-        candidates = [r["key"] for r in V.rows(q, since=since_window, n=400, **e)]
+        candidates = [r["key"] for r in V.rows(q, since=since_window, n=1000, **e)]
     with memory.memory_graph(s) as M:
         day = dt.datetime.now(dt.UTC) - dt.timedelta(days=1)
         recent = set(M.rows(RECENT, by=m.reader, since=day)[0]["keys"])

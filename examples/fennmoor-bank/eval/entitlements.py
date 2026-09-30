@@ -35,9 +35,9 @@ from pathlib import Path
 
 import yaml
 from common import RESULTS, SPEC, settings, write_result
-from execution import ROWS
 from google.auth import impersonated_credentials
 from google.cloud import bigquery
+from match import ROWS
 
 from qlsc import entitle, llm, navigate
 from qlsc.graph import Graph

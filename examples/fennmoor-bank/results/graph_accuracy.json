@@ -16,19 +16,27 @@
    "fennmoor-dw.dw_core.dim_branch"
   ],
   "sql": {
-   "verdict": "empty",
-   "why": "no rows",
-   "query": "WITH cust AS (\n  SELECT customer_key\n  FROM `fennmoor-dw.dw_core.dim_customer`\n  WHERE cif_number = '0001000025'\n),\nacct AS (\n  SELECT\n    a.ACCT_NO AS account_number,\n    a.PROD_CD AS product_code,\n    a.BRNCH_ID AS branch_id\n  FROM `fennmoor-raw.core_banking_cdc.ACCOUNT` a\n  JOIN `fennmoor-dw.dw_staging.stg_sf__financial_account` fa\n    ON fa.core_account_id = CAST(a.ACCT_ID AS STRING)\n  JOIN cust c\n  -- link account to customer via financial account primary owner (cif number)\n  WHERE fa.primary_owner IN (SELECT cif_number FROM `fennmoor-dw.dw_core.dim_customer` WHERE customer_key = c.customer_key)\n)\nSELECT\n  acct.account_number,\n  p.product_name,\n  b.branch_name\nFROM acct\nLEFT JOIN `fennmoor-dw.dw_core.dim_product` p\n  ON p.product_code = acct.product_code\nLEFT JOIN `fennmoor-dw.dw_core.dim_branch` b\n  ON b.branch_id = acct.branch_id\nORDER BY acct.account_number"
+   "verdict": "wrong",
+   "why": "15 rows, not 16",
+   "query": "WITH cust AS (SELECT customer_key, cif_number FROM `fennmoor-dw.dw_core.dim_customer` WHERE cif_number = '0001000025'), cust_accts AS (SELECT DISTINCT t.core_account_id, c.cif_number FROM `fennmoor-dw.dw_core.fct_deposit_transactions` t JOIN cust c ON c.customer_key = t.customer_key WHERE t.core_account_id IS NOT NULL) SELECT ca.cif_number, a.ACCT_ID AS account_id, a.ACCT_NO AS account_number, a.PROD_CD AS product_code, p.product_name, a.BRNCH_ID AS branch_id, b.branch_name, a.ACCT_STAT_CD AS account_status FROM cust_accts ca JOIN `fennmoor-raw.core_banking_cdc.ACCOUNT` a ON a.ACCT_ID = ca.core_account_id LEFT JOIN `fennmoor-dw.dw_core.dim_product` p ON p.product_code = a.PROD_CD LEFT JOIN `fennmoor-dw.dw_core.dim_branch` b ON b.branch_id = a.BRNCH_ID ORDER BY a.ACCT_NO",
+   "writer": "free",
+   "fallback": "The question asks for the accounts a customer holds, with each account's product name and the name of the branch it is maintained at. The tables given cannot connect a customer to their accounts. core_banking_cdc.ACCOUNT has no customer key, and the only customer-to-account link is dw_staging.stg_sf__financial_account.primary_owner, which is a Salesforce id with no join to dim_customer. Only ACCOUNT's own BRNCH_ID and PROD_CD identify the maintaining branch and the product, and there is no join from ACCOUNT to dim_branch or dim_product. The customer's preferred branch is not the branch an account is maintained at."
   },
   "cypher": {
    "verdict": "correct",
-   "why": "matches on product_name, branch_name, account_key~account (relabeled)",
-   "query": "MATCH (c:Customer {cif_number: '0001000025'})<-[:OWNED_BY]-(a:Account)\nMATCH (a)-[:CONTAINS]->(p:Product)\nMATCH (a)-[:MAINTAINED_AT]->(b:Branch)\nRETURN a.account_natural_key AS account, p.product_name AS product_name, b.branch_name AS branch_name"
+   "why": "matches on account_key, product_name, branch_name",
+   "query": "MATCH (a:Account)-[:OWNED_BY]->(c:Customer) MATCH (a)-[:CONTAINS]->(p:Product) MATCH (a)-[:MAINTAINED_AT]->(b:Branch) WHERE c.cif_number = '0001000025' RETURN a.account_key AS account_key, a.account_natural_key AS account_natural_key, a.account_family AS account_family, p.product_name AS product_name, b.branch_name AS branch_name ORDER BY a.account_key",
+   "writer": "free",
+   "fallback": "The question asks for the accounts a customer holds, with each account's product name and the name of the branch it is maintained at. The tables given cannot connect a customer to their accounts. core_banking_cdc.ACCOUNT has no customer key, and the only customer-to-account link is dw_staging.stg_sf__financial_account.primary_owner, which is a Salesforce id with no join to dim_customer. Only ACCOUNT's own BRNCH_ID and PROD_CD identify the maintaining branch and the product, and there is no join from ACCOUNT to dim_branch or dim_product. The customer's preferred branch is not the branch an account is maintained at."
+  },
+  "routed": {
+   "route": "cypher",
+   "verdict": "correct"
   }
  },
  "G02": {
   "question": "Which agents handled calls from customer 0001000025, and how many of that customer's calls did each handle?",
-  "reference_rows": 31,
+  "reference_rows": 78,
   "cohort": [
    "fennmoor-dw.dw_contact_center.fct_calls",
    "fennmoor-dw.dw_contact_center.fct_agent_daily",
@@ -42,13 +50,21 @@
   ],
   "sql": {
    "verdict": "wrong",
-   "why": "32 rows, not 31",
-   "query": "SELECT\n  dim_agent.agent_name AS agent_name,\n  fct_calls.agent_user_id AS agent_user_id,\n  COUNT(DISTINCT fct_calls.conversation_id) AS call_count\nFROM `fennmoor-dw.dw_contact_center.fct_calls` AS fct_calls\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_agent` AS dim_agent\n  ON fct_calls.agent_user_id = dim_agent.agent_user_id\nWHERE fct_calls.cif_number = '0001000025'\nGROUP BY agent_name, agent_user_id\nORDER BY call_count DESC"
+   "why": "76 rows, not 78",
+   "query": "SELECT\n  dim_agent.agent_name AS agent_name,\n  COUNT(DISTINCT fct_calls.conversation_id) AS call_count\nFROM `fennmoor-dw.dw_contact_center.fct_calls` AS fct_calls\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_agent` AS dim_agent\n  ON dim_agent.agent_user_id = fct_calls.agent_user_id\nWHERE\n  (\n    fct_calls.cif_number = '0001000025'\n  )\nGROUP BY\n  1\nORDER BY\n  call_count DESC",
+   "writer": "compiled",
+   "fallback": null
   },
   "cypher": {
-   "verdict": "correct",
-   "why": "matches on agent_user_id, calls=call_count",
-   "query": "MATCH (c:Call)-[:RECEIVED_FROM]->(cust:Customer {cif_number: '0001000025'})\nMATCH (c)-[:HANDLED_BY]->(a:Agent)\nRETURN a.agent_user_id AS agent_user_id, a.agent_name AS agent_name, count(DISTINCT c.conversation_id) AS call_count\nORDER BY call_count DESC"
+   "verdict": "wrong",
+   "why": "75 rows, not 78",
+   "query": "MATCH (fct_calls:Call)\nMATCH (fct_calls)-[:HANDLED_BY]->(dim_agent:Agent)\nWHERE (fct_calls.cif_number = '0001000025')\nRETURN dim_agent.agent_name AS agent_name, count(DISTINCT fct_calls.conversation_id) AS call_count\nORDER BY call_count DESC",
+   "writer": "compiled",
+   "fallback": null
+  },
+  "routed": {
+   "route": "sql",
+   "verdict": "wrong"
   }
  },
  "G03": {
@@ -68,12 +84,20 @@
   "sql": {
    "verdict": "correct",
    "why": "matches on merchant_id",
-   "query": "WITH cust_merchants AS (\n  SELECT c.cif_number, t.merchant_id\n  FROM `fennmoor-dw.dw_core.fct_card_transactions` t\n  JOIN `fennmoor-dw.dw_core.dim_customer` c USING (customer_key)\n  WHERE t.is_purchase\n    AND c.cif_number IN ('0001000025', '0001000021')\n  GROUP BY c.cif_number, t.merchant_id\n)\nSELECT\n  m.merchant_id,\n  m.merchant_name,\n  m.dba_name,\n  m.category_group\nFROM cust_merchants a\nJOIN cust_merchants b\n  ON a.merchant_id = b.merchant_id\n  AND a.cif_number = '0001000025'\n  AND b.cif_number = '0001000021'\nJOIN `fennmoor-dw.dw_core.dim_merchant` m\n  ON m.merchant_id = a.merchant_id\nORDER BY m.merchant_name;\n"
+   "query": "WITH cust_a AS (SELECT DISTINCT t.merchant_id FROM `fennmoor-dw.dw_core.fct_card_transactions` t JOIN `fennmoor-dw.dw_core.dim_customer` c ON c.customer_key = t.customer_key WHERE c.cif_number = '0001000025' AND t.is_purchase AND t.merchant_id IS NOT NULL), cust_b AS (SELECT DISTINCT t.merchant_id FROM `fennmoor-dw.dw_core.fct_card_transactions` t JOIN `fennmoor-dw.dw_core.dim_customer` c ON c.customer_key = t.customer_key WHERE c.cif_number = '0001000021' AND t.is_purchase AND t.merchant_id IS NOT NULL) SELECT m.merchant_id, m.merchant_name, m.category_group FROM cust_a a JOIN cust_b b ON a.merchant_id = b.merchant_id JOIN `fennmoor-dw.dw_core.dim_merchant` m ON m.merchant_id = a.merchant_id ORDER BY m.merchant_name",
+   "writer": "free",
+   "fallback": "The question asks for the intersection of two customers' merchant sets: merchants that customer 0001000025 has bought from and that customer 0001000021 has also bought from. This means a filter based on the existence of matching rows for a second customer in the same fact table (a self-intersection), which cannot be expressed as measures, dimensions and simple filters in this typed request."
   },
   "cypher": {
-   "verdict": "wrong",
-   "why": "265 rows, not 191",
-   "query": "MATCH (c1:Customer {cif_number: '0001000025'})<-[:MADE_BY]-(t1:CardTransaction)-[:TRANSACTED_AT]->(m:Merchant)\nMATCH (c2:Customer {cif_number: '0001000021'})<-[:MADE_BY]-(t2:CardTransaction)-[:TRANSACTED_AT]->(m)\nRETURN DISTINCT m.merchant_id AS merchant_id, m.merchant_name AS merchant_name"
+   "verdict": "correct",
+   "why": "matches on merchant_id",
+   "query": "MATCH (c1:Customer)<-[:MADE_BY]-(t1:CardTransaction)-[:TRANSACTED_AT]->(m:Merchant)<-[:TRANSACTED_AT]-(t2:CardTransaction)-[:MADE_BY]->(c2:Customer) WHERE c1.cif_number = '0001000025' AND c2.cif_number = '0001000021' AND t1.is_purchase = true AND t2.is_purchase = true RETURN DISTINCT m.merchant_id AS merchant_id, m.merchant_name AS merchant_name ORDER BY merchant_name",
+   "writer": "free",
+   "fallback": "The question asks for the intersection of two customers' merchant sets: merchants that customer 0001000025 has bought from and that customer 0001000021 has also bought from. This means a filter based on the existence of matching rows for a second customer in the same fact table (a self-intersection), which cannot be expressed as measures, dimensions and simple filters in this typed request."
+  },
+  "routed": {
+   "route": "cypher",
+   "verdict": "correct"
   }
  },
  "G04": {
@@ -95,17 +119,25 @@
   "sql": {
    "verdict": "wrong",
    "why": "1 rows, not 171",
-   "query": "WITH merchant_customers AS (\n  SELECT DISTINCT t.customer_key\n  FROM `fennmoor-dw.dw_core.fct_deposit_transactions` t\n  JOIN `fennmoor-dw.dw_core.dim_merchant` m\n    ON m.merchant_id = 'MID000100000'\n  WHERE t.customer_key IS NOT NULL\n)\nSELECT\n  b.branch_name,\n  COUNT(DISTINCT c.customer_key) AS distinct_customers\nFROM merchant_customers mc\nJOIN `fennmoor-dw.dw_core.dim_customer` c\n  ON c.customer_key = mc.customer_key\nLEFT JOIN `fennmoor-dw.dw_core.dim_branch` b\n  ON b.branch_id = c.preferred_branch_id\nGROUP BY b.branch_name\nORDER BY distinct_customers DESC\n"
+   "query": "SELECT b.branch_name, COUNT(DISTINCT c.customer_key) AS customers FROM `fennmoor-dw.dw_core.dim_customer` c LEFT JOIN `fennmoor-dw.dw_core.dim_branch` b ON b.branch_id = c.preferred_branch_id WHERE c.customer_key IS NOT NULL GROUP BY b.branch_name ORDER BY customers DESC",
+   "writer": "free",
+   "fallback": "The tables given hold no card or merchant transaction fact linking customers to purchases at a merchant, so customers who bought at merchant MID000100000 cannot be identified. dim_merchant is only a lookup of merchant attributes, and dim_card has no join to transactions or merchants. Customers' branches are available (dim_customer.preferred_branch_id to dim_branch.branch_name), but not the restriction to that merchant's buyers."
   },
   "cypher": {
    "verdict": "wrong",
    "why": "no column holds customers (1 of 2 match)",
-   "query": "MATCH (ct:CardTransaction)-[:TRANSACTED_AT]->(m:Merchant {merchant_id: 'MID000100000'})\nMATCH (ct)-[:MADE_BY]->(cu:Customer)\nMATCH (a:Account)-[:OWNED_BY]->(cu)\nMATCH (a)-[:MAINTAINED_AT]->(b:Branch)\nRETURN b.branch_name AS branch_name, count(DISTINCT cu.customer_key) AS customer_count\nORDER BY customer_count DESC"
+   "query": "MATCH (t:CardTransaction)-[:TRANSACTED_AT]->(m:Merchant), (t)-[:MADE_BY]->(c:Customer), (a:Account)-[:OWNED_BY]->(c), (a)-[:MAINTAINED_AT]->(b:Branch) WHERE m.merchant_id = 'MID000100000' RETURN b.branch_name AS branch_name, count(DISTINCT c.customer_key) AS customers ORDER BY customers DESC",
+   "writer": "free",
+   "fallback": "The tables given hold no card or merchant transaction fact linking customers to purchases at a merchant, so customers who bought at merchant MID000100000 cannot be identified. dim_merchant is only a lookup of merchant attributes, and dim_card has no join to transactions or merchants. Customers' branches are available (dim_customer.preferred_branch_id to dim_branch.branch_name), but not the restriction to that merchant's buyers."
+  },
+  "routed": {
+   "route": "cypher",
+   "verdict": "wrong"
   }
  },
  "G05": {
   "question": "For calls from private-segment customers, which queues were they routed through and which sites serviced them? Count the calls by queue name and site name.",
-  "reference_rows": 233,
+  "reference_rows": 257,
   "cohort": [
    "fennmoor-dw.dw_contact_center.fct_calls",
    "fennmoor-analytics.sbx_cx_ops.cc_site_scorecard_2026",
@@ -118,19 +150,27 @@
    "fennmoor-dw.dw_intermediate.int_calls_enriched"
   ],
   "sql": {
-   "verdict": "empty",
-   "why": "no rows",
-   "query": "SELECT\n  dq.queue_name,\n  ds.site_name,\n  COUNT(*) AS calls\nFROM `fennmoor-dw.dw_contact_center.fct_calls` f\nJOIN `fennmoor-dw.dw_contact_center.dim_queue` dq\n  ON f.queue_id = dq.queue_id\nJOIN `fennmoor-dw.dw_contact_center.dim_cc_site` ds\n  ON f.site_id = ds.site_id\nWHERE dq.line_of_business = 'Private'\nGROUP BY dq.queue_name, ds.site_name\nORDER BY calls DESC"
+   "verdict": "wrong",
+   "why": "258 rows, not 257",
+   "query": "SELECT f.queue_name, s.site_name, COUNT(*) AS calls FROM `fennmoor-dw.dw_contact_center.fct_calls` f JOIN `fennmoor-dw.dw_contact_center.dim_cc_site` s ON s.site_id = f.site_id GROUP BY f.queue_name, s.site_name ORDER BY calls DESC",
+   "writer": "free",
+   "fallback": "No table given holds a customer segment. fct_calls only has customer_key and cif_number, and no customer or segment table with a 'private' value is available, so calls from private-segment customers cannot be selected."
   },
   "cypher": {
    "verdict": "correct",
    "why": "matches on queue_name, site_name, calls",
-   "query": "MATCH (c:Call)-[:RECEIVED_FROM]->(cust:Customer)\nMATCH (c)-[:ROUTED_THROUGH]->(q:Queue)\nMATCH (c)-[:SERVICED_AT]->(s:ContactCenterSite)\nWHERE cust.segment = 'private'\nRETURN q.queue_name AS queue_name, s.site_name AS site_name, count(*) AS calls\nORDER BY calls DESC"
+   "query": "MATCH (c:Call)-[:RECEIVED_FROM]->(cu:Customer), (c)-[:ROUTED_THROUGH]->(q:Queue), (c)-[:SERVICED_AT]->(s:ContactCenterSite) WHERE cu.segment = 'private' RETURN q.queue_name AS queue_name, s.site_name AS site_name, count(c) AS calls ORDER BY calls DESC",
+   "writer": "free",
+   "fallback": "No table given holds a customer segment. fct_calls only has customer_key and cif_number, and no customer or segment table with a 'private' value is available, so calls from private-segment customers cannot be selected."
+  },
+  "routed": {
+   "route": "cypher",
+   "verdict": "correct"
   }
  },
  "G06": {
   "question": "Which other agents also handled calls from the customers that agent 9143e7f7-8e11-6904-c98e-fb076ea611a1 served? For each other agent, how many of those customers they share.",
-  "reference_rows": 661,
+  "reference_rows": 1438,
   "cohort": [
    "fennmoor-dw.dw_contact_center.dim_agent",
    "fennmoor-dw.dw_contact_center.fct_agent_daily",
@@ -143,13 +183,21 @@
   ],
   "sql": {
    "verdict": "correct",
-   "why": "matches on agent_user_id=other_agent_user_id, shared_customers",
-   "query": "WITH target_customers AS (\n  SELECT DISTINCT customer_key\n  FROM `fennmoor-dw.dw_contact_center.fct_calls`\n  WHERE agent_user_id = '9143e7f7-8e11-6904-c98e-fb076ea611a1'\n    AND customer_key IS NOT NULL\n)\nSELECT\n  fc.agent_user_id AS other_agent_user_id,\n  a.agent_name AS other_agent_name,\n  COUNT(DISTINCT fc.customer_key) AS shared_customers\nFROM `fennmoor-dw.dw_contact_center.fct_calls` fc\nJOIN target_customers tc\n  ON fc.customer_key = tc.customer_key\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_agent` a\n  ON fc.agent_user_id = a.agent_user_id\nWHERE fc.agent_user_id != '9143e7f7-8e11-6904-c98e-fb076ea611a1'\nGROUP BY fc.agent_user_id, a.agent_name\nORDER BY shared_customers DESC\n"
+   "why": "matches on agent_user_id, shared_customers",
+   "query": "WITH target_customers AS (\n  SELECT DISTINCT cif_number\n  FROM `fennmoor-dw.dw_contact_center.fct_calls`\n  WHERE agent_user_id = '9143e7f7-8e11-6904-c98e-fb076ea611a1'\n    AND cif_number IS NOT NULL\n),\nother_agent_calls AS (\n  SELECT DISTINCT c.agent_user_id, c.cif_number\n  FROM `fennmoor-dw.dw_contact_center.fct_calls` AS c\n  JOIN target_customers AS t ON c.cif_number = t.cif_number\n  WHERE c.agent_user_id IS NOT NULL\n    AND c.agent_user_id != '9143e7f7-8e11-6904-c98e-fb076ea611a1'\n)\nSELECT\n  o.agent_user_id,\n  a.agent_name,\n  COUNT(DISTINCT o.cif_number) AS shared_customers\nFROM other_agent_calls AS o\nLEFT JOIN `fennmoor-dw.dw_contact_center.dim_agent` AS a ON o.agent_user_id = a.agent_user_id\nGROUP BY 1, 2\nORDER BY shared_customers DESC",
+   "writer": "free",
+   "fallback": "The question first selects the customers served by one specific agent (a set defined by rows in the calls fact for that agent), then asks which other agents handled calls from those same customers and how many of those customers each shares. That needs a self-join on fct_calls through the customer (or a customer set chosen by a prior query), which the typed request can't express: filters are restrictions on the query's own rows, not on membership in a set derived from another slice of the same fact."
   },
   "cypher": {
    "verdict": "correct",
-   "why": "matches on agent_user_id=other_agent_id, shared_customers",
-   "query": "MATCH (c1:Call)-[:HANDLED_BY]->(a1:Agent {agent_user_id: '9143e7f7-8e11-6904-c98e-fb076ea611a1'})\nMATCH (c1)-[:RECEIVED_FROM]->(cust:Customer)\nMATCH (c2:Call)-[:RECEIVED_FROM]->(cust)\nMATCH (c2)-[:HANDLED_BY]->(a2:Agent)\nWHERE a2.agent_user_id <> '9143e7f7-8e11-6904-c98e-fb076ea611a1'\nRETURN a2.agent_user_id AS other_agent_id, a2.agent_name AS other_agent_name, count(DISTINCT cust.customer_key) AS shared_customers\nORDER BY shared_customers DESC"
+   "why": "matches on agent_user_id=other_agent_user_id, shared_customers",
+   "query": "MATCH (a:Agent)<-[:HANDLED_BY]-(c1:Call)-[:RECEIVED_FROM]->(cu:Customer)<-[:RECEIVED_FROM]-(c2:Call)-[:HANDLED_BY]->(o:Agent) WHERE a.agent_user_id = '9143e7f7-8e11-6904-c98e-fb076ea611a1' AND o.agent_user_id <> a.agent_user_id RETURN o.agent_user_id AS other_agent_user_id, o.agent_name AS other_agent_name, count(DISTINCT cu.customer_key) AS shared_customers ORDER BY shared_customers DESC",
+   "writer": "free",
+   "fallback": "The question first selects the customers served by one specific agent (a set defined by rows in the calls fact for that agent), then asks which other agents handled calls from those same customers and how many of those customers each shares. That needs a self-join on fct_calls through the customer (or a customer set chosen by a prior query), which the typed request can't express: filters are restrictions on the query's own rows, not on membership in a set derived from another slice of the same fact."
+  },
+  "routed": {
+   "route": "cypher",
+   "verdict": "correct"
   }
  },
  "G07": {
@@ -169,12 +217,20 @@
   "sql": {
    "verdict": "empty",
    "why": "no rows",
-   "query": "WITH tulsa_callers AS (\n  SELECT DISTINCT customer_key\n  FROM `fennmoor-dw.dw_contact_center.fct_calls`\n  WHERE queue_site_id = 'Tulsa' OR site_id = 'Tulsa'\n)\nSELECT\n  h.product_line,\n  COUNT(DISTINCT h.customer_key) AS distinct_customers\nFROM `fennmoor-dw.dw_customer.customer_product_holdings` h\nJOIN tulsa_callers t USING (customer_key)\nWHERE h.open_accounts > 0\nGROUP BY h.product_line\nORDER BY distinct_customers DESC"
+   "query": "WITH tulsa_callers AS (SELECT DISTINCT customer_key FROM `fennmoor-dw.dw_contact_center.fct_calls` WHERE queue_name = 'Tulsa Contact Center' AND customer_key IS NOT NULL) SELECT h.product_line, COUNT(DISTINCT h.customer_key) AS customers FROM tulsa_callers t JOIN `fennmoor-dw.dw_customer.customer_product_holdings` h ON h.customer_key = t.customer_key WHERE h.open_accounts > 0 GROUP BY h.product_line ORDER BY customers DESC",
+   "writer": "free",
+   "fallback": "The question needs customers who called the Tulsa Contact Center (fct_calls) and their product lines (customer_product_holdings), but there is no join between fct_calls and customer_product_holdings. They connect only through dim_customer, and the request format cannot restrict a holdings-based count to customers who exist in another fact table (a filter that is the existence of a row in fct_calls). Also, 'Tulsa Contact Center' is not a value shown for queue_name or site columns, so the filter cannot be spelled reliably."
   },
   "cypher": {
    "verdict": "correct",
-   "why": "matches on product_line, customers=distinct_customers",
-   "query": "MATCH (call:Call)-[:SERVICED_AT]->(site:ContactCenterSite)\nMATCH (call)-[:RECEIVED_FROM]->(cust:Customer)\nMATCH (acct:Account)-[:OWNED_BY]->(cust)\nMATCH (acct)-[:CONTAINS]->(prod:Product)\nWHERE site.site_name = 'Tulsa Contact Center'\nRETURN prod.product_line AS product_line, count(DISTINCT cust.customer_key) AS distinct_customers\nORDER BY distinct_customers DESC"
+   "why": "matches on product_line, customers",
+   "query": "MATCH (c:Call)-[:SERVICED_AT]->(s:ContactCenterSite), (c)-[:RECEIVED_FROM]->(cu:Customer), (a:Account)-[:OWNED_BY]->(cu), (a)-[:CONTAINS]->(p:Product) WHERE s.site_name = 'Tulsa Contact Center' RETURN p.product_line AS product_line, count(DISTINCT cu.customer_key) AS customers ORDER BY customers DESC",
+   "writer": "free",
+   "fallback": "The question needs customers who called the Tulsa Contact Center (fct_calls) and their product lines (customer_product_holdings), but there is no join between fct_calls and customer_product_holdings. They connect only through dim_customer, and the request format cannot restrict a holdings-based count to customers who exist in another fact table (a filter that is the existence of a row in fct_calls). Also, 'Tulsa Contact Center' is not a value shown for queue_name or site columns, so the filter cannot be spelled reliably."
+  },
+  "routed": {
+   "route": "cypher",
+   "verdict": "correct"
   }
  },
  "G08": {
@@ -194,13 +250,21 @@
   ],
   "sql": {
    "verdict": "correct",
-   "why": "matches on product_line, total_amount=total_transaction_amount",
-   "query": "SELECT\n  p.product_line AS product_line,\n  SUM(t.amount) AS total_transaction_amount\nFROM `fennmoor-dw.dw_core.fct_deposit_transactions` t\nJOIN `fennmoor-dw.dw_core.dim_account` a\n  ON t.account_key = a.account_key\nJOIN `fennmoor-dw.dw_core.dim_customer` c\n  ON a.customer_key = c.customer_key\nJOIN `fennmoor-dw.dw_core.dim_product` p\n  ON a.product_code = p.product_code\nWHERE c.segment = 'affluent'\nGROUP BY product_line\nORDER BY total_transaction_amount DESC"
+   "why": "matches on product_line, total_amount",
+   "query": "SELECT\n  dim_product.product_line AS product_line,\n  SUM(fct_deposit_transactions.amount) AS total_amount\nFROM `fennmoor-dw.dw_core.fct_deposit_transactions` AS fct_deposit_transactions\nJOIN `fennmoor-dw.dw_core.dim_customer` AS dim_customer\n  ON dim_customer.customer_key = fct_deposit_transactions.customer_key\nLEFT JOIN `fennmoor-dw.dw_core.dim_account` AS dim_account\n  ON dim_account.account_key = fct_deposit_transactions.account_key\nJOIN `fennmoor-dw.dw_core.dim_product` AS dim_product\n  ON dim_product.product_code = dim_account.product_code\nWHERE\n  (\n    dim_customer.segment = 'affluent'\n  )\nGROUP BY\n  1",
+   "writer": "compiled",
+   "fallback": null
   },
   "cypher": {
-   "verdict": "wrong",
-   "why": "no column holds total_amount (1 of 2 match)",
-   "query": "MATCH (t:DepositTransaction)-[:CREDITED_TO]->(a:Account)-[:OWNED_BY]->(c:Customer)\nMATCH (a)-[:CONTAINS]->(p:Product)\nWHERE c.segment = 'affluent' AND t.signed_amount > 0\nRETURN p.product_line AS product_line, SUM(t.amount) AS total_deposit_amount\nORDER BY total_deposit_amount DESC"
+   "verdict": "correct",
+   "why": "matches on product_line, total_amount",
+   "query": "MATCH (fct_deposit_transactions:DepositTransaction)\nMATCH (fct_deposit_transactions)-[:INITIATED_BY]->(dim_customer:Customer)\nMATCH (fct_deposit_transactions)-[:CREDITED_TO]->(dim_account:Account)\nMATCH (dim_account)-[:CONTAINS]->(dim_product:Product)\nWHERE (dim_customer.segment = 'affluent')\nRETURN dim_product.product_line AS product_line, CASE WHEN count(fct_deposit_transactions.amount) = 0 THEN null ELSE sum(fct_deposit_transactions.amount) END AS total_amount",
+   "writer": "compiled",
+   "fallback": null
+  },
+  "routed": {
+   "route": "sql",
+   "verdict": "correct"
   }
  },
  "G09": {
@@ -220,13 +284,21 @@
   ],
   "sql": {
    "verdict": "correct",
-   "why": "matches on segment, customers",
-   "query": "WITH pharmacy_purchasers AS (\n  SELECT DISTINCT customer_key\n  FROM `fennmoor-dw.dw_core.fct_card_transactions`\n  WHERE merchant_id = 'MID000100000'\n    AND txn_type = 'PURCH'\n),\nclosure_callers AS (\n  SELECT DISTINCT customer_key\n  FROM `fennmoor-dw.dw_contact_center.fct_calls`\n  WHERE is_account_closure_call = TRUE\n)\nSELECT\n  c.segment,\n  COUNT(DISTINCT c.customer_key) AS customers\nFROM `fennmoor-dw.dw_core.dim_customer` c\nJOIN pharmacy_purchasers p ON c.customer_key = p.customer_key\nJOIN closure_callers cc ON c.customer_key = cc.customer_key\nGROUP BY c.segment\nORDER BY customers DESC"
+   "why": "matches on segment=customer_segment, customers",
+   "query": "WITH pharmacy_buyers AS (\n  SELECT DISTINCT customer_key\n  FROM `fennmoor-dw.dw_core.fct_card_transactions`\n  WHERE merchant_id = 'MID000100000'\n    AND txn_type = 'PURCH'\n),\nclosure_callers AS (\n  SELECT DISTINCT customer_key\n  FROM `fennmoor-dw.dw_contact_center.fct_calls`\n  WHERE is_account_closure_call\n)\nSELECT\n  c.segment AS customer_segment,\n  COUNT(DISTINCT c.customer_key) AS customers\nFROM pharmacy_buyers p\nJOIN closure_callers cc ON p.customer_key = cc.customer_key\nJOIN `fennmoor-dw.dw_core.dim_customer` c ON c.customer_key = p.customer_key\nGROUP BY c.segment\nORDER BY customers DESC",
+   "writer": "free",
+   "fallback": "The question asks for customers who both made card purchases at the merchant and called about closing an account. That requires the existence of rows in two different fact tables (card transactions and calls) for the same customer, and this request format cannot express a filter on one fact based on rows existing in another. Counting cardholders and callers as two separate measures would not give the customers who did both."
   },
   "cypher": {
    "verdict": "correct",
-   "why": "matches on segment, customers=customer_count",
-   "query": "MATCH (ct:CardTransaction)-[:TRANSACTED_AT]->(m:Merchant {merchant_id: 'MID000100000'})\nMATCH (ct)-[:MADE_BY]->(cust:Customer)\nMATCH (call:Call)-[:RECEIVED_FROM]->(cust)\nWHERE ct.txn_type = 'PURCH'\n  AND call.is_account_closure_call = true\nRETURN cust.segment AS segment, COUNT(DISTINCT cust.customer_key) AS customer_count\nORDER BY segment"
+   "why": "matches on segment, customers",
+   "query": "MATCH (t:CardTransaction)-[:MADE_BY]->(c:Customer), (t)-[:TRANSACTED_AT]->(m:Merchant), (call:Call)-[:RECEIVED_FROM]->(c) WHERE t.merchant_id = 'MID000100000' AND t.txn_type = 'PURCH' AND call.is_account_closure_call = true RETURN c.segment AS segment, count(DISTINCT c.customer_key) AS customers ORDER BY customers DESC",
+   "writer": "free",
+   "fallback": "The question asks for customers who both made card purchases at the merchant and called about closing an account. That requires the existence of rows in two different fact tables (card transactions and calls) for the same customer, and this request format cannot express a filter on one fact based on rows existing in another. Counting cardholders and callers as two separate measures would not give the customers who did both."
+  },
+  "routed": {
+   "route": "cypher",
+   "verdict": "correct"
   }
  },
  "G10": {
@@ -245,13 +317,21 @@
   ],
   "sql": {
    "verdict": "correct",
-   "why": "matches on merchant_name, product_name=account_product_name, purchases=purchase_count",
-   "query": "SELECT\n  t.merchant_name AS merchant_name,\n  a.product_name AS account_product_name,\n  COUNT(*) AS purchase_count\nFROM `fennmoor-dw.dw_core.fct_card_transactions` t\nJOIN `fennmoor-dw.dw_core.dim_customer` c\n  ON c.customer_key = t.customer_key\nJOIN `fennmoor-dw.dw_core.dim_account` a\n  ON a.account_key = t.account_key\nWHERE c.cif_number = '0001000025'\n  AND t.txn_type = 'PURCH'\n  AND t.is_purchase\nGROUP BY merchant_name, account_product_name\nORDER BY purchase_count DESC\n"
+   "why": "matches on merchant_name, product_name, purchases",
+   "query": "SELECT\n  fct_card_transactions.merchant_name AS merchant_name,\n  dim_account.product_name AS product_name,\n  COUNT(*) AS purchases\nFROM `fennmoor-dw.dw_core.fct_card_transactions` AS fct_card_transactions\nLEFT JOIN `fennmoor-dw.dw_core.dim_account` AS dim_account\n  ON dim_account.account_key = fct_card_transactions.account_key\nLEFT JOIN `fennmoor-dw.dw_core.dim_customer` AS dim_customer\n  ON dim_customer.customer_key = fct_card_transactions.customer_key\nWHERE\n  (\n    dim_customer.cif_number = '0001000025'\n  )\n  AND (\n    fct_card_transactions.is_purchase IS TRUE\n  )\nGROUP BY\n  1,\n  2",
+   "writer": "compiled",
+   "fallback": null
   },
   "cypher": {
    "verdict": "correct",
-   "why": "matches on merchant_name, product_name=account_product_name, purchases=num_purchases",
-   "query": "MATCH (c:Customer {cif_number: '0001000025'})<-[:MADE_BY]-(t:CardTransaction)-[:TRANSACTED_AT]->(m:Merchant)\nMATCH (t)-[:CHARGED_TO]->(a:Account)-[:CONTAINS]->(p:Product)\nWHERE t.txn_type = 'PURCH'\nRETURN m.merchant_name AS merchant_name, p.product_name AS account_product_name, count(*) AS num_purchases\nORDER BY merchant_name, account_product_name"
+   "why": "matches on merchant_name, product_name, purchases",
+   "query": "MATCH (fct_card_transactions:CardTransaction)\nMATCH (fct_card_transactions)-[:CHARGED_TO]->(dim_account:Account)\nMATCH (fct_card_transactions)-[:MADE_BY]->(dim_customer:Customer)\nWHERE (dim_customer.cif_number = '0001000025')\n  AND (fct_card_transactions.is_purchase = true)\nRETURN fct_card_transactions.merchant_name AS merchant_name, dim_account.product_name AS product_name, count(*) AS purchases",
+   "writer": "compiled",
+   "fallback": null
+  },
+  "routed": {
+   "route": "sql",
+   "verdict": "correct"
   }
  }
 }

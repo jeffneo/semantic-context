@@ -73,10 +73,6 @@ class Settings(dict):
         return p
 
     @property
-    def params(self) -> dict:
-        return self["parameters"]
-
-    @property
     def business(self) -> dict[str, str]:
         """How the prompts refer to the organization: {business}'s warehouse, the {kind}'s queries."""
         return {"business": self["business"]["name"], "kind": self["business"]["kind"]}

@@ -20,7 +20,7 @@ from collections import Counter
 from pathlib import Path
 
 from qlsc.names import canonical_table, short
-from qlsc_parse.catalog import Catalog
+from qlsc_parse.catalog import Catalog, transient
 
 
 def ran_ok(s: dict) -> bool:
@@ -79,7 +79,7 @@ def crosscheck(shapes, groups, cat) -> tuple[Counter, list]:
             mine -= written
         mine = base(mine)
         # per-run names not in the catalog (Fivetran staging) are transient on both sides
-        theirs = {t for t in theirs if "{" not in t or t in cat["tables"]}
+        theirs = {t for t in theirs if not transient(t) or t in cat["tables"]}
         ok = mine == theirs or mine == theirs - written
         tally[(st, ok)] += 1
         if not ok:

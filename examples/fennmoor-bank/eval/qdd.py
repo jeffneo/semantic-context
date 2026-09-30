@@ -1,15 +1,15 @@
-"""A quick, directional A/B of one navigation setting, on the SQL route: minutes, not an hour.
+"""A quick, directional A/B of one setting, on one route: minutes, not an hour.
 
 The ten gold questions scored by value, and every STEP-th question written from the log (leave-one-out
-as in log_accuracy.py), answered with the navigation parameters as configured plus the overrides given.
-Run it twice, once per setting, and compare the two result files.
+as in log_accuracy.py), answered with the parameters as configured plus the overrides given. Run it
+twice, once per setting, and compare the two result files. An experiment, not a result the docs quote:
+it writes to <work>/qdd/, with the commit it ran at and the overrides.
 
-Writes results/qdd_<name>.md and .json. Prints a line per question as it goes.
+Writes <work>/qdd/<name>.md and .json. Prints a line per question as it goes.
 Usage: uv run examples/fennmoor-bank/eval/qdd.py <name> [--all | --offset=N] [--route=cypher] [param=value ...]
   (--all: every log question; --offset: which of each STEP questions to take, for a second sample;
    --route=cypher: the Cypher route over the Virtual Graph instead of SQL)
-  e.g. qdd.py base computations=0     qdd.py definitions computations=5
-  A param with a section (llm.query_effort=high) sets that section's; the rest are navigation's.
+  e.g. qdd.py base     qdd.py free writer=free     qdd.py effort llm.query_effort=high
 Each question records the query model's uncached calls: their API seconds and tokens.
 """
 
@@ -20,12 +20,10 @@ import sys
 from collections import Counter
 
 import yaml
-from common import RESULTS, SPEC, settings, write_result
-from execution import ROWS, judge, references
-from log_accuracy import verdict_of
+from common import RESULTS, SPEC, commit, overrides, settings, write_result
 from log_questions import QUESTIONS, answers_dir
+from match import ROWS, LLMUsage, references, verdict
 
-from qlsc import llm
 from qlsc.graph import Graph
 from qlsc.navigate import answer_cypher, answer_sql, trace
 from qlsc.warehouse import connect
@@ -38,21 +36,12 @@ def main() -> int:
     offset = next((int(a.split("=")[1]) for a in sys.argv if a.startswith("--offset=")), 0)
     route = next((a.split("=")[1] for a in sys.argv if a.startswith("--route=")), "sql")
     answer = {"sql": answer_sql, "cypher": answer_cypher}[route]
-    args = [a for a in sys.argv[1:] if a != "--all" and not a.startswith(("--offset=", "--route="))]
-    name, overrides = args[0], dict(a.split("=", 1) for a in args[1:])
-    step = 1 if every else STEP
     s = settings()
-    for k, v in overrides.items():
-        section, _, key = k.rpartition(".")
-        (s[section] if section else s.params["navigate"])[key] = yaml.safe_load(v)
-    made = []  # every LLM client the question creates, for its calls, seconds and tokens
-    init = llm.LLM.__init__
-
-    def counted(self, *a, **k):
-        init(self, *a, **k)
-        made.append(self)
-
-    llm.LLM.__init__ = counted
+    args, _ = overrides(
+        s, [a for a in sys.argv[1:] if a != "--all" and not a.startswith(("--offset=", "--route="))]
+    )
+    name, sets = args[0], [a for a in sys.argv[1:] if "=" in a and not a.startswith("--")]
+    usage = LLMUsage()
     gold = yaml.safe_load((SPEC / "questions.yaml").read_text())["questions"]
     logq = yaml.safe_load(QUESTIONS.read_text())
     kept = [
@@ -61,7 +50,7 @@ def main() -> int:
     wh, res = connect(s), {}
     if (probe := wh.dry_run("SELECT 1"))["ok"] is not True:  # fail now, not after an hour of failed queries
         raise SystemExit(f"the warehouse isn't reachable: {probe.get('error')}")
-    todo = [("gold", q) for q in sorted(gold)] + [("log", q) for q in kept[offset::step]]
+    todo = [("gold", q) for q in sorted(gold)] + [("log", q) for q in kept[offset :: 1 if every else STEP]]
     with Graph(s) as G:
         for i, (src, qid) in enumerate(todo, 1):
             if src == "gold":
@@ -71,34 +60,20 @@ def main() -> int:
                 tr = trace(G, s, gold[qid]["question"])
             else:
                 q = logq[qid]
-                ref = json.loads((answers_dir(s) / f"{qid}.json").read_text())
+                refs = [{"name": qid, "items": [[c] for c in q["compare"]],
+                         "result": json.loads((answers_dir(s) / f"{qid}.json").read_text())}]  # fmt: skip
                 tr = trace(G, s, q["question"], exclude=frozenset({q["shape"]}))
-            made.clear()
+            usage.made.clear()
             a = answer(G, s, tr, execute=True, rows=ROWS)
-            spent = {
-                "calls": sum(c.calls for c in made),
-                "seconds": round(sum(c.seconds for c in made), 2),
-                "tokens_in": sum(c.tokens["in"] for c in made),
-                "tokens_out": sum(c.tokens["out"] for c in made),
-            }
-            if src == "gold" and ("skipped" in a or "declined" in a):
-                v, why = ("not covered", a["skipped"]) if "skipped" in a else ("declined", a["declined"])
-            elif src == "gold":
-                got = a.get("result")
-                ok = got is not None and got.get("ok", True)
-                failure = (got or {}).get("error") or a.get("error") or a.get("check", {}).get("error")
-                v, why = judge(refs, got) if ok else ("failed", str(failure)[:100])
-            else:
-                v, why = verdict_of(a, ref, [[c] for c in q["compare"]])
+            v, why = verdict(a, refs)
             res[qid] = {
                 "source": src,
                 "verdict": v,
                 "why": why,
                 "sql": a.get("sql") or a.get("cypher"),
-                "definitions": [d["name"] for d in tr.get("definitions", [])],
                 "writer": a.get("writer"),
                 "fallback": a.get("fallback"),
-                "llm": spent,
+                "llm": usage.spent(),
             }
             print(f"{i}/{len(todo)} {qid} {v:10} {(a.get('writer') or '')[:8]:8} {why[:80]}", flush=True)
             if "fresh login" in why:  # the credentials expired mid-run: every answer from here would fail
@@ -111,7 +86,7 @@ def main() -> int:
     L = [
         f"# Quick A/B: {name}",
         "",
-        f"Overrides: {overrides or 'none'}. {route.upper() if route == 'sql' else 'Cypher'} route.",
+        f"At {commit()}. Overrides: {', '.join(sets) or 'none'}. {'SQL' if route == 'sql' else 'Cypher'} route.",
         "",
     ]
     which = "all" if every else f"every {STEP}th"
@@ -123,11 +98,10 @@ def main() -> int:
             f"Compiled {writers['compiled']} of {len(res)} ({fits} correct); fell back to free writing for {writers.get('free', 0)}.",
             "",
         ]
-    spent = [r["llm"] for r in res.values() if r.get("llm", {}).get("calls")]
+    spent = [r["llm"] for r in res.values() if r["llm"]["calls"]]
     if spent:
-        n_calls = sum(x["calls"] for x in spent)
         L += [
-            f"Query model, over the {len(spent)} questions it wasn't cached for ({n_calls} calls): "
+            f"Query model, over the {len(spent)} questions it wasn't cached for ({sum(x['calls'] for x in spent)} calls): "
             f"{sum(x['seconds'] for x in spent) / len(spent):.1f} s per question in the API, "
             f"{sum(x['tokens_in'] for x in spent) / len(spent):,.0f} tokens in and "
             f"{sum(x['tokens_out'] for x in spent) / len(spent):,.0f} out per question.",
@@ -135,9 +109,10 @@ def main() -> int:
         ]
     L += ["| question | verdict |", "|---|---|"]
     L += [f"| {q} | {r['verdict']}: {r['why']}".replace("\n", " ")[:200] + " |" for q, r in res.items()]
-    print(
-        f"gold {g}/{gn}, log {lg}/{ln}, writers {dict(Counter(r['writer'] for r in res.values()))} -> {write_result(f'qdd_{name}', L, res)}"
+    out = write_result(
+        name, L, res | {"_run": {"commit": commit(), "overrides": sets, "route": route}}, s.work / "qdd"
     )
+    print(f"gold {g}/{gn}, log {lg}/{ln}, writers {dict(writers)} -> {out}")
     return 0
 
 

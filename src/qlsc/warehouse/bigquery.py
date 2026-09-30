@@ -155,7 +155,12 @@ class BigQuery(Warehouse):
     def _query(self, sql: str, params=()) -> list:
         job = self.client.query(sql, job_config=bigquery.QueryJobConfig(query_parameters=list(params)))
         rows = list(job.result())
-        print(f"  BigQuery: {len(rows):,} rows, {job.total_bytes_billed / 2**20:,.0f} MiB billed")
+        billed = (
+            "bytes not reported"
+            if job.total_bytes_billed is None
+            else f"{job.total_bytes_billed / 2**20:,.0f} MiB billed"
+        )
+        print(f"  BigQuery: {len(rows):,} rows, {billed}")
         return rows
 
     def _log_sql(self, template: str) -> str:

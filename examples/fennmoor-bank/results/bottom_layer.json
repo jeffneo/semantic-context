@@ -224,8 +224,8 @@
      "LEFT"
     ],
     "vias": [
-     "passthrough",
-     "direct"
+     "direct",
+     "passthrough"
     ],
     "scopes": [
      "main"

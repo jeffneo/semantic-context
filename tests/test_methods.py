@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import datetime as dt
 
-from qlsc.joins import DSU, joins_identity, keeps_identity
+from qlsc.joins import joins_identity, keeps_identity
 from qlsc.names import canonical_table, short
 from qlsc.navigate import (
     calendar,
@@ -40,14 +40,6 @@ def test_identity_lineage():
         {"a": "a.amount", "kinds": ["expression"], "fns": ["MAX"]}, cols
     )  # a new measure
     assert not keeps_identity({"a": "a.id", "kinds": ["passthrough"], "fns": [], "control": True}, cols)
-
-
-def test_disjoint_sets():
-    d = DSU()
-    d.union("b", "a")
-    d.union("c", "b")
-    assert d.find("c") == d.find("a") == "a"
-    assert d.find("z") == "z"
 
 
 def test_canonical_names():

@@ -379,7 +379,7 @@ def render(
 
 
 def run(s: Settings, create_views: bool = True) -> None:
-    p, cfg = s.params["virtualize"], s.get("virtualize", {})
+    p, cfg = s["virtualize"], s.get("virtualize", {})
     dataset = cfg.get("dataset", "graph")
     wh = connect(s)
     out = s.work / "virtual"

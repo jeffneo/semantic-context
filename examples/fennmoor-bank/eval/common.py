@@ -28,11 +28,59 @@ def build(name: str):
     return json.loads((BUILD / name).read_text())
 
 
-def write_result(name: str, markdown: list[str], data: dict) -> Path:
-    RESULTS.mkdir(exist_ok=True)
-    (RESULTS / f"{name}.json").write_text(json.dumps(data, indent=1, default=list))
-    (RESULTS / f"{name}.md").write_text("\n".join(markdown) + "\n")
-    return RESULTS / f"{name}.md"
+def write_result(name: str, markdown: list[str], data: dict, where: Path = RESULTS) -> Path:
+    """An evaluation's report (.md) and its data (.json): in results/, which the docs quote, unless
+    `where` says otherwise (an experiment's, in work/)."""
+    where.mkdir(parents=True, exist_ok=True)
+    (where / f"{name}.json").write_text(json.dumps(data, indent=1, default=list))
+    (where / f"{name}.md").write_text("\n".join(markdown) + "\n")
+    return where / f"{name}.md"
+
+
+def commit() -> str:
+    """The commit the code under test is at, with a mark when the tree has changes."""
+    import subprocess
+
+    head = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, cwd=EXAMPLE
+    )
+    dirty = subprocess.run(
+        ["git", "status", "--porcelain", "--", "src", "prompts"],
+        capture_output=True,
+        text=True,
+        cwd=EXAMPLE.parents[1],
+    )
+    return head.stdout.strip() + ("+changes" if dirty.stdout.strip() else "")
+
+
+def quantiles(xs: list[float]) -> dict:
+    """The median and 95th percentile."""
+    import statistics
+
+    xs = sorted(xs)
+    if not xs:
+        return {}
+    return {
+        "median": round(statistics.median(xs), 3),
+        "p95": round(xs[min(len(xs) - 1, round(0.95 * (len(xs) - 1)))], 3),
+    }
+
+
+def native(v):
+    """A value from Neo4j or BigQuery, comparable across the two."""
+    import datetime as dt
+    from decimal import Decimal
+
+    v = v.to_native() if hasattr(v, "to_native") else v
+    if isinstance(v, Decimal):
+        v = float(v)
+    if isinstance(v, float):
+        return float(f"{v:.9g}")
+    if isinstance(v, dt.datetime):  # Virtual Graph returns a TIMESTAMP without its zone: it is UTC
+        return (v if v.tzinfo else v.replace(tzinfo=dt.UTC)).astimezone(dt.UTC).isoformat()
+    if isinstance(v, dt.date):
+        return v.isoformat()
+    return v
 
 
 class Names:
@@ -83,14 +131,21 @@ def ari(a: dict, b: dict) -> float:
 
 
 def overrides(s, argv: list[str]) -> tuple[list[str], str]:
-    """`param=value` arguments set navigation parameters (writer=compiled); the rest are returned. The
-    suffix names the result file after them, so a run with overrides never writes over the baseline."""
+    """`param=value` arguments set settings: a navigation parameter (writer=free), or any section's
+    (llm.query_effort=high). The rest are returned, with a suffix naming the result file after the values
+    that differ from the configured ones, so a run with overrides never writes over the baseline, and one
+    that sets the defaults is the baseline."""
     import re
 
     import yaml
 
     sets = [a for a in argv if "=" in a and not a.startswith("--")]
+    changed = []
     for a in sets:
         k, v = a.split("=", 1)
-        s.params["navigate"][k] = yaml.safe_load(v)
-    return [a for a in argv if a not in sets], "".join(f"_{re.sub(r'\W+', '_', a)}" for a in sets)
+        section, _, key = k.rpartition(".")
+        where, value = s[section or "navigate"], yaml.safe_load(v)
+        if where.get(key) != value:
+            changed.append(a)
+        where[key] = value
+    return [a for a in argv if a not in sets], "".join(f"_{re.sub(r'\W+', '_', a)}" for a in changed)

@@ -14,7 +14,7 @@ Links, all (x)-[:MEANS {how, score, status}]->(:Concept):
              exact, not a similarity. Through the column's Variable and Semantic group it places the
              term in the usage structure.
   embedding  (:Variable)-[:MEANS]->(catalog term) and (:Semantic)-[:MEANS]->(ontology class): the best
-             match by embedding similarity, above a floor (parameters.align), status 'proposed' for a
+             match by embedding similarity, above a floor (align), status 'proposed' for a
              person to confirm.
 Catalog descriptions of tables and columns are properties (catalog_description, catalog_certified).
 
@@ -290,7 +290,7 @@ def render(d: dict, name: dict, vname: dict, floor_class: float) -> str:
 
 
 def run(s: Settings) -> None:
-    p = s.params["align"]
+    p = s["align"]
     emb = Embedder(s)
     naming = Catalog(json.loads((s.work / "catalog.json").read_text()))
     with Graph(s) as G:

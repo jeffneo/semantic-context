@@ -35,7 +35,6 @@ for one block only: Virtual Graph has no CALL subquery to combine two.
 from __future__ import annotations
 
 import datetime as dt
-import json
 import re
 from collections import deque
 from dataclasses import dataclass, field
@@ -838,6 +837,11 @@ def compile_sql(request: dict, cat: Catalogue, unique, dialect: str = "bigquery"
     return render_sql(plan(request, cat, unique, hops), dialect)
 
 
+def plan_tables(p: Plan) -> list[str]:
+    """The tables a plan reads: each block's fact and the tables it joins."""
+    return sorted({t for b in p.blocks for t in [b.fact, *(j[2] for j in b.joins)] if t})
+
+
 def from_sql(b: Block) -> str:
     sql = f"FROM `{b.fact}` AS {alias(b.fact)}"
     for a, ac, t, tc, outer in b.joins:
@@ -910,7 +914,7 @@ def render_sql(p: Plan, dialect: str = "bigquery") -> str:
 
 CYPHER_TRUNC = {"DAY": "day", "MONTH": "month", "QUARTER": "quarter", "YEAR": "year"}
 CYPHER_CMP = {exp.EQ: "=", exp.NEQ: "<>", exp.GT: ">", exp.GTE: ">=", exp.LT: "<", exp.LTE: "<="}
-CYPHER_AGG = {exp.Sum: "sum", exp.Avg: "avg", exp.Min: "min", exp.Max: "max"}
+CYPHER_AGG = {exp.Avg: "avg", exp.Min: "min", exp.Max: "max"}  # a SUM keeps SQL's NULL (cypher_expr)
 CYPHER_ARITH = {exp.Add: "+", exp.Sub: "-", exp.Mul: "*", exp.Mod: "%"}
 
 
@@ -1175,7 +1179,3 @@ def computations_text(cat: Catalogue) -> str:
 
 def joins_text(joins: list[dict]) -> str:
     return "\n".join(f"{short(j['a'])}.{j['ac']} = {short(j['b'])}.{j['bc']}" for j in joins) or "(none)"
-
-
-def dump(request: dict) -> str:
-    return json.dumps(request, indent=1, default=str)

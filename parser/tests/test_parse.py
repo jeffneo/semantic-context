@@ -1,6 +1,6 @@
 """Golden tests for qlsc-parse. Each case states, by hand, what a correct parse must say.
 
-Run: uv run --with 'sqlglot[c]>=30' --with pytest pytest pipeline/parser/tests -q
+Run: uv run --no-project --with 'sqlglot[c]==30.19.0' --with pytest pytest parser/tests -q
 """
 
 from qlsc_parse import Catalog, fingerprint, resolve
@@ -72,8 +72,8 @@ CAT = Catalog(
                 },
             },
         },
+        "rules": RULES,
     },
-    RULES,
 )
 
 
@@ -450,9 +450,10 @@ def test_looker_pdt_generations_share_one_table():
             "version": "t",
             "rules": RULES,
             "tables": {
-                "p.looker_scratch.LR_6H0IZB3PQ4C6N_customer_facts": {
+                "p.looker_scratch.LR_{id}_customer_facts": {  # as the snapshot keys it (qlsc extract)
                     "kind": "TABLE",
                     "columns": {"k": "INT64"},
+                    "physical": ["LR_6H0IZB3PQ4C6N_customer_facts"],
                 }
             },
         }

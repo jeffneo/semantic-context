@@ -29,10 +29,10 @@ def test_every_parameter_is_read():
 
 def test_estate_overrides_defaults(tmp_path):
     f = tmp_path / "estate.yaml"
-    f.write_text("parameters:\n  cluster:\n    gamma: 2.5\nbusiness: {name: an insurer, kind: insurer}\n")
+    f.write_text("cluster:\n  gamma: 2.5\nbusiness: {name: an insurer, kind: insurer}\n")
     s = config.load(f)
-    assert s.params["cluster"]["gamma"] == 2.5
-    assert s.params["cluster"]["seed"] == 42  # the rest of the section stays
+    assert s["cluster"]["gamma"] == 2.5
+    assert s["cluster"]["seed"] == 42  # the rest of the section stays
     assert s.business == {"business": "an insurer", "kind": "insurer"}
     assert s.work == tmp_path / "work" and s.work.is_dir()
 

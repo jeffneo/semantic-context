@@ -34,7 +34,7 @@ ID_NAME = re.compile(r"(?i)(_id|_key|_number|_nbr|_no|_code|_cd)$")
 
 def main() -> int:
     s = settings()
-    base_p = s.params["cluster"]
+    base_p = s["cluster"]
     G = Graph(s)
     wh = build("warehouse.json")
     names = Names(s, wh)

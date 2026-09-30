@@ -30,7 +30,7 @@ from pathlib import Path
 
 import yaml
 from common import BUILD, EXAMPLE, settings, write_result
-from execution import ROWS
+from match import ROWS
 
 from qlsc import navigate
 from qlsc.graph import Graph
@@ -82,10 +82,7 @@ def candidates(G: Graph) -> list[dict]:
     """Queries that could answer a business question, over tables with rows, none of them a sandbox
     or frozen table (navigation's own test of trust): their result is not the business's answer."""
     have = filled()
-    everything = [r["t"] for r in G.rows(navigate.ALL_TABLES)]
-    distrusted = {r["t"] for r in G.rows(navigate.PERSONAL)} | {
-        r["t"] for r in G.rows(navigate.FROZEN, tables=everything)
-    }
+    distrusted = {r["t"] for r in G.rows(navigate.DISTRUSTED)}
     day = G.rows(LAST_DAY)[0]["d"]
     logical = lambda t: t.split(".", 1)[1].rstrip("*")
     out = []

@@ -38,9 +38,10 @@ def test_the_template_is_the_neighbourhood_then_its_dimensions():
         (2, "Txn-CHARGED_TO->Account"),
         (2, "Account-CONTAINS->Product"),
     ]
-    txn = reads[1]
+    by = {r.name: r for r in reads}
+    txn = by["Customer<-MADE_BY-Txn"]
     assert txn.inward and txn.window == "post_date"  # the many side, windowed by its partition
-    assert reads[3].via_window == "post_date"  # keyed on windowed facts: their partitions only
+    assert by["Txn-AT->Merchant"].via_window == "post_date"  # keyed on windowed facts: their partitions only
     assert [r.name for r in memory.template(M, "Customer", hops=1)][-1] == "Customer<-OWNED_BY-Account"
 
 
@@ -52,12 +53,17 @@ def test_each_relationship_is_read_once():
     assert {r.name for r in reads if r.hop == 2} == {"Txn-AT->Merchant", "Txn-MADE_BY->Customer"}
 
 
+def guarded(q: str, g: memory.Guard, v: str, label: str) -> bool:
+    return all(c in q for c in g.node(v, label))
+
+
 def test_the_same_read_over_either_target():
     r = memory.template(M, "Customer", hops=2)[1]
     vg, mem = memory.cypher(M, r), memory.cypher(M, r, memory=True)
-    assert "n.`post_date` >= $since" in vg and "LIMIT $limit" in vg and "$source" not in vg
-    assert mem.startswith("MATCH (n:`Txn` {source: $source})-[x:`MADE_BY`]->(v:`Customer` {source: $source})")
-    assert "x.holds_until > $now" in mem and "n.holds_until > $now" in mem
+    g = memory.Guard(M)
+    # over memory, the read is guarded: every node and the relationship; the virtual graph's is not
+    assert guarded(mem, g, "n", "Txn") and guarded(mem, g, "v", "Customer") and g.relationship("x")[0] in mem
+    assert "$source" not in vg and "$now" not in vg
     # the rest is the same read: same filter, order and limit
     assert vg.split("RETURN")[1] == mem.split("RETURN")[1]
     # signed for the pass-through, the predicate goes in its WHERE, over all of it
@@ -139,13 +145,12 @@ def test_a_row_policied_node_needs_the_readers_own_read():
     import dataclasses
 
     m = dataclasses.replace(M, reader="p@x", policied={"Customer"})
+    g = memory.Guard(m)
+    assert any("Step {owner: $by}" in c for c in g.node("n", "Customer"))
+    assert not any("Step" in c for c in g.node("n", "Merchant"))
     reads = {r.name: r for r in memory.template(m, "Customer", hops=2)}
-    mine = "(:Step {owner: $by})-[r:READ]->"
-    assert f"EXISTS {{ {mine}(n) WHERE r.holds_until > $now }}" in memory.cypher(
-        m, reads["Customer"], memory=True
-    )
-    made_by = memory.cypher(m, reads["Customer<-MADE_BY-Txn"], memory=True)
-    assert f"{mine}(v)" in made_by and f"{mine}(n)" not in made_by
+    assert guarded(memory.cypher(m, reads["Customer"], memory=True), g, "n", "Customer")
+    assert guarded(memory.cypher(m, reads["Customer<-MADE_BY-Txn"], memory=True), g, "v", "Customer")
     assert "Step" not in memory.cypher(m, reads["Txn-AT->Merchant"], memory=True)
     # the virtual graph's read is the same whoever reads: the warehouse applies their rules
     assert memory.cypher(m, reads["Customer<-MADE_BY-Txn"]) == memory.cypher(
@@ -182,16 +187,6 @@ def test_a_virtual_graph_label_never_takes_one_memory_reserves():
     assert {"Message", "Decision", "Skill", "Table"} <= memory.RESERVED_LABELS
 
 
-def test_the_computations_a_request_used():
-    from qlsc.converse import computation_ids
-
-    request = {
-        "measures": [{"computation": "c1"}, {"computation": ""}],
-        "blocks": [{"filters": [{"computation": "c2"}]}],
-    }
-    assert computation_ids(request) == ["c1", "c2"]
-
-
 def test_the_memory_route_guards_every_node_and_relationship():
     """Phase 5: the compiler's Cypher, run on memory, carries memory's conditions: its source, facts that
     still hold, and a row-policied node only if the reader's own step read it."""
@@ -210,3 +205,81 @@ def test_the_memory_route_guards_every_node_and_relationship():
     value = lambda sql: memory.literal_value(sqlglot.parse_one(sql, read="bigquery").expression)
     assert value("x.k = -9222608688654483010") == "-9222608688654483010"
     assert value("x.d >= DATE '2026-04-01'") == "2026-04-01" and value("x.s = 'KS'") == "KS"
+
+
+class FakeVirtualGraph:
+    """A virtual graph over a few rows: it answers the reads memory.cypher writes (a label's nodes by a
+    property, or a relationship walked from its start's column), ordered and limited as they ask."""
+
+    def __init__(self, m: memory.Model, rows: dict[str, list[dict]]):
+        self.m, self.data = m, rows
+        self.fk = {r["type"]: r.get("fk") for r in m.rels}
+        self.queries = 0
+
+    def rows(self, q: str, keys: list, since, limit: int, **_) -> list[dict]:
+        import re
+
+        self.queries += 1
+        window = re.search(r"n\.`(\w+)` >= \$since", q)
+        inside = lambda r: not window or r[window.group(1)] >= since
+        if m := re.match(r"MATCH \(n:`(\w+)`\)\nWHERE n\.`(\w+)` IN \$keys", q):
+            label, prop = m.groups()
+            got = [dict(r) for r in self.data[label] if r[prop] in keys and inside(r)]
+            if "_via" not in q:
+                return got
+            key, w = self.m.key(label), window.group(1) if window else None
+            got.sort(key=lambda r: (r[prop], *([-r[w].toordinal()] if w else []), r[key]))
+            return [r | {"_via": r[prop]} for r in got][:limit]
+        m = re.match(r"MATCH \(v:`(\w+)`\)-\[x:`(\w+)`\]->\(n:`(\w+)`\)", q)  # outward, to one
+        via, rel, label = m.groups()
+        vk, key = self.m.key(via), self.m.key(label)
+        fk = next(r for r in self.m.rels if r["type"] == rel).get("fk") or key
+        by_key = {r[key]: r for r in self.data[label]}
+        return [
+            dict(by_key[v[fk]]) | {"_via": v[vk]}
+            for v in self.data[via]
+            if v[vk] in keys and v.get(fk) in by_key
+        ]
+
+
+def test_a_batch_gives_each_anchor_the_context_it_gets_alone():
+    import datetime as dt
+
+    d = lambda day: dt.date(2026, 6, day)
+    rels = [r | {"fk": {"MADE_BY": "customer_key", "AT": "merchant_id", "OWNED_BY": "customer_key",
+                        "CONTAINS": "product_code", "CHARGED_TO": "account_key"}[r["type"]]} for r in RELS]  # fmt: skip
+    nodes = {k: v | {"props": dict(v["props"])} for k, v in NODES.items()}
+    nodes["Txn"]["props"] |= {"customer_key": "INTEGER", "merchant_id": "STRING", "account_key": "INTEGER"}
+    nodes["Account"]["props"] |= {"customer_key": "INTEGER"}
+    m = memory.Model("p.graph", nodes, rels, {})
+    data = {
+        "Customer": [{"customer_key": k, "segment": "mass"} for k in (1, 2, 3)],
+        "Account": [{"account_key": 10, "customer_key": 1, "product_code": "CHK"},
+                    {"account_key": 20, "customer_key": 2, "product_code": "SAV"}],
+        "Product": [{"product_code": "CHK"}, {"product_code": "SAV"}],
+        "Merchant": [{"merchant_id": "m1"}, {"merchant_id": "m2"}],
+        "Txn": [  # customer 1 has three purchases (over the cap of two), customer 2 one, customer 3 none
+            {"txn_id": "a", "customer_key": 1, "post_date": d(1), "amount": 1.0, "merchant_id": "m1", "account_key": 10},
+            {"txn_id": "b", "customer_key": 1, "post_date": d(3), "amount": 2.0, "merchant_id": "m2", "account_key": 10},
+            {"txn_id": "c", "customer_key": 1, "post_date": d(2), "amount": 3.0, "merchant_id": "m1", "account_key": 10},
+            {"txn_id": "e", "customer_key": 2, "post_date": d(2), "amount": 4.0, "merchant_id": "m2", "account_key": 20},
+        ],
+    }  # fmt: skip
+    s = {"memory": {"cap": 2, "keys_per_read": 1000, "workers": 2, "window_days": 92},
+         "navigate": {"today": "2026-07-01"}}  # fmt: skip
+    reads, now = memory.template(m, "Customer", hops=2), dt.datetime(2026, 7, 1, tzinfo=dt.UTC)
+    vg = FakeVirtualGraph(m, data)
+    batch = memory.run_batch(s, m, reads, [1, 2, 3, 99], vg, False, now)
+    in_batch = vg.queries
+    for k in (1, 2, 3, 99):
+        alone = memory.run_reads(s, m, reads, k, FakeVirtualGraph(m, data), False, now)
+        assert batch[k].nodes == alone.nodes and batch[k].edges == alone.edges, k
+        assert [(x["read"], x["rows"], x["capped"]) for x in batch[k].reads] == [
+            (x["read"], x["rows"], x["capped"]) for x in alone.reads
+        ]
+    one = batch[1]
+    assert one.capped() == ["Customer<-MADE_BY-Txn"]  # the cap is the customer's own
+    assert {k for lb, k in one.nodes if lb == "Txn"} == {"b", "c"}  # its two most recent
+    assert batch[2].capped() == [] and ("Txn", "e") in batch[2].nodes
+    assert not batch[99].nodes  # no such customer: an empty context
+    assert in_batch < 4 * len(reads)  # read together, not once per customer

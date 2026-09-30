@@ -90,7 +90,7 @@ def render(res: dict, n: int, tables: int) -> list[str]:
 
 def main() -> int:
     s = settings()
-    p = s.params["navigate"]
+    p = s["navigate"]
     wh = build("warehouse.json")
     names = Names(s, wh)
     ds_proj = {t["dataset"]: t["project"] for t in wh["tables"]}

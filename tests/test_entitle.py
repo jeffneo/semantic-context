@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from qlsc import entitle
-from qlsc.navigate import answered, pick
 
 ALLOW = entitle.Allowlist(
     principal="qlsc-marketing@p.iam.gserviceaccount.com",
@@ -69,11 +68,3 @@ def test_probes_of_what_virtual_graphs_sql_reads():
         "SELECT `customer_key`, `segment`, `state_code` FROM `p`.`fnb_graph`.`dim_customer` LIMIT 1",
         "SELECT `customer_key` FROM `p`.`fnb_graph`.`fct_card_transactions` LIMIT 1",
     ]
-
-
-def test_a_refused_cypher_answer_sends_the_router_to_sql():
-    cypher = {"writer": "compiled", "cypher": "MATCH (c:Customer) RETURN count(*)", "check": {"sql": []}}
-    free_sql = {"writer": "free", "sql": "SELECT 1", "result": {"ok": True}}
-    assert answered(cypher) and pick(free_sql, cypher) == "cypher"
-    refused = cypher | {"refused": "the warehouse filters the rows of dim_customer per reader"}
-    assert not answered(refused) and pick(free_sql, refused) == "sql"

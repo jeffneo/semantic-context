@@ -148,7 +148,7 @@ def parent_evidence(G: Graph, groups: dict[str, list[str]]) -> dict[str, str]:
 
 
 def run(s: Settings) -> None:
-    p = s.params["hierarchy"]
+    p = s["hierarchy"]
     t0 = time.time()
     with Graph(s) as G:
         G.delete("(n:Semantic) WHERE n.level > 1", 1000)

@@ -21,8 +21,9 @@ from collections import Counter, defaultdict
 
 from qlsc.config import Settings
 from qlsc.warehouse import Warehouse, connect
+from qlsc_parse.catalog import canonical
 
-SHARD = re.compile(r"^(.*_)(20\d{6}|20\d{4})$")
+SHARD = re.compile(r"^(20\d{6}|20\d{4})$")  # a date shard's suffix
 
 
 def jsonable(v):
@@ -53,27 +54,29 @@ def extract_log(wh: Warehouse, work) -> None:
 
 
 def build_catalog(physical: dict, rules: list[dict], warehouse: str, dialect: str) -> dict:
-    """The connector's physical tables -> the snapshot the parser and the graph use: logical names,
-    shard families (2+ tables sharing a prefix with a date suffix) as one wildcard table, volatile
-    identifiers canonicalized (a Looker PDT generation -> LR_{id}_name)."""
+    """The connector's physical tables -> the snapshot the parser and the graph use, keyed by canonical name
+    (qlsc_parse.catalog.canonical): logical names, shard families (2+ tables sharing a prefix with a date
+    suffix) as one wildcard table, volatile identifiers canonicalized (a Looker PDT generation -> LR_{id}_name)."""
     project, aliases = physical["project"], physical["aliases"]
     families = defaultdict(list)
     for ds, name in physical["tables"]:
-        m = SHARD.match(name)
-        if m:
-            families[(ds, m.group(1))].append(name)
-    families = {k: v for k, v in families.items() if len(v) >= 2}
+        head, _, tail = name.rpartition("_")
+        if head and SHARD.match(tail):
+            families[(ds, head + "_")].append(name)
+    shard_families = {
+        f"{aliases[f'{project}.{ds}']}.{prefix}"
+        for (ds, prefix), names in families.items()
+        if len(names) >= 2 and f"{project}.{ds}" in aliases
+    }
     compiled = [(re.compile(r["pattern"]), r["replace"]) for r in rules]
     tables = {}
     for (ds, name), t in sorted(physical["tables"].items()):
-        home = aliases.get(f"{project}.{ds}")
-        if not home:
+        if f"{project}.{ds}" not in aliases:
             continue
-        m = SHARD.match(name)
-        if m and (ds, m.group(1)) in families:
+        fqn = ".".join(canonical(project, ds, name, aliases, compiled, shard_families))
+        if fqn.endswith("_*"):
             entry = tables.setdefault(
-                f"{home}.{m.group(1)}*",
-                {"kind": "WILDCARD", "columns": {}, "partition": None, "cluster": [], "shards": []},
+                fqn, {"kind": "WILDCARD", "columns": {}, "partition": None, "cluster": [], "shards": []}
             )
             entry["columns"].update(t["columns"])
             entry["shards"].append(name)
@@ -86,17 +89,14 @@ def build_catalog(physical: dict, rules: list[dict], warehouse: str, dialect: st
         }
         if t.get("view_sql"):
             entry["view_sql"] = t["view_sql"]
-        canon = name
-        for rx, rep in compiled:
-            canon = rx.sub(rep, canon)
-        if canon != name:
+        if fqn.rsplit(".", 1)[1] != name:
             entry["physical"] = [name]
-            if f"{home}.{canon}" in tables:
-                prev = tables[f"{home}.{canon}"]
+            if fqn in tables:
+                prev = tables[fqn]
                 prev["columns"].update(entry["columns"])
                 prev["physical"].append(name)
                 continue
-        tables[f"{home}.{canon}"] = entry
+        tables[fqn] = entry
     for e in tables.values():
         if e["kind"] == "WILDCARD":
             e["columns"]["_TABLE_SUFFIX"] = "STRING"
@@ -104,11 +104,7 @@ def build_catalog(physical: dict, rules: list[dict], warehouse: str, dialect: st
     body = {
         "rules": rules,
         "aliases": aliases,
-        "shard_families": sorted(
-            f"{aliases[f'{project}.{ds}']}.{prefix}"
-            for ds, prefix in families
-            if f"{project}.{ds}" in aliases
-        ),
+        "shard_families": sorted(shard_families),
         "tables": tables,
     }
     version = "cat-" + hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()[:12]

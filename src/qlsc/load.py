@@ -16,6 +16,8 @@ shapes.ndjson.gz. Target: the config's `neo4j.database`. Seven labels:
   (:Column)-[:COMPARED]->(:Column)          two columns compared in one expression (CORR, a - b, a > b)
   (:Table)-[:DERIVED_FROM]->(:Table)        a statement read the one and wrote the other
 
+Every Table gets `frozen` and `sandbox` (LIVENESS), the flags the stages read.
+
 QueryShape.unresolved lists the names the parser could not place (details: PARSE_HEALTH.md). A shape
 whose every job failed is loaded as error evidence only (RAN, REFERENCES, unresolved): a query that
 never ran creates no structure.
@@ -33,9 +35,24 @@ from qlsc.config import Settings
 from qlsc.graph import Graph
 from qlsc.names import canonical_table, text_id
 from qlsc.warehouse import connect
-from qlsc_parse.catalog import Catalog
+from qlsc_parse.catalog import Catalog, transient
 
 LABELS = ["Project", "Dataset", "Table", "Column", "QueryShape", "Principal", "JoinKey"]
+
+# A table's liveness, from the log alone, which every stage reads as a flag:
+#   frozen   nothing wrote it in the log window and no production process reads it (directly or through a
+#            view): people may still query it, but it is not being kept current
+#   sandbox  only people write it, never a production process (a load or a service account): a sandbox or a
+#            personal copy, which an example query must not lead the writer to
+LIVENESS = """
+MATCH (t:Table)
+SET t.frozen = t.kind IN ['table', 'wildcard'] AND t.write_days IS NULL
+      AND NOT EXISTS { MATCH (:Principal {kind: 'service_account'})-[:RAN]->(:QueryShape {succeeded: true})-[:REFERENCES]->(x:Table)
+                       WHERE x = t OR (x.kind = 'view' AND (x)-[:DERIVED_FROM*1..3]->(t)) },
+    t.sandbox = EXISTS { (:Principal)-[:RAN]->(:QueryShape {succeeded: true})-[:WRITES]->(t) }
+      AND NOT EXISTS { (:Principal {kind: 'service_account'})-[:RAN]->(:QueryShape {succeeded: true})-[:WRITES]->(t) }
+      AND NOT EXISTS { (:Principal {kind: 'service_account'})-[:LOADED]->(t) }
+"""
 
 
 def ndjson(path: Path) -> list[dict]:
@@ -84,7 +101,7 @@ class Assets:
     def column(self, table: str, column: str) -> str:
         cid = f"{table}.{column}"
         if cid not in self.columns:
-            self.table(table, "transient" if "{" in table else "unknown")
+            self.table(table, "transient" if transient(table) else "unknown")
             self.columns[cid] = {"id": cid, "name": column, "table": table, "type": None, "in_catalog": False}
         return cid
 
@@ -543,7 +560,7 @@ def run(s: Settings, reset_graph: bool = False) -> None:
         assets,
         connect(s).is_service_account,
     )
-    filter_values(ev, shapes, groups, texts, text_shape, s.params["load"]["max_values_per_filter"])
+    filter_values(ev, shapes, groups, texts, text_shape, s["load"]["max_values_per_filter"])
 
     with Graph(s) as G:
         if reset_graph:
@@ -553,6 +570,7 @@ def run(s: Settings, reset_graph: bool = False) -> None:
                 f"CREATE CONSTRAINT {label.lower()}_id IF NOT EXISTS FOR (n:{label}) REQUIRE n.id IS UNIQUE"
             )
         write(G, assets, people, ev, ran, loaded, write_days)
+        G.run(LIVENESS)
         nodes, rels = G.value("MATCH (n) RETURN count(n)"), G.value("MATCH ()-[r]->() RETURN count(r)")
         print(
             f"loaded into {G.db} in {time.perf_counter() - t0:.1f}s: {nodes:,} nodes, {rels:,} relationships"

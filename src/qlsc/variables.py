@@ -7,7 +7,7 @@ warehouse.
      how far can it be trusted? Stored on the JoinKey (confidence, identity, ...).
   2. GDS Cypher projection: each (a:Column)<-[:ON]-(k:JoinKey)-[:ON]->(b:Column) becomes an undirected
      a -- b relationship, if k preserves identity and its confidence is one that builds variables
-     (parameters.variables.joins). A suspect join stays in the graph as evidence and builds nothing.
+     (variables.joins). A suspect join stays in the graph as evidence and builds nothing.
   3. WCC over the projection: each component is one variable, materialized as (:Variable {id, size,
      tables}) with (:Column)-[:IS]->(:Variable). The id is 'var:' + the component's smallest column
      id, so it is stable across runs.
@@ -129,7 +129,7 @@ def run(s: Settings, names: bool = True) -> None:
                            RETURN k.id AS id, k.confidence AS c, k.identity AS i"""):
             key = " = ".join(short(x) for x in r["id"].split("="))
             print(f"  not used: {key} ({r['c']}{'' if r['i'] else ', not identity'})")
-        variables = components(G, s.params["variables"]["joins"])
+        variables = components(G, s["variables"]["joins"])
         G.batch(
             "Variable",
             """UNWIND $rows AS r CREATE (v:Variable {id: r.id, size: size(r.cols)})

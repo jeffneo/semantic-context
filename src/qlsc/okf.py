@@ -196,7 +196,7 @@ def check(root: Path) -> dict:
 
 def run(s: Settings, out: Path | None = None) -> None:
     root = out or s.work / "okf"
-    p = s.params["okf"]
+    p = s["okf"]
     with Graph(s) as G:
         rows = G.rows(COMPUTATIONS, shapes=p["sources"])
         area_of = defaultdict(lambda: "Unassigned", {r["id"]: r["area"] for r in G.rows(AREAS) if r["area"]})

@@ -19,8 +19,33 @@ DIALECTS = {"bigquery"}
 SHARD_SUFFIX = re.compile(r"^(20\d{6}|20\d{4}|\d*\*)$")
 
 
+def canonical(
+    project: str, dataset: str, name: str, aliases: dict, rules: list, shard_families: set
+) -> tuple[str, str, str]:
+    """A table's canonical name: its physical dataset -> the logical one (`aliases`), volatile identifiers
+    rewritten by the estate's `rules` (compiled pattern, replacement), and a date shard of a family -> the
+    family's wildcard table. The one definition, for the catalog's snapshot and for every name the parser
+    reads."""
+    home = aliases.get(f"{project}.{dataset}")
+    if home:
+        project, dataset = home.split(".", 1)
+    for rx, rep in rules:
+        name = rx.sub(rep, name)
+    if "_" in name:
+        head, _, tail = name.rpartition("_")
+        if SHARD_SUFFIX.match(tail) and f"{project}.{dataset}.{head}_" in shard_families:
+            name = f"{head}_*"
+    return project, dataset, name
+
+
+def transient(fqn: str) -> bool:
+    """A table a rule named as volatile per run (its replacement holds a `{...}` placeholder): a loader's
+    per-run merge source, not a table anyone keeps."""
+    return "{" in fqn
+
+
 class Catalog:
-    def __init__(self, data: dict, rules: list[dict] | None = None):
+    def __init__(self, data: dict):
         self.version: str = data["version"]
         self.dialect: str = data.get("dialect", "bigquery")
         if self.dialect not in DIALECTS:
@@ -30,16 +55,7 @@ class Catalog:
         self.tables: dict[str, dict] = data["tables"]
         self.aliases: dict[str, str] = data.get("aliases", {})
         self.shard_families: set[str] = set(data.get("shard_families", []))
-        self.rules = [(re.compile(r["pattern"]), r["replace"]) for r in (rules or data.get("rules", []))]
-        # key every table by its canonical name (a Looker PDT generation -> LR_{id}_name)
-        canon: dict[str, dict] = {}
-        for fqn, t in self.tables.items():
-            key = ".".join(self.canonical(*fqn.split(".", 2)))
-            if key in canon:
-                canon[key] = {**canon[key], "columns": {**canon[key]["columns"], **t["columns"]}}
-            else:
-                canon[key] = t
-        self.tables = canon
+        self.rules = [(re.compile(r["pattern"]), r["replace"]) for r in data.get("rules", [])]
         nested: dict = {}
         self.colcase: dict[str, dict[str, str]] = {}
         for fqn, t in self.tables.items():
@@ -51,23 +67,13 @@ class Catalog:
         self.schema = MappingSchema(nested, dialect=self.dialect)
 
     @classmethod
-    def load(cls, path: str | Path, rules: list[dict] | None = None) -> Catalog:
-        return cls(json.loads(Path(path).read_text()), rules)
+    def load(cls, path: str | Path) -> Catalog:
+        return cls(json.loads(Path(path).read_text()))
 
     # ------------------------------------------------------------------ names
 
     def canonical(self, project: str, dataset: str, name: str) -> tuple[str, str, str]:
-        """Physical -> logical dataset, volatile identifiers, shards -> wildcard table."""
-        home = self.aliases.get(f"{project}.{dataset}")
-        if home:
-            project, dataset = home.split(".", 1)
-        for rx, rep in self.rules:
-            name = rx.sub(rep, name)
-        if "_" in name:
-            head, _, tail = name.rpartition("_")
-            if SHARD_SUFFIX.match(tail) and f"{project}.{dataset}.{head}_" in self.shard_families:
-                name = f"{head}_*"
-        return project, dataset, name
+        return canonical(project, dataset, name, self.aliases, self.rules, self.shard_families)
 
     def canonicalize_tables(self, tree: exp.Expression, default_project: str | None = None) -> None:
         """Rewrite every qualified table reference in place to its canonical name."""
