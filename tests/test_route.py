@@ -1,4 +1,4 @@
-"""The router's rule (navigate.route): memory, else compiled SQL, else free Cypher when it answers, else free
+"""The router's rule (navigate.route): memory, else a precedent, else compiled SQL, else free Cypher when it answers, else free
 SQL. The live router and the evaluations' `pick` are the same rule."""
 
 from __future__ import annotations
@@ -7,6 +7,8 @@ from qlsc.navigate import answered, pick, route
 
 MEMORY = {"writer": "compiled", "route": "memory", "cypher": "MATCH (n) RETURN n"}
 NOT_MEMORY = {"fallback": "no fresh context"}
+PRECEDENT = {"writer": "precedent", "sql": "SELECT 1", "result": {"ok": True}}
+NO_PRECEDENT = {"fallback": "no precedent: no Request close enough", "tried": []}
 COMPILED = {"writer": "compiled", "sql": "SELECT 1", "result": {"ok": True}}
 UNFIT = {"fallback": "a list of rows"}
 FREE_SQL = {"writer": "free", "sql": "SELECT 1", "result": {"ok": True}}
@@ -41,3 +43,14 @@ def test_cypher_that_does_not_answer_sends_the_router_to_sql():
         assert pick(FREE_SQL, bad) == "sql"
     assert pick(FREE_SQL, CYPHER) == "cypher" and pick(COMPILED, CYPHER) == "sql"
     assert not answered({"error": "the Virtual Graph instance is not running"})
+
+
+def test_a_precedent_comes_before_the_compiled_request():
+    both = {"memory": NOT_MEMORY, "precedent": PRECEDENT, "sql": COMPILED, "free": FREE_SQL}
+    assert route(both)[0] == "precedent"
+    assert route(both | {"precedent": NO_PRECEDENT})[0] == "sql"
+    assert route(both | {"memory": MEMORY})[0] == "memory"
+    ran = []
+    step = lambda name, a: lambda: ran.append(name) or a
+    route({"precedent": step("precedent", PRECEDENT), "sql": step("sql", COMPILED), "free": FREE_SQL})
+    assert ran == ["precedent"]

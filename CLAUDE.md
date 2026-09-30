@@ -35,7 +35,7 @@ qlsc infers a semantic layer for a data warehouse from its query log, in Neo4j. 
 ```bash
 uv sync
 uv run qlsc --help                       # extract, build, one command per stage, ask
-QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc build
+QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc build        # ends with `qlsc requests`, the request bank
 QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc ask "question"   # the router's query; --run, --sql, --cypher, --memory, --as <principal>
 QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc computations   # then: qlsc okf (the OKF bundle, <work>/okf)
 QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc recall Customer cif_number=0001000025   # a context, kept in memory; remember fetches again (KEY... in one batch); --as <principal>
@@ -49,6 +49,7 @@ uv run examples/fennmoor-bank/eval/log_questions.py write|run   # 176 questions 
 uv run examples/fennmoor-bank/eval/log_accuracy.py [param=value ...]  # ask's answers to them (about an hour, about $6 of LLM calls)
 uv run examples/fennmoor-bank/eval/qdd.py <name> [--route=cypher] [param=value ...]   # a quick A/B of one setting: 40 questions, minutes; an experiment, in <work>/qdd/
 uv run examples/fennmoor-bank/eval/graph_accuracy.py [param=value ...]  # ten graph-shaped questions, both routes
+uv run examples/fennmoor-bank/eval/comparison/run.py prep|layer|agent|naive-schema|naive-agent|report   # qlsc against naive approaches, 186 questions, measured (~$25, 15 min); README beside it
 uv run examples/fennmoor-bank/eval/entitlements.py [--controls-only]  # the gateway, with the warehouse as the oracle (about an hour)
 uv run examples/fennmoor-bank/eval/memory.py            # remembered contexts against the virtual graph; freshness (minutes)
 uv run examples/fennmoor-bank/eval/memory_entitlements.py   # memory as each principal, with BigQuery as the oracle (minutes)

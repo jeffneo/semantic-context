@@ -204,6 +204,7 @@ class Conversation:
         self.id = str(uuid.uuid4())
         self.seq, self.last_message = 0, None
         self.task, self.step_seq, self.last_step, self.last_ask = None, 0, None, None
+        self.last_answer, self.said, self.rejected = None, [], set()  # the task's exchange: its corrections
         with Graph(s) as G:
             self.tables = {r["id"]: r["name"] for r in G.rows(TABLE_NAMES)}
         memory.ensure(s, self.m)
@@ -256,6 +257,7 @@ class Conversation:
         self.close("done")
         if role == "user":
             self.task, self.step_seq, self.last_step = str(uuid.uuid4()), 0, None
+            self.last_answer, self.said, self.rejected = None, [], set()
             self.run(TASK, conversation=self.id, message=mid, id=self.task, now=now)
             # the approved skills that fit the request, which the reader may see: offered, and recorded
             self.offered = distill.offers(self.s, self.m, text)
@@ -319,8 +321,13 @@ class Conversation:
         first rows, and READ the stubs of the Tables its query read and the Computations its request used; and
         the answer whole, for the same request while its data holds. A request answered before, and still
         holding, is answered from memory: {..., from_memory: the step that answered it}."""
+        return self._ask(
+            question, question, lambda G: navigate.trace(G, self.s, question, allow=self.m.allow)
+        )
+
+    def _ask(self, question: str, asked_as: str, navigated) -> dict:
         rows, t0, now = self.s["memory"]["tool_result_rows"], time.time(), self.clock()
-        key = asked(self.s, question, self.m.allow)
+        key = asked(self.s, asked_as, self.m.allow)
         hit = self.run(REMEMBERED, asked=key, now=now)
         if hit:
             step = self._new_step("ask")
@@ -328,13 +335,14 @@ class Conversation:
             res = a["result"]
             out = {"route": a.get("route"), "writer": a.get("writer"), "query": a.get("sql") or a.get("cypher") or "",
                    "columns": res.get("columns"), "rows": res["rows"][:rows], "total": res.get("total")}  # fmt: skip
-            self._attach(step, {"question": question}, out, "ok", None, time.time() - t0, None)
+            self._attach(step, {"question": asked_as}, out, "ok", None, time.time() - t0, None)
             self.run(SAME_AS, id=step, was=hit[0]["id"])
-            self.last_ask = step
+            self.last_ask, self.last_answer = step, a
             return a
         with Graph(self.s) as G:
-            tr = navigate.trace(G, self.s, question, allow=self.m.allow)
-            a = navigate.answer_routed(G, self.s, tr, execute=True, rows=self.s["memory"]["answer_rows"])
+            tr = navigated(G)
+            a = navigate.answer_routed(G, self.s, tr, execute=True, rows=self.s["memory"]["answer_rows"],
+                                       rejected=frozenset(self.rejected))  # fmt: skip
             tables = [x for x in a.get("tables") or [] if x in self.tables]  # the layer's, which have stubs
             cadence = G.rows(TABLE_CADENCE, ids=tables)
         res = a.get("result") or {}
@@ -348,7 +356,7 @@ class Conversation:
         }
         error = None if res.get("ok") else (res.get("error") or a.get("declined") or "no answer")
         step = self._new_step("ask")
-        self._attach(step, {"question": question}, out, "error" if error else "ok", error, time.time() - t0,
+        self._attach(step, {"question": asked_as}, out, "error" if error else "ok", error, time.time() - t0,
                      fingerprint(a, tables))  # fmt: skip
         whole = not error and res.get("total", 0) <= len(res.get("rows") or [])
         kept = {k: a.get(k) for k in ("route", "writer", "sql", "cypher", "tables", "explanation")} | {
@@ -356,7 +364,7 @@ class Conversation:
         }
         self.run(KEEP, id=step, asked=key, holds_until=answer_holds_until(self.s, cadence, now),
                  answer=json.dumps(kept, default=str) if whole else None)  # fmt: skip
-        self.last_ask = step
+        self.last_ask, self.last_answer = step, a
         computations = sorted(set(computation_ids(a.get("request"))))
         with Graph(self.s) as G:
             named = G.rows(COMPUTATIONS, ids=computations)
@@ -374,9 +382,16 @@ class Conversation:
 
     def correct(self, question: str, feedback: str) -> dict:
         """The asker's verdict on the last answer: rejected, with what was wrong; then the request asked again
-        in the same task, the correction heard (the question with it)."""
+        in the same task, with everything said so far (navigate.corrected: navigated again, the previous
+        answer's request beside the correction), and a rejected precedent not offered again."""
         self._verdict(self.say("user", feedback, same_task=True), "rejected", feedback)
-        return self.ask(f"{question} ({feedback})")
+        previous = self.last_answer or {}
+        if previous.get("precedent"):
+            self.rejected.add(previous["precedent"])
+        self.said.append(feedback)
+        said = list(self.said)
+        return self._ask(question, f"{question} ({'; '.join(said)})",
+                         lambda G: navigate.corrected(G, self.s, question, previous, said, allow=self.m.allow))  # fmt: skip
 
     def _verdict(self, message: str, predicate: str, value: str) -> None:
         if self.last_ask is None:

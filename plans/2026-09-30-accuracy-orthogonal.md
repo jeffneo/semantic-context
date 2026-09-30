@@ -1,6 +1,6 @@
 # Accuracy from other directions: precedent, the data, and a fair ruler (2026-09-30)
 
-Status: exploring (2026-09-30). The user asked for each idea to be tested on its own first, quick and directional; see "The tests", then "Measurement, and a consumer that knows its process" (the second round). Four decisions below wait for the results.
+Status: adopted (2026-09-30). The exploration below led to the method now in the tool: the request bank (`qlsc requests`), the precedent route, corrections, remembered answers and per-request measurement. It is reproduced by `examples/fennmoor-bank/eval/comparison/` (README there). The exploration's own code is at commit 1578fa6; what follows is its record.
 
 Today `qlsc ask` answers 128 of the log's 176 questions by SQL (73%), gold 7 of 10 and graph-shaped 7 of 10
 routed. Every lever tried since the compiler (definitions, the ontology's terms, decomposition, request
@@ -783,3 +783,13 @@ Gold (10): naive schema 2, naive agent 4, baseline 6, combined 9 (8 delivered).
 - **The states are plain, but still written from the reference query.**
 - **The latency p90 is mostly the consumer rejecting right answers,** plus precedent attempts before
   the compiled request.
+
+## Reproduced through the committed code (2026-09-30)
+
+The four methods were rerun, every LLM call live, through `eval/comparison/run.py` (the method in the tool:
+`qlsc requests`, the precedent route in the router, `navigate.corrected`, `qlsc/meter.py`). The numbers
+reproduce the exploration's: log questions, naive schema 116 (66%), naive agent 108 (61%), the layer one shot
+132 (75%), the agent 158 (90%, 153 delivered); gold 3, 6, 6, 9 of 10. The schema's prompt cache now hits (its
+breakpoint sits after the schema): $0.012 a request, the cheapest per right answer (1.8 cents, against 2.3
+for the layer and 4.7 for the agent). The value of the layer is accuracy, tokens and latency, not dollars.
+Results: [eval/comparison/README.md](../examples/fennmoor-bank/eval/comparison/README.md).

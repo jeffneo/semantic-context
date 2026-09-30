@@ -25,6 +25,7 @@ NODES = {  # label -> what else to hash besides the id
     "Semantic": "k.name + '|' + toString(k.level) + '|' + toString(k.size) + '|' + toString(round(k.stability, 4))",
     "Concept": "k.name",
     "QueryShape": "toString(k.jobs)",
+    "Request": "k.kind + '|' + k.text",
     "Column": "coalesce(k.type, '')",
     "Table": "k.kind",
 }
@@ -36,6 +37,9 @@ EDGES = {
     "K_SIM": "MATCH (a)-[m:K_SIM]->(b) RETURN a.id AS a, b.id AS b, m.rank AS r ORDER BY a, r",
     "FLOWS": "MATCH (a)-[:FLOWS]->(b) RETURN a.id AS a, b.id AS b ORDER BY a, b",
     "READS": "MATCH (s)-[m:READS]->(c) RETURN s.id AS s, c.id AS c, m.roles AS r ORDER BY s, c, r",
+    "FROM": "MATCH (a:Request)-[:FROM]->(b) RETURN a.id AS a, b.id AS b ORDER BY a",
+    "SUCCEEDS": "MATCH (a:QueryShape)-[m:SUCCEEDS]->(b) RETURN a.id AS a, b.id AS b, m.gap_days AS d ORDER BY a, b",
+    "VARIANT_OF": "MATCH (a:QueryShape)-[:VARIANT_OF]->(b) RETURN a.id AS a, b.id AS b ORDER BY a, b",
     "FILTERS": "MATCH (s)-[m:FILTERS]->(c) RETURN s.id AS s, c.id AS c, m.values AS v ORDER BY s, c, v",
 }
 

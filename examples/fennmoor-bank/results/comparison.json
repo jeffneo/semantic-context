@@ -1,0 +1,118 @@
+{
+ "naive-schema": {
+  "log": {
+   "n": 176,
+   "right": 116,
+   "delivered": 0,
+   "tokens_p50": 43872,
+   "tokens_p90": 44032,
+   "seconds_p50": 4.44,
+   "seconds_p90": 5.55,
+   "cost": 2.122,
+   "replayed": 0,
+   "commit": "1578fa6+changes"
+  },
+  "gold": {
+   "n": 10,
+   "right": 3,
+   "delivered": 0,
+   "tokens_p50": 43879,
+   "tokens_p90": 44109,
+   "seconds_p50": 5.22,
+   "seconds_p90": 6.45,
+   "cost": 0.124,
+   "replayed": 0,
+   "commit": "1578fa6+changes"
+  }
+ },
+ "naive-agent": {
+  "log": {
+   "n": 176,
+   "right": 108,
+   "delivered": 17,
+   "tokens_p50": 50304,
+   "tokens_p90": 127053,
+   "seconds_p50": 22.45,
+   "seconds_p90": 42.8,
+   "cost": 10.614,
+   "replayed": 0,
+   "commit": "1578fa6+changes"
+  },
+  "gold": {
+   "n": 10,
+   "right": 6,
+   "delivered": 0,
+   "tokens_p50": 81758,
+   "tokens_p90": 181217,
+   "seconds_p50": 33.33,
+   "seconds_p90": 54.74,
+   "cost": 0.766,
+   "replayed": 0,
+   "commit": "1578fa6+changes"
+  }
+ },
+ "layer": {
+  "log": {
+   "n": 176,
+   "right": 132,
+   "delivered": 132,
+   "tokens_p50": 6667,
+   "tokens_p90": 9804,
+   "seconds_p50": 4.44,
+   "seconds_p90": 8.17,
+   "cost": 3.048,
+   "replayed": 0,
+   "commit": "1578fa6+changes"
+  },
+  "gold": {
+   "n": 10,
+   "right": 6,
+   "delivered": 6,
+   "tokens_p50": 6187,
+   "tokens_p90": 7241,
+   "seconds_p50": 5.72,
+   "seconds_p90": 7.22,
+   "cost": 0.146,
+   "replayed": 0,
+   "commit": "1578fa6+changes"
+  }
+ },
+ "agent": {
+  "log": {
+   "n": 176,
+   "right": 158,
+   "delivered": 153,
+   "tokens_p50": 10667,
+   "tokens_p90": 47220,
+   "seconds_p50": 9.02,
+   "seconds_p90": 40.83,
+   "cost": 7.358,
+   "replayed": 0,
+   "commit": "1578fa6+changes"
+  },
+  "gold": {
+   "n": 10,
+   "right": 9,
+   "delivered": 9,
+   "tokens_p50": 43513,
+   "tokens_p90": 70802,
+   "seconds_p50": 46.65,
+   "seconds_p90": 62.18,
+   "cost": 0.944,
+   "replayed": 0,
+   "commit": "1578fa6+changes"
+  },
+  "outcomes": {
+   "accepted wrong": 10,
+   "right, rejected by the agent": 65,
+   "right at once": 96,
+   "right, past the targets": 5,
+   "right after corrections": 1,
+   "never right": 9
+  },
+  "first_route": {
+   "sql": 97,
+   "precedent": 89
+  }
+ }
+}

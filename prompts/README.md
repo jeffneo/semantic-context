@@ -27,6 +27,11 @@ warehouse connector.
 | `compile_request.md` | `qlsc ask` (the compiled request) | the question, with the tables, joins, Computations and example SQL to choose from |
 | `compile_check.md` | `qlsc ask` (`navigate.compile_checks`) | one retry of the request, with what the checks found: a Computation's restriction the question doesn't state, a value it states that the request leaves out |
 | `sql_fix.md` | `qlsc ask` | one fix after a failed dry run |
+| `precedent_system.md` | `qlsc ask` (the precedent route) | system prompt: re-run a query the business runs for a new question, changing only its literal values, or say it isn't the same query |
+| `precedent.md` | `qlsc ask` (the precedent route) | the question, today, and the business's query |
+| `correction.md` | `qlsc ask` (a correction: `navigate.corrected`) | the previous answer's request and what the asker said was wrong, for the request again |
+| `requests_system.md` | `qlsc requests` | system prompt: the business requests a query from the log serves, in its askers' words |
+| `requests.md` | `qlsc requests` | one query (who ran it, how often): whether it serves a business consumer, and two questions and a task it answers |
 | `cypher_system.md` | `qlsc ask --cypher` | system prompt: write one Cypher query over the virtual graph, within the subset Virtual Graph runs |
 | `cypher_request.md` | `qlsc ask --cypher` | the question, with the cohort's labels (and one hop around them), relationships and example SQL |
 | `cypher_fix.md` | `qlsc ask --cypher` | one fix after Virtual Graph's EXPLAIN rejects the query |

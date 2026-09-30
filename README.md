@@ -99,8 +99,10 @@ over the question's own query (Sunday).
 
 - **The compiler** writes 89% of the SQL answers deterministically (156 of 176), 75% of them right. The
   LLM fills a typed request; code writes the joins and the definitions.
-- **The router** takes compiled SQL when the question compiles, otherwise free Cypher when it answers,
-  otherwise free SQL. It scores the better route on each answer key.
+- **The router** takes memory when it holds the whole answer, then a precedent (the business's own
+  query for a request like this one, its values set from the question: `qlsc requests` builds the
+  bank), then compiled SQL when the question compiles, otherwise free Cypher when it answers, otherwise
+  free SQL. It scores the better route on each answer key.
 
 - **Aggregate questions:** SQL is ahead, and Cypher over the virtual graph adds a second translation
   step and no reach.
@@ -115,6 +117,28 @@ over the question's own query (Sunday).
 The evaluations, and what moved each number, are in
 [plans/2026-09-26-accuracy.md](plans/2026-09-26-accuracy.md), [the compiler plan](plans/2026-09-28-compiler.md)
 and [its second step](plans/2026-09-28-compiler-2.md).
+
+## Against naive approaches
+
+The same model (Sonnet 5.5) with only the warehouse's schema, against qlsc, on 186 questions the
+Fennmoor business actually asks (176 written from its log's queries, 10 hand-written), each scored on
+the answer's rows. "An agent" is qlsc used as AI agents use it: the agent holds its business process's
+state, writes its request, checks each answer and corrects it.
+
+| method | right, log questions | tokens per request (median) | seconds (median) |
+|---|---|---|---|
+| naive: the schema in the prompt | 66% | 43,872 | 4.4 |
+| naive: a generic tool-using agent | 61% | 50,304 | 22.4 |
+| qlsc, one shot | 75% | 6,667 | 4.4 |
+| **qlsc, used by an agent** | **90%** | 10,667 | 9.0 |
+
+On the 10 hand-written questions: 3, 6, 6 and 9 of 10. Where the business has asked a question before,
+qlsc runs its own query with the new values (a *precedent*): 86 of 89 right, at a median of 864 tokens
+and 3.5 seconds. Dollars per right answer favour the cached schema (1.8 cents against 4.7); what the
+layer buys is accuracy, small prompts and low latency, and a schema in the prompt stops fitting as an
+estate grows. One estate, synthetic, and the questions are written from the log, so about half are
+re-asks. The method, the caveats, and how to reproduce it:
+[examples/fennmoor-bank/eval/comparison/](examples/fennmoor-bank/eval/comparison/README.md).
 
 ## What the business computes: Computations and OKF
 
@@ -313,6 +337,20 @@ The example's three test principals (marketing, risk and contact-center service 
 `examples/fennmoor-bank/entitlements/setup.py`. `eval/entitlements.py` checks the gateway with the
 warehouse as the oracle. Over 60 questions it finds no leaks and no rows a principal may not read. Every
 Cypher answer ran as its principal, by BigQuery's job log.
+
+### Requests, corrections and measurement
+
+- **Requests:** `qlsc requests` writes, for every query the business runs that serves a consumer, three
+  requests it answers (two questions by different roles, and a task: the step of a business process
+  that ran it). `(:Request)-[:FROM]->(:QueryShape)`; shapes link by `SUCCEEDS` (a query that replaced
+  another) and `VARIANT_OF`.
+- **Answers are kept:** an `ask` in a conversation keeps its answer while the data it read holds. The
+  same request again is answered from memory, with no LLM or warehouse call (0.1 s). An asker's verdict
+  is a Fact about the answer; `correct()` asks again with everything said, and a rejected precedent is
+  never offered again.
+- **Every request is measured:** seconds from request to final answer, LLM tokens, calls, cost and
+  warehouse queries (`qlsc/meter.py`), against the service's targets (`service.targets`). `qlsc ask`
+  prints a `MEASURED` line.
 
 ## Repository
 

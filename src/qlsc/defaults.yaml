@@ -107,6 +107,11 @@ virtualize:                         # a Neo4j Virtual Graph model of the rows (q
   joins: [production, corroborated, single]   # confidence of the joins that make a column a node's key
   min_degree: 2                     # trusted joins that must converge on a column; below it, the unique side keys the node
 
+requests:                             # qlsc requests: the request bank, what the business asks of each query it runs (qlsc/requests.py)
+  sql_chars: 6000                     # of a query's SQL the writer reads: the longest dashboard queries, whole
+  succeeds_days: 21                   # SUCCEEDS: the replacement started within this many days of the old one's last run
+  succeeds_reads: 0.4                 # SUCCEEDS: and reads alike, the Jaccard of their columns at least this (the churn v2 -> v3 cutover: 0.5)
+
 navigate:
   hits: 5                           # closest Semantic nodes, any level
   groups: 4                         # level-1 groups opened
@@ -122,6 +127,12 @@ navigate:
   example_chars: 3000               # of each query's SQL, comments removed, that is embedded
   today: null                       # the date questions are asked on (YYYY-MM-DD), for "last quarter" and the like: both routes get its calendar and write literal dates. null: the real date. An estate whose data stops (a synthetic one) pins it, which also keeps answers reproducible from day to day
   memory_route: true                # the router answers from memory when it holds the whole answer: one entity, whose context the reader holds fresh (qlsc/memory.py answerable)
+  precedent_route: true             # the router tries precedent next: the business's own query for a request like this one, its values set
+                                    # from the question (qlsc requests' bank). Right 85 of 86 re-asks at once, a median 869 tokens
+                                    # (eval/comparison/README.md)
+  precedents: 3                     # precedent: the closest Requests' shapes tried, closest first; the first whose filled query is still
+                                    # that shape (the parser's fingerprint) answers
+  precedent_pool: 60                # precedent: Requests read from the vector index before the shapes are ranked
   compile_computations: 12          # compiled: Computations offered as the request's options, closest to the question first
   compile_hops: 2                   # compiled: the longest join path from the fact table
   compile_checks: true              # compiled: check the request against the question (a Computation's restriction it doesn't state, a value it states that the request leaves out) and ask once more with what was found; a week grain follows how the log's Computations truncate that column

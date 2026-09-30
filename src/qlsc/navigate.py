@@ -24,6 +24,15 @@
      would send.
   7. With --run, the answer: the query runs, billing at most `maximum_bytes_billed`.
 
+Before step 6, a precedent (`answer_precedent`): the request bank's Requests closest to the question
+(qlsc/requests.py), and for the first of their query shapes whose query, its literal values set from the
+question (prompts/precedent*.md), is still that shape by the parser's fingerprint, that query. The
+business's own SQL, run as it runs it: right on 85 of 86 re-asks at once, for a median 869 tokens.
+
+A correction (`corrected`): the question asked again with what the asker said was wrong, navigated
+again, and the previous answer's request with it for the writer (prompts/correction.md); a precedent
+the asker rejected isn't offered again.
+
 Everything is deterministic but the SQL and the Cypher: the same question gives the same cohort.
 """
 
@@ -453,7 +462,7 @@ def unique_check(s: Settings):
 def request_options(G: Graph, s: Settings, tr: dict) -> tuple[str, compiler.Catalogue, dict]:
     """The compiled request's options for a question: the cohort's tables, the closest Computations and
     the tables they read, the trusted joins between them. -> (the request's prompt, the catalogue, the
-    filter values shown). A trace's `addendum` (text an evaluation adds: a correction, precedents) goes
+    filter values shown). A trace's `addendum` (a correction: `corrected`) goes
     at the prompt's end."""
     p = s["navigate"]
     v = Embedder(s).embed([tr["question"]])[0]
@@ -611,9 +620,10 @@ def answered(a: dict) -> bool:
 
 
 # The router's rule (plans/2026-09-26-router.md, as revised), in order: memory, when it holds the whole answer;
+# a precedent, when the business runs this query with other values (plans/2026-09-30-accuracy-orthogonal.md);
 # the compiled SQL, when the request compiles; free Cypher, when it answers, which reaches the neighbourhoods
 # and paths a request can't express; free SQL, always.
-ROUTES = ("memory", "sql", "cypher", "free")
+ROUTES = ("memory", "precedent", "sql", "cypher", "free")
 
 
 def stands(route: str, a: dict | None) -> bool:
@@ -622,6 +632,8 @@ def stands(route: str, a: dict | None) -> bool:
         return False
     if route == "memory":
         return "cypher" in a
+    if route == "precedent":
+        return a.get("writer") == "precedent" and "sql" in a
     if route == "sql":
         return a.get("writer") == "compiled" and "sql" in a
     if route == "cypher":
@@ -694,22 +706,149 @@ def answer_memory(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: 
     return answer
 
 
-def answer_routed(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int | None = None) -> dict:
-    """Step 6 by the router (`route`), running only what it needs. -> the chosen route's answer, with `route`
-    ('memory' | 'sql' | 'cypher'), and why the compiled request didn't serve (`fallback`, `not_memory`)."""
+def answer_routed(
+    G: Graph,
+    s: Settings,
+    tr: dict,
+    execute: bool = False,
+    rows: int | None = None,
+    routes: tuple[str, ...] = ROUTES,
+    rejected: frozenset[str] = frozenset(),
+) -> dict:
+    """Step 6 by the router (`route`), running only what it needs, over `routes` (free SQL always). ->
+    the chosen route's answer, with `route` ('memory' | 'precedent' | 'sql' | 'cypher'), and why the
+    routes before it didn't serve (`not_memory`, `not_precedent`, `fallback`). `rejected`: the precedents
+    (query shapes) the asker rejected in this exchange."""
     candidates: dict = {}
-    if s["navigate"]["memory_route"]:
+    p = s["navigate"]
+    if p["memory_route"] and "memory" in routes:
         candidates["memory"] = lambda: answer_memory(G, s, tr, execute, rows)
-    candidates["sql"] = lambda: answer_compiled(G, s, tr, execute, rows)
-    candidates["cypher"] = lambda: answer_cypher(G, s, tr, execute, rows)
+    if p["precedent_route"] and "precedent" in routes:
+        candidates["precedent"] = lambda: answer_precedent(G, s, tr, execute, rows, rejected)
+    if "sql" in routes:
+        candidates["sql"] = lambda: answer_compiled(G, s, tr, execute, rows)
+    if "cypher" in routes:
+        candidates["cypher"] = lambda: answer_cypher(G, s, tr, execute, rows)
     candidates["free"] = lambda: answer_free(G, s, tr, execute, rows) | {"writer": "free"}
     name, a, tried = route(candidates)
     extra = {"route": "sql" if name == "free" else name}
     if name != "memory" and "memory" in tried:
         extra["not_memory"] = tried["memory"]["fallback"]
+    if name not in ("memory", "precedent") and "precedent" in tried:
+        extra["not_precedent"] = tried["precedent"]["fallback"]
+        extra["tried"] = tried["precedent"].get("tried")
     if name in ("cypher", "free") and "sql" in tried:
         extra |= {"fallback": tried["sql"]["fallback"], "request": tried["sql"].get("request")}
     return a | extra
+
+
+def corrected(
+    G: Graph,
+    s: Settings,
+    question: str,
+    previous: dict,
+    feedback: list[str],
+    exclude: frozenset[str] = frozenset(),
+    allow: entitle.Allowlist | None = None,
+) -> dict:
+    """The trace for a question asked again after corrections (`feedback`, everything the asker said so
+    far): navigated again for the question with what was said, as in a conversation, so navigation, the
+    request's checks and the week rule hear it too; the previous answer's request (or its SQL) goes to the
+    writer with it (prompts/correction.md)."""
+    said = "; ".join(feedback)
+    tr = trace(G, s, f"{question} ({said})", exclude=exclude, allow=allow)
+    last = json.dumps(previous["request"]) if previous.get("request") else previous.get("sql") or ""
+    return tr | {"addendum": "\n\n" + prompt("correction", previous=last, feedback=said)}
+
+
+# ---- the precedent route: the business's own query, its values set from the question
+
+PRECEDENTS = """
+CALL db.index.vector.queryNodes('request_embedding', $pool, $v) YIELD node AS q, score
+MATCH (q)-[:FROM]->(sh:QueryShape) WHERE NOT sh.id IN $skip
+WITH sh, max(score) AS score ORDER BY score DESC, sh.id LIMIT $k
+RETURN sh.id AS shape, sh.sample_sql AS sql, sh.jobs AS jobs, score,
+       [(sh)-[:REFERENCES]->(t:Table) | t.id] AS tables
+"""
+PRECEDENT_SCHEMA = {"type": "object", "required": ["same_query", "sql"], "properties": {
+    "same_query": {"type": "boolean", "description": "true when the question asks this query with other values"},
+    "sql": {"type": "string", "description": "the query with only its literal values changed; empty when not the same query"}}}  # fmt: skip
+_catalogs: dict = {}
+
+
+def parser_catalog(s: Settings):
+    """The parser's catalog (qlsc_parse), from the catalog snapshot, read once."""
+    from qlsc_parse import Catalog
+
+    path = s.work / "catalog.json"
+    if path not in _catalogs:
+        _catalogs[path] = Catalog(json.loads(path.read_text()))
+    return _catalogs[path]
+
+
+def query_of(sql: str, dialect: str) -> str | None:
+    """The query itself when a statement is one query, and so safe to run; else None."""
+    try:
+        trees = [x for x in sqlglot.parse(sql, read=dialect) if x is not None]
+    except sqlglot.errors.ParseError:
+        return None
+    return trees[0].sql(dialect=dialect) if len(trees) == 1 and isinstance(trees[0], exp.Query) else None
+
+
+def answer_precedent(
+    G: Graph,
+    s: Settings,
+    tr: dict,
+    execute: bool = False,
+    rows: int | None = None,
+    rejected: frozenset[str] = frozenset(),
+) -> dict:
+    """The precedent route: the query shapes of the Requests closest to the question (navigate.precedents,
+    none in `rejected`, none the trace excludes unless it gives another text of it: `texts`, an evaluation's
+    re-ask, the same query with other values), each read by the query model with the question
+    (prompts/precedent*.md): is it this query with other values, and the query with its literal values set.
+    The first still that shape (the parser's fingerprint) and passing its dry run answers. With the
+    entitlement gateway, only a shape whose tables the reader may all read.
+    -> {writer: precedent, precedent: its shape, sql, tried, ...} | {fallback: why, tried}"""
+    from qlsc_parse import fingerprint
+
+    p = s["navigate"]
+    allow, texts = tr.get("allow"), tr.get("texts", {})
+    wh = entitle.warehouse(s, allow)
+    v = Embedder(s).embed([tr["question"]])[0]
+    skip = sorted(set(rejected) | (set(tr.get("exclude", [])) - set(texts)))
+    llm = LLM(prompt("precedent_system"), s, s["llm"]["query_model"])
+    cat, day, tried = parser_catalog(s), today(s).isoformat(), []
+    for h in G.rows(PRECEDENTS, pool=p["precedent_pool"], v=v, skip=skip, k=p["precedents"]):
+        if allow and not all(allow.readable(x) for x in h["tables"]):
+            continue
+        sql = texts.get(h["shape"]) or h["sql"]
+        out = llm.call(prompt("precedent", question=tr["question"], sql=sql, today=day), PRECEDENT_SCHEMA,
+                       max_tokens=8000)  # fmt: skip
+        project = next((x.split(".")[0] for x in sql_tables(sql, wh.dialect)), None)
+        same = (
+            bool(out["same_query"] and out["sql"])
+            and fingerprint(out["sql"], cat, project).get("shape_id") == h["shape"]
+        )
+        tried.append({"shape": h["shape"], "score": round(h["score"], 3), "same": same})
+        body = query_of(out["sql"], wh.dialect) if same else None
+        if not body:
+            continue
+        res = wh.dry_run(body)
+        if res["ok"] is False:
+            tried[-1]["dry_run"] = res["error"][:200]
+            continue
+        answer = {"writer": "precedent", "warehouse": wh.name, "precedent": h["shape"], "sql": body,
+                  "tables": sql_tables(body, wh.dialect), "tried": tried, "dry_run": res,
+                  "explanation": f"The business's own query (run {h['jobs']} times in the log), its values set "
+                                 "for this question."}  # fmt: skip
+        if execute:
+            t0 = time.time()
+            answer["result"] = wh.run(body, p["maximum_bytes_billed"], rows or p["rows_shown"])
+            answer["result"]["seconds"] = time.time() - t0
+        return answer
+    return {"fallback": "no precedent: no close Request's query asks this with other values" if tried
+            else "no precedent: no Request close enough", "tried": tried}  # fmt: skip
 
 
 def answer_cypher(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: int | None = None) -> dict:
@@ -1047,7 +1186,7 @@ def explain(
 def run(
     s: Settings, question: str, route: str = "auto", execute: bool = False, as_: str | None = None
 ) -> None:
-    """`qlsc ask`: the trace, then the answer by `route`: auto (the router), sql, cypher, or none (the
+    """`qlsc ask`: the trace, then the answer by `route`: auto (the router), precedent, sql, cypher, or none (the
     cohort only). `as_`: on a principal's behalf, through the entitlement gateway (qlsc/entitle.py). What
     answering cost, measured (qlsc/meter.py), last, against the service's targets."""
     with meter.measure() as m, Graph(s) as G:
@@ -1069,8 +1208,13 @@ def run(
             {"cypher": print_cypher, "memory": print_memory}.get(a["route"], print_sql)(a)
             if a.get("not_memory"):
                 print(f"\n   (not from memory: {a['not_memory']})")
+            if a.get("not_precedent"):
+                print(f"   (not from a precedent: {a['not_precedent']})")
         elif route == "memory":
             print_memory(answer_memory(G, s, tr, execute))
+        elif route == "precedent":
+            a = answer_precedent(G, s, tr, execute)
+            print_sql(a) if "sql" in a else print(f"\n5. {a['fallback']}")
         elif route == "cypher":
             print_cypher(answer_cypher(G, s, tr, execute))
         elif route == "sql":

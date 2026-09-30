@@ -1,13 +1,14 @@
 """qlsc: build a semantic layer from a warehouse's query log, and ask it questions.
 
   qlsc extract                  the aggregated log and the catalog snapshot, from the warehouse
-  qlsc build                    parse, load, variables, cluster, hierarchy, align (from <work>)
-  qlsc parse | load | variables | cluster | hierarchy | align     one stage
+  qlsc build                    parse, load, variables, computations, cluster, hierarchy, align, requests
+  qlsc parse | load | variables | cluster | hierarchy | align | requests     one stage
   qlsc virtualize               a Neo4j Virtual Graph model of the rows, written from the semantic layer
   qlsc ask "question"           question -> semantic layer -> tables -> the router's query, dry-run:
+                                memory, else a precedent (the business's own query, its values set), else
                                 compiled SQL, else free Cypher when it answers, else free SQL
-    --sql | --cypher | --memory ... -> that route only (Cypher over the virtual graph, checked with EXPLAIN;
-                                memory, when it holds the whole answer)
+    --sql | --cypher | --memory | --precedent ... -> that route only (Cypher over the virtual graph, checked
+                                with EXPLAIN; memory, when it holds the whole answer)
     --run                       ... -> and the answer
     --as PRINCIPAL              ... on a principal's behalf: only what the warehouse lets them read, run as them
   qlsc remember LABEL KEY...    an entity's context, fetched from the virtual graph and kept in memory;
@@ -41,6 +42,7 @@ from qlsc import (
     navigate,
     okf,
     parse,
+    requests,
     variables,
     virtualize,
 )
@@ -58,6 +60,7 @@ def build(s, a) -> None:
         ("cluster", lambda: cluster.run(s)),
         ("hierarchy", lambda: hierarchy.run(s)),
         ("align", lambda: align.run(s)),
+        ("requests", lambda: requests.run(s)),
     ):
         print(f"\n== {title}")
         step()
@@ -96,6 +99,9 @@ def parser() -> argparse.ArgumentParser:
         p.add_argument("--no-names", action="store_true", help="skip the LLM naming")
         p.set_defaults(func=lambda s, a, m=module: m.run(s, names=not a.no_names))
 
+    sub.add_parser(
+        "requests", help="the request bank: what the business asks of the queries it runs"
+    ).set_defaults(func=lambda s, a: requests.run(s))
     sub.add_parser("hierarchy", help="Semantic levels 2 and up").set_defaults(
         func=lambda s, a: hierarchy.run(s)
     )
@@ -117,6 +123,9 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--sql", action="store_true", help="the SQL route only, instead of the router's choice")
     p.add_argument("--cypher", action="store_true", help="Cypher over the virtual graph only")
     p.add_argument("--memory", action="store_true", help="from memory only: when it holds the whole answer")
+    p.add_argument(
+        "--precedent", action="store_true", help="a precedent only: the business's own query, its values set"
+    )
     p.add_argument("--run", action="store_true", help="run the query and print the answer")
     p.add_argument(
         "--as",
@@ -126,7 +135,17 @@ def parser() -> argparse.ArgumentParser:
         "only what the warehouse lets them read, run as them",
     )
     route = lambda a: (
-        "none" if a.no_sql else "cypher" if a.cypher else "memory" if a.memory else "sql" if a.sql else "auto"
+        "none"
+        if a.no_sql
+        else "cypher"
+        if a.cypher
+        else "memory"
+        if a.memory
+        else "precedent"
+        if a.precedent
+        else "sql"
+        if a.sql
+        else "auto"
     )
     p.set_defaults(
         func=lambda s, a: navigate.run(s, " ".join(a.question), route(a), execute=a.run, as_=a.as_)
