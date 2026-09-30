@@ -12,6 +12,13 @@ beside the warehouse facts `remember` keeps.
                  ask     a question: its result summary, and -[:READ]-> the Table and Computation stubs its
                          query read. Its fingerprint is its compiled request with every value out, as the
                          parser fingerprints SQL: what distillation groups by
+  answers      an ask's step keeps its answer whole (to memory.answer_rows) until the data it read changes:
+               holds_until, the earliest of its tables' write cadences (as a fact's). The same request again
+               (the same words, the same day, the same reader and grants: `asked`) is answered from memory
+               while that holds, a new step -[:SAME_AS]-> the one that answered it, no LLM or warehouse call.
+               The asker's verdict is a Fact about the step, from their message: accepted, or rejected with
+               what was wrong (`correct`: the request asked again in the same task, the correction heard). A
+               rejected answer is never given again
   knowledge    (Fact {predicate, value})-[:ABOUT]->(its subject), -[:MENTIONS]-> anything else it names,
                -[:FROM]-> the message it was learned in. A preference, a relation between two things, an
                outcome, a rating: all Facts. (Entity {name, type}) for a person or thing no domain label
@@ -34,6 +41,7 @@ conversation from a file (`record`); an agent calls the same methods directly.
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import json
 import re
 import time
@@ -158,6 +166,30 @@ MATCH (d:Decision {choice: $choice, owner: $by}) WHERE d.valid_until IS NULL
 RETURN elementId(d) AS id ORDER BY d.recorded_at DESC LIMIT 1
 """
 COMPUTATIONS = "MATCH (c:Computation) WHERE c.id IN $ids RETURN c.id AS id, c.name AS name"
+# An ask's answer, kept for the same request while its data holds; never one its asker rejected, given first or
+# again from memory. A step answered from memory is SAME_AS the one that answered it, never another copy.
+KEEP = "MATCH (s:Step {id: $id}) SET s.asked = $asked, s.holds_until = $holds_until, s.answer = $answer"
+REMEMBERED = """
+MATCH (s:Step {tool: 'ask', owner: $by, asked: $asked, status: 'ok'})
+WHERE s.answer IS NOT NULL AND (s.holds_until IS NULL OR s.holds_until > $now) AND NOT (s)-[:SAME_AS]->()
+  AND NOT EXISTS { (:Fact {owner: $by, predicate: 'rejected'})-[:ABOUT]->(:Step)-[:SAME_AS]->{0,1}(s) }
+RETURN s.id AS id, s.answer AS answer, s.holds_until AS holds_until ORDER BY s.at DESC LIMIT 1
+"""
+SAME_AS = """
+MATCH (s:Step {id: $id}), (was:Step {id: $was})
+SET s.origin = 'memory', s.asked = was.asked, s.holds_until = was.holds_until, s.answer = was.answer
+CREATE (s)-[:SAME_AS]->(was)
+"""
+VERDICT = """
+MATCH (m:Message {id: $message}), (s:Step {id: $step})
+CREATE (f:Fact {id: $id, predicate: $predicate, value: $value, origin: 'user', confidence: 1.0, valid_from: $now,
+                recorded_at: $now, owner: $by, scope: 'private'})
+CREATE (f)-[:ABOUT]->(s)
+CREATE (f)-[:FROM]->(m)
+"""
+TABLE_CADENCE = (
+    "MATCH (t:Table) WHERE t.id IN $ids RETURN t.id AS id, t.write_days AS write_days, t.frozen AS frozen"
+)
 TABLE_NAMES = "MATCH (t:Table) WHERE t.in_catalog RETURN t.id AS id, t.name AS name"
 
 
@@ -171,7 +203,7 @@ class Conversation:
         self.m = memory.reader_model(s, as_)
         self.id = str(uuid.uuid4())
         self.seq, self.last_message = 0, None
-        self.task, self.step_seq, self.last_step = None, 0, None
+        self.task, self.step_seq, self.last_step, self.last_ask = None, 0, None, None
         with Graph(s) as G:
             self.tables = {r["id"]: r["name"] for r in G.rows(TABLE_NAMES)}
         memory.ensure(s, self.m)
@@ -209,8 +241,9 @@ class Conversation:
 
     # ---- short-term: messages, and the task each user message starts
 
-    def say(self, role: str, text: str, mentions: list[str] = ()) -> str:
-        """A message after the last; -> its id. A user's message starts a task; the agent's reply closes it."""
+    def say(self, role: str, text: str, mentions: list[str] = (), same_task: bool = False) -> str:
+        """A message after the last; -> its id. A user's message starts a task, unless `same_task` (a
+        correction: the same request, asked again); the agent's reply closes it."""
         if role not in ("user", "agent"):
             raise memory.Unsupported(f"a message is the user's or the agent's, not {role!r}")
         mid, now = str(uuid.uuid4()), self.clock()
@@ -218,6 +251,8 @@ class Conversation:
         self.run(MESSAGE, conversation=self.id, id=mid, seq=self.seq, role=role,
                  agent=self.agent if role == "agent" else None, text=text, now=now, prev=self.last_message)  # fmt: skip
         self.last_message = mid
+        if same_task and self.task:
+            return mid
         self.close("done")
         if role == "user":
             self.task, self.step_seq, self.last_step = str(uuid.uuid4()), 0, None
@@ -281,11 +316,27 @@ class Conversation:
 
     def ask(self, question: str) -> dict:
         """The `ask` tool: the router's answer, run as the reader. Its step keeps the route, the query and the
-        first rows, and READ the stubs of the Tables its query read and the Computations its request used."""
-        rows, t0 = self.s["memory"]["tool_result_rows"], time.time()
+        first rows, and READ the stubs of the Tables its query read and the Computations its request used; and
+        the answer whole, for the same request while its data holds. A request answered before, and still
+        holding, is answered from memory: {..., from_memory: the step that answered it}."""
+        rows, t0, now = self.s["memory"]["tool_result_rows"], time.time(), self.clock()
+        key = asked(self.s, question, self.m.allow)
+        hit = self.run(REMEMBERED, asked=key, now=now)
+        if hit:
+            step = self._new_step("ask")
+            a = json.loads(hit[0]["answer"]) | {"from_memory": hit[0]["id"]}
+            res = a["result"]
+            out = {"route": a.get("route"), "writer": a.get("writer"), "query": a.get("sql") or a.get("cypher") or "",
+                   "columns": res.get("columns"), "rows": res["rows"][:rows], "total": res.get("total")}  # fmt: skip
+            self._attach(step, {"question": question}, out, "ok", None, time.time() - t0, None)
+            self.run(SAME_AS, id=step, was=hit[0]["id"])
+            self.last_ask = step
+            return a
         with Graph(self.s) as G:
             tr = navigate.trace(G, self.s, question, allow=self.m.allow)
-            a = navigate.answer_routed(G, self.s, tr, execute=True)
+            a = navigate.answer_routed(G, self.s, tr, execute=True, rows=self.s["memory"]["answer_rows"])
+            tables = [x for x in a.get("tables") or [] if x in self.tables]  # the layer's, which have stubs
+            cadence = G.rows(TABLE_CADENCE, ids=tables)
         res = a.get("result") or {}
         out = {
             "route": a.get("route"),
@@ -296,10 +347,16 @@ class Conversation:
             "total": res.get("total"),
         }
         error = None if res.get("ok") else (res.get("error") or a.get("declined") or "no answer")
-        tables = [x for x in a.get("tables") or [] if x in self.tables]  # the layer's, which have stubs
         step = self._new_step("ask")
         self._attach(step, {"question": question}, out, "error" if error else "ok", error, time.time() - t0,
                      fingerprint(a, tables))  # fmt: skip
+        whole = not error and res.get("total", 0) <= len(res.get("rows") or [])
+        kept = {k: a.get(k) for k in ("route", "writer", "sql", "cypher", "tables", "explanation")} | {
+            "result": res
+        }
+        self.run(KEEP, id=step, asked=key, holds_until=answer_holds_until(self.s, cadence, now),
+                 answer=json.dumps(kept, default=str) if whole else None)  # fmt: skip
+        self.last_ask = step
         computations = sorted(set(computation_ids(a.get("request"))))
         with Graph(self.s) as G:
             named = G.rows(COMPUTATIONS, ids=computations)
@@ -310,6 +367,22 @@ class Conversation:
             computations=named,
         )
         return a
+
+    def accept(self, text: str = "That's right.") -> None:
+        """The asker's verdict on the last answer: accepted (a Fact about its step, from their message)."""
+        self._verdict(self.say("user", text, same_task=True), "accepted", text)
+
+    def correct(self, question: str, feedback: str) -> dict:
+        """The asker's verdict on the last answer: rejected, with what was wrong; then the request asked again
+        in the same task, the correction heard (the question with it)."""
+        self._verdict(self.say("user", feedback, same_task=True), "rejected", feedback)
+        return self.ask(f"{question} ({feedback})")
+
+    def _verdict(self, message: str, predicate: str, value: str) -> None:
+        if self.last_ask is None:
+            raise memory.Unsupported("no answer to accept or reject")
+        self.run(VERDICT, message=message, step=self.last_ask, id=str(uuid.uuid4()), predicate=predicate,
+                 value=value, now=self.clock())  # fmt: skip
 
     # ---- knowledge: what the agent learns, and decides
 
@@ -401,6 +474,24 @@ def fingerprint(a: dict, tables: list[str]) -> str:
     if a.get("request") and a.get("writer") == "compiled":
         return "ask " + json.dumps(shape(a["request"]), sort_keys=True)
     return f"ask {a.get('route')} over {', '.join(sorted(tables))}"
+
+
+def asked(s: Settings, question: str, allow) -> str:
+    """A request's identity, for answering it again from memory: its words, the day it is asked on (a
+    question's "last quarter" is relative), the model that writes its query, and the reader's grants (a
+    changed grant is a different request)."""
+    grants = allow and [sorted(allow.tables), sorted(map(list, allow.hidden)), sorted(allow.rows)]
+    ident = [question.strip(), str(navigate.today(s)), s["llm"]["query_model"], grants]
+    return hashlib.sha256(json.dumps(ident).encode()).hexdigest()
+
+
+def answer_holds_until(s: Settings, tables: list[dict], at: dt.datetime) -> dt.datetime | None:
+    """Until when an answer holds: until its first table is written again (memory.holds_until); for good
+    when every table it read is frozen; for memory.unknown_hold_days when it read no table of the layer."""
+    ends = [memory.holds_until(s, t, at) for t in tables]
+    if not tables:
+        return at + dt.timedelta(days=s["memory"]["unknown_hold_days"])
+    return min((e for e in ends if e is not None), default=None)
 
 
 def computation_ids(request) -> list[str]:

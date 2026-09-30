@@ -43,6 +43,7 @@ from collections.abc import Iterator
 import sqlglot
 from sqlglot import exp
 
+from qlsc import meter
 from qlsc.config import ConfigError, Settings
 
 CONNECTORS = {"bigquery": "qlsc.warehouse.bigquery:BigQuery"}
@@ -155,6 +156,7 @@ class Warehouse(ABC):
             physical = self.physical_sql(sql)
         except sqlglot.errors.ParseError as e:
             return {"ok": False, "error": str(e)[:300]}
+        meter.report(warehouse_queries=1)
         return self._dry_run(physical)
 
     def run(self, sql: str, maximum_bytes_billed: int, rows: int, cache: bool = True) -> dict:
@@ -164,7 +166,9 @@ class Warehouse(ABC):
             physical = self.physical_sql(sql)
         except sqlglot.errors.ParseError as e:
             return {"ok": False, "error": str(e)[:300]}
-        return self._run(physical, maximum_bytes_billed, rows, cache)
+        out = self._run(physical, maximum_bytes_billed, rows, cache)
+        meter.report(warehouse_queries=1, bytes_billed=out.get("bytes_billed") or 0)
+        return out
 
     def physical_sql(self, sql: str) -> str:
         """Logical table names (the log's, the graph's) -> the deployed tables, from the catalog snapshot."""

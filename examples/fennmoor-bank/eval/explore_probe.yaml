@@ -1,0 +1,93 @@
+gold:
+- Q01
+- Q02
+- Q04
+- Q05
+- Q07
+- Q08
+- Q09
+- Q11
+- Q12
+- Q14
+misses:
+  L04bfef55: column
+  L0b88eeab: dimension
+  L12addf1d: ruler
+  L30b11cd6: dimension
+  L359c74a0: ruler
+  L42795751: dimension
+  L42c41a99: column
+  L4540fe70: ruler
+  L469ef255: ruler
+  L4b4d230a: ruler
+  L5bac0ee7: dimension
+  L5e63b8a9: dimension
+  L62fdbc12: ruler
+  L6505b2e4: dimension
+  L66b70456: ruler
+  L6b9d5aa5: source
+  L6d29ff82: source
+  L73371e91: ruler
+  L754091da: request
+  L788679b6: ruler
+  L78ae7fd3: column
+  L78f9c15c: ruler
+  L7ac9ed17: source
+  L7e87d30b: ruler
+  L8bc8a936: column
+  L8ee70d9a: ruler
+  L8f767484: request
+  L97629e25: ruler
+  L986ea342: ruler
+  L9bedbbe0: source
+  L9d80def1: column
+  La0ef9034: request
+  La5545641: source
+  La6c932d6: join
+  Lb680ccfe: dimension
+  Lb79256f9: request
+  Lba494fec: source
+  Lccd8d6b4: column
+  Ld5366f8d: dimension
+  Ld63381a3: source
+  Ldfe49bfa: join
+  Le166be49: request
+  Le6d5789b: request
+  Le8c70805: request
+  Led874c20: ruler
+  Lefe10343: ruler
+  Lf24da50d: source
+  Lfba52c1e: ruler
+right:
+- L000c43e2
+- L0a171fb1
+- L11f336b4
+- L1ab5b4f7
+- L21959863
+- L31b89126
+- L3a388091
+- L3d84d777
+- L41fd18a8
+- L49555283
+- L4f929b5b
+- L56b51129
+- L5d233427
+- L5f5e344a
+- L69a33e9e
+- L6f55e765
+- L75ea7f97
+- L7f4db61e
+- L83fe5e7b
+- L8f9a7871
+- L9dfa7691
+- Laf86f8c8
+- Lb8a36f12
+- Lba99d5e4
+- Lc3f3abff
+- Lcf63b774
+- Ld9c8c1f0
+- Ldd1130d2
+- Le5559ed6
+- Lea731b4b
+- Lee760ebe
+- Lf3aa1fe7

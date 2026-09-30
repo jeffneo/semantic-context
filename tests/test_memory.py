@@ -272,3 +272,31 @@ def test_a_batch_gives_each_anchor_the_context_it_gets_alone(tmp_path):
     assert batch[2].capped() == [] and ("Txn", "e") in batch[2].nodes
     assert not batch[99].nodes  # no such customer: an empty context
     assert in_batch < 4 * len(reads)  # read together, not once per customer
+
+
+def test_an_answer_holds_until_its_first_table_is_written_again():
+    from qlsc import converse
+
+    s = {"memory": {"unknown_hold_days": 1}}
+    at = dt.datetime(2026, 7, 1, tzinfo=dt.UTC)
+    daily = {"write_days": ["2026-06-01", "2026-06-02", "2026-06-03"]}
+    weekly = {"write_days": ["2026-06-01", "2026-06-08", "2026-06-15"]}
+    assert converse.answer_holds_until(s, [weekly, daily], at) == at + dt.timedelta(days=1)
+    assert converse.answer_holds_until(s, [{"frozen": True}, weekly], at) == at + dt.timedelta(days=7)
+    assert converse.answer_holds_until(s, [{"frozen": True}], at) is None  # frozen: for good
+    assert converse.answer_holds_until(s, [], at) == at + dt.timedelta(days=1)
+
+
+def test_the_same_request_is_the_same_words_day_model_and_grants():
+    from qlsc import converse
+
+    s = {"navigate": {"today": "2026-07-01"}, "llm": {"query_model": "m"}}
+    allow = entitle.Allowlist("p", {"a.t"}, set(), set(), set())
+    key = converse.asked(s, "card spend last quarter", allow)
+    assert key == converse.asked(s, " card spend last quarter ", allow)
+    assert key != converse.asked(s, "card spend last quarter", None)  # another reader's grants
+    assert key != converse.asked(
+        s, "card spend last quarter", entitle.Allowlist("p", {"a.t", "a.u"}, set(), set(), set())
+    )
+    tomorrow = {"navigate": {"today": "2026-07-02"}, "llm": {"query_model": "m"}}
+    assert key != converse.asked(tomorrow, "card spend last quarter", allow)  # "last quarter" is relative

@@ -5,7 +5,8 @@ prompt(name, **values). Code never holds prompt text.
 
 LLM: Anthropic (config `llm.model`), every answer a structured output (the call's JSON schema, closed).
 Cached by the full request in <work>/llm_cache/. Embeddings: Azure OpenAI (config `embeddings`), cached by text
-in <work>/emb_cache.json. A rebuild over unchanged evidence calls neither.
+in <work>/emb_cache.json. A rebuild over unchanged evidence calls neither. Both report what they spend to
+the meter of the request they serve (qlsc/meter.py).
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import anthropic
 
+from qlsc import meter
 from qlsc.config import PROMPTS, Settings, secret
 from qlsc.graph import Graph
 
@@ -49,6 +51,7 @@ class LLM:
         self.workers = llm["concurrency"]
         # $ per million tokens in and out; None: not listed
         self.price = next(((p["in"], p["out"]) for p in llm["prices"] if p["model"] == self.model), None)
+        self.cache_prices = llm["cache_prices"]
         self.system = system
         self.client = anthropic.Anthropic(api_key=secret("ANTHROPIC_API_KEY"))
         self.cache = settings.work / "llm_cache"
@@ -62,6 +65,7 @@ class LLM:
         path = self.cache / f"{key}.json"
         if path.exists():
             self.cached += 1
+            meter.report(llm_cached=1)
             return json.loads(path.read_text())
         extra = {"thinking": {"type": self.thinking}} if self.thinking else {}
         out = None
@@ -81,8 +85,10 @@ class LLM:
                 self.seconds += time.time() - t0
             except (anthropic.RateLimitError, anthropic.APIConnectionError, anthropic.InternalServerError):
                 time.sleep(2**attempt * 3)
+                meter.report(waits=2**attempt * 3)
                 continue
             self.calls += 1
+            meter.llm(resp.usage, self.price, self.cache_prices)
             self.tokens["in"] += resp.usage.input_tokens
             self.tokens["out"] += resp.usage.output_tokens
             if resp.stop_reason == "max_tokens":  # cut off: the JSON is left unterminated
@@ -251,6 +257,7 @@ class Embedder:
                 self.cache[k] = d["embedding"]
         if todo:
             self.cache_path.write_text(json.dumps(self.cache))
+            meter.report(embedded=len(todo))
         return [self.cache[k] for k in keys]
 
 

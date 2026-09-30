@@ -41,7 +41,7 @@ from neo4j.exceptions import Neo4jError, ServiceUnavailable
 from sqlglot import exp
 
 from qlsc import compile as compiler
-from qlsc import entitle, memory
+from qlsc import entitle, memory, meter
 from qlsc.config import Settings
 from qlsc.graph import Graph
 from qlsc.llm import LLM, Embedder, cosine, prompt
@@ -450,12 +450,11 @@ def unique_check(s: Settings):
     return unique
 
 
-def compiled_request(G: Graph, s: Settings, tr: dict) -> tuple[dict, compiler.Catalogue, list[str]]:
-    """The typed request for a question (qlsc/compile.py), the LLM choosing from the layer's options:
-    the cohort's tables, the closest Computations and the tables they read, the trusted joins. One LLM
-    call, cached, whichever route it is compiled for; with navigate.compile_checks, a second when the
-    checks find something, and a week grain set as the log truncates the column.
-    -> (request, catalogue, what the checks found and changed)"""
+def request_options(G: Graph, s: Settings, tr: dict) -> tuple[str, compiler.Catalogue, dict]:
+    """The compiled request's options for a question: the cohort's tables, the closest Computations and
+    the tables they read, the trusted joins between them. -> (the request's prompt, the catalogue, the
+    filter values shown). A trace's `addendum` (text an evaluation adds: a correction, precedents) goes
+    at the prompt's end."""
     p = s["navigate"]
     v = Embedder(s).embed([tr["question"]])[0]
     offered = {
@@ -480,7 +479,6 @@ def compiled_request(G: Graph, s: Settings, tr: dict) -> tuple[dict, compiler.Ca
     if allow:
         joins = [j for j in joins if allow.column(j["a"], j["ac"]) and allow.column(j["b"], j["bc"])]
     cat = compiler.Catalogue(tables, joins, offered)
-    llm = LLM(prompt("compile_system", **s.business), s, s["llm"]["query_model"])
     values = filter_values(G, list(tables), p["filter_values"], allow)
     text = prompt(
         "compile_request",
@@ -492,6 +490,18 @@ def compiled_request(G: Graph, s: Settings, tr: dict) -> tuple[dict, compiler.Ca
         examples=example_sql(tr["examples"]),
         **s.business,
     )
+    return text + tr.get("addendum", ""), cat, values
+
+
+def compiled_request(G: Graph, s: Settings, tr: dict) -> tuple[dict, compiler.Catalogue, list[str]]:
+    """The typed request for a question (qlsc/compile.py), the LLM choosing from the layer's options
+    (request_options). One LLM call, cached, whichever route it is compiled for; with
+    navigate.compile_checks, a second when the checks find something, and a week grain set as the log
+    truncates the column. -> (request, catalogue, what the checks found and changed)"""
+    p = s["navigate"]
+    text, cat, values = request_options(G, s, tr)
+    tables = list(cat.tables)
+    llm = LLM(prompt("compile_system", **s.business), s, s["llm"]["query_model"])
     request = llm.call(text, compiler.SCHEMA, max_tokens=3000)
     found: list[str] = []
     if p["compile_checks"]:
@@ -499,7 +509,7 @@ def compiled_request(G: Graph, s: Settings, tr: dict) -> tuple[dict, compiler.Ca
         if found:
             retry = prompt("compile_check", notes="\n".join(f"- {n}" for n in found))
             request = llm.call(text + "\n\n" + retry, compiler.SCHEMA, max_tokens=3000)
-        starts = compiler.week_starts(G.rows(WEEKS, tables=list(tables), exclude=tr.get("exclude", [])))
+        starts = compiler.week_starts(G.rows(WEEKS, tables=tables, exclude=tr.get("exclude", [])))
         found += compiler.weeks(request, cat, starts, tr["question"])
     return request, cat, found
 
@@ -562,7 +572,7 @@ def answer_free(G: Graph, s: Settings, tr: dict, execute: bool = False, rows: in
         examples=example_sql(tr["examples"]),
         today=calendar(today(s)),
         **s.business,
-    )
+    ) + tr.get("addendum", "")  # an evaluation's added text, as in request_options
     out = llm.call(request, SQL_SCHEMA, max_tokens=3000)
     res = wh.dry_run(out["sql"])
     if res["ok"] is False:
@@ -1038,8 +1048,9 @@ def run(
     s: Settings, question: str, route: str = "auto", execute: bool = False, as_: str | None = None
 ) -> None:
     """`qlsc ask`: the trace, then the answer by `route`: auto (the router), sql, cypher, or none (the
-    cohort only). `as_`: on a principal's behalf, through the entitlement gateway (qlsc/entitle.py)."""
-    with Graph(s) as G:
+    cohort only). `as_`: on a principal's behalf, through the entitlement gateway (qlsc/entitle.py). What
+    answering cost, measured (qlsc/meter.py), last, against the service's targets."""
+    with meter.measure() as m, Graph(s) as G:
         allow = entitle.allowlist(G, s, as_) if as_ else None
         if allow:
             print(
@@ -1064,3 +1075,4 @@ def run(
             print_cypher(answer_cypher(G, s, tr, execute))
         elif route == "sql":
             print_sql(answer_sql(G, s, tr, execute))
+    print(f"\nMEASURED  {meter.line(m.measure(), s['service']['targets'])}")
