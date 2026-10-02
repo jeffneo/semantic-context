@@ -167,8 +167,8 @@ state, writes its request, checks each answer and corrects it.
 On the 10 hand-written questions: 3, 6, 6 and 9 of 10. Where the business has asked a question before,
 qlsc runs its own query with the new values (a _precedent_): 86 of 89 right, at a median of 864 tokens
 and 3.5 seconds. Dollars per right answer favour the cached schema (1.8 cents against 4.7); what the
-layer buys is accuracy, small prompts and low latency, and a schema in the prompt stops fitting as an
-estate grows. One estate, synthetic, and the questions are written from the log, so about half are
+layer buys is accuracy, small prompts and low latency, and a schema in the prompt grows with the
+estate. One estate, synthetic, and the questions are written from the log, so about half are
 re-asks. The method, the caveats, and how to reproduce it:
 [examples/fennmoor-bank/eval/comparison/](examples/fennmoor-bank/eval/comparison/README.md).
 

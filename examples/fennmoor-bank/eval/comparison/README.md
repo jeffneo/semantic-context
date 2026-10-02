@@ -45,8 +45,8 @@ full; dollars price the cache reads at a tenth.
   targets.
 - **Dollars are a different story.** With prompt caching the naive schema is the cheapest per right
   answer (1.8 cents against 2.3 for the layer and 4.7 for the agent). What the layer buys is accuracy,
-  and the tokens, latency and context window that come with small prompts: at 44,000 tokens a question
-  the schema doesn't fit an estate with thousands of tables (this one has 323).
+  and the tokens, latency and context window that come with small prompts. A schema prompt grows with
+  the estate: this one has 323 tables and 44,000 tokens, and an estate with thousands of tables has many times that.
 - **Precedent is most of the gain.** 89 of the agent's 186 first answers were a precedent: the
   business's own query for a request like this one, its values set from the question. 86 were right, at
   a median of 864 tokens and 3.5 seconds. The other 97 were compiled requests: 75 right, 10,307 tokens,
