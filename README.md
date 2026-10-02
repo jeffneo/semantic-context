@@ -25,10 +25,6 @@ memory store data; the virtual graph stores none (it maps Cypher to SQL over the
 does the composite.
 
 ```mermaid
----
-config:
-  layout: elk
----
 flowchart LR
  subgraph W["Data warehouse"]
         R["source datasets<br>the rows"]
