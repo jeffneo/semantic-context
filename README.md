@@ -20,6 +20,42 @@ The premise: ERDs, catalogs and ontologies are someone's design; the query log i
 runs. So usage is the ground truth, and designed models are aligned afterwards, never used as inputs
 ([docs/design.md](docs/design.md)).
 
+The pieces: three Neo4j shards, queried as one through a composite database. The semantic layer and agent
+memory store data; the virtual graph stores none (it maps Cypher to SQL over the warehouse's rows), and nor
+does the composite.
+
+```mermaid
+---
+config:
+  layout: elk
+---
+flowchart LR
+ subgraph W["Data warehouse"]
+        R["source datasets<br>the rows"]
+        V["graph views dataset<br>one view per node table, over those rows"]
+        L["query log<br>the job history"]
+  end
+ subgraph SEM["Neo4j: semantic layer"]
+        S["semantic layer database<br>tables, columns, queries,<br>Variables, Semantics, Computations"]
+  end
+ subgraph VGR["Neo4j: virtual graph (rows)"]
+        G["virtual graph database<br>stores nothing: a mapping<br>Cypher → SQL over the graph views"]
+  end
+ subgraph MEMG["Neo4j: agent memory"]
+        MEM["memory database<br>what agents fetched and kept:<br>contexts, conversations, steps, facts"]
+  end
+    L -- qlsc extract, build --> S
+    V --> R
+    G -- SQL at query time --> V
+    G -. qlsc recall: fetch and keep .-> MEM
+    C(["composite database<br>stores nothing: one Cypher query<br>across the three shards"]) -- semantic --> S
+    C -- rows --> G
+    C -- memory --> MEM
+    SEM -- "auto-generates schema" --> G
+```
+
+How the layer is built and used:
+
 ```mermaid
 flowchart TD
     L[warehouse: query log + catalog] --> P[parse: SQL service, sqlglot]
@@ -82,11 +118,11 @@ exactly.
 Three answer keys in the Fennmoor example, each scored on the answer's rows, not on the SQL. With the
 compiler and Sonnet 5.5 writing the requests, and free Cypher over the virtual graph (2026-09-29):
 
-| Answer key                                                                             | SQL route | Cypher route (virtual graph)                            | Routed (`ask`'s default) |
-| -------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------- | ------------------------ |
-| 10 gold questions, hand-written references                                             | 7         | 3 (it declines 5 whose data isn't in the virtual graph) | 7                        |
-| 176 questions written from the log's own queries, each with its query as the reference | 128 (73%)\* | 33\*                                                   | 128\*                    |
-| 10 graph-shaped questions: neighbourhoods, several hops, shared neighbours             | 6         | 8                                                       | 7                        |
+| Answer key                                                                             | SQL route   | Cypher route (virtual graph)                            | Routed (`ask`'s default) |
+| -------------------------------------------------------------------------------------- | ----------- | ------------------------------------------------------- | ------------------------ |
+| 10 gold questions, hand-written references                                             | 7           | 3 (it declines 5 whose data isn't in the virtual graph) | 7                        |
+| 176 questions written from the log's own queries, each with its query as the reference | 128 (73%)\* | 33\*                                                    | 128\*                    |
+| 10 graph-shaped questions: neighbourhoods, several hops, shared neighbours             | 6           | 8                                                       | 7                        |
 
 \* Before the build's last round of names (the simplification's phase 3): not rerun since.
 
@@ -125,15 +161,15 @@ Fennmoor business actually asks (176 written from its log's queries, 10 hand-wri
 the answer's rows. "An agent" is qlsc used as AI agents use it: the agent holds its business process's
 state, writes its request, checks each answer and corrects it.
 
-| method | right, log questions | tokens per request (median) | seconds (median) |
-|---|---|---|---|
-| naive: the schema in the prompt | 66% | 43,872 | 4.4 |
-| naive: a generic tool-using agent | 61% | 50,304 | 22.4 |
-| qlsc, one shot | 75% | 6,667 | 4.4 |
-| **qlsc, used by an agent** | **90%** | 10,667 | 9.0 |
+| method                            | right, log questions | tokens per request (median) | seconds (median) |
+| --------------------------------- | -------------------- | --------------------------- | ---------------- |
+| naive: the schema in the prompt   | 66%                  | 43,872                      | 4.4              |
+| naive: a generic tool-using agent | 61%                  | 50,304                      | 22.4             |
+| qlsc, one shot                    | 75%                  | 6,667                       | 4.4              |
+| **qlsc, used by an agent**        | **90%**              | 10,667                      | 9.0              |
 
 On the 10 hand-written questions: 3, 6, 6 and 9 of 10. Where the business has asked a question before,
-qlsc runs its own query with the new values (a *precedent*): 86 of 89 right, at a median of 864 tokens
+qlsc runs its own query with the new values (a _precedent_): 86 of 89 right, at a median of 864 tokens
 and 3.5 seconds. Dollars per right answer favour the cached schema (1.8 cents against 4.7); what the
 layer buys is accuracy, small prompts and low latency, and a schema in the prompt stops fitting as an
 estate grows. One estate, synthetic, and the questions are written from the log, so about half are
@@ -182,9 +218,11 @@ translating it to SQL for the warehouse, so there's no copy of the data to keep 
 - **Output:** one view per node table, in a dataset of its own, and a report of the evidence for every
   choice.
 
-A composite database, `fennmoor`, on the Virtual Graph instance has two constituents:
+A composite database, `fennmoor` in the example, has three constituents (the first diagram above shows
+the three shards; the example runs the composite on the Virtual Graph instance):
 
 - `fennmoor.semantic`: the semantic layer;
+- `fennmoor.memory`: what agents fetched and kept ([memory](#what-an-agent-looked-up-kept-memory));
 - `fennmoor.rows`: the virtual graph.
 
 So a query can put what the layer knows beside the rows it describes:
@@ -254,6 +292,7 @@ uv run qlsc recall Customer cif_number=0001000025    # again: from memory, ~0.05
 ```
 
 `--as <principal>` fetches as them: only the tables, columns and rows the warehouse lets them read.
+
 - **Every recall is a step the reader owns.** A row-policied fact is read back only by a principal whose
   own step read it.
 - **Checked with BigQuery as the oracle,** read as each principal (`eval/memory_entitlements.py`): 0
@@ -264,6 +303,7 @@ Six context questions gave the same rows on memory as on the virtual graph, 110 
 against a second. A stale fact is never read.
 
 **The router answers from memory** when memory holds the whole answer (`qlsc ask --memory` forces it):
+
 - the question is about one entity whose context the reader holds fresh;
 - everything it reads is in that context;
 - its period is inside the window.
@@ -276,16 +316,17 @@ answered from memory with the SQL's rows, in a median 0.045 s against 0.71 s. Bi
 scans, not the rows it returns, so contexts are fetched in batches: `qlsc remember Customer KEY...` reads
 many customers' contexts together, each still exactly its own.
 
-| fetched | MiB billed per customer | break-even: questions per customer |
-|---|---|---|
-| one at a time | 541 | 12.7 |
-| in a batch of 5 | 121 | 2.8 |
-| in a batch of 50 | 12 | 0.3 |
+| fetched          | MiB billed per customer | break-even: questions per customer |
+| ---------------- | ----------------------- | ---------------------------------- |
+| one at a time    | 541                     | 12.7                               |
+| in a batch of 5  | 121                     | 2.8                                |
+| in a batch of 50 | 12                      | 0.3                                |
 
 The session with memory billed 605 MiB against 2,128 without, in 7.6 s of query time against 40.4 s.
 
 The agent's side is the Context Memory model ([plan](plans/2026-09-29-context-memory-model.md)).
 `qlsc converse <conversation.yaml>` records a conversation:
+
 - **messages;**
 - **a task per request, with a step per tool call.** An ask keeps its query, and links to the tables and
   Computations it used;
@@ -304,6 +345,7 @@ A changed fact supersedes the old one, never overwriting it. A decision based on
 revisit. Each principal sees only their own notes (`eval/converse.py`: 26 of 26 checks).
 
 **Skills are distilled from the agents' experience** with the method qlsc uses on the query log:
+
 1. `qlsc distill` groups the tasks by what they did and read (Leiden), and proposes a skill from each
    group that repeats and succeeds. Its procedure is written from the schema, with no values.
 2. A person approves it (`qlsc skills --approve <id> --as <principal>`).
@@ -354,20 +396,20 @@ Cypher answer ran as its principal, by BigQuery's job log.
 
 ## Repository
 
-| Path                            | What                                                                                                                              |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `src/qlsc/`                     | The pipeline, one module per stage, and the `qlsc` command                                                                        |
-| `src/qlsc/defaults.yaml`        | Every model and method parameter, in one place                                                                                    |
-| `src/qlsc/warehouse/`           | Warehouse connectors: the only code that talks to a warehouse (BigQuery)                                                          |
-| `parser/`                       | The SQL parser (sqlglot, compiled), `qlsc_parse`, run in-process by `qlsc parse`, with golden tests                               |
-| `prompts/`                      | Every LLM prompt, one file each ([prompts/README.md](prompts/README.md))                                                          |
-| `docs/design.md`                | The principle, the graph model, the method, the parameters and their sensitivity                                                  |
-| `examples/fennmoor-bank/`       | The worked example: the bank's spec, its generators, designed models, evaluations, demo queries                                   |
-| `tests/`                        | `uv run pytest`: the tool/example boundary, prompts, config, the method's pure parts, the demo queries                            |
-| `plans/`                        | Agreed plans for work in progress ([plans/README.md](plans/README.md))                                                            |
-| `CLAUDE.md`                     | Standing context for AI coding agents: principles, conventions, commands, safety rules                                            |
-| `vg-passthrough/`               | The JDBC pass-through: Virtual Graph reads BigQuery as each query's principal (Java, JDK only; `build.sh`)                        |
-| `docker/`, `docker-compose.yml` | Neo4j Enterprise with GDS and APOC, optionally Enterprise Studio and a Virtual Graph instance (`--profile vg`)                   |
+| Path                            | What                                                                                                           |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `src/qlsc/`                     | The pipeline, one module per stage, and the `qlsc` command                                                     |
+| `src/qlsc/defaults.yaml`        | Every model and method parameter, in one place                                                                 |
+| `src/qlsc/warehouse/`           | Warehouse connectors: the only code that talks to a warehouse (BigQuery)                                       |
+| `parser/`                       | The SQL parser (sqlglot, compiled), `qlsc_parse`, run in-process by `qlsc parse`, with golden tests            |
+| `prompts/`                      | Every LLM prompt, one file each ([prompts/README.md](prompts/README.md))                                       |
+| `docs/design.md`                | The principle, the graph model, the method, the parameters and their sensitivity                               |
+| `examples/fennmoor-bank/`       | The worked example: the bank's spec, its generators, designed models, evaluations, demo queries                |
+| `tests/`                        | `uv run pytest`: the tool/example boundary, prompts, config, the method's pure parts, the demo queries         |
+| `plans/`                        | Agreed plans for work in progress ([plans/README.md](plans/README.md))                                         |
+| `CLAUDE.md`                     | Standing context for AI coding agents: principles, conventions, commands, safety rules                         |
+| `vg-passthrough/`               | The JDBC pass-through: Virtual Graph reads BigQuery as each query's principal (Java, JDK only; `build.sh`)     |
+| `docker/`, `docker-compose.yml` | Neo4j Enterprise with GDS and APOC, optionally Enterprise Studio and a Virtual Graph instance (`--profile vg`) |
 
 To add a warehouse, subclass `Warehouse` in `src/qlsc/warehouse/` and list it in `CONNECTORS`; the
 parser resolves BigQuery SQL only so far.

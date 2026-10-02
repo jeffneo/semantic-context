@@ -34,3 +34,6 @@ __pycache__/
 docker/nvg/*.jar
 # Local self-signed bolt certificate (see docker/tls/README.md)
 docker/tls/bolt/
+
+# Not for public consumption:
+internal/
