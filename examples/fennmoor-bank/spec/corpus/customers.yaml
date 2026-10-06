@@ -1,0 +1,20 @@
+# Customer archetypes. Two separate things:
+#   attentiveness  scales a manifestation's salience: what the customer PERCEIVES
+#   forthcoming    scales its `volunteer` probability: what the customer SAYS unasked
+# An inattentive customer did not notice the detail, so no question retrieves it. A guarded one noticed and will not
+# volunteer it, so a good rep still can. They look the same in a transcript and are different process states.
+#
+# p_misattribute   probability the customer opens with a manifestation of a *confusable* cause (causes.yaml
+#                  `confusable_with`), so the rep starts from the wrong hypothesis
+# patience         scales the chance of hanging up in the queue or in frustration (1 = patient)
+
+# Share of conversations whose caller the IVR had already authenticated (79.9% in the warehouse). A policy that applies only
+# to unauthenticated callers (policies.yaml `applies_when`) can only be breached on the rest.
+authenticated_share: 0.80
+
+archetypes:
+  - {id: CUS-CLEAR, label: "Clear and observant", attentiveness: 0.95, forthcoming: 0.80, initial_sentiment: neutral, escalation_propensity: 0.15, patience: 0.85, p_misattribute: 0.02, share: 0.22}
+  - {id: CUS-PLAIN, label: "Plain-spoken", attentiveness: 0.80, forthcoming: 0.55, initial_sentiment: neutral, escalation_propensity: 0.20, patience: 0.65, p_misattribute: 0.08, share: 0.30}
+  - {id: CUS-DISTRACTED, label: "Not paying close attention", attentiveness: 0.40, forthcoming: 0.40, initial_sentiment: mildly-annoyed, escalation_propensity: 0.20, patience: 0.50, p_misattribute: 0.15, share: 0.16}
+  - {id: CUS-ANGRY, label: "Angry, wants a manager", attentiveness: 0.70, forthcoming: 0.25, initial_sentiment: hostile, escalation_propensity: 0.80, patience: 0.30, p_misattribute: 0.20, share: 0.14}
+  - {id: CUS-MISATTRIBUTING, label: "Sure they know the cause, and wrong", attentiveness: 0.70, forthcoming: 0.60, initial_sentiment: annoyed, escalation_propensity: 0.40, patience: 0.55, p_misattribute: 0.85, share: 0.18}

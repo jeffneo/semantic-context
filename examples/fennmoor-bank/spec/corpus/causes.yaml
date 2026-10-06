@@ -1,0 +1,95 @@
+# What is actually going on: the hidden ground truth. Never visible to the customer except through what they perceive, and
+# to the rep only through what is elicited.
+#
+# base_rate         share of the domain's conversations; normalised over the causes eligible for the row
+# intents           (optional) the IVR intents the cause can arise under; absent means every intent of its procedure
+# needs             what the warehouse must hold for the customer for the cause to be drawn, so the text can name a real
+#                   fee or a real purchase. Keys: fee_unwaived_prior_days, card_purchase_prior_days
+# confusable_with   causes a customer who misattributes will describe instead (the rep's wrong starting hypothesis)
+# manifestations    {id, probability}: how likely each is to be present in the world when this is the cause
+#
+# Present is not noticed: the discriminating manifestation is usually present and often not volunteered.
+
+# =============================================================================
+# DOM-RETENTION
+# =============================================================================
+- {id: CAU-RET-FEE-SHOCK, domain: DOM-RETENTION, label: "A fee the customer did not expect", base_rate: 0.24, needs: {fee_unwaived_prior_days: 60}, confusable_with: [CAU-RET-SERVICE-FAILURE],
+   manifestations: [{id: MAN-RET-WANTS-TO-CLOSE, probability: 1.0}, {id: MAN-RET-FEE-ON-STATEMENT, probability: 1.0}, {id: MAN-RET-BAD-EXPERIENCE, probability: 0.10}, {id: MAN-RET-COMPETING-RATE, probability: 0.08}]}
+- {id: CAU-RET-BETTER-RATE, domain: DOM-RETENTION, label: "A better rate or offer elsewhere", base_rate: 0.18, confusable_with: [CAU-RET-FEE-SHOCK],
+   manifestations: [{id: MAN-RET-WANTS-TO-CLOSE, probability: 1.0}, {id: MAN-RET-COMPETING-RATE, probability: 1.0}, {id: MAN-RET-FEE-ON-STATEMENT, probability: 0.15}]}
+- {id: CAU-RET-RELOCATION, domain: DOM-RETENTION, label: "Moving away from the area", base_rate: 0.14, confusable_with: [CAU-RET-NO-LONGER-NEEDED],
+   manifestations: [{id: MAN-RET-WANTS-TO-CLOSE, probability: 1.0}, {id: MAN-RET-MOVING, probability: 1.0}, {id: MAN-RET-ACCOUNT-UNUSED, probability: 0.20}]}
+- {id: CAU-RET-SERVICE-FAILURE, domain: DOM-RETENTION, label: "A past service failure", base_rate: 0.14, confusable_with: [CAU-RET-FEE-SHOCK],
+   manifestations: [{id: MAN-RET-WANTS-TO-CLOSE, probability: 1.0}, {id: MAN-RET-BAD-EXPERIENCE, probability: 1.0}, {id: MAN-RET-FEE-ON-STATEMENT, probability: 0.15}, {id: MAN-RET-APP-PROBLEMS, probability: 0.20}]}
+- {id: CAU-RET-LIFE-EVENT, domain: DOM-RETENTION, label: "A life event", base_rate: 0.10, confusable_with: [CAU-RET-NO-LONGER-NEEDED],
+   manifestations: [{id: MAN-RET-WANTS-TO-CLOSE, probability: 1.0}, {id: MAN-RET-LIFE-EVENT, probability: 1.0}, {id: MAN-RET-ACCOUNT-UNUSED, probability: 0.30}]}
+- {id: CAU-RET-NO-LONGER-NEEDED, domain: DOM-RETENTION, label: "The account is no longer needed", base_rate: 0.12, confusable_with: [CAU-RET-DIGITAL-FRUSTRATION],
+   manifestations: [{id: MAN-RET-WANTS-TO-CLOSE, probability: 1.0}, {id: MAN-RET-ACCOUNT-UNUSED, probability: 1.0}]}
+- {id: CAU-RET-DIGITAL-FRUSTRATION, domain: DOM-RETENTION, label: "The app and online banking are frustrating", base_rate: 0.08, confusable_with: [CAU-RET-SERVICE-FAILURE],
+   manifestations: [{id: MAN-RET-WANTS-TO-CLOSE, probability: 1.0}, {id: MAN-RET-APP-PROBLEMS, probability: 1.0}, {id: MAN-RET-BAD-EXPERIENCE, probability: 0.30}]}
+
+# =============================================================================
+# DOM-DISPUTES
+# =============================================================================
+- {id: CAU-DSP-MERCHANT-ERROR, domain: DOM-DISPUTES, label: "The merchant charged wrongly or twice", base_rate: 0.18, needs: {card_purchase_prior_days: 30}, confusable_with: [CAU-DSP-TRUE-FRAUD],
+   manifestations: [{id: MAN-DSP-CHARGE-NAMED, probability: 1.0}, {id: MAN-DSP-RECOGNISES-MERCHANT, probability: 1.0}, {id: MAN-DSP-SAME-CHARGE-TWICE, probability: 0.85}, {id: MAN-DSP-CONTACTED-MERCHANT, probability: 0.60}]}
+- {id: CAU-DSP-TRUE-FRAUD, domain: DOM-DISPUTES, label: "Card fraud", base_rate: 0.16, needs: {card_purchase_prior_days: 30}, confusable_with: [CAU-DSP-MERCHANT-ERROR],
+   manifestations: [{id: MAN-DSP-CHARGE-NAMED, probability: 1.0}, {id: MAN-DSP-RECOGNISES-MERCHANT, probability: 0.05}, {id: MAN-DSP-CARD-LOST-OR-STOLEN, probability: 0.35}, {id: MAN-DSP-OTHER-PERSON-HAS-CARD, probability: 0.05}]}
+- {id: CAU-DSP-SUBSCRIPTION, domain: DOM-DISPUTES, label: "A subscription the customer thought had ended", base_rate: 0.14, needs: {card_purchase_prior_days: 30}, confusable_with: [CAU-DSP-TRUE-FRAUD],
+   manifestations: [{id: MAN-DSP-CHARGE-NAMED, probability: 1.0}, {id: MAN-DSP-RECOGNISES-MERCHANT, probability: 1.0}, {id: MAN-DSP-TRIAL-OR-SUBSCRIPTION, probability: 1.0}, {id: MAN-DSP-CONTACTED-MERCHANT, probability: 0.50}]}
+- {id: CAU-DSP-GOODS-NOT-RECEIVED, domain: DOM-DISPUTES, label: "The goods or service never arrived", base_rate: 0.12, needs: {card_purchase_prior_days: 30}, confusable_with: [CAU-DSP-TRUE-FRAUD],
+   manifestations: [{id: MAN-DSP-CHARGE-NAMED, probability: 1.0}, {id: MAN-DSP-RECOGNISES-MERCHANT, probability: 1.0}, {id: MAN-DSP-ORDER-NEVER-ARRIVED, probability: 1.0}, {id: MAN-DSP-CONTACTED-MERCHANT, probability: 0.80}]}
+- {id: CAU-DSP-BUYERS-REMORSE, domain: DOM-DISPUTES, label: "The customer regrets a purchase they made", base_rate: 0.10, needs: {card_purchase_prior_days: 30}, confusable_with: [CAU-DSP-MERCHANT-ERROR],
+   manifestations: [{id: MAN-DSP-CHARGE-NAMED, probability: 1.0}, {id: MAN-DSP-RECOGNISES-MERCHANT, probability: 1.0}, {id: MAN-DSP-CHANGED-MIND, probability: 1.0}, {id: MAN-DSP-CONTACTED-MERCHANT, probability: 0.20}]}
+- {id: CAU-DSP-FAMILY-USE, domain: DOM-DISPUTES, label: "Someone in the household used the card", base_rate: 0.08, needs: {card_purchase_prior_days: 30}, confusable_with: [CAU-DSP-TRUE-FRAUD],
+   manifestations: [{id: MAN-DSP-CHARGE-NAMED, probability: 1.0}, {id: MAN-DSP-RECOGNISES-MERCHANT, probability: 0.30}, {id: MAN-DSP-OTHER-PERSON-HAS-CARD, probability: 1.0}]}
+- {id: CAU-DSP-NOT-A-DISPUTE, domain: DOM-DISPUTES, label: "A card question that is not a dispute", base_rate: 0.22,
+   manifestations: [{id: MAN-DSP-CARD-QUESTION, probability: 1.0}]}
+
+# =============================================================================
+# DOM-FRAUD
+# =============================================================================
+- {id: CAU-FRD-LEGIT-TRAVEL, domain: DOM-FRAUD, label: "Legitimate spending while travelling", base_rate: 0.22, confusable_with: [CAU-FRD-CARD-COMPROMISE],
+   manifestations: [{id: MAN-FRD-ALERT-RECEIVED, probability: 1.0}, {id: MAN-FRD-RECENT-TRAVEL, probability: 1.0}, {id: MAN-FRD-DONT-RECOGNISE, probability: 0.0}]}
+- {id: CAU-FRD-LEGIT-LARGE-PURCHASE, domain: DOM-FRAUD, label: "A large purchase the customer made", base_rate: 0.20, confusable_with: [CAU-FRD-CARD-COMPROMISE],
+   manifestations: [{id: MAN-FRD-ALERT-RECEIVED, probability: 1.0}, {id: MAN-FRD-MADE-LARGE-PURCHASE, probability: 1.0}, {id: MAN-FRD-NEW-DEVICE, probability: 0.15}]}
+- {id: CAU-FRD-CARD-COMPROMISE, domain: DOM-FRAUD, label: "The card details were compromised", base_rate: 0.22, confusable_with: [CAU-FRD-LEGIT-LARGE-PURCHASE],
+   manifestations: [{id: MAN-FRD-ALERT-RECEIVED, probability: 1.0}, {id: MAN-FRD-DONT-RECOGNISE, probability: 1.0}]}
+- {id: CAU-FRD-ACCOUNT-TAKEOVER, domain: DOM-FRAUD, label: "Someone took over the online account", base_rate: 0.12, confusable_with: [CAU-FRD-CARD-COMPROMISE],
+   manifestations: [{id: MAN-FRD-ALERT-RECEIVED, probability: 1.0}, {id: MAN-FRD-DONT-RECOGNISE, probability: 0.90}, {id: MAN-FRD-LOGIN-OR-RESET-ALERTS, probability: 0.90}, {id: MAN-FRD-UNUSUAL-CONTACT, probability: 0.60}]}
+- {id: CAU-FRD-FAMILY-MEMBER, domain: DOM-FRAUD, label: "A family member used the card", base_rate: 0.08, confusable_with: [CAU-FRD-CARD-COMPROMISE],
+   manifestations: [{id: MAN-FRD-ALERT-RECEIVED, probability: 1.0}, {id: MAN-FRD-FAMILY-HAS-CARD, probability: 1.0}, {id: MAN-FRD-DONT-RECOGNISE, probability: 0.20}]}
+- {id: CAU-FRD-SCAM-VICTIM, domain: DOM-FRAUD, label: "The customer was tricked into sending a payment", base_rate: 0.10, confusable_with: [CAU-FRD-ACCOUNT-TAKEOVER],
+   manifestations: [{id: MAN-FRD-ALERT-RECEIVED, probability: 1.0}, {id: MAN-FRD-SENT-MONEY-WILLINGLY, probability: 1.0}, {id: MAN-FRD-UNUSUAL-CONTACT, probability: 0.90}, {id: MAN-FRD-DONT-RECOGNISE, probability: 0.10}]}
+- {id: CAU-FRD-NEW-DEVICE, domain: DOM-FRAUD, label: "A legitimate login from a new device", base_rate: 0.06, confusable_with: [CAU-FRD-ACCOUNT-TAKEOVER],
+   manifestations: [{id: MAN-FRD-ALERT-RECEIVED, probability: 1.0}, {id: MAN-FRD-NEW-DEVICE, probability: 1.0}, {id: MAN-FRD-LOGIN-OR-RESET-ALERTS, probability: 0.80}]}
+
+# =============================================================================
+# DOM-PAYMENTS
+# =============================================================================
+- {id: CAU-PAY-MISAPPLIED, domain: DOM-PAYMENTS, label: "A payment applied to the wrong place or date", base_rate: 0.14, confusable_with: [CAU-PAY-AUTOPAY-FAILED],
+   manifestations: [{id: MAN-PAY-FEE-ON-STATEMENT, probability: 0.90}, {id: MAN-PAY-PAID-ON-TIME-CLAIM, probability: 1.0}, {id: MAN-PAY-AUTOPAY-ENROLLED, probability: 0.20}]}
+- {id: CAU-PAY-AUTOPAY-FAILED, domain: DOM-PAYMENTS, label: "An autopay that failed", base_rate: 0.18, confusable_with: [CAU-PAY-MISAPPLIED],
+   manifestations: [{id: MAN-PAY-FEE-ON-STATEMENT, probability: 0.90}, {id: MAN-PAY-AUTOPAY-ENROLLED, probability: 1.0}, {id: MAN-PAY-BANK-ACCOUNT-CHANGED, probability: 0.70}, {id: MAN-PAY-PAID-ON-TIME-CLAIM, probability: 0.50}]}
+- {id: CAU-PAY-HARDSHIP, domain: DOM-PAYMENTS, label: "The customer is in financial difficulty", base_rate: 0.14, confusable_with: [CAU-PAY-FEE-WAIVER-DUE],
+   manifestations: [{id: MAN-PAY-FEE-ON-STATEMENT, probability: 1.0}, {id: MAN-PAY-FINANCIAL-STRAIN, probability: 1.0}, {id: MAN-PAY-FIRST-LATE-FEE, probability: 0.30}]}
+- {id: CAU-PAY-FEE-WAIVER-DUE, domain: DOM-PAYMENTS, label: "A fee that should be waived", base_rate: 0.20, needs: {fee_unwaived_prior_days: 60}, confusable_with: [CAU-PAY-HARDSHIP],
+   manifestations: [{id: MAN-PAY-FEE-ON-STATEMENT, probability: 1.0}, {id: MAN-PAY-FIRST-LATE-FEE, probability: 0.90}, {id: MAN-PAY-PAID-ON-TIME-CLAIM, probability: 0.30}]}
+- {id: CAU-PAY-FEE-WAIVER-USED, domain: DOM-PAYMENTS, label: "A fee the customer has already had waived this year", base_rate: 0.10, needs: {fee_unwaived_prior_days: 60}, confusable_with: [CAU-PAY-FEE-WAIVER-DUE],
+   manifestations: [{id: MAN-PAY-FEE-ON-STATEMENT, probability: 1.0}, {id: MAN-PAY-PRIOR-WAIVER-THIS-YEAR, probability: 1.0}]}
+- {id: CAU-PAY-DUPLICATE-PAYMENT, domain: DOM-PAYMENTS, label: "The customer paid the same bill twice", base_rate: 0.08, confusable_with: [CAU-PAY-MISAPPLIED],
+   manifestations: [{id: MAN-PAY-PAYMENT-QUESTION, probability: 1.0}, {id: MAN-PAY-FEE-ON-STATEMENT, probability: 0.20}, {id: MAN-PAY-PAID-TWICE, probability: 1.0}]}
+- {id: CAU-PAY-HOW-TO, domain: DOM-PAYMENTS, label: "The customer wants to pay and asks how", base_rate: 0.16,
+   manifestations: [{id: MAN-PAY-WANTS-TO-PAY, probability: 1.0}]}
+
+# =============================================================================
+# DOM-SERVICING: the control. No confusion, nothing discriminating
+# =============================================================================
+- {id: CAU-SRV-BALANCE, domain: DOM-SERVICING, label: "A balance request", base_rate: 0.38, intents: [BALANCE],
+   manifestations: [{id: MAN-SRV-ASKS-BALANCE, probability: 1.0}]}
+- {id: CAU-SRV-ADDRESS, domain: DOM-SERVICING, label: "An address change", base_rate: 0.22, intents: [ADDRESS],
+   manifestations: [{id: MAN-SRV-ASKS-ADDRESS-CHANGE, probability: 1.0}]}
+- {id: CAU-SRV-STATEMENT-COPY, domain: DOM-SERVICING, label: "A copy of a statement", base_rate: 0.14, intents: [OTHER],
+   manifestations: [{id: MAN-SRV-ASKS-STATEMENT, probability: 1.0}]}
+- {id: CAU-SRV-GENERAL, domain: DOM-SERVICING, label: "A general question", base_rate: 0.26, intents: [OTHER],
+   manifestations: [{id: MAN-SRV-GENERAL-QUESTION, probability: 1.0}]}

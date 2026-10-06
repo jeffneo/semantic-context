@@ -91,6 +91,27 @@ The `create` command may leave `qlsc` active. Switch back to your default:
 gcloud config configurations activate default
 ```
 
+### 7b. An administrator configuration (only for `entitlements/setup.py`)
+
+Granting IAM roles, policy tags and row policies needs rights the estate's identity (`qlsc-bq`) must not have, so
+`entitlements/setup.py` runs as an administrator, through a second named configuration with **no** impersonation, selected by
+`QLSC_ADMIN_GCLOUD_CONFIG`. The script reads that configuration's account when it runs; no address is written in the code.
+
+```bash
+gcloud config configurations create qlsc-admin --no-activate
+```
+
+```bash
+gcloud config set project $QLSC_PROJECT --configuration=qlsc-admin
+```
+
+```bash
+gcloud config set account you@example.com --configuration=qlsc-admin
+```
+
+Then `QLSC_ADMIN_GCLOUD_CONFIG=qlsc-admin uv run examples/fennmoor-bank/entitlements/setup.py` (and `--apply`). Everything else
+uses `qlsc`.
+
 ### 8. Verify
 
 ```bash

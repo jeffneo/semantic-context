@@ -1,0 +1,78 @@
+# The variety the realiser is given, and the wording of each slot. Variety has to come from input diversity (one register and one
+# way of ending per conversation, chosen from the seed), because a model asked for 2,000 conversations in one voice writes one
+# conversation 2,000 times. Closings and openings are where such a corpus collapses into boilerplate, so the endings are forced
+# off the default.
+
+registers:
+  - Plain and unhurried.
+  - The customer is doing something else at the same time and is distracted.
+  - Brisk on both sides; nobody has time for pleasantries.
+  - The customer interrupts the agent at least once.
+  - The customer goes off on a short tangent before returning to the point.
+  - The agent has to ask the customer to repeat something.
+  - The customer is on a mobile and the line is poor; one turn is about not being able to hear.
+  - Slightly formal, as though both parties expect the conversation to be reviewed.
+  - The customer apologises more than once without needing to.
+  - The agent over-explains and the customer gives short answers.
+  - No greeting from the customer; they launch straight in.
+  - The customer is polite but clearly tired of dealing with this.
+
+closings:
+  - The agent confirms the next step and nothing else.
+  - The conversation just stops once the agent has said what happens next; no sign-off pleasantry.
+  - A short, businesslike sign-off; do not use the words "have a great day".
+  - The agent gives a reference number as [REDACTED] and stops.
+  - The customer asks one last small unrelated question, briefly answered.
+  - The customer thanks them flatly.
+  - The agent says what will happen next and when.
+
+channels:
+  voice: A phone call. Spoken, short turns, contractions; no formatting.
+  callback: A phone call the bank returned. Spoken, short turns, contractions; no formatting.
+  chat: A web chat. Typed, short messages, lower case is fine, the odd typo, no spoken fillers.
+  email: "An email thread. Each slot is one whole message, with a greeting and a sign-off (signed [REDACTED]), in complete sentences. Finish every message."
+
+moods:
+  high: satisfied
+  medium: mixed, accepting
+  low: unhappy but resigned
+  very-low: angry
+
+fee_labels:
+  MAINT: monthly maintenance fee
+  STOP_PMT: stop-payment fee
+  PAPER_STMT: paper statement fee
+  ATM_OON: out-of-network ATM fee
+  WIRE: wire fee
+  NSF: insufficient-funds fee
+  OD: overdraft fee
+
+# What each kind of slot asks for. {placeholders} are filled from the plan.
+slots:
+  rep_greeting: Greets the customer and invites them to say why they are calling. Asks for no identifying detail.
+  cust_opening: "Says why they are calling: {opener}.{said}{claim}"
+  rep_verify: "Asks the customer to verify who they are ({label})."
+  cust_verify: "Gives what was asked, writing [REDACTED] for anything that would be spoken."
+  rep_check: "Says they are going to {label}, and what they find or that it is fine. Asks the customer for nothing, and does not verify who they are."
+  cust_wait: Acknowledges briefly. Nothing new.
+  rep_ask: "Asks: {label}."
+  cust_yes: "Confirms: {about}."
+  cust_no: Says no. Briefly.
+  cust_no_unnoticed: Says they have not noticed anything like that, or cannot say. Not a flat denial that it ever happened. Briefly.
+  rep_open: "Asks an open question: {label}."
+  cust_open_reveals: "Answers, and brings out: {list}. Nothing else about what is behind it."
+  cust_open_nothing: Answers vaguely and adds nothing new.
+  rep_offer: "{label}."
+  cust_accept: Accepts, and is content to stay.
+  cust_decline: Declines; they still want what they called for.
+  rep_commit: "{label}. Says it as done or about to be done."
+  cust_react: "Reacts to how it was left: {mood}."
+  rep_transfer: Says they are passing the customer to another queue.
+  cust_ack_transfer: "Acknowledges being passed on, {mood}."
+  cust_demand: Asks to speak to a supervisor.
+  cust_pushback: Pushes back on what was just done.
+  rep_escalate: "{label}."
+  cust_hangup: Ends the conversation abruptly, frustrated. Nothing is agreed.
+  rep_closing: "Closes the conversation. Do not restate or paraphrase the action already announced above; move it forward or close it out. Offer nothing new and raise no new topic. {closing_style}"
+  cust_closing: "The customer's last line: a brief sign-off only. If the agent asked whether there is anything else, the answer is no. No new question, no new topic."
+  case_note: "Writes the after-call note. The customer said: {said}. The agent did: {did}. Result: {result}."

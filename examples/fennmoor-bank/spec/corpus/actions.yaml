@@ -1,0 +1,90 @@
+# Everything a rep can do.
+#
+# type          verify | elicit | offer | remediate | explain | answer | process | route | transfer | escalate
+# elicits       the manifestation this retrieves IF the customer perceived it. Perceived and not asked never reaches the text;
+#               this is the mechanism the whole design turns on
+# elicits_any   an open question: each perceived, not yet volunteered discriminating manifestation is retrieved with this
+#               probability. Cheaper than a targeted question, and never certain
+# commits       a terminal action: the walk ends after it
+# resolving     an offer: if its efficacy against the real cause is `fixes` the call ends there (the customer accepts);
+#               otherwise the walk goes on
+# incurs_cost   costs the bank real money when misdirected, which separates a wrong fix that was costly from one that was not
+
+# --- Common ------------------------------------------------------------------
+- {id: ACT-VERIFY-IDENTITY, type: verify, label: Verify the caller's identity}
+- {id: ACT-STEPUP-VERIFY, type: verify, label: Step-up verification with a one-time code or security questions}
+- {id: ACT-TRANSFER-TO-SPECIALIST, type: transfer, label: "Transfer to another queue", commits: true}
+- {id: ACT-ESCALATE-TO-SUPERVISOR, type: escalate, label: "Escalate to a supervisor", commits: true}
+
+# --- Retention ---------------------------------------------------------------
+- {id: ACT-ASK-REASON-FOR-CLOSING, type: elicit, label: "Ask why the customer wants to close", elicits_any: 0.55}
+- {id: ACT-ASK-FEE-CONCERN, type: elicit, label: "Ask whether a fee is behind it", elicits: MAN-RET-FEE-ON-STATEMENT}
+- {id: ACT-ASK-COMPETING-OFFER, type: elicit, label: "Ask whether another bank has made an offer", elicits: MAN-RET-COMPETING-RATE}
+- {id: ACT-ASK-MOVING, type: elicit, label: "Ask whether the customer is moving", elicits: MAN-RET-MOVING}
+- {id: ACT-ASK-EXPERIENCE, type: elicit, label: "Ask about a past experience with the bank", elicits: MAN-RET-BAD-EXPERIENCE}
+- {id: ACT-ASK-CIRCUMSTANCES, type: elicit, label: "Gently ask about the customer's circumstances", elicits: MAN-RET-LIFE-EVENT}
+- {id: ACT-REVIEW-ACTIVITY, type: elicit, label: "Review the account's recent activity with the customer", elicits: MAN-RET-ACCOUNT-UNUSED}
+- {id: ACT-ASK-APP-USE, type: elicit, label: "Ask how the app and online banking have been", elicits: MAN-RET-APP-PROBLEMS}
+- {id: ACT-CONFIRM-DECISION-AND-OPTIONS, type: offer, label: Confirm the decision and mention that options exist}
+- {id: ACT-OFFER-FEE-REFUND, type: offer, label: "Offer to refund the fee", resolving: true, incurs_cost: true}
+- {id: ACT-OFFER-RATE-IMPROVEMENT, type: offer, label: "Offer a better rate", resolving: true, incurs_cost: true}
+- {id: ACT-OFFER-PRODUCT-CHANGE, type: offer, label: "Offer a move to a no-fee account", resolving: true}
+- {id: ACT-OFFER-GENERIC-INCENTIVE, type: offer, label: "Offer a cash bonus to stay", resolving: true, incurs_cost: true}
+- {id: ACT-OFFER-SERVICE-RECOVERY, type: offer, label: "Apologise, credit the account and arrange a call from the branch", resolving: true, incurs_cost: true}
+- {id: ACT-OFFER-DIGITAL-HELP, type: offer, label: "Offer help with the app and a named contact", resolving: true}
+- {id: ACT-PROCESS-CLOSURE, type: process, label: "Process the closure", commits: true}
+- {id: ACT-ESCALATE-TO-RETENTION-DESK, type: escalate, label: "Hand the customer to the retention desk", commits: true}
+
+# --- Card disputes -----------------------------------------------------------
+- {id: ACT-ASK-WHAT-HAPPENED, type: elicit, label: "Ask the customer to describe what happened", elicits_any: 0.55}
+- {id: ACT-ASK-RECOGNISE-MERCHANT, type: elicit, label: "Ask whether the customer recognises the merchant", elicits: MAN-DSP-RECOGNISES-MERCHANT}
+- {id: ACT-ASK-LOST-OR-STOLEN, type: elicit, label: "Ask whether the card was lost or stolen", elicits: MAN-DSP-CARD-LOST-OR-STOLEN}
+- {id: ACT-REVIEW-STATEMENT-FOR-DUPLICATE, type: elicit, label: "Walk the statement for a repeated charge", elicits: MAN-DSP-SAME-CHARGE-TWICE}
+- {id: ACT-ASK-CONTACTED-MERCHANT, type: elicit, label: "Ask whether the merchant has been contacted", elicits: MAN-DSP-CONTACTED-MERCHANT}
+- {id: ACT-ASK-ORDER-STATUS, type: elicit, label: "Ask whether the order arrived", elicits: MAN-DSP-ORDER-NEVER-ARRIVED}
+- {id: ACT-ASK-SUBSCRIPTIONS, type: elicit, label: "Ask about trials and subscriptions with the merchant", elicits: MAN-DSP-TRIAL-OR-SUBSCRIPTION}
+- {id: ACT-ASK-OTHER-CARDHOLDERS, type: elicit, label: "Ask who else has the card or its details", elicits: MAN-DSP-OTHER-PERSON-HAS-CARD}
+- {id: ACT-ASK-WHAT-WAS-EXPECTED, type: elicit, label: "Ask what the customer expected from the purchase", elicits: MAN-DSP-CHANGED-MIND}
+- {id: ACT-CHECK-DISPUTE-WINDOW, type: check, label: Check the charge is inside the dispute window}
+- {id: ACT-FILE-CHARGEBACK, type: remediate, label: "File a chargeback with a provisional credit", commits: true, incurs_cost: true}
+- {id: ACT-ROUTE-TO-FRAUD-TEAM, type: route, label: "Route to the fraud team and block the card", commits: true, incurs_cost: true}
+- {id: ACT-ADVISE-CONTACT-MERCHANT, type: explain, label: "Advise the customer to resolve it with the merchant first", commits: true}
+- {id: ACT-DECLINE-WITH-EXPLANATION, type: explain, label: "Explain why the charge is not disputable", commits: true}
+- {id: ACT-ANSWER-CARD-QUESTION, type: answer, label: "Answer the card question", commits: true}
+
+# --- Fraud callbacks ---------------------------------------------------------
+- {id: ACT-READ-OUT-TRANSACTIONS, type: elicit, label: "Read the flagged transactions and ask if they are the customer's", elicits: MAN-FRD-DONT-RECOGNISE}
+- {id: ACT-ASK-TRAVEL, type: elicit, label: "Ask about recent travel", elicits: MAN-FRD-RECENT-TRAVEL}
+- {id: ACT-ASK-RECENT-PURCHASES, type: elicit, label: "Ask about recent large purchases", elicits: MAN-FRD-MADE-LARGE-PURCHASE}
+- {id: ACT-ASK-WHO-HAS-CARD, type: elicit, label: "Ask who else uses the card", elicits: MAN-FRD-FAMILY-HAS-CARD}
+- {id: ACT-ASK-NEW-DEVICE, type: elicit, label: "Ask about a new phone or device", elicits: MAN-FRD-NEW-DEVICE}
+- {id: ACT-ASK-LOGIN-ACTIVITY, type: elicit, label: "Ask about unexpected login or reset messages", elicits: MAN-FRD-LOGIN-OR-RESET-ALERTS}
+- {id: ACT-ASK-UNUSUAL-CONTACT, type: elicit, label: "Ask about unexpected calls or texts", elicits: MAN-FRD-UNUSUAL-CONTACT}
+- {id: ACT-ASK-RECENT-PAYMENTS, type: elicit, label: "Ask whether the customer sent any payments recently", elicits: MAN-FRD-SENT-MONEY-WILLINGLY}
+- {id: ACT-VERIFY-AND-RELEASE, type: remediate, label: "Mark the activity as verified and release the hold", commits: true}
+- {id: ACT-BLOCK-AND-REISSUE, type: remediate, label: "Block the card and issue a new one", commits: true, incurs_cost: true}
+- {id: ACT-OPEN-CASE-AND-SECURE-ACCOUNT, type: remediate, label: "Open a fraud case and secure the online account", commits: true, incurs_cost: true}
+- {id: ACT-WARN-SCAM-AND-RECALL-PAYMENT, type: remediate, label: "Explain the scam and start a payment recall", commits: true, incurs_cost: true}
+
+# --- Payments and fees -------------------------------------------------------
+- {id: ACT-ASK-PAYMENT-DETAILS, type: elicit, label: "Ask when and how the payment was made", elicits: MAN-PAY-PAID-ON-TIME-CLAIM}
+- {id: ACT-ASK-AUTOPAY-STATUS, type: elicit, label: "Ask whether autopay is set up", elicits: MAN-PAY-AUTOPAY-ENROLLED}
+- {id: ACT-ASK-BANK-CHANGE, type: elicit, label: "Ask whether the funding bank account changed", elicits: MAN-PAY-BANK-ACCOUNT-CHANGED}
+- {id: ACT-ASK-FINANCIAL-SITUATION, type: elicit, label: "Ask how things are going financially", elicits: MAN-PAY-FINANCIAL-STRAIN}
+- {id: ACT-ASK-PRIOR-WAIVERS, type: elicit, label: "Ask about earlier fee waivers", elicits: MAN-PAY-PRIOR-WAIVER-THIS-YEAR}
+- {id: ACT-REVIEW-FOR-DOUBLE-PAYMENT, type: elicit, label: "Look for a repeated payment", elicits: MAN-PAY-PAID-TWICE}
+- {id: ACT-ASK-FIRST-LATE-FEE, type: elicit, label: "Ask whether this is the first time they have been charged this fee", elicits: MAN-PAY-FIRST-LATE-FEE}
+- {id: ACT-CHECK-WAIVER-HISTORY, type: check, label: Check the account's waiver history}
+- {id: ACT-WAIVE-FEE, type: remediate, label: "Waive the fee", commits: true, incurs_cost: true}
+- {id: ACT-REAPPLY-PAYMENT, type: remediate, label: "Reapply the payment to the right account and date", commits: true}
+- {id: ACT-REPAIR-AUTOPAY, type: remediate, label: "Repair the autopay setup", commits: true}
+- {id: ACT-ARRANGE-PAYMENT-PLAN, type: remediate, label: "Arrange a payment plan", commits: true}
+- {id: ACT-REFUND-DUPLICATE, type: remediate, label: "Refund the duplicate payment", commits: true, incurs_cost: true}
+- {id: ACT-EXPLAIN-WAIVER-POLICY, type: explain, label: "Explain the waiver policy and why it is not available", commits: true}
+- {id: ACT-TAKE-PAYMENT-NOW, type: remediate, label: "Take the payment on the call", commits: true}
+
+# --- Servicing ---------------------------------------------------------------
+- {id: ACT-GIVE-BALANCE, type: answer, label: "Give the balance", commits: true}
+- {id: ACT-UPDATE-ADDRESS, type: answer, label: "Update the address", commits: true}
+- {id: ACT-SEND-STATEMENT-COPY, type: answer, label: "Send a statement copy", commits: true}
+- {id: ACT-ANSWER-GENERAL-QUESTION, type: answer, label: "Answer the general question", commits: true}

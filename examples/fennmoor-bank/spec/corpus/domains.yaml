@@ -1,0 +1,18 @@
+# The five areas of the contact center the corpus covers. `share` is the share of the corpus, not of the warehouse:
+# the corpus is a sample chosen to carry the planted truths, so closures (3.8% of calls in the warehouse) get 22%.
+
+- id: DOM-RETENTION
+  label: Closing an account, and whether the bank keeps it
+  share: 0.22
+- id: DOM-DISPUTES
+  label: A card charge the customer questions, and card questions that are not disputes
+  share: 0.22
+- id: DOM-FRAUD
+  label: A fraud alert the customer is called about or calls about
+  share: 0.18
+- id: DOM-PAYMENTS
+  label: Payments, fees and waivers
+  share: 0.18
+- id: DOM-SERVICING
+  label: "Routine servicing: the control family, with little variance by design"
+  share: 0.20

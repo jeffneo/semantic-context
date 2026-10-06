@@ -1,0 +1,69 @@
+# What is perceivable in the world, independent of who notices or says anything.
+#
+# salience      probability an attentive customer is aware of it at all (scaled by the archetype's attentiveness)
+# volunteer     probability a customer who is aware says it unprompted (scaled by the archetype's forthcoming)
+# presenting    one of these opens every conversation; it is why the customer called, and says nothing about the cause
+# discriminating  separates competing causes. Salience and discriminating are independent: a cause's own presenting
+#               complaint is obvious and not discriminating, and the discriminators are what a question has to retrieve
+# own           the customer's own situation, act or reason (why they are closing, that they travelled, that they paid):
+#               noticed whatever their attentiveness, so only `salience` gates it. What has to be NOTICED (a duplicate charge, a login
+#               alert, an earlier waiver) is also scaled by the archetype's attentiveness
+# topics        (optional) what a vague presenting manifestation is about, one drawn per conversation, so a general question is
+#               about something and the text does not invent a topic that sounds like a cause
+# checkable     (default true) asking directly can retrieve it. False is a pattern the customer would have to have spotted
+#
+# The gap that matters is perceived-but-not-volunteered: high salience, low volunteer, discriminating. A rep who asks gets
+# it, a rep who doesn't doesn't, and the same customer with the same cause ends differently. That is the structure the
+# process graph is later asked to recover, and the reason a question has value.
+
+# --- Retention: a customer closing an account knows why, so these are noticed; what varies is whether they say it ---
+- {id: MAN-RET-WANTS-TO-CLOSE, label: "Wants to close the account", salience: 1.0, volunteer: 1.0, presenting: true}
+- {id: MAN-RET-FEE-ON-STATEMENT, label: "A fee on the statement the customer did not expect", salience: 0.95, volunteer: 0.30, discriminating: true, own: true}
+- {id: MAN-RET-COMPETING-RATE, label: "A better rate or offer from another bank", salience: 1.0, volunteer: 0.35, discriminating: true, own: true}
+- {id: MAN-RET-MOVING, label: "Moving away from the area", salience: 1.0, volunteer: 0.75, discriminating: true, own: true}
+- {id: MAN-RET-BAD-EXPERIENCE, label: "A past experience with the bank that went badly", salience: 1.0, volunteer: 0.30, discriminating: true, own: true}
+- {id: MAN-RET-LIFE-EVENT, label: "A life event (bereavement, divorce, consolidating finances)", salience: 1.0, volunteer: 0.35, discriminating: true, own: true}
+- {id: MAN-RET-ACCOUNT-UNUSED, label: "The account has not been used for a long time", salience: 1.0, volunteer: 0.45, discriminating: true, own: true}
+- {id: MAN-RET-APP-PROBLEMS, label: "Trouble with the app or online banking", salience: 1.0, volunteer: 0.40, discriminating: true, own: true}
+
+# --- Card disputes -----------------------------------------------------------
+- {id: MAN-DSP-CHARGE-NAMED, label: "A specific card charge the customer is querying", salience: 1.0, volunteer: 1.0, presenting: true}
+- {id: MAN-DSP-CARD-QUESTION, label: "A question about the card that is not a charge", salience: 1.0, volunteer: 1.0, presenting: true}
+- {id: MAN-DSP-RECOGNISES-MERCHANT, label: "The customer recognises the merchant", salience: 0.95, volunteer: 0.25, discriminating: true, own: true}
+- {id: MAN-DSP-CARD-LOST-OR-STOLEN, label: "The card was lost or stolen", salience: 0.90, volunteer: 0.35, discriminating: true, own: true}
+- {id: MAN-DSP-SAME-CHARGE-TWICE, label: "The same charge appears twice", salience: 0.95, volunteer: 0.55, discriminating: true}
+- {id: MAN-DSP-CONTACTED-MERCHANT, label: "The customer already contacted the merchant", salience: 0.95, volunteer: 0.35, discriminating: true, own: true}
+- {id: MAN-DSP-ORDER-NEVER-ARRIVED, label: "The goods or service never arrived", salience: 1.0, volunteer: 0.70, discriminating: true, own: true}
+- {id: MAN-DSP-TRIAL-OR-SUBSCRIPTION, label: "A free trial or subscription that was meant to end", salience: 0.70, volunteer: 0.25, discriminating: true}
+- {id: MAN-DSP-OTHER-PERSON-HAS-CARD, label: "Someone else has the card or the account details", salience: 0.85, volunteer: 0.15, discriminating: true, own: true}
+- {id: MAN-DSP-CHANGED-MIND, label: "The customer simply regrets the purchase", salience: 1.0, volunteer: 0.20, discriminating: true, own: true}
+
+# --- Fraud -------------------------------------------------------------------
+- {id: MAN-FRD-ALERT-RECEIVED, label: "An alert or a call about activity on the account", salience: 1.0, volunteer: 1.0, presenting: true}
+- {id: MAN-FRD-DONT-RECOGNISE, label: "The customer does not recognise the transactions", salience: 0.95, volunteer: 0.80, discriminating: true, own: true}
+- {id: MAN-FRD-RECENT-TRAVEL, label: "The customer has been travelling", salience: 0.90, volunteer: 0.45, discriminating: true, own: true}
+- {id: MAN-FRD-MADE-LARGE-PURCHASE, label: "The customer made a large purchase recently", salience: 0.90, volunteer: 0.50, discriminating: true, own: true}
+- {id: MAN-FRD-FAMILY-HAS-CARD, label: "A family member uses the card", salience: 0.85, volunteer: 0.20, discriminating: true, own: true}
+- {id: MAN-FRD-NEW-DEVICE, label: "The customer recently got a new phone or device", salience: 0.90, volunteer: 0.30, discriminating: true, own: true}
+- {id: MAN-FRD-LOGIN-OR-RESET-ALERTS, label: "Unexpected login or password-reset messages", salience: 0.60, volunteer: 0.15, discriminating: true}
+- {id: MAN-FRD-UNUSUAL-CONTACT, label: "An unexpected call or text asking for codes or details", salience: 0.55, volunteer: 0.15, discriminating: true}
+- {id: MAN-FRD-SENT-MONEY-WILLINGLY, label: "The customer sent a payment themselves", salience: 0.95, volunteer: 0.15, discriminating: true, own: true}
+
+# --- Payments and fees -------------------------------------------------------
+- {id: MAN-PAY-FEE-ON-STATEMENT, label: "A fee on the statement that the customer disputes", salience: 1.0, volunteer: 0.85, presenting: true}
+- {id: MAN-PAY-PAYMENT-QUESTION, label: A question about a payment already made, salience: 1.0, volunteer: 1.0, presenting: true}
+- {id: MAN-PAY-WANTS-TO-PAY, label: "Wants to make a payment", salience: 1.0, volunteer: 1.0, presenting: true}
+- {id: MAN-PAY-PAID-ON-TIME-CLAIM, label: "The customer says they paid on time", salience: 0.90, volunteer: 0.70, discriminating: true, own: true}
+- {id: MAN-PAY-AUTOPAY-ENROLLED, label: "The customer is enrolled in autopay", salience: 0.70, volunteer: 0.30, discriminating: true}
+- {id: MAN-PAY-BANK-ACCOUNT-CHANGED, label: "The customer changed the bank account the payment comes from", salience: 0.55, volunteer: 0.20, discriminating: true, own: true}
+- {id: MAN-PAY-FINANCIAL-STRAIN, label: "A job loss, illness or other strain on money", salience: 0.90, volunteer: 0.15, discriminating: true, own: true}
+- {id: MAN-PAY-PRIOR-WAIVER-THIS-YEAR, label: "A fee was already waived this year", salience: 0.60, volunteer: 0.10, discriminating: true}
+- {id: MAN-PAY-PAID-TWICE, label: "The customer paid the same bill twice", salience: 0.95, volunteer: 0.65, discriminating: true, own: true}
+- {id: MAN-PAY-FIRST-LATE-FEE, label: "This is the first time the customer has been charged this kind of fee", salience: 0.70, volunteer: 0.30, discriminating: true}
+
+# --- Servicing (the control family: nothing here separates anything) --------
+- {id: MAN-SRV-ASKS-BALANCE, label: "Wants to know a balance", salience: 1.0, volunteer: 1.0, presenting: true}
+- {id: MAN-SRV-ASKS-ADDRESS-CHANGE, label: "Wants to change the address on the account", salience: 1.0, volunteer: 1.0, presenting: true}
+- {id: MAN-SRV-ASKS-STATEMENT, label: "Wants a copy of a statement", salience: 1.0, volunteer: 1.0, presenting: true}
+- {id: MAN-SRV-GENERAL-QUESTION, label: "Has a general question about the bank or an account", salience: 1.0, volunteer: 1.0, presenting: true,
+   topics: [branch opening hours, how to set up account alerts, the daily transfer limit, ordering new checks, telling the bank about travel, adding a joint owner, what a wire transfer costs, getting a replacement debit card, how to update a phone number, where to find a routing number]}

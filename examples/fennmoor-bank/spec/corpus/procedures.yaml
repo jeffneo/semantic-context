@@ -1,0 +1,121 @@
+# The procedures. Entry is by the IVR intent of the warehouse row the plan is matched to, so the text and the row agree on
+# why the customer called.
+#
+# `hypotheses` are the causes the procedure can consider. A cause not listed here cannot be reached by the rep, who lands on
+# the nearest one they can see: misdiagnosis is a consequence of the world, never injected. Belief is updated by Bayes over
+# the cause-to-manifestation probabilities in causes.yaml, so the discriminating power of a question is a property of the
+# world, and a rep who elicits everything converges on the truth.
+#
+# `stages` run in order. An action is a bare id, or {id, requires_policy} for a gate on that action; a stage's
+# `requires_policy` gates all of its actions.
+
+- id: PROC-RETENTION
+  label: A customer asks to close an account
+  domain: DOM-RETENTION
+  entry_when: {intents: [CLOSE_ACCOUNT]}
+  hypotheses: [CAU-RET-FEE-SHOCK, CAU-RET-BETTER-RATE, CAU-RET-RELOCATION, CAU-RET-SERVICE-FAILURE, CAU-RET-LIFE-EVENT, CAU-RET-NO-LONGER-NEEDED, CAU-RET-DIGITAL-FRUSTRATION]
+  stages:
+    - id: S-OPEN
+      label: Open and verify
+      actions: [ACT-VERIFY-IDENTITY, ACT-STEPUP-VERIFY]
+    - id: S-DISCOVER
+      label: Find out why
+      requires_policy: POL-AUTH-BEFORE-DETAIL
+      actions: [ACT-ASK-REASON-FOR-CLOSING, ACT-ASK-FEE-CONCERN, ACT-ASK-COMPETING-OFFER, ACT-ASK-MOVING, ACT-ASK-EXPERIENCE, ACT-ASK-CIRCUMSTANCES, ACT-REVIEW-ACTIVITY, ACT-ASK-APP-USE]
+    - id: S-SAVE
+      label: Try to keep the customer
+      actions: [ACT-CONFIRM-DECISION-AND-OPTIONS, ACT-OFFER-FEE-REFUND, ACT-OFFER-RATE-IMPROVEMENT, ACT-OFFER-PRODUCT-CHANGE, ACT-OFFER-GENERIC-INCENTIVE, ACT-OFFER-SERVICE-RECOVERY, ACT-OFFER-DIGITAL-HELP]
+    - id: S-CLOSE
+      label: Close, or hand on
+      actions:
+        - {id: ACT-PROCESS-CLOSURE, requires_policy: POL-SAVE-ATTEMPT-BEFORE-CLOSURE}
+        - ACT-ESCALATE-TO-RETENTION-DESK
+        - ACT-TRANSFER-TO-SPECIALIST
+
+- id: PROC-CARD-DISPUTE
+  label: A customer questions a card charge, or has a card question
+  domain: DOM-DISPUTES
+  entry_when: {intents: [CARD]}
+  hypotheses: [CAU-DSP-MERCHANT-ERROR, CAU-DSP-TRUE-FRAUD, CAU-DSP-SUBSCRIPTION, CAU-DSP-GOODS-NOT-RECEIVED, CAU-DSP-BUYERS-REMORSE, CAU-DSP-FAMILY-USE, CAU-DSP-NOT-A-DISPUTE]
+  stages:
+    - id: S-OPEN
+      label: Open and verify
+      actions: [ACT-VERIFY-IDENTITY, ACT-STEPUP-VERIFY]
+    - id: S-DISCOVER
+      label: Find out what happened
+      requires_policy: POL-AUTH-BEFORE-DETAIL
+      actions: [ACT-ASK-WHAT-HAPPENED, ACT-ASK-RECOGNISE-MERCHANT, ACT-ASK-LOST-OR-STOLEN, ACT-REVIEW-STATEMENT-FOR-DUPLICATE, ACT-ASK-CONTACTED-MERCHANT, ACT-ASK-ORDER-STATUS, ACT-ASK-SUBSCRIPTIONS, ACT-ASK-OTHER-CARDHOLDERS, ACT-ASK-WHAT-WAS-EXPECTED]
+    - id: S-ASSESS
+      label: Check the window
+      actions: [ACT-CHECK-DISPUTE-WINDOW]
+    - id: S-RESOLVE
+      label: Resolve or hand on
+      actions:
+        - {id: ACT-FILE-CHARGEBACK, requires_policy: POL-DISPUTE-WINDOW-CHECKED}
+        - ACT-ROUTE-TO-FRAUD-TEAM
+        - ACT-ADVISE-CONTACT-MERCHANT
+        - ACT-DECLINE-WITH-EXPLANATION
+        - ACT-ANSWER-CARD-QUESTION
+        - ACT-ESCALATE-TO-SUPERVISOR
+        - ACT-TRANSFER-TO-SPECIALIST
+
+- id: PROC-FRAUD-CALLBACK
+  label: A customer is called about, or calls about, a fraud alert
+  domain: DOM-FRAUD
+  entry_when: {intents: [FRAUD]}
+  hypotheses: [CAU-FRD-LEGIT-TRAVEL, CAU-FRD-LEGIT-LARGE-PURCHASE, CAU-FRD-CARD-COMPROMISE, CAU-FRD-ACCOUNT-TAKEOVER, CAU-FRD-FAMILY-MEMBER, CAU-FRD-SCAM-VICTIM, CAU-FRD-NEW-DEVICE]
+  stages:
+    - id: S-OPEN
+      label: Open and verify
+      actions: [ACT-VERIFY-IDENTITY, ACT-STEPUP-VERIFY]
+    - id: S-DISCOVER
+      label: Find out what the customer recognises
+      requires_policy: POL-FRAUD-STEPUP-VERIFY
+      actions: [ACT-READ-OUT-TRANSACTIONS, ACT-ASK-TRAVEL, ACT-ASK-RECENT-PURCHASES, ACT-ASK-WHO-HAS-CARD, ACT-ASK-NEW-DEVICE, ACT-ASK-LOGIN-ACTIVITY, ACT-ASK-UNUSUAL-CONTACT, ACT-ASK-RECENT-PAYMENTS]
+    - id: S-RESOLVE
+      label: Decide
+      actions: [ACT-VERIFY-AND-RELEASE, ACT-BLOCK-AND-REISSUE, ACT-OPEN-CASE-AND-SECURE-ACCOUNT, ACT-WARN-SCAM-AND-RECALL-PAYMENT, ACT-ESCALATE-TO-SUPERVISOR, ACT-TRANSFER-TO-SPECIALIST]
+
+- id: PROC-PAYMENT-FEES
+  label: A customer calls about a payment or a fee
+  domain: DOM-PAYMENTS
+  entry_when: {intents: [PAYMENT]}
+  hypotheses: [CAU-PAY-MISAPPLIED, CAU-PAY-AUTOPAY-FAILED, CAU-PAY-HARDSHIP, CAU-PAY-FEE-WAIVER-DUE, CAU-PAY-FEE-WAIVER-USED, CAU-PAY-DUPLICATE-PAYMENT, CAU-PAY-HOW-TO]
+  stages:
+    - id: S-OPEN
+      label: Open and verify
+      actions: [ACT-VERIFY-IDENTITY, ACT-STEPUP-VERIFY]
+    - id: S-DISCOVER
+      label: Find out what happened
+      requires_policy: POL-AUTH-BEFORE-DETAIL
+      actions: [ACT-ASK-PAYMENT-DETAILS, ACT-ASK-AUTOPAY-STATUS, ACT-ASK-BANK-CHANGE, ACT-ASK-FINANCIAL-SITUATION, ACT-ASK-PRIOR-WAIVERS, ACT-REVIEW-FOR-DOUBLE-PAYMENT, ACT-ASK-FIRST-LATE-FEE]
+    - id: S-ASSESS
+      label: Check the history
+      actions: [ACT-CHECK-WAIVER-HISTORY]
+    - id: S-RESOLVE
+      label: Resolve or hand on
+      actions:
+        - {id: ACT-WAIVE-FEE, requires_policy: POL-ONE-WAIVER-PER-YEAR}
+        - ACT-REAPPLY-PAYMENT
+        - ACT-REPAIR-AUTOPAY
+        - ACT-ARRANGE-PAYMENT-PLAN
+        - ACT-REFUND-DUPLICATE
+        - ACT-EXPLAIN-WAIVER-POLICY
+        - ACT-TAKE-PAYMENT-NOW
+        - ACT-ESCALATE-TO-SUPERVISOR
+        - ACT-TRANSFER-TO-SPECIALIST
+
+# The control family: nothing to discover, one step to the answer.
+- id: PROC-SERVICING
+  label: Routine servicing
+  domain: DOM-SERVICING
+  entry_when: {intents: [BALANCE, ADDRESS, OTHER]}
+  hypotheses: [CAU-SRV-BALANCE, CAU-SRV-ADDRESS, CAU-SRV-STATEMENT-COPY, CAU-SRV-GENERAL]
+  stages:
+    - id: S-OPEN
+      label: Open and verify
+      actions: [ACT-VERIFY-IDENTITY]
+    - id: S-ANSWER
+      label: Answer
+      requires_policy: POL-AUTH-BEFORE-DETAIL
+      actions: [ACT-GIVE-BALANCE, ACT-UPDATE-ADDRESS, ACT-SEND-STATEMENT-COPY, ACT-ANSWER-GENERAL-QUESTION]

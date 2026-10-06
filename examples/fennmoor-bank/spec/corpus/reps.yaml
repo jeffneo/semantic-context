@@ -1,0 +1,36 @@
+# Rep archetypes, and the site effects. Shares lean competent on purpose: a mostly weak workforce would make the corpus a
+# measure of that choice rather than of process. Archetypes shift probabilities and never dictate outcomes (no value is 0 or
+# 1), or the graph would learn "rep identity predicts outcome" and nothing about process.
+#
+# p_elicit_before_commit   asks a discriminating question before acting
+# p_accept_misattribution  takes the customer's own diagnosis at face value
+# p_premature_commit       acts on the current best guess without narrowing
+# policy_compliance        follows the gates in policies.yaml
+# p_attempt_save           in retention, makes an offer before processing a closure
+# p_early_transfer         hands the call on before working it
+# empathy, verbosity       realisation hints only; no causal effect
+
+archetypes:
+  - {id: REP-METHODICAL, label: "Methodical", policy_compliance: 0.97, p_elicit_before_commit: 0.90, p_accept_misattribution: 0.10, p_premature_commit: 0.05, p_attempt_save: 0.90, p_early_transfer: 0.04, empathy: 0.75, verbosity: 0.6, share: 0.30}
+  - {id: REP-RUSHED, label: "Rushed and queue-driven", policy_compliance: 0.55, p_elicit_before_commit: 0.42, p_accept_misattribution: 0.65, p_premature_commit: 0.48, p_attempt_save: 0.35, p_early_transfer: 0.18, empathy: 0.30, verbosity: 0.25, share: 0.18}
+  - {id: REP-WARM-IMPRECISE, label: "Warm but imprecise", policy_compliance: 0.80, p_elicit_before_commit: 0.55, p_accept_misattribution: 0.50, p_premature_commit: 0.30, p_attempt_save: 0.65, p_early_transfer: 0.08, empathy: 0.90, verbosity: 0.8, share: 0.24}
+  - {id: REP-SCRIPTED, label: "Follows the script", policy_compliance: 0.93, p_elicit_before_commit: 0.60, p_accept_misattribution: 0.30, p_premature_commit: 0.15, p_attempt_save: 0.75, p_early_transfer: 0.06, empathy: 0.45, verbosity: 0.4, share: 0.28}
+
+# How the estate's agents get an archetype: a stable hash of `agent_user_id` (so an agent is the same rep in every
+# conversation and every run), by the shares above.
+population:
+  assign: hash(agent_user_id)
+
+# Site effects, planted on top of the archetype: additive changes to the rep's probabilities for agents at the site, and the
+# base chance the customer hangs up in the queue (before the patience scaling). The warehouse shows no site effect at all
+# (measured 2026-10-05); this is planted here and is what the graph is later asked to find. Manila is the outsourced site.
+sites:
+  TUL: {}
+  SPK: {p_early_transfer: -0.02, queue_abandon: 0.04}
+  MNL: {p_early_transfer: 0.15, p_premature_commit: 0.10, p_attempt_save: -0.20, policy_compliance: -0.08, queue_abandon: 0.10}
+queue_abandon_default: 0.05
+
+# Where answered conversations happen, as in the warehouse (answered calls by the agent's site, measured 2026-10-05). The
+# conversation's site is its agent's site, which is not always the queue's: 65% of answered calls were answered at another
+# site than the queue they entered.
+site_share: {TUL: 0.40, MNL: 0.35, SPK: 0.25}

@@ -1,0 +1,44 @@
+# The numbers the walk uses that are not about any one cause, action or archetype. Every one has a reason; none is fitted to a
+# result. They shape how the planted structure shows up, so change one only with the dry-run beside it
+# (`corpus.py --dry-run`), and say why.
+
+# What a rep assumes about how much a customer notices, when working out what an answer means (the share-weighted mean of the
+# customer archetypes' attentiveness is about 0.74; the rep does not know which kind of customer this is).
+assumed_attentiveness: 0.75
+
+# --- Questioning ---------------------------------------------------------------------------------------------------------
+max_asks: 4                      # most targeted questions a rep asks before acting: the calls are not interrogations
+stop_confidence: 0.85            # a rep who has asked enough to be this sure of the cause stops asking
+open_question_first: 0.60        # a rep who works the call opens with the open question this often (it is cheap, never certain)
+open_question_hurried: 0.30      # a rep who does not work the call still asks it this often
+courtesy_verify: 0.55            # confirms identity on an IVR-authenticated call, where no policy requires it
+
+# --- Saving a customer (retention) ---------------------------------------------------------------------------------------
+second_offer: 0.40               # tries a second offer when the first is declined
+generic_when_no_match: 0.50      # with no offer that matches the believed cause, throws a generic incentive at it, else just confirms
+
+# --- The customer --------------------------------------------------------------------------------------------------------
+# Chance a customer asks for a supervisor before the rep commits: base + scale x the archetype's escalation_propensity.
+supervisor_base: 0.04
+supervisor_scale: 0.15
+# Chance a customer hangs up in frustration after the questions: frustration x (1 - patience) x (1 + questions asked).
+frustration: 0.05
+
+# --- The queue -----------------------------------------------------------------------------------------------------------
+# Chance a customer hangs up before an agent answers: the site's queue_abandon x (2 - patience), capped here.
+queue_abandon_cap: 0.50
+
+# --- Matching a plan to a warehouse row ----------------------------------------------------------------------------------
+callback_days: 14                # a recurrence is only modelled inside this window: it is the pool's callback window
+handle_min_sec: 120              # a row's handle time must fit the plan's events: at least this,
+handle_sec_per_event: 20         # and at least this per event (the row's long handle times include holds and after-call work)
+match_attempts: 60               # plans resampled before one is given up on (the number that were needed is reported)
+
+# --- The gates on a written corpus (`corpus.py --audit`) ---------------------------------------------------------------------
+# Calibrated on the first full run (Sonnet 5.5, 2,214 of 2,219 written): unique 73% of all messages and 84% of those of six words
+# or more, 0.2% dropped, 93% accepted first time. Each sits below what was measured, so a run that falls under it has changed.
+# Closings and "no." are legitimately repeated, which is why the first is far below the 97% a spec for a free-text corpus asks.
+gate_unique_all: 0.65
+gate_unique_substantive: 0.80
+gate_dropped: 0.02               # a drop is a conversation the checks rejected twice: more than this and a check or a slot is wrong
+gate_first_time: 0.85            # below this the slot wording is fighting the model, and the retries are carrying the corpus

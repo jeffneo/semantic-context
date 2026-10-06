@@ -1,0 +1,51 @@
+# Terminal outcomes, DERIVED from the walk and never sampled on their own. The sampler evaluates them top to bottom and takes
+# the first whose `requires` all match, so ORDER IS LOAD BEARING: the abandonments come first (an abandoned call commits to
+# nothing, and a missing action reads as useless to every efficacy rule below); the retention outcomes next, since they are
+# more specific than the general ones; the costly wrong fix before the false resolution, since both match a useless action. (A rep always acts on what they believe
+# fixes the cause, so an action they know is useless is not a path in this world: there is no 'unresolved and known' outcome.)
+#
+# Keys in `requires` (all optional, all must match):
+#   abandoned, abandon_reason (queue | frustration)   the customer hung up
+#   procedure                                         a list of procedure ids
+#   retained                                          a savable closure was saved by an accepted offer
+#   save_attempted                                    some save action was taken (any satisfier of the save policy)
+#   policy_breach                                     a gate of severity `serious` was skipped
+#   committed_action_type                             the type of the committing action (actions.yaml)
+#   committed_incurs_cost                             the committing action costs the bank
+#   efficacy                                          a list: the committing action's (or accepted offer's) efficacy
+#   rep_believes_resolved                             the rep thought it was settled
+#
+# favorability is what the later process graph is checked against ("does this path lead somewhere good"). It is deliberately
+# not a function of efficacy alone: a fixed cause with a skipped authentication, or a closure that was savable and was not
+# saved, is not a success.
+
+outcomes:
+  - {id: OUT-ABANDONED-IN-QUEUE, label: "The customer hung up waiting", requires: {abandoned: true, abandon_reason: queue}, favorability: low, triggers_recurrence: true, recurrence_probability: 0.60, recurrence_delay_days: {min: 0, max: 3}}
+  - {id: OUT-ABANDONED-FRUSTRATED, label: "The customer hung up in frustration", requires: {abandoned: true, abandon_reason: frustration}, favorability: very-low, triggers_recurrence: true, recurrence_probability: 0.70, recurrence_delay_days: {min: 0, max: 5}}
+
+  - {id: OUT-RETAINED-WITH-OFFER, label: "Retained by an offer that matched the cause", requires: {procedure: [PROC-RETENTION], retained: true, policy_breach: false}, favorability: high, triggers_recurrence: true, recurrence_probability: 0.05, recurrence_delay_days: {min: 10, max: 60}}
+  - {id: OUT-RETAINED-WITH-BREACH, label: "Retained, with a serious policy gate skipped", requires: {procedure: [PROC-RETENTION], retained: true, policy_breach: true}, favorability: medium, triggers_recurrence: true, recurrence_probability: 0.10, recurrence_delay_days: {min: 5, max: 30}}
+  - {id: OUT-CLOSED-AFTER-SAVE-ATTEMPT, label: "A savable customer closed after the offers missed", requires: {procedure: [PROC-RETENTION], retained: false, save_attempted: true, committed_action_type: process, efficacy: [no-effect, makes-worse, partial]}, favorability: low, triggers_recurrence: true, recurrence_probability: 0.10, recurrence_delay_days: {min: 5, max: 20}}
+  - {id: OUT-CLOSED-WITHOUT-SAVE-ATTEMPT, label: "A savable customer closed with no save attempt", requires: {procedure: [PROC-RETENTION], retained: false, save_attempted: false, committed_action_type: process, efficacy: [no-effect, makes-worse, partial]}, favorability: very-low, triggers_recurrence: true, recurrence_probability: 0.10, recurrence_delay_days: {min: 5, max: 20}}
+
+  - {id: OUT-ESCALATED, label: "Escalated", requires: {committed_action_type: escalate}, favorability: medium, triggers_recurrence: true, recurrence_probability: 0.25, recurrence_delay_days: {min: 1, max: 5}}
+  - {id: OUT-TRANSFERRED, label: "Transferred on", requires: {committed_action_type: transfer}, favorability: low, triggers_recurrence: true, recurrence_probability: 0.30, recurrence_delay_days: {min: 0, max: 4}}
+
+  - {id: OUT-WRONG-FIX-COSTED, label: "A costly action for a cause it could not address", requires: {efficacy: [no-effect, makes-worse], committed_incurs_cost: true}, favorability: very-low, triggers_recurrence: true, recurrence_probability: 0.70, recurrence_delay_days: {min: 3, max: 10}}
+  - {id: OUT-FALSE-RESOLUTION, label: "The rep believed it was settled; the cause persists", requires: {efficacy: [no-effect, makes-worse], rep_believes_resolved: true}, favorability: low, triggers_recurrence: true, recurrence_probability: 0.80, recurrence_delay_days: {min: 2, max: 7}}
+
+  - {id: OUT-RESOLVED-POLICY-BREACH, label: "Resolved, with a serious policy gate skipped", requires: {efficacy: [fixes], policy_breach: true}, favorability: medium, triggers_recurrence: true, recurrence_probability: 0.12, recurrence_delay_days: {min: 3, max: 14}}
+  - {id: OUT-RESOLVED-FIRST-CONTACT, label: "Resolved on the first contact", requires: {efficacy: [fixes]}, favorability: high, triggers_recurrence: true, recurrence_probability: 0.04, recurrence_delay_days: {min: 7, max: 60}}
+  - {id: OUT-PARTIAL, label: "Partly resolved", requires: {efficacy: [partial]}, favorability: medium, triggers_recurrence: true, recurrence_probability: 0.35, recurrence_delay_days: {min: 2, max: 8}}
+  - {id: OUT-NO-OUTCOME, label: "Nothing above applies", requires: {}, favorability: low, triggers_recurrence: false}
+
+# What a customer does with an offer that only partly addresses the cause, and what a harmful action does to the call.
+acceptance:
+  partial_offer_accept: 0.35
+  makes_worse_escalates: 0.30
+
+# Shares of favorability the sampled corpus should land near, checked by --dry-run (it flags a gap over 0.10). Set after the first
+# dry runs: the first guess (52 / 22 / 17 / 9) was made before the mechanics existed. Most calls are routine and go well; the
+# trouble is in the queue, the transfers and the retention calls.
+targets:
+  by_favorability: {high: 0.55, medium: 0.15, low: 0.25, very-low: 0.05}

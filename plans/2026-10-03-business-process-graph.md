@@ -1,7 +1,16 @@
 # A business process graph, and simulation-style retrieval over it
 
-Status: proposed (2026-10-03); revised 2026-10-05 after the first decisions (below). Nothing here is built. The first
-phase is now the corpus: [the process corpus](2026-10-05-process-corpus.md).
+Status: proposed (2026-10-03); revised 2026-10-05 after the first decisions (below). Nothing here is built.
+
+**The abstraction work is now drafted as [process abstraction](2026-10-06-process-abstraction.md)**, which supersedes this plan's phases and
+model; this file is kept as the record of the original design (its retrieval, governance and evaluation ideas are carried there).
+
+**This is now the second of three plans**, split on 2026-10-05: [the process corpus](2026-10-05-process-corpus.md) (built), then
+[extraction and construction](2026-10-05-text-graph-construction.md) (the first level of States and Actions, from text), then
+**this one, process abstraction**: the hierarchy over that graph (GDS clustering of States and Actions into levels), where a case
+ends (Resolution as a node or as an absorbing probability on a State), path and outcome odds, discovery from usage, the
+entitlement gate, and the agents. Its phases below that read event rows or build the first level are superseded by the two plans
+before it; what remains here starts from the State-Action graph they produce.
 
 ## Decisions of 2026-10-05
 
@@ -16,7 +25,13 @@ phase is now the corpus: [the process corpus](2026-10-05-process-corpus.md).
   - The LLM now does the extraction (decision 5), as in the other project, so what "high performance" means (calls per
     conversation, no quadratic projection, a vector index, caching) becomes the next plan's centre.
 - The structured-event miner (this plan's "Mine") is kept as an optional later source, not dropped.
-- Still open: decisions 3, 6 and 7, which the next plan (text knowledge-graph construction) will take up.
+- **The process abstraction keeps the State-Action model** of the previous project (a State is where a case is, an Action is
+  what is done, and the lifted graph carries the transition counts and probabilities). The separate Resolution label
+  may not be needed: where a case ends can be an **absorbing probability on a State** (how likely each State is to end well,
+  and in what), which the absorbing-chain odds in this plan already compute. To be settled when we reach process abstraction,
+  not before. The corpus's ground truth records the planted State at every step (the rep's leading hypothesis and how sure
+  they are, per stage) so the discovered States can be scored against it.
+- Still open: decisions 3, 6 and 7. [Extraction and construction](2026-10-05-text-graph-construction.md) is split off and takes the first level; these stay here, for abstraction.
 
 ## Why
 

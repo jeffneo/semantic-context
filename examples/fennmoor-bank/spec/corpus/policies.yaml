@@ -1,0 +1,44 @@
+# Gates a rep is supposed to satisfy. A policy gates a stage or an action in procedures.yaml (`requires_policy`); a gate the
+# rep skips is recorded as a breach. A `serious` breach changes the outcome (a resolved call becomes "resolved with a
+# policy breach"); a `standard` one is recorded in the ground truth and nothing more.
+#
+# satisfied_by        any of these actions taken earlier in the walk satisfies the gate
+# applies_when        conditions on the warehouse row the plan was matched to: is_authenticated (the IVR already
+#                     authenticated the caller, or not)
+# target_compliance   what the sampled reps should achieve overall where the gate is reached, checked by --dry-run (it flags a
+#                     gap over 0.10). Deliberate partial compliance is what gives a process graph something to say about conduct.
+#                     Set after the first dry runs, from the rep mix: the shares times the archetypes' policy_compliance give
+#                     0.84, less the Manila effect, so about 0.8 for a gate only compliance can meet. The save gate is higher
+#                     because a real offer also meets it, and the waiver gate lower because the reps who commit early are the
+#                     rushed ones. The first guesses (0.70 to 0.85) were made before the mechanics existed
+
+- id: POL-AUTH-BEFORE-DETAIL
+  label: Authenticate the caller before discussing or changing account detail
+  satisfied_by: [ACT-VERIFY-IDENTITY, ACT-STEPUP-VERIFY]
+  applies_when: {is_authenticated: [false]}
+  target_compliance: 0.82
+  severity: serious
+
+- id: POL-SAVE-ATTEMPT-BEFORE-CLOSURE
+  label: Make a save attempt before processing a closure
+  satisfied_by: [ACT-CONFIRM-DECISION-AND-OPTIONS, ACT-OFFER-FEE-REFUND, ACT-OFFER-RATE-IMPROVEMENT, ACT-OFFER-PRODUCT-CHANGE, ACT-OFFER-GENERIC-INCENTIVE, ACT-OFFER-SERVICE-RECOVERY, ACT-OFFER-DIGITAL-HELP]
+  target_compliance: 0.85
+  severity: standard
+
+- id: POL-DISPUTE-WINDOW-CHECKED
+  label: Check the dispute window before filing a chargeback
+  satisfied_by: [ACT-CHECK-DISPUTE-WINDOW]
+  target_compliance: 0.8
+  severity: serious
+
+- id: POL-FRAUD-STEPUP-VERIFY
+  label: Step-up verification before discussing a fraud alert
+  satisfied_by: [ACT-STEPUP-VERIFY]
+  target_compliance: 0.82
+  severity: serious
+
+- id: POL-ONE-WAIVER-PER-YEAR
+  label: Waive at most one fee a year, after checking the history
+  satisfied_by: [ACT-CHECK-WAIVER-HISTORY]
+  target_compliance: 0.72
+  severity: standard

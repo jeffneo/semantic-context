@@ -27,10 +27,11 @@ def test_prompts_never_name_the_estate():
     assert not hits, f"prompts name the estate; use {{business}} / {{kind}}: {hits}"
 
 
-def test_only_the_bigquery_connector_imports_google():
+def test_only_the_google_connectors_touch_google():
+    """BigQuery, and Cloud Storage for a text source named by a gs:// URI: each a connector under warehouse/."""
     hits = [
         str(p.relative_to(SRC))
         for p in SRC.rglob("*.py")
-        if "google" in p.read_text() and p.name != "bigquery.py"
+        if "google" in p.read_text() and p.name not in {"bigquery.py", "gcs.py"}
     ]
-    assert not hits, f"warehouse code outside src/qlsc/warehouse/bigquery.py: {hits}"
+    assert not hits, f"google outside src/qlsc/warehouse/bigquery.py and gcs.py: {hits}"

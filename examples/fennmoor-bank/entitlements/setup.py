@@ -10,12 +10,14 @@ may mint tokens for it. The identifier columns get one policy tag, readable by t
 the estate's existing readers; `dim_customer` gets a row access policy (two states for risk, every row
 for the existing readers and marketing: a row policy hides every row from anyone it doesn't name).
 
-Runs as the project's owner (the gcloud configuration's own account, not the service account it
-impersonates for the estate). Prints what it would do; --apply does it; each step is skipped when it is
-already in place, so it can be rerun, and must be after a fill recreates a tagged table.
-Nothing here deletes anything.
+Runs as an administrator, because granting IAM roles, policy tags and row policies needs rights the estate's runtime identity
+(qlsc-bq) must not have. The administrator is a gcloud configuration of its own, named in QLSC_ADMIN_GCLOUD_CONFIG: logged in as
+a person who owns the project, with no service account impersonated (see gcp-setup.md). That person's account is read from the
+configuration at run time and is never written in this file. If the configuration is missing, or impersonates a service account,
+the calls fail on permissions. Prints what it would do; --apply does it; each step is skipped when it is already in place, so it
+can be rerun, and must be after a fill recreates a tagged table. Nothing here deletes anything.
 
-Usage: uv run examples/fennmoor-bank/entitlements/setup.py [--apply]
+Usage: QLSC_ADMIN_GCLOUD_CONFIG=<config> uv run examples/fennmoor-bank/entitlements/setup.py [--apply]
 """
 
 from __future__ import annotations
@@ -32,8 +34,27 @@ from google.cloud import bigquery
 
 PROJECT = "jeffdavis-bq-testproj"
 LOCATION = "us"
-CONFIG = "qlsc"  # the estate's gcloud configuration: its account, without the impersonation it sets
-OWNER = "user:jeff.davis@neo4j.com"
+ADMIN_CONFIG = os.environ.get("QLSC_ADMIN_GCLOUD_CONFIG")
+if not ADMIN_CONFIG:
+    raise SystemExit(
+        "set QLSC_ADMIN_GCLOUD_CONFIG to the gcloud configuration of the project's administrator (gcp-setup.md): "
+        "this script grants IAM roles, which the estate's identity may not"
+    )
+
+
+def admin_account() -> str:
+    """The administrator's account, from their gcloud configuration."""
+    env = {**os.environ, "CLOUDSDK_ACTIVE_CONFIG_NAME": ADMIN_CONFIG}
+    out = subprocess.run(
+        ["gcloud", "config", "get-value", "account"], env=env, capture_output=True, text=True
+    )
+    account = out.stdout.strip()
+    if out.returncode or not account or account == "(unset)":
+        raise SystemExit(f"the gcloud configuration {ADMIN_CONFIG!r} has no account: log in under it")
+    return f"user:{account}"
+
+
+OWNER = admin_account()
 ESTATE = (
     "qlsc-bq@jeffdavis-bq-testproj.iam.gserviceaccount.com"  # the connector's and Virtual Graph's identity
 )
@@ -74,14 +95,10 @@ ALL_ROWS = [OWNER, f"serviceAccount:{ESTATE}", f"serviceAccount:{sa('qlsc-market
 
 
 class OwnerCredentials(google.auth.credentials.Credentials):
-    """The gcloud configuration's own account: its configured impersonation switched off for these calls."""
+    """A token from the administrator's gcloud configuration, as that configuration is set (nothing is switched off here)."""
 
     def refresh(self, request):
-        env = {
-            **os.environ,
-            "CLOUDSDK_ACTIVE_CONFIG_NAME": CONFIG,
-            "CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT": "",
-        }
+        env = {**os.environ, "CLOUDSDK_ACTIVE_CONFIG_NAME": ADMIN_CONFIG}
         out = subprocess.run(
             ["gcloud", "auth", "print-access-token"], env=env, capture_output=True, text=True, check=True
         )
@@ -278,7 +295,7 @@ def row_policies(apply: bool) -> None:
 
 def main() -> int:
     apply = "--apply" in sys.argv
-    print(f"{'Applying' if apply else 'Would apply (--apply to do it)'}, as the owner of {PROJECT}:")
+    print(f"{'Applying' if apply else 'Would apply (--apply to do it)'}, as {OWNER} on {PROJECT}:")
     apis(apply)
     accounts(apply)
     project_roles(apply)

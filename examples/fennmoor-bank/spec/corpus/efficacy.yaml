@@ -1,0 +1,75 @@
+# Does an action actually address the real cause? THE CAUSE DECIDES, NOT THE REP. A rep who concludes "fraud" and blocks the
+# card does something plausible and expensive that does nothing for a customer who simply forgot a purchase; the call ends
+# looking resolved and the customer rings back.
+#
+# fixes        addresses what the customer actually needs (for a closure that nothing can save, processing it)
+# partial      improves it without settling it (an offer accepted only some of the time, see outcomes.yaml)
+# no-effect    plausible and useless
+# makes-worse  actively harmful
+#
+# Unlisted (action, cause) pairs default to no-effect. That default is load bearing: an action taken on a cause nobody
+# thought about is useless, which keeps the matrix sparse.
+
+# --- Retention: a closure nothing can save is handled by processing it; the savable causes need the matching offer ---
+- action: ACT-OFFER-FEE-REFUND
+  effects: {CAU-RET-FEE-SHOCK: fixes, CAU-RET-SERVICE-FAILURE: partial}
+- action: ACT-OFFER-RATE-IMPROVEMENT
+  effects: {CAU-RET-BETTER-RATE: fixes}
+- action: ACT-OFFER-PRODUCT-CHANGE
+  effects: {CAU-RET-FEE-SHOCK: fixes, CAU-RET-BETTER-RATE: partial}
+- action: ACT-OFFER-GENERIC-INCENTIVE
+  effects: {CAU-RET-FEE-SHOCK: partial, CAU-RET-BETTER-RATE: partial, CAU-RET-SERVICE-FAILURE: partial, CAU-RET-DIGITAL-FRUSTRATION: partial, CAU-RET-LIFE-EVENT: makes-worse}
+- action: ACT-OFFER-SERVICE-RECOVERY
+  effects: {CAU-RET-SERVICE-FAILURE: fixes, CAU-RET-DIGITAL-FRUSTRATION: partial}
+- action: ACT-OFFER-DIGITAL-HELP
+  effects: {CAU-RET-DIGITAL-FRUSTRATION: fixes, CAU-RET-SERVICE-FAILURE: partial}
+- action: ACT-PROCESS-CLOSURE
+  effects: {CAU-RET-RELOCATION: fixes, CAU-RET-LIFE-EVENT: fixes, CAU-RET-NO-LONGER-NEEDED: fixes}
+
+# --- Card disputes ---
+- action: ACT-FILE-CHARGEBACK
+  effects: {CAU-DSP-MERCHANT-ERROR: fixes, CAU-DSP-GOODS-NOT-RECEIVED: fixes, CAU-DSP-TRUE-FRAUD: partial, CAU-DSP-SUBSCRIPTION: partial, CAU-DSP-BUYERS-REMORSE: makes-worse, CAU-DSP-FAMILY-USE: makes-worse}
+- action: ACT-ROUTE-TO-FRAUD-TEAM
+  effects: {CAU-DSP-TRUE-FRAUD: fixes, CAU-DSP-FAMILY-USE: partial, CAU-DSP-BUYERS-REMORSE: makes-worse}
+- action: ACT-ADVISE-CONTACT-MERCHANT
+  effects: {CAU-DSP-SUBSCRIPTION: fixes, CAU-DSP-BUYERS-REMORSE: fixes, CAU-DSP-MERCHANT-ERROR: partial, CAU-DSP-GOODS-NOT-RECEIVED: partial, CAU-DSP-FAMILY-USE: partial, CAU-DSP-TRUE-FRAUD: makes-worse}
+- action: ACT-DECLINE-WITH-EXPLANATION
+  effects: {CAU-DSP-BUYERS-REMORSE: fixes, CAU-DSP-FAMILY-USE: fixes, CAU-DSP-MERCHANT-ERROR: makes-worse, CAU-DSP-GOODS-NOT-RECEIVED: makes-worse, CAU-DSP-TRUE-FRAUD: makes-worse}
+- action: ACT-ANSWER-CARD-QUESTION
+  effects: {CAU-DSP-NOT-A-DISPUTE: fixes}
+
+# --- Fraud callbacks ---
+- action: ACT-VERIFY-AND-RELEASE
+  effects: {CAU-FRD-LEGIT-TRAVEL: fixes, CAU-FRD-LEGIT-LARGE-PURCHASE: fixes, CAU-FRD-NEW-DEVICE: fixes, CAU-FRD-FAMILY-MEMBER: fixes, CAU-FRD-CARD-COMPROMISE: makes-worse, CAU-FRD-ACCOUNT-TAKEOVER: makes-worse, CAU-FRD-SCAM-VICTIM: makes-worse}
+- action: ACT-BLOCK-AND-REISSUE
+  effects: {CAU-FRD-CARD-COMPROMISE: fixes, CAU-FRD-ACCOUNT-TAKEOVER: partial, CAU-FRD-LEGIT-TRAVEL: makes-worse, CAU-FRD-LEGIT-LARGE-PURCHASE: makes-worse, CAU-FRD-NEW-DEVICE: makes-worse, CAU-FRD-FAMILY-MEMBER: makes-worse}
+- action: ACT-OPEN-CASE-AND-SECURE-ACCOUNT
+  effects: {CAU-FRD-ACCOUNT-TAKEOVER: fixes, CAU-FRD-CARD-COMPROMISE: partial, CAU-FRD-SCAM-VICTIM: partial, CAU-FRD-LEGIT-TRAVEL: makes-worse, CAU-FRD-LEGIT-LARGE-PURCHASE: makes-worse, CAU-FRD-NEW-DEVICE: makes-worse}
+- action: ACT-WARN-SCAM-AND-RECALL-PAYMENT
+  effects: {CAU-FRD-SCAM-VICTIM: fixes}
+
+# --- Payments and fees ---
+- action: ACT-WAIVE-FEE
+  effects: {CAU-PAY-FEE-WAIVER-DUE: fixes, CAU-PAY-AUTOPAY-FAILED: partial, CAU-PAY-MISAPPLIED: partial, CAU-PAY-HARDSHIP: partial, CAU-PAY-FEE-WAIVER-USED: makes-worse}
+- action: ACT-REAPPLY-PAYMENT
+  effects: {CAU-PAY-MISAPPLIED: fixes}
+- action: ACT-REPAIR-AUTOPAY
+  effects: {CAU-PAY-AUTOPAY-FAILED: fixes}
+- action: ACT-ARRANGE-PAYMENT-PLAN
+  effects: {CAU-PAY-HARDSHIP: fixes}
+- action: ACT-REFUND-DUPLICATE
+  effects: {CAU-PAY-DUPLICATE-PAYMENT: fixes}
+- action: ACT-EXPLAIN-WAIVER-POLICY
+  effects: {CAU-PAY-FEE-WAIVER-USED: fixes, CAU-PAY-FEE-WAIVER-DUE: makes-worse}
+- action: ACT-TAKE-PAYMENT-NOW
+  effects: {CAU-PAY-HOW-TO: fixes}
+
+# --- Servicing ---
+- action: ACT-GIVE-BALANCE
+  effects: {CAU-SRV-BALANCE: fixes}
+- action: ACT-UPDATE-ADDRESS
+  effects: {CAU-SRV-ADDRESS: fixes}
+- action: ACT-SEND-STATEMENT-COPY
+  effects: {CAU-SRV-STATEMENT-COPY: fixes}
+- action: ACT-ANSWER-GENERAL-QUESTION
+  effects: {CAU-SRV-GENERAL: fixes}
