@@ -213,7 +213,7 @@ class FakeVirtualGraph:
         self.m, self.data = m, rows
         self.queries = 0
 
-    def rows(self, q: str, keys: list, since, limit: int, **_) -> list[dict]:
+    def rows(self, q: str, keys: list, since=None, limit: int = 0, **_) -> list[dict]:
         import re
 
         self.queries += 1
@@ -300,3 +300,35 @@ def test_the_same_request_is_the_same_words_day_model_and_grants():
     )
     tomorrow = {"navigate": {"today": "2026-07-02"}, "llm": {"query_model": "m"}}
     assert key != converse.asked(tomorrow, "card spend last quarter", allow)  # "last quarter" is relative
+
+
+def test_a_context_as_of_a_day_is_windowed_to_end_there_and_the_ordinary_read_is_unchanged():
+    into = memory.template(M, "Customer", hops=2)[1]
+    ordinary = memory.cypher(M, into)
+    as_of = memory.cypher(M, into, until=True)
+    assert "$until" not in ordinary  # a refactor must not change results: the ordinary read is as it was
+    assert (
+        "AND n.`post_date` <= $until" in as_of
+        and as_of.replace("\n  AND n.`post_date` <= $until", "") == ordinary
+    )
+    anchor = memory.template(M, "Customer", hops=2)[0]
+    assert memory.cypher(M, anchor, until=True) == memory.cypher(M, anchor)  # only a windowed read has an end
+
+
+def test_the_window_before_a_day_is_the_quarters_before_that_day_not_today():
+    from qlsc import config
+
+    s = config.Settings.__new__(config.Settings)
+    dict.update(s, {"navigate": {"today": dt.date(2026, 10, 5)}, "memory": {"window_quarters": 1}})
+    assert memory.window_start(s) == dt.date(2026, 7, 1)  # the quarter before the one today is in
+    assert memory.window_start(s, dt.date(2026, 6, 9)) == dt.date(2026, 1, 1)
+
+
+def test_a_read_is_sent_only_the_parameters_its_text_names():
+    # the virtual graph (preview) answers a read sent unused parameters with another node's row: silently wrong
+    anchor, into = memory.template(M, "Customer", hops=2)[:2]
+    params = {"since": dt.date(2026, 1, 1), "until": dt.date(2026, 6, 3), "limit": 201}
+    assert memory.used(memory.cypher(M, anchor), params) == {}
+    got = memory.used(memory.cypher(M, into, until=True), params)
+    assert set(got) == {"since", "until", "limit"}
+    assert set(memory.used(memory.cypher(M, into), params)) == {"since", "limit"}

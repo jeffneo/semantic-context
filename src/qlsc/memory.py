@@ -396,7 +396,7 @@ def digest(m: Model, reads: list[Read], p: dict) -> str:
     return hashlib.sha256(json.dumps(what).encode()).hexdigest()[:16]
 
 
-def cypher(m: Model, r: Read, memory: bool = False) -> str:
+def cypher(m: Model, r: Read, memory: bool = False, until: bool = False) -> str:
     """A read's Cypher, the same for either target: the nodes of its label whose property is in $keys. The
     anchor by its key; the facts that point at the via nodes by their own column (a card transaction's
     customer_key), windowed and ordered by via node, then the most recent first, so a batch's is read in
@@ -404,11 +404,12 @@ def cypher(m: Model, r: Read, memory: bool = False) -> str:
     read traverses a relationship: Virtual Graph writes a traversal as the start's table joined to itself and
     to the end's. Over memory, the same read is guarded: its source's nodes, those that still hold at $now,
     and a node of a row-policied table only if the reader's own step ($by) read it and that read still
-    holds."""
+    holds. `until`: the facts' window also ends at $until (a context as of a day, run_batch's as_of)."""
     n = m.nodes[r.label]
     ret = ", ".join(f"n.`{p}` AS `{p}`" for p in sorted(n["props"]))
     prop = r.fk if r.inward else n["key"]
     where = [f"n.`{prop}` IN $keys"] + ([f"n.`{r.window}` >= $since"] if r.window else [])
+    where += [f"n.`{r.window}` <= $until"] if r.window and until else []
     where += Guard(m).node("n", r.label) if memory else []
     match = f"MATCH (n:`{r.label}`)\nWHERE " + "\n  AND ".join(where)
     if not r.inward:
@@ -453,9 +454,9 @@ class Context:
         }
 
 
-def window_start(s: Settings) -> dt.date:
-    """The first day of the quarter memory.window_quarters before today's."""
-    today = s["navigate"].get("today") or dt.date.today()
+def window_start(s: Settings, day: dt.date | None = None) -> dt.date:
+    """The first day of the quarter memory.window_quarters before today's (or before `day`'s)."""
+    today = day or s["navigate"].get("today") or dt.date.today()
     today = today if isinstance(today, dt.date) else dt.date.fromisoformat(str(today))
     month = today.year * 12 + (today.month - 1) // 3 * 3 - 3 * s["memory"]["window_quarters"]
     return dt.date(month // 12, month % 12 + 1, 1)
@@ -468,8 +469,22 @@ def run_reads(
     return run_batch(s, m, reads, [anchor_key], target, memory, now)[anchor_key]
 
 
+def used(query: str, params: dict) -> dict:
+    """The parameters a query's text uses. The virtual graph (preview) answers a query sent with `keys` and three more parameters it never
+    reads (a read of one node sent $since, $until and $limit) with a different node's row, whatever `keys` holds: silently wrong. So a read
+    is sent what its text names and nothing else."""
+    return {k: v for k, v in params.items() if f"${k}" in query}
+
+
 def run_batch(
-    s: Settings, m: Model, reads: list[Read], anchor_keys: list, target: Graph, memory: bool, now: dt.datetime
+    s: Settings,
+    m: Model,
+    reads: list[Read],
+    anchor_keys: list,
+    target: Graph,
+    memory: bool,
+    now: dt.datetime,
+    as_of: dt.date | None = None,
 ) -> dict:
     """Every read of the template for every anchor at once, a hop at a time (hop 0 first: a to-one read out of
     the anchors is keyed on the column they hold), each hop's reads concurrently, each keyed on the union of
@@ -484,13 +499,15 @@ def run_batch(
     live = set(ctxs)  # the anchors found
     fetched: dict = {a: {anchor: {a}} for a in anchor_keys}  # anchor -> label -> its context's keys
     store: dict = {}  # (label, key) -> the row, whichever anchor's read fetched it
-    base = {"since": window_start(s), "limit": p["cap"] + 1}
+    base = {"since": window_start(s, as_of), "limit": p["cap"] + 1}
+    if as_of:  # a context as of a day: the facts dated up to it, from the window that ends there. Never written to memory
+        base["until"] = as_of
     if memory:
         base |= {"source": m.source, "now": now, "by": m.reader}
     t0 = time.time()
 
     def one(r: Read) -> tuple[Read, str, dict, list[dict], float]:
-        q = cypher(m, r, memory)
+        q = cypher(m, r, memory, until=bool(as_of))
         # what each anchor's read is keyed on: a copy, as the hop's other reads add to what was fetched
         keys = {a: set(fetched[a].get(r.via or anchor, ())) for a in live}
         ask = set().union(set(), *keys.values())
@@ -503,7 +520,7 @@ def run_batch(
         t, rows = time.time(), []
         if not r.inward:  # a row per key at most
             for i in range(0, len(ask), p["keys_per_read"]):  # a warehouse limits a query's parameters
-                rows += target.rows(sent, **base, keys=ask[i : i + p["keys_per_read"]], **extra)
+                rows += target.rows(sent, **used(sent, base), keys=ask[i : i + p["keys_per_read"]], **extra)
             return r, q, keys, rows, time.time() - t
         # into the anchors, in pages: a page is ordered by anchor, then the most recent first, and holds the
         # cap and one more for each anchor it's keyed on. An anchor is done once the page shows it complete (a
@@ -513,7 +530,7 @@ def run_batch(
         while pending:
             chunk = pending[: p["keys_per_read"]]
             limit = (p["cap"] + 1) * len(chunk)
-            page = target.rows(sent, **(base | {"limit": limit}), keys=chunk, **extra)
+            page = target.rows(sent, **used(sent, base | {"limit": limit}), keys=chunk, **extra)
             if len(page) < limit:
                 rows += page
                 pending = pending[len(chunk) :]
