@@ -1,0 +1,3182 @@
+{
+ "results": [
+  {
+   "conversation": "00f3e26c-41d6-2813-7e63-1b2c9d1968b8",
+   "truth": [
+    [
+     "Fee",
+     230003
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     230003
+    ]
+   ],
+   "postdating": {
+    "Call": 5,
+    "DepositTransaction": 197,
+    "CardTransaction": 0
+   },
+   "todays_context": 238,
+   "turns_only": [
+    [
+     "Fee",
+     230003
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     230003
+    ]
+   ],
+   "seconds": 6.4,
+   "as_of": "2026-06-03"
+  },
+  {
+   "conversation": "01a84197-0386-c2eb-dc8d-d5a824ccf9d9",
+   "truth": [
+    [
+     "Fee",
+     95641
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     95641
+    ]
+   ],
+   "postdating": {
+    "Call": 1,
+    "DepositTransaction": 185,
+    "CardTransaction": 0
+   },
+   "todays_context": 224,
+   "turns_only": [
+    [
+     "Fee",
+     95641
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     95641
+    ]
+   ],
+   "seconds": 5.1,
+   "as_of": "2026-04-25"
+  },
+  {
+   "conversation": "0232d261-dd8a-f707-c0a2-4f993915dde7",
+   "truth": [
+    [
+     "Fee",
+     293669
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     293669
+    ]
+   ],
+   "postdating": {
+    "Call": 2,
+    "DepositTransaction": 22,
+    "CardTransaction": 0
+   },
+   "todays_context": 55,
+   "turns_only": [
+    [
+     "Fee",
+     293669
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     293669
+    ]
+   ],
+   "seconds": 4.9,
+   "as_of": "2026-05-01"
+  },
+  {
+   "conversation": "0402425b-c5e2-f648-5b43-747f06e3f8a4",
+   "truth": [
+    [
+     "Fee",
+     254471
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     254471
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 5,
+    "CardTransaction": 0
+   },
+   "todays_context": 244,
+   "turns_only": [
+    [
+     "Fee",
+     254471
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     254471
+    ]
+   ],
+   "seconds": 5.2,
+   "as_of": "2026-06-26"
+  },
+  {
+   "conversation": "05ca7476-5bab-73b7-9f8b-2cf76d15fa26",
+   "truth": [
+    [
+     "Fee",
+     167031
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     167031
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 49,
+    "CardTransaction": 0
+   },
+   "todays_context": 152,
+   "turns_only": [
+    [
+     "Fee",
+     167031
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     167031
+    ]
+   ],
+   "seconds": 5.0,
+   "as_of": "2026-05-29"
+  },
+  {
+   "conversation": "073cc022-bd93-edac-f7ad-7d03dd2a2bb1",
+   "truth": [
+    [
+     "Fee",
+     14954
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     14954
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 18,
+    "CardTransaction": 7
+   },
+   "todays_context": 365,
+   "turns_only": [
+    [
+     "Fee",
+     14954
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     14954
+    ]
+   ],
+   "seconds": 5.5,
+   "as_of": "2026-06-19"
+  },
+  {
+   "conversation": "09c070ce-4361-e380-d2a5-5b0b332b25e4",
+   "truth": [
+    [
+     "Fee",
+     579867
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     579867
+    ]
+   ],
+   "postdating": {
+    "Call": 4,
+    "DepositTransaction": 46,
+    "CardTransaction": 0
+   },
+   "todays_context": 66,
+   "turns_only": [
+    [
+     "Fee",
+     579867
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     579867
+    ]
+   ],
+   "seconds": 4.7,
+   "as_of": "2026-04-03"
+  },
+  {
+   "conversation": "0a873621-20bf-db2f-7778-eb7c615f4a42",
+   "truth": [
+    [
+     "Fee",
+     312984
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     312984
+    ]
+   ],
+   "postdating": {
+    "Call": 3,
+    "DepositTransaction": 112,
+    "CardTransaction": 0
+   },
+   "todays_context": 198,
+   "turns_only": [
+    [
+     "Fee",
+     312984
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     312984
+    ]
+   ],
+   "seconds": 5.2,
+   "as_of": "2026-04-27"
+  },
+  {
+   "conversation": "0cf848dd-35cc-2344-b3cc-f459ba2b64ef",
+   "truth": [
+    [
+     "Fee",
+     566950
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     566950
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 66,
+    "CardTransaction": 0
+   },
+   "todays_context": 232,
+   "turns_only": [
+    [
+     "Fee",
+     566950
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     566950
+    ]
+   ],
+   "seconds": 4.7,
+   "as_of": "2026-06-17"
+  },
+  {
+   "conversation": "0d541711-847f-86a9-f987-463daa5b0545",
+   "truth": [
+    [
+     "Fee",
+     97212
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     97212
+    ]
+   ],
+   "postdating": {
+    "Call": 1,
+    "DepositTransaction": 13,
+    "CardTransaction": 0
+   },
+   "todays_context": 88,
+   "turns_only": [
+    [
+     "Fee",
+     97212
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     97212
+    ]
+   ],
+   "seconds": 5.2,
+   "as_of": "2026-06-16"
+  },
+  {
+   "conversation": "0d898288-79cc-f93c-b84f-0cb2691a91f6",
+   "truth": [
+    [
+     "Fee",
+     234683
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     234683
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 4,
+    "CardTransaction": 62
+   },
+   "todays_context": 464,
+   "turns_only": [
+    [
+     "Fee",
+     234683
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     234683
+    ]
+   ],
+   "seconds": 5.4,
+   "as_of": "2026-06-17"
+  },
+  {
+   "conversation": "1067485c-d2d3-5889-7f1f-8d5bf6e5f536",
+   "truth": [
+    [
+     "Fee",
+     169295
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     169295
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 33,
+    "CardTransaction": 0
+   },
+   "todays_context": 218,
+   "turns_only": [
+    [
+     "Fee",
+     169295
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     169295
+    ]
+   ],
+   "seconds": 5.1,
+   "as_of": "2026-06-18"
+  },
+  {
+   "conversation": "13ab32ea-97dd-a5e6-b0bb-f0d3dc85f356",
+   "truth": [
+    [
+     "Fee",
+     155119
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     155119
+    ]
+   ],
+   "postdating": {
+    "Call": 4,
+    "DepositTransaction": 200,
+    "CardTransaction": 0
+   },
+   "todays_context": 230,
+   "turns_only": [
+    [
+     "Fee",
+     155119
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     155119
+    ]
+   ],
+   "seconds": 4.8,
+   "as_of": "2026-04-28"
+  },
+  {
+   "conversation": "1419a25b-3f73-89ad-4a2d-6868458dd751",
+   "truth": [
+    [
+     "Fee",
+     447883
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     447883
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 130,
+    "CardTransaction": 0
+   },
+   "todays_context": 214,
+   "turns_only": [
+    [
+     "Fee",
+     447883
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     447883
+    ]
+   ],
+   "seconds": 4.8,
+   "as_of": "2026-05-29"
+  },
+  {
+   "conversation": "152f9a73-f3a1-81e1-afec-d29652c91166",
+   "truth": [
+    [
+     "Fee",
+     158193
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     158193
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 28,
+    "CardTransaction": 68
+   },
+   "todays_context": 243,
+   "turns_only": [
+    [
+     "Fee",
+     158193
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     158193
+    ]
+   ],
+   "seconds": 5.8,
+   "as_of": "2026-05-02"
+  },
+  {
+   "conversation": "15d9da7c-f7a5-9183-9107-b66bd1ada6de",
+   "truth": [
+    [
+     "Fee",
+     64444
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     64444
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 53,
+    "CardTransaction": 0
+   },
+   "todays_context": 138,
+   "turns_only": [
+    [
+     "Fee",
+     64444
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     64444
+    ]
+   ],
+   "seconds": 7.5,
+   "as_of": "2026-05-19"
+  },
+  {
+   "conversation": "17ced9ef-aee1-46b6-f169-fdec45cafa64",
+   "truth": [
+    [
+     "Fee",
+     337782
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     337782
+    ]
+   ],
+   "postdating": {
+    "Call": 1,
+    "DepositTransaction": 29,
+    "CardTransaction": 22
+   },
+   "todays_context": 400,
+   "turns_only": [
+    [
+     "Fee",
+     337782
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     337782
+    ]
+   ],
+   "seconds": 5.3,
+   "as_of": "2026-06-12"
+  },
+  {
+   "conversation": "18a06d68-8d0d-be54-defe-ddb9505c81a4",
+   "truth": [
+    [
+     "Fee",
+     64590
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     64590
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 6,
+    "CardTransaction": 0
+   },
+   "todays_context": 72,
+   "turns_only": [
+    [
+     "Fee",
+     64590
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     64590
+    ]
+   ],
+   "seconds": 6.0,
+   "as_of": "2026-06-16"
+  },
+  {
+   "conversation": "18d9be6a-3967-0650-f65b-5a43bb78c119",
+   "truth": [
+    [
+     "Fee",
+     421998
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     421998
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 27,
+    "CardTransaction": 58
+   },
+   "todays_context": 309,
+   "turns_only": [
+    [
+     "Fee",
+     421998
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     421998
+    ]
+   ],
+   "seconds": 5.3,
+   "as_of": "2026-05-14"
+  },
+  {
+   "conversation": "197850e5-df66-7ca5-bd4e-0d90f5ef119d",
+   "truth": [
+    [
+     "Fee",
+     199709
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     199709
+    ]
+   ],
+   "postdating": {
+    "Call": 2,
+    "DepositTransaction": 94,
+    "CardTransaction": 0
+   },
+   "todays_context": 211,
+   "turns_only": [
+    [
+     "Fee",
+     199709
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     199709
+    ]
+   ],
+   "seconds": 7.1,
+   "as_of": "2026-05-18"
+  },
+  {
+   "conversation": "1aae5c0a-c465-9482-46a4-95ee285b04ee",
+   "truth": [
+    [
+     "Fee",
+     220633
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     220633
+    ]
+   ],
+   "postdating": {
+    "Call": 1,
+    "DepositTransaction": 6,
+    "CardTransaction": 0
+   },
+   "todays_context": 86,
+   "turns_only": [
+    [
+     "Fee",
+     220633
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     220633
+    ]
+   ],
+   "seconds": 4.8,
+   "as_of": "2026-06-25"
+  },
+  {
+   "conversation": "1b04494d-f7f9-26e6-3212-790a939b8fac",
+   "truth": [
+    [
+     "Fee",
+     454989
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     454989
+    ]
+   ],
+   "postdating": {
+    "Call": 4,
+    "DepositTransaction": 200,
+    "CardTransaction": 200
+   },
+   "todays_context": 635,
+   "turns_only": [
+    [
+     "Fee",
+     454989
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     454989
+    ]
+   ],
+   "seconds": 5.1,
+   "as_of": "2026-04-07"
+  },
+  {
+   "conversation": "1b4dc7ba-0080-3cab-1f1f-f2580446eddf",
+   "truth": [
+    [
+     "Fee",
+     225764
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     225764
+    ]
+   ],
+   "postdating": {
+    "Call": 1,
+    "DepositTransaction": 34,
+    "CardTransaction": 0
+   },
+   "todays_context": 99,
+   "turns_only": [
+    [
+     "Fee",
+     225764
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     225764
+    ]
+   ],
+   "seconds": 4.7,
+   "as_of": "2026-05-22"
+  },
+  {
+   "conversation": "1c9fc239-7231-9ca9-8572-b23348bb5f67",
+   "truth": [
+    [
+     "Fee",
+     347725
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     347725
+    ]
+   ],
+   "postdating": {
+    "Call": 2,
+    "DepositTransaction": 73,
+    "CardTransaction": 0
+   },
+   "todays_context": 214,
+   "turns_only": [
+    [
+     "Fee",
+     347725
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     347725
+    ]
+   ],
+   "seconds": 5.4,
+   "as_of": "2026-05-22"
+  },
+  {
+   "conversation": "1d77bb73-8b85-72e1-4adc-dc0c0d1f3132",
+   "truth": [
+    [
+     "Fee",
+     296219
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     296219
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 31,
+    "CardTransaction": 55
+   },
+   "todays_context": 304,
+   "turns_only": [
+    [
+     "Fee",
+     296219
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     296219
+    ]
+   ],
+   "seconds": 7.1,
+   "as_of": "2026-05-15"
+  },
+  {
+   "conversation": "220aa8bc-184b-a339-0bee-3fd3162a681e",
+   "truth": [
+    [
+     "Fee",
+     130875
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     130875
+    ]
+   ],
+   "postdating": {
+    "Call": 3,
+    "DepositTransaction": 139,
+    "CardTransaction": 136
+   },
+   "todays_context": 641,
+   "turns_only": [
+    [
+     "Fee",
+     130875
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     130875
+    ]
+   ],
+   "seconds": 5.3,
+   "as_of": "2026-05-28"
+  },
+  {
+   "conversation": "220e6cb2-32ab-0015-c55a-32dc0a83df07",
+   "truth": [
+    [
+     "Fee",
+     58366
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     58366
+    ]
+   ],
+   "postdating": {
+    "Call": 2,
+    "DepositTransaction": 48,
+    "CardTransaction": 0
+   },
+   "todays_context": 66,
+   "turns_only": [
+    [
+     "Fee",
+     58366
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     58366
+    ]
+   ],
+   "seconds": 7.5,
+   "as_of": "2026-04-15"
+  },
+  {
+   "conversation": "22a71f4f-a8fa-80f9-d4db-f676d664d549",
+   "truth": [
+    [
+     "Fee",
+     194954
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     194954
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 101,
+    "CardTransaction": 0
+   },
+   "todays_context": 171,
+   "turns_only": [
+    [
+     "Fee",
+     194954
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     194954
+    ]
+   ],
+   "seconds": 6.3,
+   "as_of": "2026-05-07"
+  },
+  {
+   "conversation": "22c20943-90d6-cf93-b259-877f586d9d22",
+   "truth": [
+    [
+     "Fee",
+     134575
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     134575
+    ]
+   ],
+   "postdating": {
+    "Call": 1,
+    "DepositTransaction": 8,
+    "CardTransaction": 10
+   },
+   "todays_context": 269,
+   "turns_only": [
+    [
+     "Fee",
+     134575
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     134575
+    ]
+   ],
+   "seconds": 5.2,
+   "as_of": "2026-06-19"
+  },
+  {
+   "conversation": "238765f6-5c36-a40c-0f20-eda502d65eaf",
+   "truth": [
+    [
+     "Fee",
+     267353
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     267353
+    ]
+   ],
+   "postdating": {
+    "Call": 1,
+    "DepositTransaction": 28,
+    "CardTransaction": 0
+   },
+   "todays_context": 123,
+   "turns_only": [
+    [
+     "Fee",
+     267353
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     267353
+    ]
+   ],
+   "seconds": 8.3,
+   "as_of": "2026-06-01"
+  },
+  {
+   "conversation": "2466c410-6aab-01f0-7ae6-6d754774101f",
+   "truth": [
+    [
+     "Fee",
+     318977
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     318977
+    ]
+   ],
+   "postdating": {
+    "Call": 1,
+    "DepositTransaction": 34,
+    "CardTransaction": 63
+   },
+   "todays_context": 550,
+   "turns_only": [
+    [
+     "Fee",
+     318977
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     318977
+    ]
+   ],
+   "seconds": 9.2,
+   "as_of": "2026-06-05"
+  },
+  {
+   "conversation": "25b85da6-8678-d9c8-4290-b7dd183031a2",
+   "truth": [
+    [
+     "Fee",
+     39611
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     39611
+    ]
+   ],
+   "postdating": {
+    "Call": 1,
+    "DepositTransaction": 22,
+    "CardTransaction": 49
+   },
+   "todays_context": 412,
+   "turns_only": [
+    [
+     "Fee",
+     39611
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     39611
+    ]
+   ],
+   "seconds": 6.7,
+   "as_of": "2026-05-29"
+  },
+  {
+   "conversation": "275a1131-3af0-7394-90c7-9c7204d423ba",
+   "truth": [
+    [
+     "Fee",
+     541673
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     541673
+    ]
+   ],
+   "postdating": {
+    "Call": 1,
+    "DepositTransaction": 26,
+    "CardTransaction": 105
+   },
+   "todays_context": 518,
+   "turns_only": [
+    [
+     "Fee",
+     541673
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     541673
+    ]
+   ],
+   "seconds": 5.0,
+   "as_of": "2026-06-08"
+  },
+  {
+   "conversation": "282c58c1-a7f1-c2be-f8f9-eb223c5564df",
+   "truth": [
+    [
+     "Fee",
+     341555
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     341555
+    ]
+   ],
+   "postdating": {
+    "Call": 4,
+    "DepositTransaction": 75,
+    "CardTransaction": 200
+   },
+   "todays_context": 569,
+   "turns_only": [
+    [
+     "Fee",
+     341555
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     341555
+    ]
+   ],
+   "seconds": 5.5,
+   "as_of": "2026-05-06"
+  },
+  {
+   "conversation": "2a0e8be4-0afa-d1bd-4aa8-088ee43c80cd",
+   "truth": [
+    [
+     "Fee",
+     562560
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     562560
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 172,
+    "CardTransaction": 67
+   },
+   "todays_context": 424,
+   "turns_only": [
+    [
+     "Fee",
+     562560
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     562560
+    ]
+   ],
+   "seconds": 5.1,
+   "as_of": "2026-04-28"
+  },
+  {
+   "conversation": "2ab8501b-6bc8-4f84-acbb-1064b42b3e0c",
+   "truth": [
+    [
+     "Fee",
+     168625
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     168625
+    ]
+   ],
+   "postdating": {
+    "Call": 1,
+    "DepositTransaction": 37,
+    "CardTransaction": 0
+   },
+   "todays_context": 65,
+   "turns_only": [
+    [
+     "Fee",
+     168625
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     168625
+    ]
+   ],
+   "seconds": 5.5,
+   "as_of": "2026-04-28"
+  },
+  {
+   "conversation": "2d8fb638-2b87-a944-cf39-8093ddf55e28",
+   "truth": [
+    [
+     "Fee",
+     384968
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     384968
+    ]
+   ],
+   "postdating": {
+    "Call": 3,
+    "DepositTransaction": 44,
+    "CardTransaction": 0
+   },
+   "todays_context": 153,
+   "turns_only": [
+    [
+     "Fee",
+     384968
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     384968
+    ]
+   ],
+   "seconds": 5.1,
+   "as_of": "2026-06-01"
+  },
+  {
+   "conversation": "2e1d1708-3ac8-b6a6-af42-9e2b7e24fd4c",
+   "truth": [
+    [
+     "Fee",
+     110415
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     110415
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 48,
+    "CardTransaction": 0
+   },
+   "todays_context": 132,
+   "turns_only": [
+    [
+     "Fee",
+     110415
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     110415
+    ]
+   ],
+   "seconds": 7.4,
+   "as_of": "2026-05-28"
+  },
+  {
+   "conversation": "309263c4-f017-9c31-5202-c485e2221154",
+   "truth": [
+    [
+     "Fee",
+     484927
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     484927
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 166,
+    "CardTransaction": 0
+   },
+   "todays_context": 213,
+   "turns_only": [
+    [
+     "Fee",
+     484927
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     484927
+    ]
+   ],
+   "seconds": 4.8,
+   "as_of": "2026-04-13"
+  },
+  {
+   "conversation": "310dce91-c767-1ed3-fd3f-713a0e87e653",
+   "truth": [
+    [
+     "Fee",
+     356244
+    ]
+   ],
+   "group": "Fee",
+   "retrieved": [
+    [
+     "Fee",
+     356244
+    ]
+   ],
+   "postdating": {
+    "Call": 1,
+    "DepositTransaction": 200,
+    "CardTransaction": 0
+   },
+   "todays_context": 230,
+   "turns_only": [
+    [
+     "Fee",
+     356244
+    ]
+   ],
+   "with_note": [
+    [
+     "Fee",
+     356244
+    ]
+   ],
+   "seconds": 5.0,
+   "as_of": "2026-06-03"
+  },
+  {
+   "conversation": "02a9a9ac-f950-3c44-dcce-aa7119f9b335",
+   "truth": [
+    [
+     "Merchant",
+     "MID000100206"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000100206"
+    ]
+   ],
+   "postdating": {
+    "Call": 4,
+    "DepositTransaction": 82,
+    "CardTransaction": 68
+   },
+   "todays_context": 644,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000100206"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000100206"
+    ]
+   ],
+   "seconds": 5.6,
+   "as_of": "2026-06-10"
+  },
+  {
+   "conversation": "031bb079-6cbd-c6d7-6ff4-5a3755a116a6",
+   "truth": [
+    [
+     "Merchant",
+     "MID000101173"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000101173"
+    ]
+   ],
+   "postdating": {
+    "Call": 1,
+    "DepositTransaction": 111,
+    "CardTransaction": 200
+   },
+   "todays_context": 642,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000101173"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000101173"
+    ]
+   ],
+   "seconds": 4.9,
+   "as_of": "2026-06-05"
+  },
+  {
+   "conversation": "043568ec-e060-3788-9751-a4c9a19488f2",
+   "truth": [
+    [
+     "Merchant",
+     "MID000130811"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000130811"
+    ]
+   ],
+   "postdating": {
+    "Call": 5,
+    "DepositTransaction": 200,
+    "CardTransaction": 200
+   },
+   "todays_context": 642,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000130811"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000130811"
+    ]
+   ],
+   "seconds": 6.4,
+   "as_of": "2026-04-24"
+  },
+  {
+   "conversation": "04e3163e-60c4-6281-d69d-7ebf3b01be1a",
+   "truth": [
+    [
+     "Merchant",
+     "MID000114231"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000114231"
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 79,
+    "CardTransaction": 73
+   },
+   "todays_context": 336,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000114231"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000114231"
+    ]
+   ],
+   "seconds": 4.9,
+   "as_of": "2026-04-29"
+  },
+  {
+   "conversation": "05a4a39e-9477-4400-17b1-27b841913ff3",
+   "truth": [
+    [
+     "Merchant",
+     "MID000131290"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000131290"
+    ]
+   ],
+   "postdating": {
+    "Call": 3,
+    "DepositTransaction": 139,
+    "CardTransaction": 200
+   },
+   "todays_context": 573,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000131290"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000131290"
+    ]
+   ],
+   "seconds": 9.2,
+   "as_of": "2026-04-03"
+  },
+  {
+   "conversation": "05ca449f-fdea-d880-7d20-0451afece55d",
+   "truth": [
+    [
+     "Merchant",
+     "MID000106798"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000106798"
+    ]
+   ],
+   "postdating": {
+    "Call": 2,
+    "DepositTransaction": 119,
+    "CardTransaction": 108
+   },
+   "todays_context": 369,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000106798"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000106798"
+    ]
+   ],
+   "seconds": 5.5,
+   "as_of": "2026-04-07"
+  },
+  {
+   "conversation": "061a22a4-d8ef-ab51-d993-526d3b98ca66",
+   "truth": [
+    [
+     "Merchant",
+     "MID000108805"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000108805"
+    ]
+   ],
+   "postdating": {
+    "Call": 1,
+    "DepositTransaction": 9,
+    "CardTransaction": 10
+   },
+   "todays_context": 218,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000108805"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000108805"
+    ]
+   ],
+   "seconds": 5.2,
+   "as_of": "2026-06-12"
+  },
+  {
+   "conversation": "07fa7cae-4c73-aac4-2aac-b08fa94dbf87",
+   "truth": [
+    [
+     "Merchant",
+     "MID000105293"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000105293"
+    ]
+   ],
+   "postdating": {
+    "Call": 5,
+    "DepositTransaction": 200,
+    "CardTransaction": 92
+   },
+   "todays_context": 421,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000105293"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000105293"
+    ]
+   ],
+   "seconds": 4.9,
+   "as_of": "2026-04-08"
+  },
+  {
+   "conversation": "086f41cf-cc43-f181-2838-7ea742bebce7",
+   "truth": [
+    [
+     "Merchant",
+     "MID000136041"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000136041"
+    ]
+   ],
+   "postdating": {
+    "Call": 4,
+    "DepositTransaction": 42,
+    "CardTransaction": 197
+   },
+   "todays_context": 477,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000136041"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000136041"
+    ]
+   ],
+   "seconds": 5.2,
+   "as_of": "2026-04-15"
+  },
+  {
+   "conversation": "09632388-3880-6aae-9bfc-7ef239fd2c36",
+   "truth": [
+    [
+     "Merchant",
+     "MID000137343"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000137343"
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 30,
+    "CardTransaction": 12
+   },
+   "todays_context": 295,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000137343"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000137343"
+    ]
+   ],
+   "seconds": 5.5,
+   "as_of": "2026-06-12"
+  },
+  {
+   "conversation": "0ba50a81-7c9d-714e-34e4-60e9b9ef3d0a",
+   "truth": [
+    [
+     "Merchant",
+     "MID000101818"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000101818"
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 79,
+    "CardTransaction": 72
+   },
+   "todays_context": 277,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000101818"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000101818"
+    ]
+   ],
+   "seconds": 5.6,
+   "as_of": "2026-04-15"
+  },
+  {
+   "conversation": "0c6cd99f-001a-b416-da81-f58b94748641",
+   "truth": [
+    [
+     "Merchant",
+     "MID000115189"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000115189"
+    ]
+   ],
+   "postdating": {
+    "Call": 3,
+    "DepositTransaction": 200,
+    "CardTransaction": 178
+   },
+   "todays_context": 630,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000115189"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000115189"
+    ]
+   ],
+   "seconds": 6.5,
+   "as_of": "2026-04-10"
+  },
+  {
+   "conversation": "0caedd4c-2aba-1927-4761-1bfe93928caf",
+   "truth": [
+    [
+     "Merchant",
+     "MID000113431"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000113431"
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 178,
+    "CardTransaction": 33
+   },
+   "todays_context": 362,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000113431"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000113431"
+    ]
+   ],
+   "seconds": 5.1,
+   "as_of": "2026-05-22"
+  },
+  {
+   "conversation": "0e19b9b7-4d89-2c05-ab56-695fba05fd35",
+   "truth": [
+    [
+     "Merchant",
+     "MID000101053"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000101053"
+    ]
+   ],
+   "postdating": {
+    "Call": 20,
+    "DepositTransaction": 200,
+    "CardTransaction": 200
+   },
+   "todays_context": 686,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000101053"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000101053"
+    ]
+   ],
+   "seconds": 5.4,
+   "as_of": "2026-05-04"
+  },
+  {
+   "conversation": "1064db70-e53b-5a63-2bec-83226f547c9d",
+   "truth": [
+    [
+     "Merchant",
+     "MID000101610"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000101610"
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 0,
+    "CardTransaction": 35
+   },
+   "todays_context": 320,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000101610"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000101610"
+    ]
+   ],
+   "seconds": 6.3,
+   "as_of": "2026-06-05"
+  },
+  {
+   "conversation": "108d3124-cef2-4c50-7742-3a7c7e9a8f0b",
+   "truth": [
+    [
+     "Merchant",
+     "MID000138210"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000138210"
+    ]
+   ],
+   "postdating": {
+    "Call": 2,
+    "DepositTransaction": 0,
+    "CardTransaction": 92
+   },
+   "todays_context": 233,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000138210"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000138210"
+    ]
+   ],
+   "seconds": 5.8,
+   "as_of": "2026-04-10"
+  },
+  {
+   "conversation": "10dcd9e2-27bf-4508-11e7-647d3b365021",
+   "truth": [
+    [
+     "Merchant",
+     "MID000109600"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000109600"
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 0,
+    "CardTransaction": 48
+   },
+   "todays_context": 407,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000109600"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000109600"
+    ]
+   ],
+   "seconds": 5.2,
+   "as_of": "2026-06-12"
+  },
+  {
+   "conversation": "11f904a7-9dc0-c488-0742-d13ade741e7c",
+   "truth": [
+    [
+     "Merchant",
+     "MID000108181"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000108181"
+    ]
+   ],
+   "postdating": {
+    "Call": 1,
+    "DepositTransaction": 108,
+    "CardTransaction": 179
+   },
+   "todays_context": 665,
+   "turns_only": [],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000108181"
+    ]
+   ],
+   "seconds": 5.6,
+   "as_of": "2026-06-17"
+  },
+  {
+   "conversation": "12bedb1b-8a26-01c8-be56-7ff4ab003079",
+   "truth": [
+    [
+     "Merchant",
+     "MID000117533"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000117533"
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 27,
+    "CardTransaction": 91
+   },
+   "todays_context": 446,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000117533"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000117533"
+    ]
+   ],
+   "seconds": 5.2,
+   "as_of": "2026-05-16"
+  },
+  {
+   "conversation": "132cf307-f4ca-f899-57bf-ee679862e873",
+   "truth": [
+    [
+     "Merchant",
+     "MID000108118"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000108118"
+    ]
+   ],
+   "postdating": {
+    "Call": 2,
+    "DepositTransaction": 0,
+    "CardTransaction": 103
+   },
+   "todays_context": 335,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000108118"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000108118"
+    ]
+   ],
+   "seconds": 6.1,
+   "as_of": "2026-05-07"
+  },
+  {
+   "conversation": "1617fb6a-6df7-765e-af76-67e8cf19b8e6",
+   "truth": [
+    [
+     "Merchant",
+     "MID000108485"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000108485"
+    ]
+   ],
+   "postdating": {
+    "Call": 4,
+    "DepositTransaction": 147,
+    "CardTransaction": 172
+   },
+   "todays_context": 592,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000108485"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000108485"
+    ]
+   ],
+   "seconds": 5.2,
+   "as_of": "2026-04-15"
+  },
+  {
+   "conversation": "161f6c7b-f36a-3025-0c90-2d4c4054199b",
+   "truth": [
+    [
+     "Merchant",
+     "MID000110954"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000110954"
+    ]
+   ],
+   "postdating": {
+    "Call": 5,
+    "DepositTransaction": 162,
+    "CardTransaction": 168
+   },
+   "todays_context": 631,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000110954"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000110954"
+    ]
+   ],
+   "seconds": 5.4,
+   "as_of": "2026-05-03"
+  },
+  {
+   "conversation": "168e1ec6-1863-910d-8a5d-342766c4f684",
+   "truth": [
+    [
+     "Merchant",
+     "MID000108672"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000108672"
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 0,
+    "CardTransaction": 11
+   },
+   "todays_context": 414,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000108672"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000108672"
+    ]
+   ],
+   "seconds": 4.6,
+   "as_of": "2026-06-25"
+  },
+  {
+   "conversation": "16a53fc3-62a4-96f1-ddd1-ba17774bed13",
+   "truth": [
+    [
+     "Merchant",
+     "MID000105326"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000105326"
+    ]
+   ],
+   "postdating": {
+    "Call": 4,
+    "DepositTransaction": 56,
+    "CardTransaction": 178
+   },
+   "todays_context": 451,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000105326"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000105326"
+    ]
+   ],
+   "seconds": 7.2,
+   "as_of": "2026-04-03"
+  },
+  {
+   "conversation": "1756fa60-3389-f215-d4c3-f428f7f843e4",
+   "truth": [
+    [
+     "Merchant",
+     "MID000130946"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000130946"
+    ]
+   ],
+   "postdating": {
+    "Call": 1,
+    "DepositTransaction": 0,
+    "CardTransaction": 78
+   },
+   "todays_context": 291,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000130946"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000130946"
+    ]
+   ],
+   "seconds": 6.2,
+   "as_of": "2026-05-13"
+  },
+  {
+   "conversation": "18711a25-e617-8b6e-a57f-d9da54d5101c",
+   "truth": [
+    [
+     "Merchant",
+     "MID000115075"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000115075"
+    ]
+   ],
+   "postdating": {
+    "Call": 1,
+    "DepositTransaction": 52,
+    "CardTransaction": 38
+   },
+   "todays_context": 219,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000115075"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000115075"
+    ]
+   ],
+   "seconds": 6.7,
+   "as_of": "2026-04-28"
+  },
+  {
+   "conversation": "19ad0e65-70d6-98fd-8d1a-29fa037837c0",
+   "truth": [
+    [
+     "Merchant",
+     "MID000121753"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000121753"
+    ]
+   ],
+   "postdating": {
+    "Call": 1,
+    "DepositTransaction": 125,
+    "CardTransaction": 105
+   },
+   "todays_context": 476,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000121753"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000121753"
+    ]
+   ],
+   "seconds": 9.8,
+   "as_of": "2026-04-24"
+  },
+  {
+   "conversation": "1a1320cf-ec8d-db29-4f9b-59da6296c717",
+   "truth": [
+    [
+     "Merchant",
+     "MID000125559"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000125559"
+    ]
+   ],
+   "postdating": {
+    "Call": 1,
+    "DepositTransaction": 4,
+    "CardTransaction": 8
+   },
+   "todays_context": 382,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000125559"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000125559"
+    ]
+   ],
+   "seconds": 6.1,
+   "as_of": "2026-06-23"
+  },
+  {
+   "conversation": "1a804749-ea72-caf5-da04-d881160dc933",
+   "truth": [
+    [
+     "Merchant",
+     "MID000105848"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000105848"
+    ]
+   ],
+   "postdating": {
+    "Call": 2,
+    "DepositTransaction": 0,
+    "CardTransaction": 80
+   },
+   "todays_context": 182,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000105848"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000105848"
+    ]
+   ],
+   "seconds": 6.1,
+   "as_of": "2026-04-03"
+  },
+  {
+   "conversation": "1b18983b-0e08-20e0-da8c-be2a198054aa",
+   "truth": [
+    [
+     "Merchant",
+     "MID000115705"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000115705"
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 0,
+    "CardTransaction": 25
+   },
+   "todays_context": 135,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000115705"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000115705"
+    ]
+   ],
+   "seconds": 7.9,
+   "as_of": "2026-05-28"
+  },
+  {
+   "conversation": "1d4183bf-1a52-0293-ed72-6d195a33adb4",
+   "truth": [
+    [
+     "Merchant",
+     "MID000116676"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000116676"
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 0,
+    "CardTransaction": 22
+   },
+   "todays_context": 163,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000116676"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000116676"
+    ]
+   ],
+   "seconds": 8.6,
+   "as_of": "2026-06-05"
+  },
+  {
+   "conversation": "1d6d773b-934d-ccce-57b1-bf36a9214e2a",
+   "truth": [
+    [
+     "Merchant",
+     "MID000129316"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000129316"
+    ]
+   ],
+   "postdating": {
+    "Call": 1,
+    "DepositTransaction": 200,
+    "CardTransaction": 54
+   },
+   "todays_context": 380,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000129316"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000129316"
+    ]
+   ],
+   "seconds": 6.9,
+   "as_of": "2026-04-24"
+  },
+  {
+   "conversation": "1dc10e34-efaa-26d4-b3c2-90d32521b2fa",
+   "truth": [
+    [
+     "Merchant",
+     "MID000121955"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000121955"
+    ]
+   ],
+   "postdating": {
+    "Call": 28,
+    "DepositTransaction": 200,
+    "CardTransaction": 200
+   },
+   "todays_context": 701,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000121955"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000121955"
+    ]
+   ],
+   "seconds": 4.8,
+   "as_of": "2026-04-07"
+  },
+  {
+   "conversation": "1e681e26-a852-de26-e5b9-e9662baf522c",
+   "truth": [
+    [
+     "Merchant",
+     "MID000100240"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000100240"
+    ]
+   ],
+   "postdating": {
+    "Call": 1,
+    "DepositTransaction": 79,
+    "CardTransaction": 30
+   },
+   "todays_context": 298,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000100240"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000100240"
+    ]
+   ],
+   "seconds": 5.7,
+   "as_of": "2026-05-19"
+  },
+  {
+   "conversation": "1ee35427-b325-5a79-3a47-62ac41e9b824",
+   "truth": [
+    [
+     "Merchant",
+     "MID000123045"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000123045"
+    ]
+   ],
+   "postdating": {
+    "Call": 6,
+    "DepositTransaction": 154,
+    "CardTransaction": 200
+   },
+   "todays_context": 598,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000123045"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000123045"
+    ]
+   ],
+   "seconds": 5.2,
+   "as_of": "2026-04-06"
+  },
+  {
+   "conversation": "202c1374-066d-acc0-6cf5-9b8109452a3a",
+   "truth": [
+    [
+     "Merchant",
+     "MID000103499"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000103499"
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 18,
+    "CardTransaction": 47
+   },
+   "todays_context": 464,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000103499"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000103499"
+    ]
+   ],
+   "seconds": 5.0,
+   "as_of": "2026-06-05"
+  },
+  {
+   "conversation": "20a9d173-c73f-3149-01e4-ccfea6418ff7",
+   "truth": [
+    [
+     "Merchant",
+     "MID000103673"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000103673"
+    ]
+   ],
+   "postdating": {
+    "Call": 1,
+    "DepositTransaction": 0,
+    "CardTransaction": 26
+   },
+   "todays_context": 140,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000103673"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000103673"
+    ]
+   ],
+   "seconds": 5.7,
+   "as_of": "2026-05-22"
+  },
+  {
+   "conversation": "20d408f0-9317-8398-512b-a2eeb093bb61",
+   "truth": [
+    [
+     "Merchant",
+     "MID000105248"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000105248"
+    ]
+   ],
+   "postdating": {
+    "Call": 3,
+    "DepositTransaction": 0,
+    "CardTransaction": 109
+   },
+   "todays_context": 383,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000105248"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000105248"
+    ]
+   ],
+   "seconds": 4.8,
+   "as_of": "2026-04-28"
+  },
+  {
+   "conversation": "213b9b6e-07d6-0511-729b-af52bfd4d9b4",
+   "truth": [
+    [
+     "Merchant",
+     "MID000105831"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000105831"
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 22,
+    "CardTransaction": 19
+   },
+   "todays_context": 366,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000105831"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000105831"
+    ]
+   ],
+   "seconds": 5.0,
+   "as_of": "2026-06-11"
+  },
+  {
+   "conversation": "2247cb4e-e992-58ae-becb-0db7cbaf668d",
+   "truth": [
+    [
+     "Merchant",
+     "MID000111714"
+    ]
+   ],
+   "group": "Merchant",
+   "retrieved": [
+    [
+     "Merchant",
+     "MID000111714"
+    ]
+   ],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 6,
+    "CardTransaction": 7
+   },
+   "todays_context": 291,
+   "turns_only": [
+    [
+     "Merchant",
+     "MID000111714"
+    ]
+   ],
+   "with_note": [
+    [
+     "Merchant",
+     "MID000111714"
+    ]
+   ],
+   "seconds": 5.5,
+   "as_of": "2026-06-24"
+  },
+  {
+   "conversation": "00080920-a5d2-2c38-0d3c-a4fead928bfe",
+   "truth": [],
+   "group": "neither",
+   "retrieved": [],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 0,
+    "CardTransaction": 49
+   },
+   "todays_context": 321,
+   "turns_only": [],
+   "with_note": [],
+   "seconds": 4.7,
+   "as_of": "2026-06-02"
+  },
+  {
+   "conversation": "00242519-251e-2715-d629-a1ce5f854f62",
+   "truth": [],
+   "group": "neither",
+   "retrieved": [],
+   "postdating": {
+    "Call": 16,
+    "DepositTransaction": 200,
+    "CardTransaction": 200
+   },
+   "todays_context": 678,
+   "turns_only": [],
+   "with_note": [],
+   "seconds": 6.1,
+   "as_of": "2026-04-27"
+  },
+  {
+   "conversation": "00a7577c-51ec-1056-9ee4-3e73b499a697",
+   "truth": [],
+   "group": "neither",
+   "retrieved": [],
+   "postdating": {
+    "Call": 4,
+    "DepositTransaction": 62,
+    "CardTransaction": 169
+   },
+   "todays_context": 417,
+   "turns_only": [],
+   "with_note": [],
+   "seconds": 6.3,
+   "as_of": "2025-10-17"
+  },
+  {
+   "conversation": "00b4159f-c992-3255-568c-cfd977f198eb",
+   "truth": [],
+   "group": "neither",
+   "retrieved": [],
+   "postdating": {
+    "Call": 4,
+    "DepositTransaction": 0,
+    "CardTransaction": 62
+   },
+   "todays_context": 176,
+   "turns_only": [],
+   "with_note": [],
+   "seconds": 5.0,
+   "as_of": "2026-04-19"
+  },
+  {
+   "conversation": "013fe180-d0ba-1a45-e70f-f22f5af4a6ed",
+   "truth": [],
+   "group": "neither",
+   "retrieved": [],
+   "postdating": {},
+   "todays_context": 0,
+   "turns_only": [],
+   "with_note": [],
+   "seconds": 0.9,
+   "as_of": "2026-06-19",
+   "no_customer": true
+  },
+  {
+   "conversation": "015ba8d5-5083-76d0-71f3-953f9e30be32",
+   "truth": [],
+   "group": "neither",
+   "retrieved": [],
+   "postdating": {
+    "Call": 3,
+    "DepositTransaction": 200,
+    "CardTransaction": 0
+   },
+   "todays_context": 211,
+   "turns_only": [],
+   "with_note": [],
+   "seconds": 6.3,
+   "as_of": "2025-12-29"
+  },
+  {
+   "conversation": "01ae2ff9-9898-2ce1-b3a8-c808e178bd70",
+   "truth": [],
+   "group": "neither",
+   "retrieved": [],
+   "postdating": {
+    "Call": 1,
+    "DepositTransaction": 34,
+    "CardTransaction": 42
+   },
+   "todays_context": 623,
+   "turns_only": [],
+   "with_note": [],
+   "seconds": 6.4,
+   "as_of": "2026-06-17"
+  },
+  {
+   "conversation": "01b47201-f8e9-dcf7-c6f5-44a9b57adc37",
+   "truth": [],
+   "group": "neither",
+   "retrieved": [],
+   "postdating": {},
+   "todays_context": 0,
+   "turns_only": [],
+   "with_note": [],
+   "seconds": 0.9,
+   "as_of": "2025-10-11",
+   "no_customer": true
+  },
+  {
+   "conversation": "01cf1e26-2dbf-2641-79a1-96f541269b4e",
+   "truth": [],
+   "group": "neither",
+   "retrieved": [],
+   "postdating": {},
+   "todays_context": 0,
+   "turns_only": [],
+   "with_note": [],
+   "seconds": 0.7,
+   "as_of": "2026-06-26",
+   "no_customer": true
+  },
+  {
+   "conversation": "024d961c-6dbb-e906-dc35-720a2a7fc117",
+   "truth": [],
+   "group": "neither",
+   "retrieved": [],
+   "postdating": {},
+   "todays_context": 0,
+   "turns_only": [],
+   "with_note": [],
+   "seconds": 1.6,
+   "as_of": "2026-02-20",
+   "no_customer": true
+  },
+  {
+   "conversation": "02d9f678-b11c-9bbc-5c31-0de474ebe0b9",
+   "truth": [],
+   "group": "neither",
+   "retrieved": [],
+   "postdating": {
+    "Call": 0,
+    "DepositTransaction": 147,
+    "CardTransaction": 145
+   },
+   "todays_context": 446,
+   "turns_only": [],
+   "with_note": [],
+   "seconds": 6.7,
+   "as_of": "2025-11-21"
+  },
+  {
+   "conversation": "02eecb05-0202-f472-7516-879dca451ad8",
+   "truth": [],
+   "group": "neither",
+   "retrieved": [],
+   "postdating": {},
+   "todays_context": 0,
+   "turns_only": [],
+   "with_note": [],
+   "seconds": 1.0,
+   "as_of": "2026-06-13",
+   "no_customer": true
+  },
+  {
+   "conversation": "0358493c-87ef-21a1-a6b4-7181f0ab10a3",
+   "truth": [],
+   "group": "neither",
+   "retrieved": [],
+   "postdating": {
+    "Call": 2,
+    "DepositTransaction": 125,
+    "CardTransaction": 116
+   },
+   "todays_context": 625,
+   "turns_only": [],
+   "with_note": [],
+   "seconds": 5.4,
+   "as_of": "2026-05-28"
+  },
+  {
+   "conversation": "03659ecd-5962-5936-3d4d-da62cf49f92c",
+   "truth": [],
+   "group": "neither",
+   "retrieved": [],
+   "postdating": {
+    "Call": 3,
+    "DepositTransaction": 0,
+    "CardTransaction": 200
+   },
+   "todays_context": 413,
+   "turns_only": [],
+   "with_note": [],
+   "seconds": 6.1,
+   "as_of": "2026-03-20"
+  },
+  {
+   "conversation": "038018f9-598a-cb8e-0d9a-da3b3c4d09a7",
+   "truth": [],
+   "group": "neither",
+   "retrieved": [],
+   "postdating": {
+    "Call": 2,
+    "DepositTransaction": 175,
+    "CardTransaction": 0
+   },
+   "todays_context": 239,
+   "turns_only": [],
+   "with_note": [],
+   "seconds": 5.2,
+   "as_of": "2026-05-15"
+  },
+  {
+   "conversation": "0388817b-0432-aca6-0406-d6fb4e4af2fc",
+   "truth": [],
+   "group": "neither",
+   "retrieved": [],
+   "postdating": {
+    "Call": 9,
+    "DepositTransaction": 0,
+    "CardTransaction": 200
+   },
+   "todays_context": 429,
+   "turns_only": [],
+   "with_note": [],
+   "seconds": 5.5,
+   "as_of": "2026-01-07"
+  },
+  {
+   "conversation": "038e9988-779f-8cda-0358-b6e2b7185893",
+   "truth": [],
+   "group": "neither",
+   "retrieved": [],
+   "postdating": {
+    "Call": 8,
+    "DepositTransaction": 97,
+    "CardTransaction": 0
+   },
+   "todays_context": 123,
+   "turns_only": [],
+   "with_note": [],
+   "seconds": 7.4,
+   "as_of": "2026-01-30"
+  },
+  {
+   "conversation": "03e67136-a7c0-0593-5806-f7e22112144e",
+   "truth": [],
+   "group": "neither",
+   "retrieved": [],
+   "postdating": {},
+   "todays_context": 0,
+   "turns_only": [],
+   "with_note": [],
+   "seconds": 1.1,
+   "as_of": "2026-01-09",
+   "no_customer": true
+  },
+  {
+   "conversation": "046db264-a5b7-8952-1e28-f3b7e0111338",
+   "truth": [],
+   "group": "neither",
+   "retrieved": [],
+   "postdating": {
+    "Call": 3,
+    "DepositTransaction": 138,
+    "CardTransaction": 200
+   },
+   "todays_context": 558,
+   "turns_only": [],
+   "with_note": [],
+   "seconds": 4.8,
+   "as_of": "2026-02-26"
+  },
+  {
+   "conversation": "049a1e1f-567e-3c17-d17e-610efd081ba2",
+   "truth": [],
+   "group": "neither",
+   "retrieved": [],
+   "postdating": {
+    "Call": 2,
+    "DepositTransaction": 122,
+    "CardTransaction": 0
+   },
+   "todays_context": 136,
+   "turns_only": [],
+   "with_note": [],
+   "seconds": 5.8,
+   "as_of": "2025-12-26"
+  }
+ ],
+ "seconds_wall": 910.3282799720764
+}

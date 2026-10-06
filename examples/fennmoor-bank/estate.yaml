@@ -62,3 +62,15 @@ entitlements:                         # qlsc ask --as <name>: the test principal
     marketing: qlsc-marketing@jeffdavis-bq-testproj.iam.gserviceaccount.com
     risk: qlsc-risk@jeffdavis-bq-testproj.iam.gserviceaccount.com
     contact-center: qlsc-contact-center@jeffdavis-bq-testproj.iam.gserviceaccount.com
+
+# The text source for the State-Action graph (plans/2026-10-05-text-graph-construction.md): the process corpus's events. The backup
+# is gs://fennmoor-corpus/full/events.ndjson.gz, read as warehouse.gcloud_config's identity; the local copy is the same file.
+process:
+  events: build/corpus/full/events.ndjson.gz
+  composite: {database: fennmoor, url: "neo4j+ssc://neo4j:7687"}   # the composite on the Virtual Graph instance (docker/nvg/README.md): fennmoor.process beside .semantic, .memory and .rows
+  context:                            # the conversation is a Call of the virtual graph; its customer's context, as of the call
+    also: [dw_core.fct_fees]          # fees are not in the virtual graph's model (the log joins them too rarely): read from the warehouse
+    match:
+      - {label: Merchant, name: merchant_name}            # a merchant named in the turns, when the customer has one of that name (several merchants share a name)
+      - {label: CardTransaction, amount: amount, name: Merchant.merchant_name, emit: Merchant}   # a purchase whose amount and merchant the turns say: that one merchant
+      - {table: dw_core.fct_fees, key: fee_id, amount: fee_amount}   # a fee whose amount the turns say

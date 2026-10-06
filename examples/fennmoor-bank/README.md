@@ -18,6 +18,8 @@ every command from the repository root.
 | `eval/` | Grades what qlsc built against the spec; writes `results/` |
 | `results/` | The latest scores, in git |
 | `demo.cypher` | Queries that draw each layer in Neo4j Browser or Explore |
+| `demo-101.md`, `demo.py` | A 20-minute first-touch demo of the whole architecture, and the two pieces of it that have no `qlsc` command |
+| `spec/corpus/`, `generate/corpus*.py` | The process corpus: a synthetic world of causes, clues and reps ([spec/corpus/README.md](spec/corpus/README.md)), and the generator that writes 2,200 conversations of unstructured text bound to real call rows (`corpus.py`, plans/2026-10-05-process-corpus.md). Backed up in `gs://fennmoor-corpus` (`--push`, `--pull`); `qlsc process` builds a State-Action graph from it |
 | `build/`, `work/` | Generated (not in git): the spec's build and the log; qlsc's extracts, reports and caches |
 
 ## 1. Set up

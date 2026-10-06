@@ -48,6 +48,14 @@ from qlsc import (
 )
 from qlsc.config import ConfigError
 from qlsc.config import load as load_settings
+from qlsc.process import absorb as process_absorb
+from qlsc.process import abstract as process_abstract
+from qlsc.process import annotate as process_annotate
+from qlsc.process import build as process_build
+from qlsc.process import context as process_context
+from qlsc.process import outcomes as process_outcomes
+from qlsc.process import outlook as process_outlook
+from qlsc.process import source as process_source
 from qlsc.warehouse import WarehouseUnavailable
 
 
@@ -180,6 +188,61 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--approve", metavar="ID", help="approve a proposed skill, by id or name")
     p.add_argument("--as", dest="as_", metavar="PRINCIPAL", help="as whom (the approver, or the reader)")
     p.set_defaults(func=lambda s, a: distill.run(s, approve_id=a.approve, as_=a.as_))
+    p = sub.add_parser(
+        "process", help="the State-Action graph from text (stages are added as they are built)"
+    )
+    stages = p.add_subparsers(dest="stage", required=True)
+    stages.add_parser("read", help="read process.events and say what is in it").set_defaults(
+        func=lambda s, a: process_source.summary(s)
+    )
+    stages.add_parser(
+        "build", help="group the annotated turns into States and Actions and write the process database"
+    ).set_defaults(func=lambda s, a: process_build.report(s))
+    p = stages.add_parser(
+        "context", help="a conversation's customer's context as of the call, and the rows its turns are about"
+    )
+    p.add_argument("conversation", help="a conversation_id in process.events")
+    p.add_argument("--turn", type=int, help="link only what the turns up to this sequence say")
+    p.add_argument("--as-of", help="a day (YYYY-MM-DD), instead of the call's own")
+    p.set_defaults(func=lambda s, a: process_context.report(s, a.conversation, a.turn, a.as_of))
+    stages.add_parser(
+        "abstract", help="build the levels above the first level of States and Actions"
+    ).set_defaults(func=lambda s, a: process_abstract.report(s))
+    p = stages.add_parser(
+        "outcomes",
+        help="how each conversation ended, from its end and the agent's note, and the kinds of outcome",
+    )
+    p.add_argument("--limit", type=int, help="the first N conversations (a trial)")
+    p.add_argument("--model", help="an LLM model id, or `query` for llm.query_model (default llm.model)")
+    p.set_defaults(func=lambda s, a: process_outcomes.report(s, a.limit, a.model))
+    stages.add_parser(
+        "absorb",
+        help="the odds each State and Action carries of a case ending well, and in which kind of outcome (no calls)",
+    ).set_defaults(func=lambda s, a: process_absorb.report(s))
+    p = stages.add_parser(
+        "outlook",
+        help="where a conversation stands at a turn, what reps did next from States like it and how those cases ended",
+    )
+    p.add_argument("conversation", help="a conversation_id in process.events")
+    p.add_argument(
+        "--turn", type=int, help="read the conversation only up to this sequence (a case in progress)"
+    )
+    p.add_argument(
+        "--with-context",
+        action="store_true",
+        help="and the customer's context as of the call, from the warehouse",
+    )
+    p.set_defaults(func=lambda s, a: process_outlook.report(s, a.conversation, a.turn, a.with_context))
+    p = stages.add_parser("annotate", help="describe each turn as a State or an Action, by an LLM")
+    p.add_argument(
+        "--unit",
+        choices=["turn", "conversation"],
+        default="turn",
+        help="one call per turn, or per conversation",
+    )
+    p.add_argument("--limit", type=int, help="the first N conversations (a trial)")
+    p.add_argument("--model", help="an LLM model id, or `query` for llm.query_model (default llm.model)")
+    p.set_defaults(func=lambda s, a: process_annotate.report(s, a.unit, a.limit, a.model))
     p = sub.add_parser("converse", help="record a conversation (a YAML file) in the Context Memory model")
     p.add_argument("file", help="the conversation: title, messages, the tools each called, what was learned")
     p.add_argument(
@@ -193,7 +256,13 @@ def main(argv: list[str] | None = None) -> int:
     a = parser().parse_args(argv)
     try:
         a.func(load_settings(a.config), a)
-    except (ConfigError, memory.Unsupported, WarehouseUnavailable) as e:
+    except (
+        ConfigError,
+        memory.Unsupported,
+        WarehouseUnavailable,
+        process_source.SourceError,
+        process_context.ContextError,
+    ) as e:
         print(f"qlsc: {e}", file=sys.stderr)
         return 2
     return 0

@@ -27,6 +27,18 @@ warehouse connector.
 | `compile_request.md` | `qlsc ask` (the compiled request) | the question, with the tables, joins, Computations and example SQL to choose from |
 | `compile_check.md` | `qlsc ask` (`navigate.compile_checks`) | one retry of the request, with what the checks found: a Computation's restriction the question doesn't state, a value it states that the request leaves out |
 | `sql_fix.md` | `qlsc ask` | one fix after a failed dry run |
+| `process_state_system.md` | `qlsc process annotate` | system prompt: describe where a case stands as of a customer's turn, from the conversation so far only |
+| `process_action_system.md` | `qlsc process annotate` | system prompt: describe what an agent's turn does, as one imperative phrase beginning with a verb from a closed list |
+| `process_turn.md` | `qlsc process annotate` | the conversation so far, and the turn to describe (one call per turn) |
+| `process_conversation_system.md` | `qlsc process annotate --unit conversation` | system prompt: annotate every turn of a conversation in one call, each from the turns up to it |
+| `process_conversation.md` | `qlsc process annotate --unit conversation` | the whole conversation to annotate |
+| `process_state_name_system.md` | `qlsc process build` | system prompt: name a State (a group of turns that leave a case in the same place) from its closest descriptions |
+| `process_action_name_system.md` | `qlsc process build` | system prompt: name an Action (a group of agent turns doing the same thing) as an imperative phrase beginning with a listed verb |
+| `process_state_parent_system.md` | `qlsc process abstract` | system prompt: name a broader State from the finer States it groups |
+| `process_action_parent_system.md` | `qlsc process abstract` | system prompt: name a broader Action (an imperative phrase beginning with a listed verb) from the finer Actions it groups |
+| `process_outcome_system.md` | `qlsc process outcomes` | system prompt: say how a case ended from the end of the conversation and the agent's after-call note, and rate it |
+| `process_outcome.md` | `qlsc process outcomes` | the end of one conversation and its note |
+| `process_outcome_name_system.md` | `qlsc process outcomes` | system prompt: name a kind of outcome from the descriptions of the cases that ended that way |
 | `precedent_system.md` | `qlsc ask` (the precedent route) | system prompt: re-run a query the business runs for a new question, changing only its literal values, or say it isn't the same query |
 | `precedent.md` | `qlsc ask` (the precedent route) | the question, today, and the business's query |
 | `correction.md` | `qlsc ask` (a correction: `navigate.corrected`) | the previous answer's request and what the asker said was wrong, for the request again |

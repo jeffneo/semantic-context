@@ -1,0 +1,92 @@
+{
+ "scored": {
+  "tuning": {
+   "1": {
+    "states": 1163,
+    "actions": 505,
+    "action_h": 0.9613482570837463,
+    "action_c": 0.673854606439349,
+    "action_v": 0.7923285433008569,
+    "state_v": 0.7814398338729142,
+    "state_coarse_v": 0.6671028556536995,
+    "stage_purity": 0.8991228070175439,
+    "singleton_states": 0.25472334682861,
+    "singleton_actions": 0.06579849211788896,
+    "fidelity": 0.9021898516551191,
+    "coverage": 0.7445026178010471,
+    "diag": [
+     54,
+     711
+    ]
+   },
+   "2": {
+    "states": 1163,
+    "actions": 209,
+    "action_h": 0.9117806672392915,
+    "action_c": 0.7843206776365248,
+    "action_v": 0.8432614394717829,
+    "state_v": 0.7814398338729142,
+    "state_coarse_v": 0.6671028556536995,
+    "stage_purity": 0.8991228070175439,
+    "singleton_states": 0.25472334682861,
+    "singleton_actions": 0.020904729266620972,
+    "fidelity": 0.8397318288318472,
+    "coverage": 0.7445026178010471,
+    "diag": [
+     41,
+     711
+    ]
+   }
+  },
+  "holdout": {
+   "1": {
+    "states": 2251,
+    "actions": 815,
+    "action_h": 0.9521242674775123,
+    "action_c": 0.645947618559166,
+    "action_v": 0.7697055539532516,
+    "state_v": 0.7738564177853637,
+    "state_coarse_v": 0.6498047031163029,
+    "stage_purity": 0.8864641698613979,
+    "singleton_states": 0.2502211736950752,
+    "singleton_actions": 0.06376941457586618,
+    "fidelity": 0.9138756963666794,
+    "coverage": 0.74934997399896,
+    "diag": [
+     102,
+     1441
+    ]
+   },
+   "2": {
+    "states": 2251,
+    "actions": 300,
+    "action_h": 0.9028037146801823,
+    "action_c": 0.7611689350995738,
+    "action_v": 0.8259584581489486,
+    "state_v": 0.7738564177853637,
+    "state_coarse_v": 0.6498047031163029,
+    "stage_purity": 0.8864641698613979,
+    "singleton_states": 0.2502211736950752,
+    "singleton_actions": 0.018667861409796895,
+    "fidelity": 0.8623119453792389,
+    "coverage": 0.74934997399896,
+    "diag": [
+     86,
+     1441
+    ]
+   }
+  }
+ },
+ "parameters": {
+  "kinds": [
+   "action"
+  ],
+  "neighbours": 10,
+  "similarity": 0.8,
+  "gamma": 4.0,
+  "transition_weight": 0.6,
+  "shrink": 0.85,
+  "min_nodes": 12,
+  "max_levels": 5
+ }
+}

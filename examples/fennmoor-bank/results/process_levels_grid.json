@@ -1,0 +1,838 @@
+{
+ "results": [
+  {
+   "setting": "level 1 (as built)",
+   "levels": {
+    "1": {
+     "states": 1163,
+     "actions": 505,
+     "action_h": 0.9613482570837463,
+     "action_c": 0.673854606439349,
+     "action_v": 0.7923285433008569,
+     "state_v": 0.7814398338729142,
+     "state_coarse_v": 0.6671028556536995,
+     "stage_purity": 0.8991228070175439,
+     "singleton_states": 0.25472334682861,
+     "singleton_actions": 0.06579849211788896,
+     "fidelity": 0.9021898516551191,
+     "coverage": 0.7445026178010471,
+     "diag": [
+      54,
+      711
+     ]
+    }
+   }
+  },
+  {
+   "setting": "sim 0.8, gamma 4.0, transitions 0.3, position 0.0",
+   "params": {
+    "neighbours": 10,
+    "similarity": 0.8,
+    "gamma": 4.0,
+    "transition_weight": 0.3,
+    "position_weight": 0.0,
+    "shrink": 0.85,
+    "min_nodes": 12,
+    "max_levels": 5
+   },
+   "levels": {
+    "2": {
+     "states": 73,
+     "actions": 211,
+     "action_h": 0.9162463493963979,
+     "action_c": 0.7835677918269347,
+     "action_v": 0.8447289751917623,
+     "state_v": 0.7110038826154759,
+     "state_coarse_v": 0.7113389630779039,
+     "stage_purity": 0.699055330634278,
+     "singleton_states": 0.0043859649122807015,
+     "singleton_actions": 0.020904729266620972,
+     "fidelity": 0.5989378774444846,
+     "coverage": 0.9979057591623036,
+     "diag": [
+      48,
+      953
+     ]
+    },
+    "3": {
+     "states": 32,
+     "actions": 211,
+     "action_h": 0.9162463493963979,
+     "action_c": 0.7835677918269347,
+     "action_v": 0.8447289751917623,
+     "state_v": 0.5240393576506694,
+     "state_coarse_v": 0.6158965433550551,
+     "stage_purity": 0.5,
+     "singleton_states": 0.004048582995951417,
+     "singleton_actions": 0.020904729266620972,
+     "fidelity": 0.46707848583475986,
+     "coverage": 0.9979057591623036,
+     "diag": [
+      1,
+      953
+     ]
+    }
+   }
+  },
+  {
+   "setting": "sim 0.8, gamma 4.0, transitions 0.3, position 0.2",
+   "params": {
+    "neighbours": 10,
+    "similarity": 0.8,
+    "gamma": 4.0,
+    "transition_weight": 0.3,
+    "position_weight": 0.2,
+    "shrink": 0.85,
+    "min_nodes": 12,
+    "max_levels": 5
+   },
+   "levels": {
+    "2": {
+     "states": 72,
+     "actions": 201,
+     "action_h": 0.9048326136548641,
+     "action_c": 0.7850251115260486,
+     "action_v": 0.84068180754184,
+     "state_v": 0.7066775873141142,
+     "state_coarse_v": 0.7116155716189322,
+     "stage_purity": 0.6960188933873145,
+     "singleton_states": 0.0043859649122807015,
+     "singleton_actions": 0.020904729266620972,
+     "fidelity": 0.6484000898175898,
+     "coverage": 0.9979057591623036,
+     "diag": [
+      39,
+      953
+     ]
+    },
+    "3": {
+     "states": 32,
+     "actions": 201,
+     "action_h": 0.9048326136548641,
+     "action_c": 0.7850251115260486,
+     "action_v": 0.84068180754184,
+     "state_v": 0.5187830777936161,
+     "state_coarse_v": 0.6038006653911986,
+     "stage_purity": 0.4949392712550607,
+     "singleton_states": 0.004048582995951417,
+     "singleton_actions": 0.020904729266620972,
+     "fidelity": 0.38252853007514254,
+     "coverage": 0.9979057591623036,
+     "diag": [
+      0,
+      953
+     ]
+    }
+   }
+  },
+  {
+   "setting": "sim 0.8, gamma 4.0, transitions 0.3, position 0.4",
+   "params": {
+    "neighbours": 10,
+    "similarity": 0.8,
+    "gamma": 4.0,
+    "transition_weight": 0.3,
+    "position_weight": 0.4,
+    "shrink": 0.85,
+    "min_nodes": 12,
+    "max_levels": 5
+   },
+   "levels": {
+    "2": {
+     "states": 72,
+     "actions": 199,
+     "action_h": 0.9029360978362345,
+     "action_c": 0.7849043257988416,
+     "action_v": 0.8397931927536496,
+     "state_v": 0.7100227132753918,
+     "state_coarse_v": 0.7127651797230841,
+     "stage_purity": 0.6939946018893387,
+     "singleton_states": 0.0043859649122807015,
+     "singleton_actions": 0.020904729266620972,
+     "fidelity": 0.6125349588434091,
+     "coverage": 0.9979057591623036,
+     "diag": [
+      50,
+      953
+     ]
+    },
+    "3": {
+     "states": 28,
+     "actions": 199,
+     "action_h": 0.9029360978362345,
+     "action_c": 0.7849043257988416,
+     "action_v": 0.8397931927536496,
+     "state_v": 0.5059854836831695,
+     "state_coarse_v": 0.6044667762105063,
+     "stage_purity": 0.4935897435897436,
+     "singleton_states": 0.0033738191632928477,
+     "singleton_actions": 0.020904729266620972,
+     "fidelity": 0.41256725606274747,
+     "coverage": 0.9979057591623036,
+     "diag": [
+      44,
+      953
+     ]
+    }
+   }
+  },
+  {
+   "setting": "sim 0.8, gamma 4.0, transitions 0.6, position 0.0",
+   "params": {
+    "neighbours": 10,
+    "similarity": 0.8,
+    "gamma": 4.0,
+    "transition_weight": 0.6,
+    "position_weight": 0.0,
+    "shrink": 0.85,
+    "min_nodes": 12,
+    "max_levels": 5
+   },
+   "levels": {
+    "2": {
+     "states": 79,
+     "actions": 209,
+     "action_h": 0.9117806672392915,
+     "action_c": 0.7843206776365248,
+     "action_v": 0.8432614394717829,
+     "state_v": 0.7198822005080016,
+     "state_coarse_v": 0.7278501866140885,
+     "stage_purity": 0.7284075573549258,
+     "singleton_states": 0.0043859649122807015,
+     "singleton_actions": 0.020904729266620972,
+     "fidelity": 0.5978588766521692,
+     "coverage": 0.9979057591623036,
+     "diag": [
+      46,
+      953
+     ]
+    },
+    "3": {
+     "states": 31,
+     "actions": 209,
+     "action_h": 0.9117806672392915,
+     "action_c": 0.7843206776365248,
+     "action_v": 0.8432614394717829,
+     "state_v": 0.5448637398663032,
+     "state_coarse_v": 0.6392976821147368,
+     "stage_purity": 0.5472334682860999,
+     "singleton_states": 0.003711201079622132,
+     "singleton_actions": 0.020904729266620972,
+     "fidelity": 0.4698521779431914,
+     "coverage": 0.9979057591623036,
+     "diag": [
+      41,
+      953
+     ]
+    }
+   }
+  },
+  {
+   "setting": "sim 0.8, gamma 4.0, transitions 0.6, position 0.2",
+   "params": {
+    "neighbours": 10,
+    "similarity": 0.8,
+    "gamma": 4.0,
+    "transition_weight": 0.6,
+    "position_weight": 0.2,
+    "shrink": 0.85,
+    "min_nodes": 12,
+    "max_levels": 5
+   },
+   "levels": {
+    "2": {
+     "states": 75,
+     "actions": 202,
+     "action_h": 0.904925740555498,
+     "action_c": 0.7849274831006716,
+     "action_v": 0.8406660104957869,
+     "state_v": 0.7240811049308581,
+     "state_coarse_v": 0.7267000864767893,
+     "stage_purity": 0.7371794871794872,
+     "singleton_states": 0.0043859649122807015,
+     "singleton_actions": 0.020904729266620972,
+     "fidelity": 0.6657626732243153,
+     "coverage": 0.9979057591623036,
+     "diag": [
+      42,
+      953
+     ]
+    },
+    "3": {
+     "states": 28,
+     "actions": 202,
+     "action_h": 0.904925740555498,
+     "action_c": 0.7849274831006716,
+     "action_v": 0.8406660104957869,
+     "state_v": 0.5087598783586642,
+     "state_coarse_v": 0.5970487260902464,
+     "stage_purity": 0.4780701754385965,
+     "singleton_states": 0.003711201079622132,
+     "singleton_actions": 0.020904729266620972,
+     "fidelity": 0.39063075912995776,
+     "coverage": 0.9979057591623036,
+     "diag": [
+      0,
+      953
+     ]
+    }
+   }
+  },
+  {
+   "setting": "sim 0.8, gamma 4.0, transitions 0.6, position 0.4",
+   "params": {
+    "neighbours": 10,
+    "similarity": 0.8,
+    "gamma": 4.0,
+    "transition_weight": 0.6,
+    "position_weight": 0.4,
+    "shrink": 0.85,
+    "min_nodes": 12,
+    "max_levels": 5
+   },
+   "levels": {
+    "2": {
+     "states": 73,
+     "actions": 203,
+     "action_h": 0.9057861374763015,
+     "action_c": 0.7832929099914501,
+     "action_v": 0.8400978752502982,
+     "state_v": 0.7108454896628663,
+     "state_coarse_v": 0.7203120073009425,
+     "stage_purity": 0.7152496626180836,
+     "singleton_states": 0.0043859649122807015,
+     "singleton_actions": 0.020904729266620972,
+     "fidelity": 0.6282307386342934,
+     "coverage": 0.9979057591623036,
+     "diag": [
+      46,
+      953
+     ]
+    },
+    "3": {
+     "states": 31,
+     "actions": 203,
+     "action_h": 0.9057861374763015,
+     "action_c": 0.7832929099914501,
+     "action_v": 0.8400978752502982,
+     "state_v": 0.5140173142564728,
+     "state_coarse_v": 0.5967643891394604,
+     "stage_purity": 0.5087719298245614,
+     "singleton_states": 0.004048582995951417,
+     "singleton_actions": 0.020904729266620972,
+     "fidelity": 0.36467375777744626,
+     "coverage": 0.9979057591623036,
+     "diag": [
+      0,
+      953
+     ]
+    }
+   }
+  },
+  {
+   "setting": "sim 0.85, gamma 4.0, transitions 0.3, position 0.0",
+   "params": {
+    "neighbours": 10,
+    "similarity": 0.85,
+    "gamma": 4.0,
+    "transition_weight": 0.3,
+    "position_weight": 0.0,
+    "shrink": 0.85,
+    "min_nodes": 12,
+    "max_levels": 5
+   },
+   "levels": {
+    "2": {
+     "states": 228,
+     "actions": 351,
+     "action_h": 0.9496220075887729,
+     "action_c": 0.7244905623166621,
+     "action_v": 0.821918662620316,
+     "state_v": 0.7334846607784011,
+     "state_coarse_v": 0.7080951879804652,
+     "stage_purity": 0.7607962213225371,
+     "singleton_states": 0.04251012145748988,
+     "singleton_actions": 0.04249485949280329,
+     "fidelity": 0.701209760419799,
+     "coverage": 0.9664921465968587,
+     "diag": [
+      34,
+      923
+     ]
+    },
+    "3": {
+     "states": 159,
+     "actions": 351,
+     "action_h": 0.9496220075887729,
+     "action_c": 0.7244905623166621,
+     "action_v": 0.821918662620316,
+     "state_v": 0.628613243783502,
+     "state_coarse_v": 0.6652404304821637,
+     "stage_purity": 0.6052631578947368,
+     "singleton_states": 0.03609986504723347,
+     "singleton_actions": 0.04249485949280329,
+     "fidelity": 0.599672928408833,
+     "coverage": 0.9717277486910995,
+     "diag": [
+      3,
+      928
+     ]
+    }
+   }
+  },
+  {
+   "setting": "sim 0.85, gamma 4.0, transitions 0.3, position 0.2",
+   "params": {
+    "neighbours": 10,
+    "similarity": 0.85,
+    "gamma": 4.0,
+    "transition_weight": 0.3,
+    "position_weight": 0.2,
+    "shrink": 0.85,
+    "min_nodes": 12,
+    "max_levels": 5
+   },
+   "levels": {
+    "2": {
+     "states": 221,
+     "actions": 349,
+     "action_h": 0.9488768848819188,
+     "action_c": 0.724466886161536,
+     "action_v": 0.8216242161793187,
+     "state_v": 0.7293058881655672,
+     "state_coarse_v": 0.7107822911994092,
+     "stage_purity": 0.7446018893387314,
+     "singleton_states": 0.04251012145748988,
+     "singleton_actions": 0.04249485949280329,
+     "fidelity": 0.6794517029602481,
+     "coverage": 0.9664921465968587,
+     "diag": [
+      51,
+      923
+     ]
+    },
+    "3": {
+     "states": 156,
+     "actions": 349,
+     "action_h": 0.9488768848819188,
+     "action_c": 0.724466886161536,
+     "action_v": 0.8216242161793187,
+     "state_v": 0.604653724437349,
+     "state_coarse_v": 0.6374395863728548,
+     "stage_purity": 0.5752361673414305,
+     "singleton_states": 0.03677462887989204,
+     "singleton_actions": 0.04249485949280329,
+     "fidelity": 0.599713023941214,
+     "coverage": 0.9696335078534032,
+     "diag": [
+      3,
+      926
+     ]
+    }
+   }
+  },
+  {
+   "setting": "sim 0.85, gamma 4.0, transitions 0.3, position 0.4",
+   "params": {
+    "neighbours": 10,
+    "similarity": 0.85,
+    "gamma": 4.0,
+    "transition_weight": 0.3,
+    "position_weight": 0.4,
+    "shrink": 0.85,
+    "min_nodes": 12,
+    "max_levels": 5
+   },
+   "levels": {
+    "2": {
+     "states": 216,
+     "actions": 349,
+     "action_h": 0.9487445458182058,
+     "action_c": 0.7240358966151943,
+     "action_v": 0.8212973926105777,
+     "state_v": 0.7212275209557132,
+     "state_coarse_v": 0.7005645276143546,
+     "stage_purity": 0.7172739541160594,
+     "singleton_states": 0.04251012145748988,
+     "singleton_actions": 0.04249485949280329,
+     "fidelity": 0.6083013264530597,
+     "coverage": 0.9664921465968587,
+     "diag": [
+      47,
+      923
+     ]
+    },
+    "3": {
+     "states": 155,
+     "actions": 349,
+     "action_h": 0.9487445458182058,
+     "action_c": 0.7240358966151943,
+     "action_v": 0.8212973926105777,
+     "state_v": 0.6075275563057377,
+     "state_coarse_v": 0.6403044807271318,
+     "stage_purity": 0.5880566801619433,
+     "singleton_states": 0.03643724696356275,
+     "singleton_actions": 0.04249485949280329,
+     "fidelity": 0.5594071219736968,
+     "coverage": 0.9706806282722513,
+     "diag": [
+      1,
+      927
+     ]
+    }
+   }
+  },
+  {
+   "setting": "sim 0.85, gamma 4.0, transitions 0.6, position 0.0",
+   "params": {
+    "neighbours": 10,
+    "similarity": 0.85,
+    "gamma": 4.0,
+    "transition_weight": 0.6,
+    "position_weight": 0.0,
+    "shrink": 0.85,
+    "min_nodes": 12,
+    "max_levels": 5
+   },
+   "levels": {
+    "2": {
+     "states": 236,
+     "actions": 350,
+     "action_h": 0.9488768848819188,
+     "action_c": 0.7243338535852055,
+     "action_v": 0.8215386559544842,
+     "state_v": 0.7391911954944487,
+     "state_coarse_v": 0.7200143727561111,
+     "stage_purity": 0.796221322537112,
+     "singleton_states": 0.04251012145748988,
+     "singleton_actions": 0.04249485949280329,
+     "fidelity": 0.7020557310468934,
+     "coverage": 0.9654450261780104,
+     "diag": [
+      52,
+      922
+     ]
+    },
+    "3": {
+     "states": 163,
+     "actions": 350,
+     "action_h": 0.9488768848819188,
+     "action_c": 0.7243338535852055,
+     "action_v": 0.8215386559544842,
+     "state_v": 0.6355630007737612,
+     "state_coarse_v": 0.6694685209781078,
+     "stage_purity": 0.6126855600539811,
+     "singleton_states": 0.03609986504723347,
+     "singleton_actions": 0.04249485949280329,
+     "fidelity": 0.6110174851739559,
+     "coverage": 0.9706806282722513,
+     "diag": [
+      2,
+      927
+     ]
+    }
+   }
+  },
+  {
+   "setting": "sim 0.85, gamma 4.0, transitions 0.6, position 0.2",
+   "params": {
+    "neighbours": 10,
+    "similarity": 0.85,
+    "gamma": 4.0,
+    "transition_weight": 0.6,
+    "position_weight": 0.2,
+    "shrink": 0.85,
+    "min_nodes": 12,
+    "max_levels": 5
+   },
+   "levels": {
+    "2": {
+     "states": 224,
+     "actions": 349,
+     "action_h": 0.9488768848819188,
+     "action_c": 0.724466886161536,
+     "action_v": 0.8216242161793187,
+     "state_v": 0.738250706785962,
+     "state_coarse_v": 0.7211790889469049,
+     "stage_purity": 0.7847503373819164,
+     "singleton_states": 0.04251012145748988,
+     "singleton_actions": 0.04249485949280329,
+     "fidelity": 0.7263369295532042,
+     "coverage": 0.9664921465968587,
+     "diag": [
+      70,
+      923
+     ]
+    },
+    "3": {
+     "states": 158,
+     "actions": 349,
+     "action_h": 0.9488768848819188,
+     "action_c": 0.724466886161536,
+     "action_v": 0.8216242161793187,
+     "state_v": 0.6094184589777836,
+     "state_coarse_v": 0.6416122536196294,
+     "stage_purity": 0.558029689608637,
+     "singleton_states": 0.037112010796221326,
+     "singleton_actions": 0.04249485949280329,
+     "fidelity": 0.5446893722371406,
+     "coverage": 0.9685863874345549,
+     "diag": [
+      2,
+      925
+     ]
+    }
+   }
+  },
+  {
+   "setting": "sim 0.85, gamma 4.0, transitions 0.6, position 0.4",
+   "params": {
+    "neighbours": 10,
+    "similarity": 0.85,
+    "gamma": 4.0,
+    "transition_weight": 0.6,
+    "position_weight": 0.4,
+    "shrink": 0.85,
+    "min_nodes": 12,
+    "max_levels": 5
+   },
+   "levels": {
+    "2": {
+     "states": 217,
+     "actions": 349,
+     "action_h": 0.9487445458182058,
+     "action_c": 0.7240358966151943,
+     "action_v": 0.8212973926105777,
+     "state_v": 0.7322010220625004,
+     "state_coarse_v": 0.7175812394044384,
+     "stage_purity": 0.7719298245614035,
+     "singleton_states": 0.04251012145748988,
+     "singleton_actions": 0.04249485949280329,
+     "fidelity": 0.6779088118247554,
+     "coverage": 0.9664921465968587,
+     "diag": [
+      53,
+      923
+     ]
+    },
+    "3": {
+     "states": 159,
+     "actions": 349,
+     "action_h": 0.9487445458182058,
+     "action_c": 0.7240358966151943,
+     "action_v": 0.8212973926105777,
+     "state_v": 0.6133664062150771,
+     "state_coarse_v": 0.6447979006224482,
+     "stage_purity": 0.6120107962213225,
+     "singleton_states": 0.03744939271255061,
+     "singleton_actions": 0.04249485949280329,
+     "fidelity": 0.5394624660926166,
+     "coverage": 0.9685863874345549,
+     "diag": [
+      1,
+      925
+     ]
+    }
+   }
+  },
+  {
+   "setting": "sim 0.9, gamma 4.0, transitions 0.3, position 0.0",
+   "params": {
+    "neighbours": 10,
+    "similarity": 0.9,
+    "gamma": 4.0,
+    "transition_weight": 0.3,
+    "position_weight": 0.0,
+    "shrink": 0.85,
+    "min_nodes": 12,
+    "max_levels": 5
+   },
+   "levels": {
+    "2": {
+     "states": 858,
+     "actions": 505,
+     "action_h": 0.9613482570837463,
+     "action_c": 0.673854606439349,
+     "action_v": 0.7923285433008569,
+     "state_v": 0.7614133922936523,
+     "state_coarse_v": 0.6748647962824194,
+     "stage_purity": 0.8289473684210527,
+     "singleton_states": 0.2257085020242915,
+     "singleton_actions": 0.06579849211788896,
+     "fidelity": 0.8232438096551743,
+     "coverage": 0.7811518324607329,
+     "diag": [
+      31,
+      746
+     ]
+    }
+   }
+  },
+  {
+   "setting": "sim 0.9, gamma 4.0, transitions 0.3, position 0.2",
+   "params": {
+    "neighbours": 10,
+    "similarity": 0.9,
+    "gamma": 4.0,
+    "transition_weight": 0.3,
+    "position_weight": 0.2,
+    "shrink": 0.85,
+    "min_nodes": 12,
+    "max_levels": 5
+   },
+   "levels": {
+    "2": {
+     "states": 857,
+     "actions": 505,
+     "action_h": 0.9613482570837463,
+     "action_c": 0.673854606439349,
+     "action_v": 0.7923285433008569,
+     "state_v": 0.7643785094581956,
+     "state_coarse_v": 0.6780837639918852,
+     "stage_purity": 0.8110661268556005,
+     "singleton_states": 0.2257085020242915,
+     "singleton_actions": 0.06579849211788896,
+     "fidelity": 0.7986768991042481,
+     "coverage": 0.7811518324607329,
+     "diag": [
+      39,
+      746
+     ]
+    }
+   }
+  },
+  {
+   "setting": "sim 0.9, gamma 4.0, transitions 0.3, position 0.4",
+   "params": {
+    "neighbours": 10,
+    "similarity": 0.9,
+    "gamma": 4.0,
+    "transition_weight": 0.3,
+    "position_weight": 0.4,
+    "shrink": 0.85,
+    "min_nodes": 12,
+    "max_levels": 5
+   },
+   "levels": {
+    "2": {
+     "states": 857,
+     "actions": 505,
+     "action_h": 0.9613482570837463,
+     "action_c": 0.673854606439349,
+     "action_v": 0.7923285433008569,
+     "state_v": 0.7644582727549198,
+     "state_coarse_v": 0.6786386932997633,
+     "stage_purity": 0.8100539811066126,
+     "singleton_states": 0.2257085020242915,
+     "singleton_actions": 0.06579849211788896,
+     "fidelity": 0.7797983189034535,
+     "coverage": 0.7811518324607329,
+     "diag": [
+      34,
+      746
+     ]
+    }
+   }
+  },
+  {
+   "setting": "sim 0.9, gamma 4.0, transitions 0.6, position 0.0",
+   "params": {
+    "neighbours": 10,
+    "similarity": 0.9,
+    "gamma": 4.0,
+    "transition_weight": 0.6,
+    "position_weight": 0.0,
+    "shrink": 0.85,
+    "min_nodes": 12,
+    "max_levels": 5
+   },
+   "levels": {
+    "2": {
+     "states": 862,
+     "actions": 505,
+     "action_h": 0.9613482570837463,
+     "action_c": 0.673854606439349,
+     "action_v": 0.7923285433008569,
+     "state_v": 0.7685962191584695,
+     "state_coarse_v": 0.6853231699077639,
+     "stage_purity": 0.8343454790823212,
+     "singleton_states": 0.2257085020242915,
+     "singleton_actions": 0.06579849211788896,
+     "fidelity": 0.8196419838786783,
+     "coverage": 0.7811518324607329,
+     "diag": [
+      39,
+      746
+     ]
+    }
+   }
+  },
+  {
+   "setting": "sim 0.9, gamma 4.0, transitions 0.6, position 0.2",
+   "params": {
+    "neighbours": 10,
+    "similarity": 0.9,
+    "gamma": 4.0,
+    "transition_weight": 0.6,
+    "position_weight": 0.2,
+    "shrink": 0.85,
+    "min_nodes": 12,
+    "max_levels": 5
+   },
+   "levels": {
+    "2": {
+     "states": 858,
+     "actions": 505,
+     "action_h": 0.9613482570837463,
+     "action_c": 0.673854606439349,
+     "action_v": 0.7923285433008569,
+     "state_v": 0.7682479022465405,
+     "state_coarse_v": 0.6837788821277782,
+     "stage_purity": 0.8333333333333334,
+     "singleton_states": 0.2257085020242915,
+     "singleton_actions": 0.06579849211788896,
+     "fidelity": 0.8233129165110061,
+     "coverage": 0.7811518324607329,
+     "diag": [
+      34,
+      746
+     ]
+    }
+   }
+  },
+  {
+   "setting": "sim 0.9, gamma 4.0, transitions 0.6, position 0.4",
+   "params": {
+    "neighbours": 10,
+    "similarity": 0.9,
+    "gamma": 4.0,
+    "transition_weight": 0.6,
+    "position_weight": 0.4,
+    "shrink": 0.85,
+    "min_nodes": 12,
+    "max_levels": 5
+   },
+   "levels": {
+    "2": {
+     "states": 858,
+     "actions": 505,
+     "action_h": 0.9613482570837463,
+     "action_c": 0.673854606439349,
+     "action_v": 0.7923285433008569,
+     "state_v": 0.7645098221485767,
+     "state_coarse_v": 0.67866383926077,
+     "stage_purity": 0.8124156545209177,
+     "singleton_states": 0.2257085020242915,
+     "singleton_actions": 0.06579849211788896,
+     "fidelity": 0.7814798233391912,
+     "coverage": 0.7811518324607329,
+     "diag": [
+      34,
+      746
+     ]
+    }
+   }
+  }
+ ],
+ "chosen": null
+}

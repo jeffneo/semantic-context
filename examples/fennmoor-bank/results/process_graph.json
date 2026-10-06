@@ -1,0 +1,686 @@
+{
+ "subsets": {
+  "holdout": {
+   "graph": {
+    "abstraction": {
+     "action": [
+      0.9521242674775123,
+      0.645947618559166,
+      0.7697055539532516
+     ],
+     "state_fine": [
+      0.8486855873804428,
+      0.7111535397952549,
+      0.7738564177853637
+     ],
+     "state_coarse": [
+      0.9075292964268965,
+      0.5060843909020367,
+      0.6498047031163029
+     ],
+     "stage_purity": 0.8864641698613979,
+     "elements": {
+      "state": 2251,
+      "action": 815
+     },
+     "singleton_turns": {
+      "state": 0.2502211736950752,
+      "action": 0.06376941457586618
+     }
+    },
+    "fidelity": {
+     "pairs": 270,
+     "pearson": 0.9138756963666794,
+     "spearman": 0.9466548127191898,
+     "mae": 0.0711056956940116
+    },
+    "diagnostic": {
+     "points": 1923,
+     "coverage": 0.74934997399896,
+     "graph": [
+      102,
+      1441
+     ],
+     "rep_actual": [
+      178,
+      1923
+     ],
+     "rep_actual_where_covered": [
+      147,
+      1441
+     ],
+     "best_fixed_question": [
+      367,
+      1923
+     ],
+     "most_frequent_next": [
+      0,
+      1923
+     ],
+     "chance": 0.06447197361578673
+    },
+    "breach": {
+     "tp": 46,
+     "fp": 13,
+     "fn": 0,
+     "tn": 261
+    }
+   },
+   "raw text": {
+    "abstraction": {
+     "action": [
+      0.999017750160318,
+      0.46913656199332066,
+      0.6384557110934916
+     ],
+     "state_fine": [
+      0.7621927898465451,
+      0.5928221293127044,
+      0.666922181054622
+     ],
+     "state_coarse": [
+      0.8126592533595554,
+      0.4206431252644238,
+      0.5543482831673673
+     ],
+     "stage_purity": 0.973311707460926,
+     "elements": {
+      "state": 2716,
+      "action": 2765
+     },
+     "singleton_turns": {
+      "state": 0.316720731347685,
+      "action": 0.3400537634408602
+     }
+    },
+    "fidelity": {
+     "pairs": 270,
+     "pearson": 0.9566629761914487,
+     "spearman": 0.9429294855397158,
+     "mae": 0.07148399429244642
+    },
+    "diagnostic": {
+     "points": 1923,
+     "coverage": 0.656786271450858,
+     "graph": [
+      65,
+      1263
+     ],
+     "rep_actual": [
+      178,
+      1923
+     ],
+     "rep_actual_where_covered": [
+      136,
+      1263
+     ],
+     "best_fixed_question": [
+      367,
+      1923
+     ],
+     "most_frequent_next": [
+      0,
+      1923
+     ],
+     "chance": 0.06447197361578673
+    },
+    "breach": {
+     "tp": 46,
+     "fp": 13,
+     "fn": 0,
+     "tn": 261
+    }
+   },
+   "oracle": {
+    "abstraction": {
+     "action": [
+      1.0,
+      1.0,
+      1.0
+     ],
+     "state_fine": [
+      1.0,
+      1.0,
+      1.0
+     ],
+     "state_coarse": [
+      1.0,
+      0.6654964449432161,
+      0.7991568483544925
+     ],
+     "stage_purity": 1.0,
+     "elements": {
+      "state": 450,
+      "action": 64
+     },
+     "singleton_turns": {
+      "state": 0.011353583013860219,
+      "action": 0.0
+     }
+    },
+    "fidelity": {
+     "pairs": 270,
+     "pearson": 0.9920394144511392,
+     "spearman": 0.9919289480124448,
+     "mae": 0.009409951155919737
+    },
+    "diagnostic": {
+     "points": 1923,
+     "coverage": 0.9875195007800313,
+     "graph": [
+      142,
+      1899
+     ],
+     "rep_actual": [
+      178,
+      1923
+     ],
+     "rep_actual_where_covered": [
+      176,
+      1899
+     ],
+     "best_fixed_question": [
+      367,
+      1923
+     ],
+     "most_frequent_next": [
+      0,
+      1923
+     ],
+     "chance": 0.06447197361578673
+    },
+    "breach": {
+     "tp": 46,
+     "fp": 13,
+     "fn": 0,
+     "tn": 261
+    }
+   }
+  },
+  "tuning": {
+   "graph": {
+    "abstraction": {
+     "action": [
+      0.9613482570837463,
+      0.673854606439349,
+      0.7923285433008569
+     ],
+     "state_fine": [
+      0.8664471496420374,
+      0.7116224068414483,
+      0.7814398338729142
+     ],
+     "state_coarse": [
+      0.9241051931176769,
+      0.5219450365790355,
+      0.6671028556536995
+     ],
+     "stage_purity": 0.8991228070175439,
+     "elements": {
+      "state": 1163,
+      "action": 505
+     },
+     "singleton_turns": {
+      "state": 0.25472334682861,
+      "action": 0.06579849211788896
+     }
+    },
+    "fidelity": {
+     "pairs": 219,
+     "pearson": 0.9021898516551191,
+     "spearman": 0.9166541313725971,
+     "mae": 0.07902743465037179
+    },
+    "diagnostic": {
+     "points": 955,
+     "coverage": 0.7445026178010471,
+     "graph": [
+      54,
+      711
+     ],
+     "rep_actual": [
+      88,
+      955
+     ],
+     "rep_actual_where_covered": [
+      66,
+      711
+     ],
+     "best_fixed_question": [
+      174,
+      955
+     ],
+     "most_frequent_next": [
+      0,
+      955
+     ],
+     "chance": 0.0649937999448884
+    },
+    "breach": {
+     "tp": 7,
+     "fp": 8,
+     "fn": 0,
+     "tn": 100
+    }
+   },
+   "raw text": {
+    "abstraction": {
+     "action": [
+      0.9969880335430367,
+      0.5059841492050337,
+      0.6712834045903711
+     ],
+     "state_fine": [
+      0.8081301419409352,
+      0.6189508778045356,
+      0.701001350047888
+     ],
+     "state_coarse": [
+      0.8386160545984298,
+      0.4417065855200434,
+      0.5786388874677496
+     ],
+     "stage_purity": 0.9713225371120108,
+     "elements": {
+      "state": 1420,
+      "action": 1329
+     },
+     "singleton_turns": {
+      "state": 0.3282726045883941,
+      "action": 0.3307059629883482
+     }
+    },
+    "fidelity": {
+     "pairs": 219,
+     "pearson": 0.947084954617762,
+     "spearman": 0.9430764668284249,
+     "mae": 0.08296774552353599
+    },
+    "diagnostic": {
+     "points": 955,
+     "coverage": 0.6167539267015707,
+     "graph": [
+      31,
+      589
+     ],
+     "rep_actual": [
+      88,
+      955
+     ],
+     "rep_actual_where_covered": [
+      65,
+      589
+     ],
+     "best_fixed_question": [
+      174,
+      955
+     ],
+     "most_frequent_next": [
+      0,
+      955
+     ],
+     "chance": 0.0649937999448884
+    },
+    "breach": {
+     "tp": 7,
+     "fp": 8,
+     "fn": 0,
+     "tn": 100
+    }
+   },
+   "oracle": {
+    "abstraction": {
+     "action": [
+      1.0,
+      1.0,
+      1.0
+     ],
+     "state_fine": [
+      1.0,
+      1.0,
+      1.0
+     ],
+     "state_coarse": [
+      1.0,
+      0.6876949328202951,
+      0.8149517065517201
+     ],
+     "stage_purity": 1.0,
+     "elements": {
+      "state": 312,
+      "action": 63
+     },
+     "singleton_turns": {
+      "state": 0.009109311740890687,
+      "action": 0.0
+     }
+    },
+    "fidelity": {
+     "pairs": 219,
+     "pearson": 0.9959518005022631,
+     "spearman": 0.9958408374336687,
+     "mae": 0.006538450742214862
+    },
+    "diagnostic": {
+     "points": 955,
+     "coverage": 0.9926701570680628,
+     "graph": [
+      61,
+      948
+     ],
+     "rep_actual": [
+      88,
+      955
+     ],
+     "rep_actual_where_covered": [
+      88,
+      948
+     ],
+     "best_fixed_question": [
+      174,
+      955
+     ],
+     "most_frequent_next": [
+      0,
+      955
+     ],
+     "chance": 0.0649937999448884
+    },
+    "breach": {
+     "tp": 7,
+     "fp": 8,
+     "fn": 0,
+     "tn": 100
+    }
+   }
+  },
+  "all": {
+   "graph": {
+    "abstraction": {
+     "action": [
+      0.9530648530329857,
+      0.6449225319055081,
+      0.7692839178600174
+     ],
+     "state_fine": [
+      0.8449730930305732,
+      0.6866590330450384,
+      0.7576341565726673
+     ],
+     "state_coarse": [
+      0.9067092513469249,
+      0.4923722764363405,
+      0.6381879673001218
+     ],
+     "stage_purity": 0.8845680279088857,
+     "elements": {
+      "state": 3044,
+      "action": 1017
+     },
+     "singleton_turns": {
+      "state": 0.251590396059922,
+      "action": 0.064385271479093
+     }
+    },
+    "fidelity": {
+     "pairs": 293,
+     "pearson": 0.9191447734565774,
+     "spearman": 0.931000753989589,
+     "mae": 0.06625513562293579
+    },
+    "diagnostic": {
+     "points": 2878,
+     "coverage": 0.7477414871438499,
+     "graph": [
+      156,
+      2152
+     ],
+     "rep_actual": [
+      266,
+      2878
+     ],
+     "rep_actual_where_covered": [
+      213,
+      2152
+     ],
+     "best_fixed_question": [
+      541,
+      2878
+     ],
+     "most_frequent_next": [
+      0,
+      2878
+     ],
+     "chance": 0.06464513002450532
+    },
+    "breach": {
+     "tp": 53,
+     "fp": 21,
+     "fn": 0,
+     "tn": 361
+    }
+   },
+   "raw text": {
+    "abstraction": {
+     "action": [
+      0.9979977501662246,
+      0.46348278644130325,
+      0.6329947837456692
+     ],
+     "state_fine": [
+      0.7545728090715558,
+      0.5679133252752706,
+      0.6480702398801033
+     ],
+     "state_coarse": [
+      0.8086237275774573,
+      0.40668174174861005,
+      0.5411849353937574
+     ],
+     "stage_purity": 0.971167658526575,
+     "elements": {
+      "state": 3724,
+      "action": 3752
+     },
+     "singleton_turns": {
+      "state": 0.32023394213010464,
+      "action": 0.3372165591845226
+     }
+    },
+    "fidelity": {
+     "pairs": 293,
+     "pearson": 0.9607603996907219,
+     "spearman": 0.9466697148146948,
+     "mae": 0.06617415209445085
+    },
+    "diagnostic": {
+     "points": 2878,
+     "coverage": 0.6435024322446143,
+     "graph": [
+      96,
+      1852
+     ],
+     "rep_actual": [
+      266,
+      2878
+     ],
+     "rep_actual_where_covered": [
+      201,
+      1852
+     ],
+     "best_fixed_question": [
+      541,
+      2878
+     ],
+     "most_frequent_next": [
+      0,
+      2878
+     ],
+     "chance": 0.06464513002450532
+    },
+    "breach": {
+     "tp": 53,
+     "fp": 21,
+     "fn": 0,
+     "tn": 361
+    }
+   },
+   "oracle": {
+    "abstraction": {
+     "action": [
+      1.0,
+      1.0,
+      1.0
+     ],
+     "state_fine": [
+      1.0,
+      1.0,
+      1.0
+     ],
+     "state_coarse": [
+      1.0,
+      0.6682320269856625,
+      0.8011260018704888
+     ],
+     "stage_purity": 1.0,
+     "elements": {
+      "state": 481,
+      "action": 64
+     },
+     "singleton_turns": {
+      "state": 0.010671044531089679,
+      "action": 0.0
+     }
+    },
+    "fidelity": {
+     "pairs": 293,
+     "pearson": 0.9938325664358978,
+     "spearman": 0.993850466073075,
+     "mae": 0.008110952278009738
+    },
+    "diagnostic": {
+     "points": 2878,
+     "coverage": 0.9892286309937457,
+     "graph": [
+      203,
+      2847
+     ],
+     "rep_actual": [
+      266,
+      2878
+     ],
+     "rep_actual_where_covered": [
+      264,
+      2847
+     ],
+     "best_fixed_question": [
+      541,
+      2878
+     ],
+     "most_frequent_next": [
+      0,
+      2878
+     ],
+     "chance": 0.06464513002450532
+    },
+    "breach": {
+     "tp": 53,
+     "fp": 21,
+     "fn": 0,
+     "tn": 361
+    }
+   }
+  }
+ },
+ "recount_ok": true,
+ "parameters": {
+  "events": "build/corpus/full/events.ndjson.gz",
+  "fields": {
+   "event": "event_id",
+   "conversation": "conversation_id",
+   "order": "seq",
+   "time": "ts",
+   "channel": "channel",
+   "role": "role",
+   "text": "text"
+  },
+  "kinds": [
+   {
+    "role": "customer",
+    "kind": "state"
+   },
+   {
+    "role": "agent",
+    "kind": "action"
+   }
+  ],
+  "skip_channels": [
+   "case_note",
+   "system_log"
+  ],
+  "state_words": 30,
+  "action_verbs": [
+   "Greet",
+   "Ask",
+   "Verify",
+   "Check",
+   "Explain",
+   "Advise",
+   "Give",
+   "Offer",
+   "Waive",
+   "Refund",
+   "File",
+   "Block",
+   "Update",
+   "Send",
+   "Take",
+   "Process",
+   "Confirm",
+   "Transfer",
+   "Escalate",
+   "Close",
+   "Open",
+   "Review",
+   "Route"
+  ],
+  "database": "process",
+  "state_embeds": "both",
+  "neighbours": 10,
+  "similarity": 0.9,
+  "gamma": 1.0,
+  "seed": 42,
+  "name_batch": 12,
+  "name_evidence": 8,
+  "fold_similarity": 0.92,
+  "examples": 5,
+  "context": {
+   "conversation": "Call",
+   "subject": "Customer",
+   "also": [
+    "dw_core.fct_fees"
+   ],
+   "match": [
+    {
+     "label": "Merchant",
+     "name": "merchant_name"
+    },
+    {
+     "label": "CardTransaction",
+     "amount": "amount",
+     "name": "Merchant.merchant_name",
+     "emit": "Merchant"
+    },
+    {
+     "table": "dw_core.fct_fees",
+     "key": "fee_id",
+     "amount": "fee_amount"
+    }
+   ]
+  },
+  "composite": {
+   "database": "fennmoor",
+   "url": "neo4j+ssc://neo4j:7687"
+  }
+ }
+}

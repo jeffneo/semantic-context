@@ -348,6 +348,45 @@ revisit. Each principal sees only their own notes (`eval/converse.py`: 26 of 26 
 3. It's then offered to new tasks that fit, to readers who may read its tables. It's measured as tasks
    follow it, and retired when it stops working (`eval/distill.py`).
 
+## The business process graph: States and Actions from text
+
+An unstructured source, joined to the rest. The Fennmoor example has a **process corpus**: about 2,200 synthetic conversations
+(voice, chat, email, with an agent's after-call note), each bound to a real `fct_calls` row, from a planted world of causes, clues, reps
+and outcomes ([plan](plans/2026-10-05-process-corpus.md)); it is backed up in a bucket and read by path, `gs://` URI or https URL
+(`process.events`). `qlsc process` turns it into a graph of what is done and where a case stands
+([plan](plans/2026-10-05-text-graph-construction.md)):
+
+- **Annotate:** each turn is described by an LLM from the conversation so far, never from what comes after: a customer's turn as a
+  **State** (the problem, what is established, where the conversation is), an agent's as an **Action** (an imperative phrase from a closed
+  list of verbs). About $0.74 per 1,000 turns on Haiku.
+- **Build:** each description is embedded; GDS nearest neighbours and a seeded Leiden group them; an LLM names each group; names that
+  are near-duplicates fold; consecutive turns become transitions with a count and a probability. The model is two labels, `State` and
+  `Action`, and two relationships, `SELECTS` and `LEADS_TO`. It is a `process` database beside the semantic layer's, joined to the
+  composite as `fennmoor.process`. A rebuild from the same annotations makes no calls and writes the identical graph (a minute); the stages with no
+  LLM take about 2 seconds per 1,000 turns, linearly, to 160,000 turns.
+- **Score:** against the corpus's answer key, which the tool never reads. On 1,432 conversations nobody tuned on, the elements match the
+  planted actions and States with a V-measure of 0.77 each, against 0.64 and 0.67 for clustering the raw text with the same embedder, and
+  the transition probabilities correlate 0.91 with the planted ones. What the graph does not do is beat the reps: it recommends what people
+  usually do (7% of the time the next Action asks the discriminating question, against 10% for the reps); ranking Actions by where they
+  lead is the next plan ([plan](plans/2026-10-03-business-process-graph.md)).
+- **Context at a moment:** a conversation's id is the key of its `Call` in the virtual graph, so a call reaches its customer. `qlsc
+  process context <conversation> [--turn N]` fetches that customer's context **as of the call**, not today's (memory's ordinary window would
+  put facts that did not exist yet into it), reads the fee table the virtual graph's model does not serve from the warehouse by the column
+  the semantic layer says holds the customer's key, and **links what the turns say to those rows by lookup**: a merchant by its name and
+  its purchase's amount, a fee by its amount, written or spoken ("$7.65", "seven sixty-five").
+
+```bash
+uv run qlsc process read                        # the events, as turns
+uv run qlsc process annotate --unit turn        # about an hour and $16 for 2,032 conversations; cached, so resumable
+uv run qlsc process build                       # about a minute and no calls when nothing changed; the process database, its vector indexes and its composite alias
+uv run qlsc process abstract                    # the levels above the first (Actions), and the K_SIM neighbour links at every level
+uv run qlsc process outcomes                    # how each conversation ended, and the kinds of outcome ($1.70, nine minutes)
+uv run qlsc process absorb                      # the odds on each State and Action of a case ending well, and in which kind of outcome (no calls; a second)
+uv run qlsc process outlook <conversation_id> --turn N   # where the case stands at a turn: its nearest States, the odds, what reps did next and how those cases ended (--with-context: and the customer's context as of the call)
+uv run qlsc process context <conversation_id>   # the customer's context as of the call, and the rows the words are about
+uv run examples/fennmoor-bank/demo.py process   # a State, its calls, their live rows through the composite, one call's context
+```
+
 ## Who may see what: the entitlement gateway
 
 `qlsc ask --as <principal>` answers on a principal's behalf, from only what the warehouse lets them read
@@ -397,6 +436,7 @@ Cypher answer ran as its principal, by BigQuery's job log.
 | `src/qlsc/`                     | The pipeline, one module per stage, and the `qlsc` command                                                     |
 | `src/qlsc/defaults.yaml`        | Every model and method parameter, in one place                                                                 |
 | `src/qlsc/warehouse/`           | Warehouse connectors: the only code that talks to a warehouse (BigQuery)                                       |
+| `src/qlsc/process/`             | The business process graph, built from text: source, annotate, build (States and Actions), context            |
 | `parser/`                       | The SQL parser (sqlglot, compiled), `qlsc_parse`, run in-process by `qlsc parse`, with golden tests            |
 | `prompts/`                      | Every LLM prompt, one file each ([prompts/README.md](prompts/README.md))                                       |
 | `docs/design.md`                | The principle, the graph model, the method, the parameters and their sensitivity                               |

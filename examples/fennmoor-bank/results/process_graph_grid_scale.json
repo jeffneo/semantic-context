@@ -1,0 +1,112 @@
+{
+ "grid": [
+  {
+   "state_embeds": "both",
+   "similarity": 0.9,
+   "gamma": 1.0,
+   "states": 1081,
+   "actions": 493,
+   "action_v": 0.7802976065223203,
+   "action_c": 0.6560561754732424,
+   "state_fine_v": 0.7856314445680885,
+   "state_coarse_v": 0.6701431757018737,
+   "stage_purity": 0.9083907580056749,
+   "fidelity": 0.9021925155751607,
+   "coverage": 0.6696891191709845,
+   "diag": [
+    43,
+    517
+   ]
+  },
+  {
+   "state_embeds": "both",
+   "similarity": 0.93,
+   "gamma": 1.0,
+   "states": 1913,
+   "actions": 593,
+   "action_v": 0.7713272819979854,
+   "action_c": 0.6410711829257147,
+   "state_fine_v": 0.789972569035663,
+   "state_coarse_v": 0.6313546033633838,
+   "stage_purity": 0.9906769355492501,
+   "fidelity": 0.9809858178652789,
+   "coverage": 0.3588082901554404,
+   "diag": [
+    21,
+    277
+   ]
+  },
+  {
+   "state_embeds": "both",
+   "similarity": 0.85,
+   "gamma": 1.0,
+   "states": 213,
+   "actions": 337,
+   "action_v": 0.7963489227251601,
+   "action_c": 0.6864315501489532,
+   "state_fine_v": 0.754282345646783,
+   "state_coarse_v": 0.7182707857731868,
+   "stage_purity": 0.7608431293068504,
+   "fidelity": 0.7287893000480855,
+   "coverage": 0.9598445595854922,
+   "diag": [
+    49,
+    741
+   ]
+  },
+  {
+   "state_embeds": "both",
+   "similarity": 0.75,
+   "gamma": 1.0,
+   "states": 57,
+   "actions": 164,
+   "action_v": 0.809130473218009,
+   "action_c": 0.7241225510142444,
+   "state_fine_v": 0.7311551346087795,
+   "state_coarse_v": 0.7126380980895941,
+   "stage_purity": 0.697203080664775,
+   "fidelity": 0.6365403684261318,
+   "coverage": 1.0,
+   "diag": [
+    43,
+    772
+   ]
+  },
+  {
+   "state_embeds": "both",
+   "similarity": 0.7,
+   "gamma": 1.0,
+   "states": 54,
+   "actions": 129,
+   "action_v": 0.8110771183044327,
+   "action_c": 0.733510996056151,
+   "state_fine_v": 0.7255128764222233,
+   "state_coarse_v": 0.7145390920169779,
+   "stage_purity": 0.7032833400891771,
+   "fidelity": 0.6743340330191904,
+   "coverage": 1.0,
+   "diag": [
+    33,
+    772
+   ]
+  },
+  {
+   "state_embeds": "both",
+   "similarity": 0.8,
+   "gamma": 1.0,
+   "states": 77,
+   "actions": 232,
+   "action_v": 0.8042650290378126,
+   "action_c": 0.7060530825532922,
+   "state_fine_v": 0.7321819799527403,
+   "state_coarse_v": 0.7169883949333512,
+   "stage_purity": 0.7117957032833401,
+   "fidelity": 0.7229036576090979,
+   "coverage": 0.9961139896373057,
+   "diag": [
+    48,
+    769
+   ]
+  }
+ ]
+}

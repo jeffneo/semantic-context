@@ -1,0 +1,176 @@
+{
+ "nearness": {
+  "brier": {
+   "global rate|1st": {
+    "brier": 0.2372719280789977,
+    "n": 1432,
+    "global": 0.2372719280789977
+   },
+   "global rate|2nd": {
+    "brier": 0.2372719280789977,
+    "n": 1432,
+    "global": 0.2372719280789977
+   },
+   "global rate|3rd": {
+    "brier": 0.2337775832041945,
+    "n": 1374,
+    "global": 0.2337775832041945
+   },
+   "global rate|4th": {
+    "brier": 0.22938931007480018,
+    "n": 1092,
+    "global": 0.22938931007480018
+   },
+   "global rate|6th": {
+    "brier": 0.2400074258896936,
+    "n": 372,
+    "global": 0.2400074258896936
+   },
+   "global rate|the last": {
+    "brier": 0.2372719280789977,
+    "n": 1432,
+    "global": 0.2372719280789977
+   },
+   "global rate|all": {
+    "brier": 0.23553497215903912,
+    "n": 7134,
+    "global": 0.23553497215903912
+   },
+   "the State the build assigned|1st": {
+    "brier": 0.22387354320851047,
+    "n": 1432,
+    "global": 0.2372719280789977
+   },
+   "the State the build assigned|2nd": {
+    "brier": 0.21136228588380246,
+    "n": 1432,
+    "global": 0.2372719280789977
+   },
+   "the State the build assigned|3rd": {
+    "brier": 0.19316587756099832,
+    "n": 1374,
+    "global": 0.2337775832041945
+   },
+   "the State the build assigned|4th": {
+    "brier": 0.18506083240694263,
+    "n": 1092,
+    "global": 0.22938931007480018
+   },
+   "the State the build assigned|6th": {
+    "brier": 0.22838347058975672,
+    "n": 372,
+    "global": 0.2400074258896936
+   },
+   "the State the build assigned|the last": {
+    "brier": 0.17916177604794845,
+    "n": 1432,
+    "global": 0.2372719280789977
+   },
+   "the State the build assigned|all": {
+    "brier": 0.2007670824751103,
+    "n": 7134,
+    "global": 0.23553497215903912
+   },
+   "the nearest State by the index|1st": {
+    "brier": 0.2246581094028994,
+    "n": 1432,
+    "global": 0.2372719280789977
+   },
+   "the nearest State by the index|2nd": {
+    "brier": 0.21120539449988826,
+    "n": 1432,
+    "global": 0.2372719280789977
+   },
+   "the nearest State by the index|3rd": {
+    "brier": 0.1939848633670391,
+    "n": 1374,
+    "global": 0.2337775832041945
+   },
+   "the nearest State by the index|4th": {
+    "brier": 0.18661205604981349,
+    "n": 1092,
+    "global": 0.22938931007480018
+   },
+   "the nearest State by the index|6th": {
+    "brier": 0.23121997885318926,
+    "n": 372,
+    "global": 0.2400074258896936
+   },
+   "the nearest State by the index|the last": {
+    "brier": 0.1822029815884294,
+    "n": 1432,
+    "global": 0.2372719280789977
+   },
+   "the nearest State by the index|all": {
+    "brier": 0.20204662276836519,
+    "n": 7134,
+    "global": 0.23553497215903912
+   },
+   "the pool of the nearest States|1st": {
+    "brier": 0.2170656713350548,
+    "n": 1432,
+    "global": 0.2372719280789977
+   },
+   "the pool of the nearest States|2nd": {
+    "brier": 0.19770100857492193,
+    "n": 1432,
+    "global": 0.2372719280789977
+   },
+   "the pool of the nearest States|3rd": {
+    "brier": 0.1842104756519078,
+    "n": 1374,
+    "global": 0.2337775832041945
+   },
+   "the pool of the nearest States|4th": {
+    "brier": 0.1747595233876049,
+    "n": 1092,
+    "global": 0.22938931007480018
+   },
+   "the pool of the nearest States|6th": {
+    "brier": 0.21223416953022448,
+    "n": 372,
+    "global": 0.2400074258896936
+   },
+   "the pool of the nearest States|the last": {
+    "brier": 0.14195037641527813,
+    "n": 1432,
+    "global": 0.2372719280789977
+   },
+   "the pool of the nearest States|all": {
+    "brier": 0.1850452100936353,
+    "n": 7134,
+    "global": 0.23553497215903912
+   }
+  },
+  "coverage": {
+   "global rate": 1.0,
+   "the State the build assigned": 0.6628819736473227,
+   "the nearest State by the index": 0.6300813008130082,
+   "the pool of the nearest States": 0.995093916456406
+  }
+ },
+ "validity": {
+  "points": 5264,
+  "covered": 4841,
+  "agree": {
+   "graph = rep": 0.39206775459615784,
+   "graph = what reps most often did": 0.3933071679405082,
+   "rep = what reps most often did": 0.534187151414997
+  },
+  "took": [
+   1430,
+   1898,
+   1803,
+   2943
+  ]
+ },
+ "cost": {
+  "n": 30,
+  "median": 3.43,
+  "max": 3.7,
+  "calls": 0,
+  "cached": 30,
+  "annotation_call_seconds": 1.0701757701757704,
+  "annotation_calls_cost": 0.000808101619101619
+ }
+}

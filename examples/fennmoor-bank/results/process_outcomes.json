@@ -1,0 +1,342 @@
+{
+ "by_subset": {
+  "holdout": {
+   "described (the build)": {
+    "n": 1432,
+    "types": 28,
+    "vs_planted": [
+     0.6677893652909441,
+     0.35006755937803846,
+     0.45934038000878175
+    ],
+    "vs_visible": [
+     0.8706594950934591,
+     0.2969468378778547,
+     0.4428540281695853
+    ]
+   },
+   "raw note, no description": {
+    "n": 1432,
+    "types": 29,
+    "vs_planted": [
+     0.4222492151388223,
+     0.22878202132564274,
+     0.29676925938990273
+    ],
+    "vs_visible": [
+     0.5145870345587503,
+     0.18139690691955312,
+     0.26823750045610045
+    ]
+   },
+   "planted (ceiling)": {
+    "n": 1432,
+    "types": 12,
+    "vs_planted": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "vs_visible": [
+     1.0,
+     0.6506058981074204,
+     0.7883237287027789
+    ]
+   }
+  },
+  "tuning": {
+   "described (the build)": {
+    "n": 600,
+    "types": 28,
+    "vs_planted": [
+     0.6846918673579981,
+     0.3720325875342698,
+     0.48210805739862694
+    ],
+    "vs_visible": [
+     0.8651541108584717,
+     0.30119695386911693,
+     0.44683250300590605
+    ]
+   },
+   "raw note, no description": {
+    "n": 600,
+    "types": 29,
+    "vs_planted": [
+     0.4374008647213473,
+     0.24605857219510385,
+     0.3149454859700625
+    ],
+    "vs_visible": [
+     0.5021836059551594,
+     0.18100587841808025,
+     0.26609948426376323
+    ]
+   },
+   "planted (ceiling)": {
+    "n": 600,
+    "types": 11,
+    "vs_planted": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "vs_visible": [
+     1.0,
+     0.6407244342267375,
+     0.7810262599382896
+    ]
+   }
+  }
+ },
+ "ratings": {
+  "holdout": {
+   "n": 1432,
+   "spearman": 0.7517287342788402,
+   "auc_high": 0.9195672851300617,
+   "mean_by_favourability": {
+    "medium": 2.7590909090909093,
+    "high": 4.283185840707965,
+    "low": 2.0933333333333333,
+    "very-low": 1.5662650602409638
+   }
+  },
+  "tuning": {
+   "n": 600,
+   "spearman": 0.7868866286137786,
+   "auc_high": 0.9378203056466135,
+   "mean_by_favourability": {
+    "high": 4.298882681564246,
+    "medium": 2.5918367346938775,
+    "very-low": 1.7142857142857142,
+    "low": 2.1157894736842104
+   }
+  }
+ },
+ "types": [
+  {
+   "id": "outcome:a04c07599fb8",
+   "name": "Account closed as requested",
+   "description": "The agent processed the customer's account closure during the call, usually after identity verification and a mention of alternatives that the customer declined. The customer confirmed the closure and was generally satisfied.",
+   "count": 211,
+   "rating": 3.436,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:00baf5547b6b",
+   "name": "Account balance provided, customer satisfied",
+   "description": "The agent verified the customer's identity and gave the requested account balance. The customer was satisfied and the call ended.",
+   "count": 169,
+   "rating": 4.698,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:a8e4284a5976",
+   "name": "Identity verified, account hold released",
+   "description": "The agent verified the customer's identity with a one-time code, marked the flagged activity as verified, and released the hold. The customer's problem was settled and they were satisfied.",
+   "count": 154,
+   "rating": 4.104,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:c948386a875b",
+   "name": "Chargeback filed with provisional credit",
+   "description": "The agent filed a chargeback for the disputed charge and applied a provisional credit while the case is reviewed. The case moved into the formal dispute process, with customers mostly accepting it and some remaining unsure or frustrated.",
+   "count": 147,
+   "rating": 3.429,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:8ff5c1cd6e1b",
+   "name": "Disputed charge transferred unresolved",
+   "description": "The agent passed the customer's disputed charge inquiry to another queue or department without investigating or resolving it. The case stayed unsettled pending the receiving team.",
+   "count": 121,
+   "rating": 1.992,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:8941109d7978",
+   "name": "Card blocked and replacement issued",
+   "description": "The agent blocked the compromised card after unrecognized transactions and ordered a replacement. The immediate problem was addressed, though some customers stayed dissatisfied or unclear on refunds.",
+   "count": 119,
+   "rating": 3.504,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:ab1a05d51d8d",
+   "name": "Account closure averted by retention offer",
+   "description": "The customer called to close their account, usually over a fee or a better rate elsewhere. The agent offered an improved rate, a no-fee account or a credit, and the customer agreed to keep the account open.",
+   "count": 108,
+   "rating": 4.139,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:f495c8611e50",
+   "name": "Escalated to supervisor, dispute unresolved",
+   "description": "The customer's dispute over an unrecognized charge, fee or account activity was escalated to a supervisor, often at the customer's request. The issue remained unresolved and pending the supervisor's review.",
+   "count": 98,
+   "rating": 2.02,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:eccacec4cfcc",
+   "name": "Address updated, customer satisfied",
+   "description": "The agent updated the customer's address on the account as requested. The customer confirmed satisfaction and the case was resolved.",
+   "count": 96,
+   "rating": 4.885,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:e6f1e2d17519",
+   "name": "Disputed fee waived, case settled",
+   "description": "The agent waived the disputed fee on the customer's account and the customer accepted the resolution. Some customers still voiced mild dissatisfaction that the fee had appeared.",
+   "count": 94,
+   "rating": 4.181,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:d30a6caca483",
+   "name": "Closure request transferred, unresolved",
+   "description": "The customer asked to close their account and, after identity verification, was transferred to another queue. The closure was not processed on this call and stayed pending with the receiving team.",
+   "count": 89,
+   "rating": 2.011,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:bc1c4991703f",
+   "name": "Card question answered, customer satisfied",
+   "description": "The agent answered the customer's question about their card during the call. The customer expressed satisfaction and the call was closed with no further action needed.",
+   "count": 79,
+   "rating": 4.051,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:64ce6e5adaaf",
+   "name": "Statement copy sent, customer satisfied",
+   "description": "The agent verified the customer's identity and sent the requested statement copy. The customer confirmed satisfaction and the call ended.",
+   "count": 70,
+   "rating": 4.843,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:ed6c6b436387",
+   "name": "Customer hung up before resolution",
+   "description": "The customer hung up during the call before the agent could investigate or address the disputed fee. No action was taken and the matter remained unresolved.",
+   "count": 66,
+   "rating": 1.333,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:bba061f187d1",
+   "name": "Payment reapplied to correct account and date",
+   "description": "The agent reapplied the customer's payment to the correct account and date to resolve a fee dispute. The customer indicated satisfaction with the correction.",
+   "count": 59,
+   "rating": 3.305,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:82b50a75fe53",
+   "name": "Payment processed on call, satisfied",
+   "description": "The agent verified the customer's identity and processed a payment during the call. The payment completed and the customer was satisfied.",
+   "count": 55,
+   "rating": 4.691,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:4083590ca22d",
+   "name": "Sent to merchant for disputed charge",
+   "description": "The bank did not resolve the disputed card charge and advised the customer to contact the merchant directly. The case was noted on the account and the customer agreed to follow up themselves.",
+   "count": 51,
+   "rating": 2.098,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:a303f2a4f3b7",
+   "name": "Fee waiver denied, repeat charge",
+   "description": "The customer's fee dispute was not settled because the waiver policy covers only first-time charges. The fee stayed on the account and the customer accepted this, often reluctantly.",
+   "count": 34,
+   "rating": 2.353,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:7cb7bd4f13e2",
+   "name": "Payment plan set up for disputed fee",
+   "description": "The agent arranged a payment plan to address a disputed fee, often after the customer described financial hardship. The customer accepted the arrangement and was generally satisfied, with plan details to follow.",
+   "count": 32,
+   "rating": 3.656,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:fddcef7f1a20",
+   "name": "Autopay repaired, fee dispute unaddressed",
+   "description": "The agent fixed the customer's autopay setup, and the customer was generally satisfied with that. The original fee dispute was not addressed and remains unresolved.",
+   "count": 32,
+   "rating": 2.812,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:3f820a5d571b",
+   "name": "Charge not disputable, customer accepted explanation",
+   "description": "The agent explained that the charge could not be disputed, for example because someone else had the card details or the customer regretted a valid purchase. No dispute was filed, the charge stayed on the account, and the customer accepted the explanation.",
+   "count": 30,
+   "rating": 2.467,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:1ac85f497077",
+   "name": "Scam payment recall initiated, pending",
+   "description": "The agent identified a scam and started a recall of the payment the customer had sent. The outcome depends on the receiving bank's response, so the case ended pending.",
+   "count": 28,
+   "rating": 3.0,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:b4fb2aee1f40",
+   "name": "Duplicate payment refunded, customer satisfied",
+   "description": "The agent verified the customer's identity and refunded a duplicate payment. The customer's problem was settled and they expressed satisfaction before the call ended.",
+   "count": 26,
+   "rating": 4.731,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:2f0f687ca8dc",
+   "name": "Fraud case opened, account secured",
+   "description": "A fraud case was opened and the customer's online account was secured against unauthorized access. The case was passed to the fraud team, with the investigation still pending.",
+   "count": 19,
+   "rating": 3.737,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:cfd7acb78f53",
+   "name": "Routing number location question answered",
+   "description": "The agent told the customer where to find their routing number, on checks and in online banking account details. The customer confirmed they had what they needed and ended satisfied.",
+   "count": 13,
+   "rating": 5.0,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:22922e2667f5",
+   "name": "Account alerts setup question answered",
+   "description": "The agent explained how to set up account alerts in online banking or the mobile app. The customer was satisfied and no further action was needed.",
+   "count": 11,
+   "rating": 4.727,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:31c337865811",
+   "name": "Wire transfer fee question answered",
+   "description": "The agent answered the customer's question about wire transfer fees, with identity verification or a fee schedule. The customer was satisfied and no further action was needed.",
+   "count": 11,
+   "rating": 4.727,
+   "named_by": "claude-sonnet-5-5"
+  },
+  {
+   "id": "outcome:d4d69ad72982",
+   "name": "Joint owner info and form sent",
+   "description": "The agent answered the customer's question about adding a joint owner and sent a request form or started the request. The customer was satisfied, though they still have to complete and return the paperwork.",
+   "count": 10,
+   "rating": 4.4,
+   "named_by": "claude-sonnet-5-5"
+  }
+ ]
+}

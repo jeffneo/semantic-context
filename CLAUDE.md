@@ -60,6 +60,22 @@ QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc distill   # then: qls
 QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc converse examples/fennmoor-bank/conversations/marketing-1.yaml
 uv run examples/fennmoor-bank/entitlements/setup.py [--apply]   # the test principals' grants, tags and row policies in BigQuery (as the owner)
 uv run examples/fennmoor-bank/generate/fill.py --slice 2   # fill BigQuery with rows (plans/2026-09-26-fill-*.md)
+QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc process read   # the process corpus's events (process.events: a path, gs:// or https), as turns
+QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc process annotate --unit turn [--limit N]   # each turn a State or an Action, by an LLM (~$0.74 per 1,000 turns; cached, resumable)
+QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc process build      # group, name, fold, lift, write the `process` database and its composite alias (nothing changed: about a minute, no calls)
+QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc process abstract   # the levels above the first (Actions only: States stay at level 1) and the K_SIM neighbour links at every level; no calls when nothing changed; run after `process build`
+QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc process outcomes [--limit N]   # how each conversation ended (its end and the agent's note), and the kinds of outcome (~$1.70)
+QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc process absorb   # the odds on each State and Action of a case ending well and in what (support, end_well, likely_outcomes), from the outcomes; no calls; run after `process abstract` (a rebuild of either deletes them)
+QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc process outlook <conversation_id> [--turn N] [--with-context]   # a case's nearest States by the vector index, pooled: the odds of ending well, what reps did next and how those cases ended; ~3 s, one cached or ~1 s Haiku call
+QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc process context <conversation_id> [--turn N]   # the customer's context as of the call, and the rows the turns are about
+uv run examples/fennmoor-bank/eval/process_graph.py [--grid]    # the graph against the corpus's answer key: three arms, holdout; results/process_graph.md
+uv run examples/fennmoor-bank/eval/process_levels.py [--grid]   # the levels by level on the holdout; --grid: whole hierarchies, grouping only, on the tuning slice
+uv run examples/fennmoor-bank/eval/process_outcomes.py [--grid]   # the kinds of outcome and the ratings against the planted outcomes; results/process_outcomes.md
+uv run examples/fennmoor-bank/eval/process_outlook.py [--grid]   # nearness pooling and recommendation validity against the world's efficacy table, leave-one-conversation-out; results/process_outlook.md (about two minutes)
+uv run examples/fennmoor-bank/eval/process_absorb.py [--grid]   # the odds on States against what happened, leave-one-conversation-out, at checkpoints in a conversation's life; --grid: the prior, min_support and good_rating on the tuning slice (about two minutes each)
+uv run examples/fennmoor-bank/eval/process_context.py [per_group=40]   # context as of a call and the links, scored against the answer key's mentions (about 18 minutes)
+uv run examples/fennmoor-bank/eval/process_scale.py [conversations ...]   # the stages with no LLM at ten times the corpus, in a scratch database
+uv run examples/fennmoor-bank/generate/corpus.py --audit|--push|--pull   # the process corpus (plans/2026-10-05-process-corpus.md): check it, back it up to / restore it from gs://fennmoor-corpus
 ```
 
 Services: `docker compose up -d neo4j` (bolt 7690 per the example config). The parser (`parser/`,

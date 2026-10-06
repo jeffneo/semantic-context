@@ -1,0 +1,55 @@
+{
+ "runs": [
+  {
+   "conversations": 2000,
+   "turns": 17493,
+   "wall_seconds": 35.7,
+   "seconds": {
+    "embed": 3.59,
+    "neighbours": 27.2,
+    "group": 2.25,
+    "lift": 2.0,
+    "write": 0.36
+   },
+   "elements": {
+    "state": 92,
+    "action": 71
+   },
+   "transitions": 551
+  },
+  {
+   "conversations": 10000,
+   "turns": 87059,
+   "wall_seconds": 178.7,
+   "seconds": {
+    "embed": 15.17,
+    "neighbours": 133.13,
+    "group": 12.74,
+    "lift": 16.09,
+    "write": 0.69
+   },
+   "elements": {
+    "state": 151,
+    "action": 86
+   },
+   "transitions": 905
+  },
+  {
+   "conversations": 21161,
+   "turns": 162221,
+   "wall_seconds": 354.3,
+   "seconds": {
+    "embed": 16.77,
+    "neighbours": 269.44,
+    "group": 26.96,
+    "lift": 39.16,
+    "write": 0.59
+   },
+   "elements": {
+    "state": 168,
+    "action": 95
+   },
+   "transitions": 1037
+  }
+ ]
+}

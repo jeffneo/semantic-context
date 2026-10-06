@@ -51,7 +51,7 @@ distill:                              # qlsc distill: skills from the agents' ex
   min_support: 3                      # tasks a skill needs, and uses before a skill can be retired
   min_success: 0.7                    # of a cluster's tasks, the share that must have succeeded
   similarity: 0.5                     # Jaccard of two tasks' steps and reads that joins them; and a task's to a skill it followed
-  gamma: 1.0                          # Leiden's resolution over the tasks
+  gamma: 1.0                          # Leiden resolution over the neighbour graph: above 1, more and smaller groups. 0.5, 1 and 2 scored within a point of each other on the grid, so the middle one stays
   seed: 42
   examples: 8                         # masked requests the LLM sees when it names a skill
   offers: 3                           # approved skills offered to a new task, at most
@@ -139,3 +139,68 @@ navigate:
   compile_check_chars: 4            # compiled: the shortest value checked; shorter codes ('A', 'Y') match words by accident
   computation_min_similarity: 0.8   # vector score below which a Computation isn't offered: a distant one misleads more than it helps
   filter_values: 8                  # values the log filters a text column on, shown with it to the LLM (spelled as the data has them)
+
+process:                              # qlsc process: the State-Action graph built from text (plans/2026-10-05-text-graph-construction.md)
+  events: null                        # where the events are: a path (relative to the config), a gs:// URI (read as warehouse.gcloud_config's identity) or an https URL; .gz is decompressed
+  fields:                             # the names of the event object's fields in that file (plans/2026-10-05-process-corpus.md, "The event object")
+    event: event_id                   # one per turn, unique: the observation's id, so a rebuild keeps it
+    conversation: conversation_id     # what turns are grouped by
+    order: seq                        # their order within the conversation
+    time: ts
+    channel: channel
+    role: role
+    text: text
+  kinds:                              # what a role's turn describes: the customer's, the State the case is in; the agent's, the Action taken
+    - {role: customer, kind: state}
+    - {role: agent, kind: action}
+  skip_channels: [case_note, system_log]  # a note written after the call summarises it, so in a State it would carry the outcome of the case; a system line is no one speaking
+  state_words: 30                     # the most words of a State's `established` line: enough to name the problem and what is known, too short to retell the call (the previous project's repaired prompt)
+  action_verbs: [Greet, Ask, Verify, Check, Explain, Advise, Give, Offer, Waive, Refund, File, Block, Update, Send, Take, Process, Confirm, Transfer, Escalate, Close, Open, Review, Route]
+                                      # the first word of every Action, a closed list, so that "Ask for" and "Request" cannot split one action in two (the previous project had 30 elements called "Request Account Number")
+  database: process                   # the shard: a database on the semantic layer's instance, beside it (as memory's is); only `qlsc process build` rewrites it
+  state_embeds: both                  # what of a State is embedded to group it: both (the turn's own line and what is established) | established. Both: with the established line alone, States mixed stages (stage purity 70% against 85%). Chosen on the phase 3 grid, results/process_graph_grid.md
+  neighbours: 10                      # nearest neighbours of each observation of the same kind (GDS kNN): grouping cost grows with N, not N squared
+  similarity: 0.90                    # the least cosine for a neighbour to count. Re-chosen at scale (results/process_graph_grid_scale.md, 500 conversations): the 0.85 chosen on 100 conversations mixed stages at 2,000 (stage purity 76%) and fitted the transitions poorly (0.73); 0.90 gives 91% and 0.90, ranks first by Action V + State V, and covers fewer turns (67%, against 96%): States are finer, and the coverage is the hierarchy's to recover (plans/2026-10-03-business-process-graph.md)
+  gamma: 1.0                          # Leiden resolution over the neighbour graph: above 1, more and smaller groups. First pass; phase 3 tunes it
+  seed: 42                            # kNN and Leiden, each seeded and single-threaded, so a rebuild repeats
+  name_batch: 12                      # elements named per call (the evidence is a handful of short descriptions each)
+  name_evidence: 8                    # descriptions shown for an element: the closest to its middle
+  fold_similarity: 0.92               # elements whose names are this alike (cosine of their name vectors, greedy, largest first, never transitive) are one. First pass
+  examples: 5                         # event ids kept on an element, the closest to its middle: real wording to show where a case stands
+  context:                            # qlsc process context: what the warehouse held about a call's customer as of the call, and which rows the turns are about
+    conversation: Call                # the virtual graph's node a conversation_id names (its key); it points at the subject
+    subject: Customer                 # whose context is fetched, as memory fetches one, but windowed to end on the call's day
+    also: []                          # tables the virtual graph's model does not serve (logical names, as the layer has them: dw_core.fct_fees), read from the warehouse for the subject by the column the layer says holds the subject's key
+    match: []                         # what the turns' words are matched to, by lookup: {label|table, name: column} (a row's name is in the text) or {label|table, amount: column} (its amount is); a table also names its `key`
+  composite: null                     # {database: the composite database's name, url: where it reaches the semantic layer's instance}: the process database joins it as an alias (<database>.process) on virtualize.neo4j's instance, as memory's does. null: no composite
+  levels:                             # qlsc process abstract: the levels above the first (plans/2026-10-06-process-abstraction.md), by the same neighbours and Leiden, from the elements' stored vectors
+    kinds: [action]                   # which kinds get levels. Actions do: level 2 raises their completeness from 0.67 to 0.78 and keeps them 0.91 homogeneous. States do not: every coarser level mixed stages (purity 83% at best against the gate's 85%, and 70 to 80% where it coarsened them), so they stay at their first level (results/process_levels_grid.md)
+    neighbours: 10                    # nearest neighbours of each element, at every level
+    similarity: 0.80                  # the least cosine for a neighbour to count: lower than the first level's 0.90, because what is grouped here is already a group. Chosen on the tuning conversations (the first 600 by id)
+    gamma: 4.0                        # Leiden resolution at the second level; level L runs at gamma / (L - 1), as the semantic layer's hierarchy does, so the top is coarser. 1, 2 and 4 were compared: the higher kept groups smaller and purer
+    transition_weight: 0.6            # how much of a pair's score is how alike their transitions are (the same neighbours either side, lifted to the level below), against the text. 0.3 and 0.6 were within a point of each other for Actions; for States 0.6 kept stages apart best
+    shrink: 0.85                      # a level above is built only if it would have at most this share of the nodes below it
+    min_nodes: 12                     # a kind with this many nodes or fewer is the top
+    max_levels: 5                     # the most levels above the first, whatever else
+  outcomes:                           # qlsc process outcomes: how each conversation ended, from its end and the agent's note (plans/2026-10-06-process-abstraction.md, phase 2)
+    note_channels: [case_note]        # the channels whose text is the agent's summary of the whole conversation: read for the outcome, and never for a State (it would put the end of the case into every State)
+    last_turns: 6                     # how much of the end of the conversation the outcome call reads, besides the note
+    neighbours: 10                    # nearest neighbours of each description (GDS kNN, scratch nodes: a conversation is not a node), then seeded Leiden: the same grouping as the first level's
+    similarity: 0.80                  # the least cosine for a neighbour to count. Chosen on the phase 2 grid (results/process_outcomes_grid.md, tuning conversations): V against the planted outcomes is flat from 0.45 to 0.48 across 20 settings, so the rule (highest V within 15 to 40 kinds) picked the one at the middle
+    gamma: 0.5                        # Leiden resolution: 0.5 gave 28 kinds, 1 gave 31, 4 gave 47; the vocabulary is better small, since each kind needs conversations enough for odds
+    min_type: 5                       # a kind of outcome with fewer conversations than this is folded into its nearest: its odds would be noise
+  min_support: 3                      # a State or Action carries odds only if at least this many conversations passed through it; under it, it says so and carries none (thin cells are suppressed: plans/2026-10-06-process-abstraction.md, governance). 3, 5 and 10 were compared on the tuning conversations (results/process_absorb_grid.md): the smallest whose Brier is within 0.002 of the best is 3 (0.2038, against 0.2052 at 5 and 0.2095 at 10; coverage 65%, 62%, 58%)
+  absorb:                             # qlsc process absorb: where a case is likely to end, from each State and Action (plans/2026-10-06-process-abstraction.md, phase 3)
+    good_rating: 4                    # a conversation ended well if the outcome call rated it at least this (1 to 5). 3, 4 and 5 against the planted favourability on the tuning conversations: accuracy 0.878, 0.882, 0.705 (results/process_absorb_grid.md)
+    prior: 2.0                        # pseudo-conversations at the global rate that each estimate is pulled toward. 0 to 20 compared on the tuning conversations: the empirical estimate's Brier is lowest at 2 (0.2052, against 0.2059 at none); the chain's is lowest at none and worsens with it
+    estimator: empirical              # which of the two estimates is stored on the graph: empirical (of the conversations through the element, the share that ended so) or chain (the absorbing chain over the transitions, solved). Empirical: lower Brier on the tuning conversations (0.2052 against 0.2076, paired difference -0.0035 +- 0.0031). The other is for the evaluation only
+    outcomes_shown: 3                 # the likeliest kinds of outcome stored with their odds on each element
+    tolerance: 0.000001               # the chain is solved by sweeps until no value moves by more than this
+    sweeps: 300                       # and at most this many sweeps (the chain is absorbing: it converges geometrically, in under a hundred)
+  outlook:                            # qlsc process outlook: locate a live case by nearness and pool its nearest States (plans/2026-10-06-process-abstraction.md, phase 4). Chosen on the tuning conversations (results/process_outlook_grid.md)
+    states: 5                         # nearest States pooled. 1 to 20 compared: the pooled Brier for ending well falls from 0.2038 (one State) to 0.1889 at 5, and rises again at 10 and 20 (0.1927, 0.1968), as farther States are farther in meaning
+    temperature: 1.0                  # how fast a State's weight falls with its distance in cosine from the nearest (exp(-distance / temperature)); 0: the nearest only. 0.3 and 1 are level (0.1895 and 0.1889 with 5 States) and nearly uniform: pooling is what helps, weighting by nearness adds little
+    level: 2                          # the level of Action read for what happens next (1: the finest; 2: grouped, more cases each: 22% of recommendations useful against 18 to 19%)
+    prior: 50.0                       # pseudo-transitions at an Action's own rate that each Action's pooled odds are pulled toward, so a pair seen twice is not its two cases; 20, 50 and 200 are level on the tuning conversations (21.8%, 22.1%, 21.7%), so a pair counts for little against the Action's own rate
+    outcomes_shown: 3                 # the likeliest kinds of outcome in the payload
+    actions_shown: 5                  # the Actions in the payload, most often taken first

@@ -332,6 +332,59 @@ clean grouping and barely move NMI against the spec (0.850 vs 0.853).
     keyed on the first's results (a correlated subquery into the virtual graph is Virtual Graph bug
     2), and each read is signed on its own.
 
+- **The process graph, built from text** (plans/2026-10-05-text-graph-construction.md; `src/qlsc/process/`): the unstructured source is a
+  path in the config (`process.events`; a path, a `gs://` URI read as the warehouse's gcloud identity, or https), never a table.
+  - **Two labels, `State` and `Action`,** and `SELECTS` (State to the Action taken) and `LEADS_TO` (Action to the State left), each with
+    `num` and `probability` (`num` over the element's turns, so what is left is the share that ended there, `ends`). A turn is not a node:
+    the event-to-element mapping is a file beside the build, and an element keeps a few `examples` (event ids and the conversations they
+    are from). An element's id is its kind and a hash of its name.
+  - **Annotation is per turn from the conversation so far** (one call per turn; the one-call-per-conversation unit saved $9 but separated
+    States worse). An Action begins with a verb from `process.action_verbs`, so reworded questions cannot split one Action in two.
+  - **Grouping is nearest neighbours, never all pairs, and deterministic:** GDS kNN over a projection built from a query sorted by id (GDS
+    numbers nodes in arrival order, and a native projection takes Neo4j's internal ids, which recreated nodes do not get in the same
+    order), seeded Leiden with one thread. Observations are scratch nodes in labels of their own (`ObservationState`), deleted before a
+    build ends. Every LLM and embedding call is cached by request, so a rebuild makes none.
+  - **The parameters were tuned twice, and the second time mattered:** a cut chosen on 100 conversations fragmented Actions and mixed stages
+    at 2,000, so it was chosen again on a different slice and judged on one nobody tuned on (similarity 0.90). A tuned graph is scored on the
+    conversations it was not tuned on.
+    - **Neighbours are kept, and found by the vector index.** `K_SIM {score, rank, level, transitions}` joins each element to its nearest of the same
+    kind at every level, from a cosine vector index per label (`process_state_embedding`, `process_action_embedding`), which is also how a
+    query enters the graph by similarity. Against exact neighbours the index is 99.98% recall, GDS kNN 98.5% (and not repeatable with threads);
+    GDS stays only for turns, which are not nodes.
+  - **Outcomes** (`qlsc process outcomes`): the end of each conversation and the agent's after-call note (read for the outcome and never for a
+    State) described by one call, rated 1 to 5, the descriptions grouped into kinds of outcome that are discovered, not given. The rating
+    tracks the planted favourability (Spearman 0.75, AUC 0.92 for ended well); the kinds mix what was done with how it ended, and an outcome
+    the text cannot show (a fix that did not fix) is not found. The vocabulary is files beside the build (`outcomes.ndjson`, `outcome_types.json`).
+  - **Odds on States** (`qlsc process absorb`, `src/qlsc/process/absorb.py`; no calls): a conversation's last State is where it was absorbed into its
+    outcome, so each State and Action carries `support` (conversations through it), `end_well` (the share that ended well: rating at least
+    `process.absorb.good_rating`) and its likeliest kinds of outcome with their odds, **as properties, not an Outcome label**. Two estimates, scored
+    leave-one-conversation-out against the planted favourability: `empirical` (of the conversations through the element) and `chain` (the
+    absorbing chain over the lifted transitions, solved by sparse sweeps). On the holdout they are level (Brier 0.201 and 0.200 against the global
+    rate's 0.236; the paired difference is zero) and `empirical` is stored, as it needs no assumption and says "thin" honestly. The odds are
+    modest (AUC 0.64 at the opening State rising to 0.78 at the last) and an element under `process.min_support` carries none: **66% of the
+    checkpoints in a conversation's life sit in a State with enough conversations, and 90% of States are too thin to carry odds**; the rest
+    is for nearness to cover (phase 4). A node takes its values from the chain at its own level. The raw counts are stored too (`support_good`,
+    `outcome_kinds`/`outcome_counts` on elements, `num_good` on transitions), so the graph alone can pool them.
+  - **Outlook** (`qlsc process outlook`, `src/qlsc/process/outlook.py`): a live case's last customer turn is annotated and embedded as the build
+    does, looked up in the State vector index, and its 5 nearest States' counts pooled into the odds of ending well and in what, and for each
+    Action reps took next how often and how those cases ended (level 2 Actions, pulled toward their own rate). **Nearness covers what coarseness
+    could not**: the pooled Brier is 0.185 against 0.201 for the assigned State and 0.236 for the global rate, and coverage goes from 66% to 100%.
+    **Ranking the next Actions by how the cases ended beats ranking by how often reps took them, but not the rep who has the real case** (24% of
+    recommendations fix the real cause or ask a true unsaid clue, against 26% and 20%), and it fails where a clue is still waiting (16%, below chance:
+    it almost never recommends a question, and recommends a remedy that does nothing for the cause 20% of the time against the reps' 3%). The
+    payload says it is observational. Three attempts to improve the ranking (the best follow-up instead of the average, a trust threshold, an
+    asking mode) were no better and are recorded in `results/process_outlook_ranking.md`: the success of an Action is confounded by the cause the rep
+    knew and the State does not say.
+  - **Levels above the first** (`src/qlsc/process/abstract.py`; plans/2026-10-06-process-abstraction.md): the same kNN and seeded Leiden over the
+    elements' stored vectors, the semantic layer's `gamma / (L - 1)` schedule, a transition-similarity term, parents named by an LLM and
+    identified by a hash of their children. A node has a `level`, a child `-[:PART_OF]->` its parent, and a node nobody grouped is carried up; a
+    level's transitions carry that `level`. **Actions get levels; States do not**: every coarser State level mixed stages, so States stay at
+    the first level (`process.levels.kinds`).
+  - **Context at a moment** (`src/qlsc/process/context.py`): memory's reads with a window that ends on the call's day (`as_of`), read and
+    never remembered; a table outside the virtual graph's model is read from the warehouse by the column the layer says holds the subject's key;
+    the turns' words are matched to the customer's own rows by lookup (a name carried by several merchants is no link by itself; a purchase's
+    amount and its merchant's name pick one).
+
 ## Known limits
 
 - A permission check that can't reach the warehouse (a lapsed login) is an error, never a "no"
@@ -341,6 +394,14 @@ clean grouping and barely move NMI against the spec (0.850 vs 0.853).
 - The example log uses about 150 distinct column-level join predicates and no SELECT has more than 3
   joins; a real log has a long tail of one-off joins and 6 to 10-join queries. Join recovery scores
   flatter qlsc there.
+- The process graph's first level is faithful and fine, not coarse: about 800 Action elements for 64 planted actions (completeness 0.65) and
+  a quarter of State turns in a State no other turn shares. Its likeliest-next-Action recommendation can only match what reps do. Coarser
+  levels, where a case ends and outcome odds are the next plan (plans/2026-10-03-business-process-graph.md). Folding near-duplicate names is
+  quadratic in the elements (17 s at 3,000 with a dot product in C; 84 s before), the stage to watch if elements grow into the tens of thousands.
+- A call nobody was identified on has no customer, so no context.
+- States have no level above the first: grouping States by what they say merges stages (a level that coarsens them keeps 70% to 80% stage
+  purity, against 90% for the first). Coverage for the 25% of State turns in a State of their own is to come from nearness at query time, not
+  from a coarser State.
 - BigQuery skips column-level (policy tag) checks for a query it can prove returns no rows: `LIMIT 0`,
   `WHERE FALSE`, or a literal NULL for a value. Nothing is returned, but a check built on such a dry run
   checks nothing. The gateway's and the oracle's dry runs use `LIMIT 1` and never fill parameters in.

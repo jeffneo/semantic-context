@@ -1,0 +1,76 @@
+{
+ "cost": {
+  "turn": {
+   "calls": 222,
+   "cost": 0.178918,
+   "per_turn": 0.0007951911111111111,
+   "full_corpus": 15.39489991111111,
+   "wall_seconds": 46.3,
+   "api_seconds_per_turn": 1.1444444444444444,
+   "problems": 0,
+   "turns": 225
+  },
+  "conversation": {
+   "calls": 25,
+   "cost": 0.074167,
+   "per_turn": 0.0003296311111111111,
+   "full_corpus": 6.38165831111111,
+   "wall_seconds": 19.5,
+   "api_seconds_per_turn": 0.49733333333333335,
+   "problems": 4,
+   "turns": 225
+  }
+ },
+ "agreement": {
+  "state": {
+   "median": 0.8453663623487705,
+   "n": 115
+  },
+  "action": {
+   "median": 0.8403337131503299,
+   "n": 110
+  }
+ },
+ "leak": {
+  "turn": {
+   "states": 115,
+   "with_future_words": 32,
+   "share": 0.2782608695652174
+  },
+  "conversation": {
+   "states": 115,
+   "with_future_words": 24,
+   "share": 0.20869565217391303
+  }
+ },
+ "separation": {
+  "turn": {
+   "action vs the planted action": {
+    "auc": 0.8868840059611102,
+    "same_pairs": 557
+   },
+   "state vs the planted domain": {
+    "auc": 0.8397892429386289,
+    "same_pairs": 1904
+   },
+   "state vs the planted stage": {
+    "auc": 0.5790342959133644,
+    "same_pairs": 1521
+   }
+  },
+  "conversation": {
+   "action vs the planted action": {
+    "auc": 0.910524141319398,
+    "same_pairs": 510
+   },
+   "state vs the planted domain": {
+    "auc": 0.7468828425801626,
+    "same_pairs": 1904
+   },
+   "state vs the planted stage": {
+    "auc": 0.6192937335781381,
+    "same_pairs": 1521
+   }
+  }
+ }
+}
