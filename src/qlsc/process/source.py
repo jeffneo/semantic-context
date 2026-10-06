@@ -119,6 +119,19 @@ def read(s: Settings) -> Source:
     return Source(where, ordered, skipped)
 
 
+def live(s: Settings, lines: list[dict]) -> list[Turn]:
+    """A conversation in progress, as an agent holds it: [{role, text}] in order, as turns. A role the config does not map to a kind is an error:
+    a turn the build would not have read is not one to locate a case by."""
+    kinds = {k["role"]: k["kind"] for k in s["process"]["kinds"]}
+    out = []
+    for i, line in enumerate(lines):
+        if line.get("role") not in kinds or not str(line.get("text", "")).strip():
+            raise SourceError(f"line {i + 1}: a role from {sorted(kinds)} and some text, not {line!r}")
+        role, text = line["role"], str(line["text"])
+        out.append(Turn(f"live-{i}", "live", i, "", "live", role, kinds[role], text))
+    return out
+
+
 def notes(s: Settings) -> dict[str, str]:
     """The agent's after-call note per conversation (`process.outcomes.note_channels`): text that summarises the whole conversation, which
     the turns exclude and the outcome reads. Several notes of one conversation are joined in order."""

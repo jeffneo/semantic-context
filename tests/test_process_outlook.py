@@ -135,3 +135,82 @@ def test_a_live_case_is_located_by_the_customers_latest_turn_up_to_where_it_has_
     assert outlook.last_state(turns, 2) == 1
     with pytest.raises(BuildError):
         outlook.last_state(turns, 0)
+
+
+# ----------------------------------------------------------------------------------------------------------------------- the tool
+
+
+@pytest.fixture()
+def s(tmp_path):
+    from qlsc import config
+
+    f = tmp_path / "estate.yaml"
+    f.write_text(
+        "business: {name: a bank, kind: bank}\nwarehouse: {gcloud_config: x}\nprocess:\n  events: events.ndjson\n"
+        "  readers: [contact-center]\n"
+    )
+    return config.load(f)
+
+
+def canned_outlook() -> dict:
+    out = outlook.pool(
+        stats(), [("state:s1", 0.9), ("state:s2", 0.9)], {**P, "temperature": 1.0}, floor=3, prior=0.0
+    )
+    out.pop("recommended")  # as `at` does
+    return {
+        "turn": 3,
+        "state": "closing over a fee",
+        "located": [{"id": "state:s1", "name": "one", "similarity": 0.9, "support": 10}],
+        "outlook": out,
+        "measured": {"seconds": 1.0},
+    }
+
+
+def test_a_live_conversation_is_turns_by_the_configs_roles_and_a_role_it_does_not_know_is_refused(s):
+    from qlsc.process import source
+
+    turns = source.live(s, [{"role": "agent", "text": "Hello"}, {"role": "customer", "text": "Hi, a fee"}])
+    assert [(t.seq, t.kind) for t in turns] == [(0, "action"), (1, "state")]
+    with pytest.raises(source.SourceError):
+        source.live(s, [{"role": "robot", "text": "x"}])
+    with pytest.raises(source.SourceError):
+        source.live(s, [{"role": "customer", "text": "  "}])
+
+
+def test_what_an_agent_is_shown_is_small_has_the_support_and_the_caution_and_no_recommendation():
+    v = outlook.view(canned_outlook(), 5)
+    assert "recommended" not in v and "recommended" not in str(v)
+    assert v["caution"].startswith("Observational") and v["support"] == 20
+    assert [a["action"] for a in v["next_actions"]] == ["do y", "do x"]
+    assert set(v["next_actions"][0]) == {"action", "share", "cases", "ended_well_after"}
+
+
+def test_only_the_readers_the_config_names_may_use_the_outlook(s):
+    assert outlook.allowed(s, "contact-center") and not outlook.allowed(s, "marketing")
+
+
+def test_the_outlook_tool_records_a_refusal_an_error_and_an_answer_as_steps(s, monkeypatch):
+    from types import SimpleNamespace
+
+    from qlsc import converse
+
+    steps = []
+    me = SimpleNamespace(
+        s=s,
+        m=SimpleNamespace(reader="marketing"),
+        _new_step=lambda tool: "step-1",
+        _attach=lambda step, arguments, result, status, error, seconds, fp: steps.append(
+            (status, result, error)
+        ),
+    )
+    lines = [{"role": "customer", "text": "I want to close my account"}]
+    assert converse.Conversation.outlook(me, lines) is None
+    assert steps[-1][0] == "refused" and "process.readers" in steps[-1][2]
+
+    me.m = SimpleNamespace(reader="contact-center")
+    assert converse.Conversation.outlook(me, [{"role": "robot", "text": "x"}]) is None
+    assert steps[-1][0] == "error"
+
+    monkeypatch.setattr(outlook, "at", lambda s_, turns, turn: canned_outlook())
+    got = converse.Conversation.outlook(me, lines)
+    assert got["end_well"] == pytest.approx(0.5) and steps[-1][0] == "ok" and steps[-1][1] == got

@@ -71,6 +71,7 @@ QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc process context <conv
 uv run examples/fennmoor-bank/eval/process_graph.py [--grid]    # the graph against the corpus's answer key: three arms, holdout; results/process_graph.md
 uv run examples/fennmoor-bank/eval/process_levels.py [--grid]   # the levels by level on the holdout; --grid: whole hierarchies, grouping only, on the tuning slice
 uv run examples/fennmoor-bank/eval/process_outcomes.py [--grid]   # the kinds of outcome and the ratings against the planted outcomes; results/process_outcomes.md
+uv run examples/fennmoor-bank/eval/process_agent.py [--points N]   # an LLM agent chooses the next action with and without the outlook, the warehouse's call record, account facts and the process's tables; scored against the efficacy table (about $6 and 7 minutes for 200 points x 8 arms)
 uv run examples/fennmoor-bank/eval/process_outlook.py [--grid]   # nearness pooling and recommendation validity against the world's efficacy table, leave-one-conversation-out; results/process_outlook.md (about two minutes)
 uv run examples/fennmoor-bank/eval/process_absorb.py [--grid]   # the odds on States against what happened, leave-one-conversation-out, at checkpoints in a conversation's life; --grid: the prior, min_support and good_rating on the tuning slice (about two minutes each)
 uv run examples/fennmoor-bank/eval/process_context.py [per_group=40]   # context as of a call and the links, scored against the answer key's mentions (about 18 minutes)

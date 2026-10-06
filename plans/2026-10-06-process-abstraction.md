@@ -300,8 +300,58 @@ the graph does worse than a baseline.
    - **Decision 5 (replay) is not built, and I would not build it yet.** The plan said to replay only if validity showed promise. It shows some where
      the job is to fix and a failure where it is to ask. A replay would confirm the failure and cost the sampler's refactor. The fix to try first is
      in the ranking, not the evaluation (below).
-5. **Tools, the write-up.** Agent tools beside `ask` and `recall`; the comparison harness gains an arm with the outlook and one without
-   (does an agent that has it resolve cases better, in the world, than one that does not); README and `docs/design.md`.
+5. **Tools, the write-up.** *Built and measured (2026-10-06).* `outlook` as a tool beside `recall` and `ask` (`Conversation.outlook` in
+   `qlsc/converse.py`: a live transcript as [{role, text}], or a stored conversation's id, in; the nearest States, the odds with their support, what
+   reps did next and how those cases ended, and the caution, out, recorded as a Step; refused to a reader `process.readers` does not admit;
+   `source.live`; `conversations/support-1.yaml`; 4 tests). The tool does **not** return its recommendation (computed for the evaluation, no better
+   than the typical rep). Not run end to end this session: it needs the `qlsc` gcloud login, which had lapsed; its steps are tested with a stand-in.
+
+   **The agent-side test (`eval/process_agent.py`, `results/process_agent.md`).** The plan's arm "does an agent that has the outlook resolve cases
+   better in the world" needs a replay of the world, which was not built. What could be measured: an LLM agent (Sonnet 5.5) is shown a call part-way
+   through and the menu of the procedure's actions, and picks the next one; 200 holdout decision points, half with a true clue waiting; each choice is
+   scored by the efficacy table (a remedy that fixes the real cause, or a question for a clue that is true and not yet said, is useful). Eight arms:
+   what the agent is shown beside the call.
+
+   | | useful (all) | clue waiting | no clue waiting | against alone (better / worse, sign test) |
+   |---|---|---|---|---|
+   | the call alone | 12% | 14% | 11% | |
+   | + the outlook | 11% | 13% | 9% | 4 / 7, p = 0.55 |
+   | + the phone system's record of the call | **31%** | 35% | 27% | 44 / 7, p < 0.001 |
+   | + the account's fees and card purchases | 13% | 13% | 13% | 3 / 2 |
+   | + both (the warehouse context) | **33%** | 38% | 28% | 48 / 7, p < 0.001 |
+   | + the process's tables as a designed ontology | 18% | 22% | 13% | 12 / 2, p = 0.013 |
+   | + context and ontology | 30% | 32% | 27% | 43 / 9 |
+   | + the outlook, context and ontology | 28% | 34% | 22% | 43 / 12 |
+   | *the rep, what was done* | 28% | 29% | 27% | |
+   | *the typical rep* | 22% | 26% | 18% | |
+   | *chance; the best single action with hindsight* | 13%; 15% | 16%; 30% | 9%; 14% | |
+
+   - **The outlook did not help the agent**, as phase 4 would predict; with everything else beside it, it lowered the choices a little (28% against 30%).
+   - **Customer and call context did.** All of the gain is the phone system's record of the call: the agent alone verifies the caller's identity in
+     67% of its choices because the transcript does not show the caller was already authenticated, and with the record it does so in 26% and asks or
+     acts instead. That is a plain piece of warehouse context, and it lifts the agent to the rep's level (31% against 28%) and above what the typical
+     rep does (22%). **Caveat:** a repeated verification is not harmful in this world, only unproductive, so this is efficiency in reaching the
+     substantive step, not a better outcome by itself. The fees and purchases added nothing: only a few causes depend on them, and a menu choice is
+     not sensitive to them.
+   - **The designed ontology helped a little** (18%, 12 better and 2 worse), and added nothing once the context was there. The agent's wrong
+     questions ("asks for nothing new": 24 to 40% of its choices) are the remaining loss: it asks, and does not know which clue is true.
+
+   **What phase 5 found, in sum: what we have shown and what we have not.**
+   - *Shown:* a process graph can be built from text and scored against an answer key (structure V 0.77 to 0.83; outcome rating Spearman 0.75, AUC
+     0.92; odds of ending well Brier 0.185 against 0.236 and AUC 0.65 to 0.78); a live case can be located by nearness with every case covered;
+     the warehouse's context as of the call can be fetched and linked; and an agent given that context chooses better.
+   - *Not shown:* that any of it lifts a process over the historical baseline. The next-Action recommendation is no better than the typical rep and is
+     confounded; the agent test scores one decision, not a case played out; and the world's headroom is in a place the graph does not reach. **Measured
+     on the whole corpus: the true cause alone predicts a good ending barely better than nothing (Brier 0.195 against 0.236), and the planted
+     action's efficacy against the cause predicts it almost perfectly (0.049).** Two thirds of the cases already get an Action that fixes the cause;
+     the one third that do not is the headroom, and reaching it needs the cause and what fixes what.
+   - *What would show an uplift:* (1) **the cause**, inferred from what a call shows and from the context (the world's causes name warehouse
+     facts they need: an unwaived fee, a card purchase); (2) **what fixes what**, a designed efficacy ontology aligned afterwards and used as a
+     prior for recommendations, not an input to the build (it cuts across "usage is the ground truth", so it is a decision for you; the agent test
+     says it is worth a little, and the efficacy numbers say it is the missing half); (3) **an outcome the action does not colour:** a repeat call
+     in the warehouse within days (the pool already carries the next call), not a rating read from the same conversation (a confident wrong fix reads
+     as resolved, and 80% of those recur); (4) **a counterfactual:** the replay of decision 5, or an experiment. Until then the outlook is a picture,
+     not advice.
 
 ## What does not change
 

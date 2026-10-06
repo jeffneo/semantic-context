@@ -241,6 +241,9 @@ def at(s: Settings, turns: list[Turn], upto: int | None = None, G: Graph | None 
         found = nearest_states(g, vec, p["states"])
         stats = stats_from_graph(g, [x for x, _ in found], p["level"])
         out = pool(stats, found, p, s["process"]["min_support"], s["process"]["absorb"]["prior"])
+        out.pop(
+            "recommended"
+        )  # computed for the evaluation; not offered: it is no better than the typical rep and recommends a wrong remedy one time in five
     return {
         "turn": turns[i].seq,
         "state": r["description"],
@@ -256,6 +259,37 @@ def at(s: Settings, turns: list[Turn], upto: int | None = None, G: Graph | None 
         ],
         "outlook": out,
         "measured": m.measure(),
+    }
+
+
+def allowed(s: Settings, reader: str) -> bool:
+    """Whether a reader may use the outlook: `process.readers` (the principals the events' own access rules admit; null: every reader the gateway does)."""
+    readers = s["process"]["readers"]
+    return readers is None or reader in readers
+
+
+def view(o: dict, shown: int) -> dict:
+    """The outlook as a small structure for an agent (the tool's result): where the case stands, the odds with their support, what reps did next, and
+    the caution that these are observations."""
+    out = o["outlook"]
+    return {
+        "after_turn": o["turn"],
+        "state": o["state"],
+        "nearest_states": o["located"][:3],
+        "support": round(out["support"], 1),
+        "end_well": None if out["end_well"] is None else round(out["end_well"], 3),
+        "outcomes": [{"kind": k, "odds": round(v, 3)} for k, v in out["outcomes"]],
+        "next_actions": [
+            {
+                "action": a["name"],
+                "share": round(a["probability"], 3),
+                "cases": round(a["support"], 1),
+                "ended_well_after": round(a["end_well_after"], 3),
+            }
+            for a in out["actions"][:shown]
+        ],
+        "caution": NOTE,
+        "measured": o["measured"],
     }
 
 
@@ -277,8 +311,6 @@ def show(o: dict, shown: int) -> str:
         lines.append(
             f"  {a['probability']:.0%} of the time  {a['name']}  ->  ended well {a['end_well_after']:.0%}  ({a['support']:.1f} cases)"
         )
-    if out["recommended"]:
-        lines.append(f"\nBest ending after: {out['recommended']['name']}")
     lines.append("\n" + NOTE)
     m = o["measured"]
     lines.append(

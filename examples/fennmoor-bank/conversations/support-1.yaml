@@ -1,0 +1,20 @@
+# qlsc converse examples/fennmoor-bank/conversations/support-1.yaml
+# A contact-centre agent part-way through a call, asking the process graph where the case stands: the conversation so far goes in as it is, and
+# what comes back is where cases like it were, how they ended and what reps did next, with how many cases each rests on. Observation, not advice:
+# the reps who took an Action may have been in easier cases. The outlook is for the contact centre's principal only (process.readers).
+title: A closure request over a fee, mid-call
+as: contact-center
+messages:
+  - user: >-
+      I'm on a call. The customer wants to close their account over a fee they didn't expect, and says another bank has offered a better rate.
+      They've confirmed who they are. Where does a case like this stand, and what usually follows?
+    tools:
+      - outlook:
+          lines:
+            - {role: agent, text: "Thanks for calling, how can I help you today?"}
+            - {role: customer, text: "I want to close my account. You hit me with a fee on my statement that I never expected."}
+            - {role: agent, text: "I'm sorry to hear that. I'll need to verify who you are first. Can you confirm your details?"}
+            - {role: customer, text: "Sure, it's on the account. Another bank is offering me a better rate, that's why I'm leaving."}
+  - agent: >-
+      Cases like this are mostly closures that a retention offer sometimes averts; the Actions reps took next and how those cases ended are above,
+      with how many cases each rests on.

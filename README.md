@@ -367,8 +367,24 @@ and outcomes ([plan](plans/2026-10-05-process-corpus.md)); it is backed up in a 
 - **Score:** against the corpus's answer key, which the tool never reads. On 1,432 conversations nobody tuned on, the elements match the
   planted actions and States with a V-measure of 0.77 each, against 0.64 and 0.67 for clustering the raw text with the same embedder, and
   the transition probabilities correlate 0.91 with the planted ones. What the graph does not do is beat the reps: it recommends what people
-  usually do (7% of the time the next Action asks the discriminating question, against 10% for the reps); ranking Actions by where they
-  lead is the next plan ([plan](plans/2026-10-03-business-process-graph.md)).
+  usually do (7% of the time the next Action asks the discriminating question, against 10% for the reps).
+- **Above the first level** ([plan](plans/2026-10-06-process-abstraction.md)): Actions are grouped into a second level (V 0.77 to 0.83; States
+  stay at the first, since coarser ones mixed stages); each conversation's ending is read from its last turns and the agent's note (a 1 to 5 rating
+  that tracks the planted favourability, Spearman 0.75); every State and Action carries its **support**, the **odds of a case ending well** and in
+  what (Brier 0.201 against 0.236 for the base rate, leave-one-conversation-out), and a live case is **located by nearness**: its nearest States by a
+  vector index, their counts pooled (Brier 0.185, and every case covered where a third had no odds).
+- **What it does not do, said plainly:** recommend the best next Action. Ranking the reps' next Actions by how those cases ended is no better than the
+  typical rep, loses to the rep with the real case, and recommends a remedy that does nothing for the cause one time in five: the success of an
+  Action is confounded by the cause the rep knew and the State does not say, and three attempts to correct it failed
+  (`results/process_outlook_ranking.md`). **The outlook is therefore offered as a picture, not as advice.** In a test with an LLM agent choosing
+  the next action (`eval/process_agent.py`, 200 decision points), the outlook did not help (11% useful against 12% alone), and what did was **the
+  warehouse's record of the call**: the phone system had already authenticated the caller, so the agent's redundant verifications fell from 67% to
+  26% of its choices and useful choices rose from 12% to 31% (p < 0.001). The account's fees and purchases added nothing, and the process's own
+  tables as a designed ontology a little (18%). **We have not shown that this lifts a process over the historical baseline**: that needs the cause, what fixes what, an outcome
+  that does not depend on the action taken (a repeat call, not a rating), and a counterfactual.
+- **For an agent:** `outlook` is a tool beside `recall` and `ask` (`qlsc converse`; `Conversation.outlook`): the conversation so far (or a stored
+  one's id) in, the nearest States, the odds with their support, what reps did next and how those cases ended out, with a caution, for the readers
+  `process.readers` admits.
 - **Context at a moment:** a conversation's id is the key of its `Call` in the virtual graph, so a call reaches its customer. `qlsc
   process context <conversation> [--turn N]` fetches that customer's context **as of the call**, not today's (memory's ordinary window would
   put facts that did not exist yet into it), reads the fee table the virtual graph's model does not serve from the warehouse by the column
@@ -382,6 +398,7 @@ uv run qlsc process build                       # about a minute and no calls wh
 uv run qlsc process abstract                    # the levels above the first (Actions), and the K_SIM neighbour links at every level
 uv run qlsc process outcomes                    # how each conversation ended, and the kinds of outcome ($1.70, nine minutes)
 uv run qlsc process absorb                      # the odds on each State and Action of a case ending well, and in which kind of outcome (no calls; a second)
+uv run qlsc converse examples/fennmoor-bank/conversations/support-1.yaml   # an agent asking the outlook mid-call, recorded as a Step beside recall and ask
 uv run qlsc process outlook <conversation_id> --turn N   # where the case stands at a turn: its nearest States, the odds, what reps did next and how those cases ended (--with-context: and the customer's context as of the call)
 uv run qlsc process context <conversation_id>   # the customer's context as of the call, and the rows the words are about
 uv run examples/fennmoor-bank/demo.py process   # a State, its calls, their live rows through the composite, one call's context

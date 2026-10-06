@@ -9,6 +9,9 @@ beside the warehouse facts `remember` keeps.
   a Task       is one request an agent worked on: each user message starts one, -[:FROM]-> it, and the
                agent's reply closes it. Its Steps are qlsc's tools:
                  recall  an entity's context (qlsc/memory.py writes the step): -[:READ]-> the anchor
+                 outlook where a case in progress stands, from the process graph (qlsc/process/outlook.py): the
+                         nearest States, the odds of ending well with their support, what reps did next and how
+                         those cases ended. Its result is small and says it is observation, not advice
                  ask     a question: its result summary, and -[:READ]-> the Table and Computation stubs its
                          query read. Its fingerprint is its compiled request with every value out, as the
                          parser fingerprints SQL: what distillation groups by
@@ -376,6 +379,40 @@ class Conversation:
         )
         return a
 
+    def outlook(self, transcript: str | list[dict], turn: int | None = None) -> dict | None:
+        """The `outlook` tool: where a case stands and how cases like it went (qlsc/process/outlook.py). `transcript`: a conversation id in
+        process.events, or the conversation so far as [{role, text}] (what a live agent holds); `turn` reads a stored one only up to that sequence.
+        Its step keeps the nearest States, the odds with their support, what reps did next and how those cases ended, and the caution that these are
+        observations. Refused for a reader `process.readers` does not admit."""
+        from qlsc.process import outlook, source
+        from qlsc.process.build import BuildError
+
+        arguments = (
+            {"conversation": transcript} if isinstance(transcript, str) else {"lines": len(transcript)}
+        )
+        if turn is not None:
+            arguments["turn"] = turn
+        sid, t0 = self._new_step("outlook"), time.time()
+        if not outlook.allowed(self.s, self.m.reader):
+            why = f"{self.m.reader} may not use the process outlook (process.readers)"
+            self._attach(sid, arguments, {"refused": why}, "refused", why, time.time() - t0, "outlook")
+            return None
+        try:
+            if isinstance(transcript, str):
+                turns = source.read(self.s).conversations.get(transcript)
+                if turns is None:
+                    raise BuildError(f"{transcript} is not in process.events")
+            else:
+                turns = source.live(self.s, transcript)
+            seen = outlook.view(
+                outlook.at(self.s, turns, turn), self.s["process"]["outlook"]["actions_shown"]
+            )
+        except (BuildError, source.SourceError) as e:
+            self._attach(sid, arguments, {"error": str(e)}, "error", str(e), time.time() - t0, "outlook")
+            return None
+        self._attach(sid, arguments, seen, "ok", None, time.time() - t0, "outlook")
+        return seen
+
     def accept(self, text: str = "That's right.") -> None:
         """The asker's verdict on the last answer: accepted (a Fact about its step, from their message)."""
         self._verdict(self.say("user", text, same_task=True), "accepted", text)
@@ -524,7 +561,7 @@ def record(s: Settings, path: str, as_: str | None = None, clock=None) -> Conver
     """`qlsc converse <file>`: a conversation from a file, recorded as it goes. The file (YAML): title, as (a
     principal, optional), and messages, each `user:` or `agent:` with its text and, optionally:
       mentions  ['Label key' | 'Label property=value' | 'Entity name', ...]
-      tools     [{recall: 'Label key'} | {ask: 'question'}, ...], run as they're recorded
+      tools     [{recall: 'Label key'} | {ask: 'question'} | {outlook: 'conversation id' | {conversation, turn} | {lines: [{role, text}]}}, ...], run as they're recorded
       learned   [{fact: {about, predicate, value, mentions, because}} | {entity: {name, type, predicate, about}}]
       decided   [{choice, rationale, about, based_on, alternatives}]
       outcome   [{decision: choice, value}]
@@ -552,6 +589,18 @@ def record(s: Settings, path: str, as_: str | None = None, clock=None) -> Conver
                 a = c.ask(tool["ask"])
                 print(
                     f"    ask: {a.get('route')} ({a.get('writer')}), {(a.get('result') or {}).get('total', 0)} rows"
+                )
+            elif "outlook" in tool:
+                x = tool["outlook"]
+                spec_ = x if isinstance(x, dict) else {"conversation": x}
+                o = c.outlook(spec_.get("lines") or spec_["conversation"], spec_.get("turn"))
+                print(
+                    "    outlook: "
+                    + (
+                        f"{len(o['next_actions'])} next actions, end well {o['end_well']}"
+                        if o
+                        else "refused or failed"
+                    )
                 )
         for item in turn.get("learned", []):
             ((kind, x),) = item.items()

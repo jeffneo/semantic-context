@@ -375,6 +375,13 @@ clean grouping and barely move NMI against the spec (0.850 vs 0.853).
     payload says it is observational. Three attempts to improve the ranking (the best follow-up instead of the average, a trust threshold, an
     asking mode) were no better and are recorded in `results/process_outlook_ranking.md`: the success of an Action is confounded by the cause the rep
     knew and the State does not say.
+  - **The outlook is a tool beside `recall` and `ask`** (`Conversation.outlook`, a Step in the Context Memory model): a live transcript or a stored
+    conversation's id in; the nearest States, the odds with their support, what reps did next and how those cases ended, and the caution out; refused to
+    a reader `process.readers` does not admit. Its recommendation is computed for the evaluation and **not offered**. Tested with an LLM agent choosing
+    the next action (200 points, `results/process_agent.md`), the outlook did not help; the warehouse's call record did (the caller had already been
+    authenticated: redundant verification fell from 67% to 26% of choices, useful choices 12% to 31%), the account's fees and purchases did not,
+    and the process's tables as a designed ontology a little (18%). What would show a lift over the historical baseline, and what has not been shown,
+    is in plans/2026-10-06-process-abstraction.md, "What phase 5 found".
   - **Levels above the first** (`src/qlsc/process/abstract.py`; plans/2026-10-06-process-abstraction.md): the same kNN and seeded Leiden over the
     elements' stored vectors, the semantic layer's `gamma / (L - 1)` schedule, a transition-similarity term, parents named by an LLM and
     identified by a hash of their children. A node has a `level`, a child `-[:PART_OF]->` its parent, and a node nobody grouped is carried up; a

@@ -67,6 +67,7 @@ entitlements:                         # qlsc ask --as <name>: the test principal
 # is gs://fennmoor-corpus/full/events.ndjson.gz, read as warehouse.gcloud_config's identity; the local copy is the same file.
 process:
   events: build/corpus/full/events.ndjson.gz
+  readers: [contact-center]          # who may use the outlook: the contact centre's principal, since the text a State is built from is its calls
   composite: {database: fennmoor, url: "neo4j+ssc://neo4j:7687"}   # the composite on the Virtual Graph instance (docker/nvg/README.md): fennmoor.process beside .semantic, .memory and .rows
   context:                            # the conversation is a Call of the virtual graph; its customer's context, as of the call
     also: [dw_core.fct_fees]          # fees are not in the virtual graph's model (the log joins them too rarely): read from the warehouse
