@@ -1,6 +1,6 @@
-import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useMemo, useState } from "react";
 import { ALL, fullName } from "../data";
-import { pack, tileAt, type Block } from "../discovery/layout";
+import EstateTiles from "../EstateTiles";
 import { MEMORY, n, type Hold, type Memory } from "./data";
 
 const CLASSES: { id: string; label: string; says: string; test: (h: Hold) => boolean }[] = [
@@ -10,8 +10,6 @@ const CLASSES: { id: string; label: string; says: string; test: (h: Hold) => boo
   { id: "none", label: "No cadence in the log", says: "the default: a day", test: (h) => h === "none" },
   { id: "frozen", label: "Frozen", says: "holds for good", test: (h) => h === "frozen" },
 ];
-const PROJECTS = ["fennmoor-raw", "fennmoor-dw", "fennmoor-analytics"];
-
 const when = (iso: string) => new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC", timeZoneName: "short" });
 
 const CHECKS: Record<string, string> = {
@@ -29,39 +27,8 @@ const CHECKS: Record<string, string> = {
 */
 export default function Holds({ m }: { m: Memory }) {
   const [age, setAge] = useState(0);
-  const holder = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(720);
-  useLayoutEffect(() => {
-    const el = holder.current;
-    if (!el) return;
-    const read = () => setWidth(Math.floor(el.clientWidth));
-    read();
-    const watch = new ResizeObserver(read);
-    watch.observe(el);
-    return () => watch.disconnect();
-  }, []);
-
   const days = (h: Hold) => (h === "frozen" ? Infinity : h === "none" ? m.settings.unknown_hold_days : h);
   const items = useMemo(() => [...ALL].map((l) => ({ l, id: fullName(l), hold: m.holds[fullName(l)] as Hold })), [m]);
-
-  const { placed, height, where } = useMemo(() => {
-    const members = new Map<string, string[]>();
-    const rank = new Map<string, number>();
-    const names = new Map<string, string>();
-    for (const { l, id } of [...items].sort((a, b) => a.id.localeCompare(b.id))) {
-      const key = `${l.project.name}.${l.dataset.name}`;
-      members.set(key, [...(members.get(key) ?? []), id]);
-      rank.set(key, PROJECTS.indexOf(l.project.name));
-      names.set(key, l.dataset.name);
-    }
-    const blocks: Block[] = [...members.keys()]
-      .sort((a, b) => rank.get(a)! - rank.get(b)! || members.get(b)!.length - members.get(a)!.length || a.localeCompare(b))
-      .map((key) => ({ key, name: names.get(key)!, count: members.get(key)!.length, labelled: true }));
-    const packed = pack(blocks, width);
-    const at = new Map<string, [number, number]>();
-    for (const p of packed.placed) members.get(p.block.key)!.forEach((id, i) => at.set(id, tileAt(p, i)));
-    return { ...packed, where: at };
-  }, [items, width]);
 
   const fresh = items.filter((i) => age < days(i.hold)).length;
   const p = m.provenance;
@@ -81,20 +48,7 @@ export default function Holds({ m }: { m: Memory }) {
 
       <div className="mt-4 grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_21rem]">
         <div className="rounded-card border border-line bg-bg-subtle p-4">
-          <div ref={holder} className="relative w-full" style={{ height }}>
-            {items.map(({ l, id, hold }) => {
-              const [x, y] = where.get(id) ?? [0, 0];
-              const holding = age < days(hold);
-              const style = { translate: `${x}px ${y}px`, "--ink": holding ? MEMORY : "color-mix(in oklab, var(--fg) 14%, var(--bg))" } as CSSProperties;
-              return <span key={id} aria-hidden="true" className={`tile placed static ${l.table.kind}`} style={style} />;
-            })}
-            {placed.map((b) => (
-              <div key={b.block.key} className="pointer-events-none absolute left-0 top-0" style={{ translate: `${b.x}px ${b.y}px`, maxWidth: 200 }}>
-                <p className="truncate font-mono text-[11px] leading-tight">{b.block.name}</p>
-                <p className="text-[10px] leading-tight text-fg-muted">{b.block.count} tables</p>
-              </div>
-            ))}
-          </div>
+          <EstateTiles look={(_, id) => ({ ink: age < days(m.holds[id]) ? MEMORY : "color-mix(in oklab, var(--fg) 14%, var(--bg))" })} />
         </div>
         <ul className="rounded-card border border-line">
           {CLASSES.map((c) => {

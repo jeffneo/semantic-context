@@ -61,6 +61,7 @@ measured or built. Nothing is mocked, and none of the spec's answer key or the p
 | Generating the Virtual Graph schema | `fennmoor/virtual/virtual.json` | `ui_virtual.py` | `qlsc virtualize`'s files in `work/virtual/` and the graph (Neo4j up), and `results/graph_accuracy.json` |
 | Routing a request | `fennmoor/router/router.json` | `ui_router.py` | the evaluations' results (`results/economics.json`, `log_accuracy.json`, `graph_accuracy.json`) and the comparison's agent run |
 | Promoting results to memory | `fennmoor/memory/memory.json` | `ui_memory.py` | `qlsc.memory.template` over the generated model, the layer's write cadences and a remembered node (Neo4j up), and the memory evaluations' results (`results/memory*.json`, `economics.json`) |
+| Row-level security, passed through | `fennmoor/security/security.json` | `ui_security.py` | the entitlement evaluation's results and run (`results/entitlements.json`, `work/entitlements/`) and the allowlists the warehouse produced (`work/allowlists/`) |
 | Accuracy | `fennmoor/accuracy/accuracy.json` | `ui_accuracy.py` | the comparison's results (`eval/comparison/run.py report`) |
 
 ```bash
@@ -69,10 +70,11 @@ uv run examples/fennmoor-bank/generate/ui_discovery.py
 uv run examples/fennmoor-bank/generate/ui_virtual.py
 uv run examples/fennmoor-bank/generate/ui_router.py
 uv run examples/fennmoor-bank/generate/ui_memory.py
+uv run examples/fennmoor-bank/generate/ui_security.py
 uv run examples/fennmoor-bank/generate/ui_accuracy.py
 ```
 
-The discovery, Virtual Graph, router, memory and accuracy sections load their data when the section mounts (the accuracy file is the largest: every query the methods wrote),
+The discovery, Virtual Graph, router, memory, security and accuracy sections load their data when the section mounts (the accuracy file is the largest: every query the methods wrote),
 so the page opens before they arrive.
 
 ```
@@ -82,10 +84,11 @@ src/
   components/                   Nav, Hero, SectionNav (the contents sidebar), ArchitectureDiagram (the hero: agents; the composite as the box around the three
                                 shards; the warehouse across the bottom; arcs between the shards; tasks run one at a time, each flashing along the connections
                                 and layers it uses and fading slowly; SVG, no tooltip, nothing follows the pointer)
-  examples/                     the list and loaders; fennmoor/ holds its data and a folder or file per section: Scenario, Warehouse, discovery/
+  examples/                     the list and loaders; fennmoor/ holds its data, EstateTiles (the estate's squares, for a section to colour) and a folder or file per section: Scenario, Warehouse, discovery/
                                 (funnel, the tables regrouped by meaning, the join chords), virtual/ (the steps, the .semantic paths beside the .rows schema, the generated schema as a layered graph, the questions it
                                 answers), router/ (the ladder, ten questions followed down it, what each rung served), memory/ (the template drawn on the schema,
-                                what promotion buys, how long it holds, how it stays governed), accuracy/ (scores, the question wall, costs, outcomes)
+                                what promotion buys, how long it holds, how it stays governed), security/ (what each principal may read, the same question
+                                asked as each, the pass-through's pipeline and its refusals, the checks), accuracy/ (scores, the question wall, costs, outcomes)
   theme/                        tokens, brand themes, the theme hook
 ```
 

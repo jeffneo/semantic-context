@@ -4,6 +4,7 @@ import AccuracyBody from "./accuracy";
 import DiscoveryBody from "./discovery";
 import MemoryBody from "./memory";
 import RouterBody from "./router";
+import SecurityBody from "./security";
 import Scenario from "./Scenario";
 import VirtualBody from "./virtual";
 import Warehouse from "./Warehouse";
@@ -60,6 +61,7 @@ const security: Section = {
   id: "security",
   title: "Row-level security, passed through",
   summary: "A pass-through JDBC mechanism that guarantees every read respects the row-level policies the warehouse already enforces.",
+  Body: SecurityBody,
 };
 
 const fennmoor: Example = {
