@@ -43,6 +43,24 @@ body {
   html { scroll-behavior: auto; }
 }
 
+/* ---- the warehouse map (an example page): a square per table, view or sharded family ---------------------------------------------------------- */
+.tile {
+  --ink: color-mix(in oklab, var(--fg) 72%, var(--bg));
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.tile.static { cursor: default; }
+.tile.table { background: var(--ink); }
+.tile.view { background: var(--bg); box-shadow: inset 0 0 0 1.5px var(--ink); }
+.tile.sharded { background: repeating-linear-gradient(135deg, var(--ink) 0 2px, var(--bg) 2px 4px); box-shadow: inset 0 0 0 1.5px var(--ink); }
+.tile:not(.static):hover { transform: scale(1.3); }
+.tile.dim { opacity: 0.12; }
+.tile.sel { outline: 2px solid var(--link); outline-offset: 2px; }
+
 /* ---- the architecture diagram ------------------------------------------------------------------------------------ */
 .dg text { font-family: var(--font-sans-stack); fill: var(--fg); }
 .dg .muted { fill: var(--fg-muted); }

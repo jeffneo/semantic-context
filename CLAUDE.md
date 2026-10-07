@@ -80,6 +80,8 @@ uv run examples/fennmoor-bank/generate/corpus.py --audit|--push|--pull   # the p
 ```
 
 The demo's front end: `cd ui && npm install && npm run dev` (Vite, React, Tailwind; see ui/README.md; a static app, no server).
+`NEO4J_CONTACT_EMAIL` (in `ui/.env.local`) is the contact shown in its header. The Example page's table map draws `ui/src/examples/fennmoor/warehouse.json`:
+`uv run examples/fennmoor-bank/generate/ui_warehouse.py` regenerates it from the catalog extract.
 
 Services: `docker compose up -d neo4j` (bolt 7690 per the example config). The parser (`parser/`,
 `qlsc_parse`) runs in-process: `qlsc parse` pools it over `parse.workers` processes. Virtual Graph:

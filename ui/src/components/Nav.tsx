@@ -1,4 +1,8 @@
+import { Link, NavLink } from "react-router";
 import { useTheme } from "../theme/useTheme";
+
+/** Set in the environment (see .env.example); the header shows nothing when it is unset. */
+const CONTACT = import.meta.env.NEO4J_CONTACT_EMAIL;
 
 export default function Nav() {
   const { mode, setMode } = useTheme();
@@ -6,7 +10,7 @@ export default function Nav() {
   return (
     <header className="sticky top-0 z-20 h-14 border-b border-line bg-bg/80 backdrop-blur">
       <div className="mx-auto flex h-full max-w-[1800px] items-center justify-between px-5 sm:px-8">
-        <a href="#top" className="flex items-center gap-2.5 text-sm font-semibold tracking-tight">
+        <Link to="/" className="flex items-center gap-2.5 text-sm font-semibold tracking-tight">
           <span aria-hidden="true" className="grid h-6 w-6 place-items-center rounded-md bg-accent text-accent-fg">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
               <circle cx="4" cy="7" r="2" />
@@ -15,19 +19,17 @@ export default function Nav() {
             </svg>
           </span>
           Neo4j ContextEngine
-        </a>
-        <div className="flex items-center gap-6 text-sm text-fg-muted">
-          <nav className="hidden items-center gap-6 sm:flex" aria-label="Sections">
-            <a className="hover:text-fg" href="#architecture">
-              Architecture
-            </a>
-            <a className="hover:text-fg" href="#evidence">
-              Evidence
-            </a>
-            <a className="hover:text-fg" href="#how">
-              How it works
-            </a>
-          </nav>
+        </Link>
+        <div className="flex items-center gap-5 text-sm text-fg-muted">
+          {/* /examples goes to the example, and to a list of them once there are several */}
+          <NavLink to="/examples" className={({ isActive }) => (isActive ? "font-medium text-fg" : "hover:text-fg")}>
+            Example
+          </NavLink>
+          {CONTACT && (
+            <span className="hidden select-text md:inline">
+              Contact <span className="text-fg">{CONTACT}</span>
+            </span>
+          )}
           <button
             type="button"
             onClick={() => setMode(dark ? "light" : "dark")}
