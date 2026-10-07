@@ -6,7 +6,8 @@ import Fetch from "./Fetch";
 import Governed from "./Governed";
 import Holds from "./Holds";
 import Payoff from "./Payoff";
-import type { Memory } from "./data";
+import Trace from "./Trace";
+import type { Memory, Traces } from "./data";
 import { n } from "./data";
 
 /*
@@ -14,17 +15,19 @@ import { n } from "./data";
   Every figure is from the memory evaluations' own results (results/) or the layer.
 */
 export default function MemoryBody() {
-  const [d, setD] = useState<{ m: Memory; v: Virtual } | null>(null);
+  const [d, setD] = useState<{ m: Memory; v: Virtual; t: Traces } | null>(null);
   useEffect(() => {
     let live = true;
-    void Promise.all([import("./memory.json"), import("../virtual/virtual.json")]).then(([m, v]) => live && setD({ m: m.default as unknown as Memory, v: v.default as unknown as Virtual }));
+    void Promise.all([import("./memory.json"), import("../virtual/virtual.json"), import("./traces.json")]).then(
+      ([m, v, t]) => live && setD({ m: m.default as unknown as Memory, v: v.default as unknown as Virtual, t: t.default as unknown as Traces }),
+    );
     return () => {
       live = false;
     };
   }, []);
 
   if (!d) return <div className="mt-8 h-[40rem] text-sm text-fg-muted">Loading memory's evidence…</div>;
-  const { m, v } = d;
+  const { m, v, t } = d;
   return (
     <div>
       <Part
@@ -50,6 +53,14 @@ export default function MemoryBody() {
         lead="A row that has left the warehouse has left its row policies behind, so memory carries them: each principal sees only what BigQuery would show them."
       >
         <Governed m={m} />
+      </Part>
+      <Part
+        live={LIVE.memory.trace(t)}
+        summary="An agent's conversations, kept as a graph: the words, each tool call, what was learned and what was decided."
+        title="What the agent did, auditable"
+        lead="Memory also keeps the agent's own work: each conversation, the tools it called, what it learned and what it decided, and what each decision rests on. It is a graph like any other, so an audit is a query."
+      >
+        <Trace t={t} />
       </Part>
     </div>
   );

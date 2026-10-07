@@ -138,3 +138,27 @@ def test_a_layer_query_runs_read_only(graph, server, path):
     params = {"key": "0"} if "$key" in path.read_text() else {}
     with graph.driver.session(database=graph.db, default_access_mode=neo4j.READ_ACCESS) as session:
         assert list(session.run(path.read_text(), params)), f"{path.name} returned nothing"
+
+
+# ---- the agent traces' queries run on memory, which holds the example's conversations once `qlsc converse` has recorded them
+
+TRACE = [
+    QUERIES / "memory" / f"{n}.cypher"
+    for n in ("trace_of_a_conversation", "trace_decision_evidence", "trace_who_read", "trace_summary")
+]
+
+
+@pytest.mark.parametrize("path", TRACE, ids=lambda p: p.name)
+def test_a_trace_query_runs_read_only(server, path):
+    from qlsc import memory
+
+    server.check_cypher(path.read_text())
+    with (
+        memory.memory_graph(server.s) as M,
+        M.driver.session(database=M.db, default_access_mode=neo4j.READ_ACCESS) as session,
+    ):
+        rows = list(session.run(path.read_text()))
+    if not rows:
+        pytest.skip(
+            "memory holds no conversations: qlsc converse examples/fennmoor-bank/conversations/marketing-1.yaml records one"
+        )

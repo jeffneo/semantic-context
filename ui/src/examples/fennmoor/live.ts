@@ -1,5 +1,6 @@
 import { preset } from "../../live/query";
 import type { LiveSpec, MethodPreset } from "../../live/types";
+import type { Traces } from "./memory/data";
 import type { Router } from "./router/data";
 import type { Virtual } from "./virtual/data";
 import counts from "./queries/discovery/counts.cypher?raw";
@@ -14,6 +15,10 @@ import computed from "./queries/discovery/what_is_computed.cypher?raw";
 import segments from "./queries/accuracy/customers_by_segment.sql?raw";
 import holds from "./queries/memory/holds_summary.cypher?raw";
 import neighbourhood from "./queries/memory/neighbourhood.cypher?raw";
+import traceDecision from "./queries/memory/trace_decision_evidence.cypher?raw";
+import traceOf from "./queries/memory/trace_of_a_conversation.cypher?raw";
+import traceSummary from "./queries/memory/trace_summary.cypher?raw";
+import traceWho from "./queries/memory/trace_who_read.cypher?raw";
 import provenance from "./queries/memory/provenance_of.cypher?raw";
 import remembered from "./queries/memory/remembered.cypher?raw";
 import stateCounts from "./queries/security/customers_by_state.cypher?raw";
@@ -35,6 +40,9 @@ const CALLS = "How many calls did each contact center site handle since April 20
 const CARD = "Card spend by customer segment last quarter";
 const DEPOSITS = "What is the total deposit balance by customer segment?";
 const AGENTS = "Which agents handled calls from customer 0001000025, and how many of that customer's calls did each handle?";
+
+/** The conversation the trace file reads by title. */
+const TRACE_TITLE = "Card offer for customer 8322097816940277129";
 
 const asks = (...q: string[]): MethodPreset[] => q.map((question) => ({ label: question, question, route: "auto" }));
 
@@ -93,6 +101,19 @@ export const LIVE = {
     ],
     holds: [{ kind: "cypher", target: "layer", presets: [preset("How often each table is written", holds)] }],
     governed: [{ kind: "method", command: "recall", principals: true, presets: [{ label: "Recall a customer as a principal", entity: "Customer", key: "cif_number=0001000033" }] }],
+    /** The file's query reads the first conversation by its title; each of the others is the same query with its own. Read here as the data source: memory's own methods return only a principal's. */
+    trace: (d: Traces): LiveSpec[] => [
+      {
+        kind: "cypher",
+        target: "memory",
+        presets: [
+          preset("Why an agent decided what it did", traceDecision),
+          ...d.conversations.map((c) => preset(`The whole of “${c.title}”`, traceOf.replace(TRACE_TITLE, c.title))),
+          preset("Every conversation, and how much of it there is", traceSummary),
+          preset("Which agents read a table, and for whom", traceWho),
+        ],
+      },
+    ],
   },
   accuracy: {
     scores: [

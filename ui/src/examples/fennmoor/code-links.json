@@ -197,6 +197,18 @@
     "path": "src/qlsc/memory.py",
     "line": 994,
     "symbol": "def answerable"
+   },
+   {
+    "label": "converse.Conversation",
+    "path": "src/qlsc/converse.py",
+    "line": 199,
+    "symbol": "class Conversation"
+   },
+   {
+    "label": "converse.record",
+    "path": "src/qlsc/converse.py",
+    "line": 560,
+    "symbol": "def record"
    }
   ],
   "accuracy": [

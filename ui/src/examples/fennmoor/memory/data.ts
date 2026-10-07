@@ -69,3 +69,64 @@ export interface Memory {
 
 export const MEMORY = "var(--shard-memory)"; // memory's colour in the architecture
 export const n = (x: number) => x.toLocaleString("en-US");
+
+/*
+  An agent's work as memory keeps it (written by examples/fennmoor-bank/generate/ui_trace.py from the memory database): the conversation's messages in order,
+  and under the user's message that began a task, the tools it called, what was learned and what was decided.
+*/
+export interface Layered {
+  label: string;
+  name: string;
+}
+export interface TraceTool {
+  tool: string;
+  status: string;
+  ms: number | null;
+  /** what it was asked: the question, or the entity recalled */
+  asked: string;
+  reads: Layered[];
+  /** recall: where the context came from, and its size */
+  origin?: string;
+  nodes?: number;
+  edges?: number;
+  /** ask: how it was answered */
+  route?: string;
+  writer?: string;
+  query?: string | null;
+  fromMemory?: boolean;
+}
+export interface TraceLearned {
+  predicate: string;
+  value: string;
+  origin?: string;
+  entity?: string;
+  entityType?: string;
+  /** it replaced an earlier fact: because the world changed, or because the earlier one was wrong */
+  because?: string;
+  replaced?: string;
+}
+export interface TraceDecision {
+  choice: string;
+  rationale: string;
+  alternatives: string[];
+  basedOn: { label: string; what: string; value: string | null }[];
+  outcome: string[];
+}
+export interface TraceMessage {
+  role: "user" | "agent";
+  text: string;
+  /** on a user's message: the tools its task called, in order, and what was decided in it */
+  tools?: TraceTool[];
+  decided?: TraceDecision[];
+  learned?: TraceLearned[];
+}
+export interface TraceConversation {
+  title: string;
+  /** the principal it acted for */
+  as: string;
+  started: string;
+  messages: TraceMessage[];
+}
+export interface Traces {
+  conversations: TraceConversation[];
+}
