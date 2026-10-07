@@ -60,6 +60,7 @@ measured or built. Nothing is mocked, and none of the spec's answer key or the p
 | Discovering the semantic layer | `fennmoor/discovery/discovery.json` | `ui_discovery.py` | the semantic layer's graph (`qlsc build`, Neo4j up) |
 | Generating the Virtual Graph schema | `fennmoor/virtual/virtual.json` | `ui_virtual.py` | `qlsc virtualize`'s files in `work/virtual/` and the graph (Neo4j up), and `results/graph_accuracy.json` |
 | Routing a request | `fennmoor/router/router.json` | `ui_router.py` | the evaluations' results (`results/economics.json`, `log_accuracy.json`, `graph_accuracy.json`) and the comparison's agent run |
+| Promoting results to memory | `fennmoor/memory/memory.json` | `ui_memory.py` | `qlsc.memory.template` over the generated model, the layer's write cadences and a remembered node (Neo4j up), and the memory evaluations' results (`results/memory*.json`, `economics.json`) |
 | Accuracy | `fennmoor/accuracy/accuracy.json` | `ui_accuracy.py` | the comparison's results (`eval/comparison/run.py report`) |
 
 ```bash
@@ -67,10 +68,11 @@ uv run examples/fennmoor-bank/generate/ui_warehouse.py
 uv run examples/fennmoor-bank/generate/ui_discovery.py
 uv run examples/fennmoor-bank/generate/ui_virtual.py
 uv run examples/fennmoor-bank/generate/ui_router.py
+uv run examples/fennmoor-bank/generate/ui_memory.py
 uv run examples/fennmoor-bank/generate/ui_accuracy.py
 ```
 
-The discovery, Virtual Graph, router and accuracy sections load their data when the section mounts (the accuracy file is the largest: every query the methods wrote),
+The discovery, Virtual Graph, router, memory and accuracy sections load their data when the section mounts (the accuracy file is the largest: every query the methods wrote),
 so the page opens before they arrive.
 
 ```
@@ -82,7 +84,8 @@ src/
                                 and layers it uses and fading slowly; SVG, no tooltip, nothing follows the pointer)
   examples/                     the list and loaders; fennmoor/ holds its data and a folder or file per section: Scenario, Warehouse, discovery/
                                 (funnel, the tables regrouped by meaning, the join chords), virtual/ (the steps, the .semantic paths beside the .rows schema, the generated schema as a layered graph, the questions it
-                                answers), router/ (the ladder, ten questions followed down it, what each rung served), accuracy/ (scores, the question wall, costs, outcomes)
+                                answers), router/ (the ladder, ten questions followed down it, what each rung served), memory/ (the template drawn on the schema,
+                                what promotion buys, how long it holds, how it stays governed), accuracy/ (scores, the question wall, costs, outcomes)
   theme/                        tokens, brand themes, the theme hook
 ```
 

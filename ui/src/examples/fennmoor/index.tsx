@@ -2,6 +2,7 @@ import type { Example, Section } from "../types";
 import { TOTALS, WAREHOUSE } from "./data";
 import AccuracyBody from "./accuracy";
 import DiscoveryBody from "./discovery";
+import MemoryBody from "./memory";
 import RouterBody from "./router";
 import Scenario from "./Scenario";
 import VirtualBody from "./virtual";
@@ -47,6 +48,7 @@ const memory: Section = {
   id: "memory",
   title: "Promoting results to memory",
   summary: "Result sets read through the Virtual Graph are promoted into memory, so the next question need not go back to the warehouse.",
+  Body: MemoryBody,
 };
 const accuracy: Section = {
   id: "accuracy",
