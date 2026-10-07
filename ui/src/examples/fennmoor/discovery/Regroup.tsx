@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ALL, fullName, type Located } from "../data";
 import { AREA_COLOR, type Area, type Discovery, type TableEntry } from "./data";
 import { LABEL_MAX, pack, tileAt, type Block } from "./layout";
@@ -6,8 +6,8 @@ import { LABEL_MAX, pack, tileAt, type Block } from "./layout";
 type Mode = "datasets" | 3 | 2 | 1;
 
 /*
-  The same 323 tables, first where BigQuery files them (by dataset) and then where the layer puts them (by what is read together). A tile's colour is
-  its broad area and never changes, so the move shows: tiles of one colour, scattered over many datasets, come together. Click a table and the others
+  The same 323 tables, where the layer puts them (by what is read together), and where BigQuery files them (by dataset). A tile's colour is its broad
+  area and never changes, so the move shows: tiles of one colour, scattered over many datasets, come together. Click a table and the others
   in its group are outlined, wherever they live.
 */
 export default function Regroup({ d }: { d: Discovery }) {
@@ -15,11 +15,10 @@ export default function Regroup({ d }: { d: Discovery }) {
   const items = useMemo(() => [...ALL].sort((a, b) => fullName(a).localeCompare(fullName(b))).map((l) => ({ l, id: fullName(l), e: entries.get(fullName(l)) })), [entries]);
 
   const start = items.find((i) => i.id === "fennmoor-dw.dw_core.dim_customer") ?? items[0];
-  const [mode, setMode] = useState<Mode>("datasets");
+  const [mode, setMode] = useState<Mode>(3);
   const [selected, setSelected] = useState(start.id);
   const [hovered, setHovered] = useState<string | null>(null);
   const [focus, setFocus] = useState<number | null>(null);
-  const touched = useRef(false);
 
   // The width the map has, so the blocks can wrap to it.
   const holder = useRef<HTMLDivElement>(null);
@@ -32,28 +31,6 @@ export default function Regroup({ d }: { d: Discovery }) {
     const watch = new ResizeObserver(read);
     watch.observe(el);
     return () => watch.disconnect();
-  }, []);
-
-  // The first time the map is on screen, it regroups by itself, once, so the move is seen; after that it is the visitor's.
-  useEffect(() => {
-    const el = holder.current;
-    if (!el) return;
-    let timer: number | undefined;
-    const watch = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry.isIntersecting) return;
-        watch.disconnect();
-        timer = window.setTimeout(() => {
-          if (!touched.current) setMode(3);
-        }, 900);
-      },
-      { threshold: 0.6 },
-    );
-    watch.observe(el);
-    return () => {
-      watch.disconnect();
-      window.clearTimeout(timer);
-    };
   }, []);
 
   const { blocks, members } = useMemo(() => blocksFor(mode, d, items), [mode, d, items]);
@@ -70,10 +47,6 @@ export default function Regroup({ d }: { d: Discovery }) {
   const shown = items.find((i) => i.id === hovered) ?? sel;
   const kin = sel.e?.groups ? sel.e.groups[0] : null;
   const broad = (e?: TableEntry) => (e?.groups ? e.groups[2] : null);
-  const choose = (m: Mode) => {
-    touched.current = true;
-    setMode(m);
-  };
 
   return (
     <div className="mt-6">
@@ -91,7 +64,7 @@ export default function Regroup({ d }: { d: Discovery }) {
               key={String(m)}
               type="button"
               aria-pressed={mode === m}
-              onClick={() => choose(m)}
+              onClick={() => setMode(m)}
               className={`rounded px-3 py-1.5 transition-colors ${mode === m ? "bg-fg text-bg" : "text-fg-muted hover:text-fg"}`}
             >
               {label}

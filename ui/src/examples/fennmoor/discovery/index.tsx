@@ -28,7 +28,7 @@ export default function DiscoveryBody() {
       </Part>
       <Part
         title="The tables, regrouped by meaning"
-        lead="Tables are filed by where they came from. The layer groups what the business reads together, whichever dataset it is in. Colours are the four broad areas: watch them come together."
+        lead="Tables are filed by where they came from. The layer groups what the business reads together, whichever dataset it is in. Colours are the four broad areas: switch to By dataset to see them scattered."
       >
         <Regroup d={d} />
       </Part>
