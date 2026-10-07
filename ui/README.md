@@ -1,7 +1,9 @@
 # ui/
 
-The context engine demo's front end. A static single-page app: Vite, React 19, TypeScript, Tailwind v4. No server of its own: the replay demo
-will read recorded JSON, and Live mode will call the qlsc Python API.
+The context engine demo's front end. A static single-page app: Vite, React 19, TypeScript, Tailwind v4. The page reads recorded JSON, written from the
+example's evaluation results by `examples/fennmoor-bank/generate/ui_*.py`, so it needs no server to be read. Its **Run this live** controls (a query or a
+`qlsc` command beside each part, edited and run for real, read-only) go through a small local server, `uv run examples/fennmoor-bank/server.py`, run from the
+repository root; Vite proxies `/api` to it. It needs the example's Neo4j databases, Virtual Graph and BigQuery access, and refuses anything that writes.
 
 ```bash
 cd ui

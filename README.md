@@ -79,6 +79,27 @@ What it finds there: 50 variables built only from trusted joins; semantic levels
 groups (median group stability 0.95); every join and lineage edge in the answer key recovered; all
 three planted wrong catalog bindings surfaced by the alignment.
 
+## See it: the demo UI
+
+![The demo UI's landing page: the semantic layer, the virtual graph and agent memory as one composite database, between AI agents and the warehouse](docs/images/contextengine-ui-landing.png)
+
+`ui/` is a web demo of the whole architecture on the Fennmoor example, headed **Neo4j ContextEngine** and marked as a reference architecture, not a Neo4j
+product. The landing page animates how the pieces fit. The example page then walks the engine from the query log to an agent's answer, one section each:
+the scenario and warehouse; discovering the semantic layer; generating the Virtual Graph schema; routing a request; promoting results to memory
+(including what the agent did, kept as an auditable graph); accuracy at full scale; and row-level security passed through to the warehouse.
+
+Every figure on the page is from the example's own evaluation results, and each part has a **Run this live** control: a default Cypher query, SQL query or
+`qlsc` command that you can edit and run for real against the example's graph and BigQuery, read-only, as admin or as a less privileged principal. Nothing
+is mocked. Each section links to the code that does its work, pinned to a commit, and the layout can be switched between compact and full.
+
+```bash
+cd ui && npm install && npm run dev      # the page: http://localhost:5173
+uv run examples/fennmoor-bank/server.py  # the live controls (from the repository root; needs the services below running)
+```
+
+The page itself is static and needs no server; the live controls need the Neo4j databases, Virtual Graph and BigQuery access described under
+[Use it](#use-it), and `server.py` is the only thing between the page and them. See [ui/README.md](ui/README.md).
+
 ## Use it
 
 Prerequisites: Docker; [uv](https://docs.astral.sh/uv/); access to the warehouse's query log and
@@ -456,6 +477,7 @@ Cypher answer ran as its principal, by BigQuery's job log.
 | `src/qlsc/process/`             | The business process graph, built from text: source, annotate, build (States and Actions), context            |
 | `parser/`                       | The SQL parser (sqlglot, compiled), `qlsc_parse`, run in-process by `qlsc parse`, with golden tests            |
 | `prompts/`                      | Every LLM prompt, one file each ([prompts/README.md](prompts/README.md))                                       |
+| `ui/`                           | The demo UI: a React page that walks the example, with live read-only queries (Vite, TypeScript, Tailwind)    |
 | `docs/design.md`                | The principle, the graph model, the method, the parameters and their sensitivity                               |
 | `examples/fennmoor-bank/`       | The worked example: the bank's spec, its generators, designed models, evaluations, demo queries                |
 | `tests/`                        | `uv run pytest`: the tool/example boundary, prompts, config, the method's pure parts, the demo queries         |
