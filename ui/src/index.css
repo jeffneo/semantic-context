@@ -138,3 +138,8 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .running, .task-label { display: none; }
 }
+
+/* ---- the router: a request falls down the ladder, rung by rung ------------------------------------------------------------------------------- */
+@keyframes fall { from { opacity: 0; translate: 0 -14px; } to { opacity: 1; translate: 0 0; } }
+.fall { animation: fall 0.4s cubic-bezier(0.2, 0.7, 0.3, 1) both; animation-delay: calc(var(--i, 0) * 0.3s); }
+@media (prefers-reduced-motion: reduce) { .fall { animation: none; } }

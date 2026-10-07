@@ -58,16 +58,20 @@ measured or built. Nothing is mocked, and none of the spec's answer key or the p
 |---|---|---|---|
 | The warehouse | `fennmoor/warehouse.json` | `ui_warehouse.py` | the catalog extract (`qlsc extract`) |
 | Discovering the semantic layer | `fennmoor/discovery/discovery.json` | `ui_discovery.py` | the semantic layer's graph (`qlsc build`, Neo4j up) |
+| Generating the Virtual Graph schema | `fennmoor/virtual/virtual.json` | `ui_virtual.py` | `qlsc virtualize`'s files in `work/virtual/` and the graph (Neo4j up), and `results/graph_accuracy.json` |
+| Routing a request | `fennmoor/router/router.json` | `ui_router.py` | the evaluations' results (`results/economics.json`, `log_accuracy.json`, `graph_accuracy.json`) and the comparison's agent run |
 | Accuracy | `fennmoor/accuracy/accuracy.json` | `ui_accuracy.py` | the comparison's results (`eval/comparison/run.py report`) |
 
 ```bash
 uv run examples/fennmoor-bank/generate/ui_warehouse.py
 uv run examples/fennmoor-bank/generate/ui_discovery.py
+uv run examples/fennmoor-bank/generate/ui_virtual.py
+uv run examples/fennmoor-bank/generate/ui_router.py
 uv run examples/fennmoor-bank/generate/ui_accuracy.py
 ```
 
-The discovery and accuracy sections load their data when the section mounts (the accuracy file is the largest: every query the methods wrote), so the page
-opens before they arrive.
+The discovery, Virtual Graph, router and accuracy sections load their data when the section mounts (the accuracy file is the largest: every query the methods wrote),
+so the page opens before they arrive.
 
 ```
 src/
@@ -77,7 +81,8 @@ src/
                                 shards; the warehouse across the bottom; arcs between the shards; tasks run one at a time, each flashing along the connections
                                 and layers it uses and fading slowly; SVG, no tooltip, nothing follows the pointer)
   examples/                     the list and loaders; fennmoor/ holds its data and a folder or file per section: Scenario, Warehouse, discovery/
-                                (funnel, the tables regrouped by meaning, the join chords), accuracy/ (scores, the question wall, costs, outcomes)
+                                (funnel, the tables regrouped by meaning, the join chords), virtual/ (the steps, the .semantic paths beside the .rows schema, the generated schema as a layered graph, the questions it
+                                answers), router/ (the ladder, ten questions followed down it, what each rung served), accuracy/ (scores, the question wall, costs, outcomes)
   theme/                        tokens, brand themes, the theme hook
 ```
 

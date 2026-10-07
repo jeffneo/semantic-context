@@ -2,7 +2,9 @@ import type { Example, Section } from "../types";
 import { TOTALS, WAREHOUSE } from "./data";
 import AccuracyBody from "./accuracy";
 import DiscoveryBody from "./discovery";
+import RouterBody from "./router";
 import Scenario from "./Scenario";
+import VirtualBody from "./virtual";
 import Warehouse from "./Warehouse";
 
 const n = (x: number) => x.toLocaleString("en-US");
@@ -33,11 +35,13 @@ const virtualGraph: Section = {
   id: "virtual-graph",
   title: "Generating the Virtual Graph schema",
   summary: "The Virtual Graph's schema, generated from the semantic layer, so the rows can be read as a graph without copying them.",
+  Body: VirtualBody,
 };
 const router: Section = {
   id: "router",
   title: "Routing a request",
   summary: "Each request goes to the source data by the route that suits it, from remembered context to free SQL.",
+  Body: RouterBody,
 };
 const memory: Section = {
   id: "memory",
