@@ -46,13 +46,13 @@ export default function LiveRun({ specs, hint = "Run it live" }: { specs: LiveSp
         aria-expanded={open}
         aria-label={open ? "Close the live query" : hint}
         onClick={() => setOpen(!open)}
-        className={`flex shrink-0 items-center gap-2 rounded-md border border-line text-xs transition-colors hover:border-line-strong hover:text-fg ${open ? "w-9 flex-col justify-start self-stretch bg-bg-subtle py-2.5 text-fg" : "h-9 px-2.5 text-fg-muted"}`}
+        className={`flex items-center gap-2 rounded-md border border-line text-xs transition-colors hover:border-line-strong hover:text-fg ${open ? "w-9 shrink-0 flex-col justify-start self-stretch bg-bg-subtle py-2.5 text-fg" : "h-9 min-w-0 px-2.5 text-fg-muted"}`}
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M3 4.5l3.5 3.5L3 11.5" />
           <path d="M8.5 12H13" />
         </svg>
-        {!open && <span>{hint}</span>}
+        {!open && <span className="truncate">{hint}</span>}
       </button>
       <div className="grid min-w-0 flex-1 transition-[grid-template-columns] duration-300" style={{ gridTemplateColumns: open ? "1fr" : "0fr" }}>
         <div className="min-w-0 overflow-hidden">
