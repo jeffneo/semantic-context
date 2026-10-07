@@ -79,7 +79,8 @@ uv run examples/fennmoor-bank/eval/process_scale.py [conversations ...]   # the 
 uv run examples/fennmoor-bank/generate/corpus.py --audit|--push|--pull   # the process corpus (plans/2026-10-05-process-corpus.md): check it, back it up to / restore it from gs://fennmoor-corpus
 ```
 
-The demo's front end: `cd ui && npm install && npm run dev` (Vite, React, Tailwind; see ui/README.md; a static app, no server).
+The demo's front end: `cd ui && npm install && npm run dev` (Vite, React, Tailwind; see ui/README.md). Its live panels (a query or command beside each part, run for real,
+read only) go through `uv run examples/fennmoor-bank/server.py`, from the repository root; it uses estate.yaml and `.env` as everything else does.
 `NEO4J_CONTACT_EMAIL` (in `ui/.env.local`) is the contact shown in its header. The Example page's table map draws `ui/src/examples/fennmoor/warehouse.json`:
 `uv run examples/fennmoor-bank/generate/ui_warehouse.py` regenerates it from the catalog extract; `ui_discovery.py` (the semantic layer's graph), `ui_virtual.py` (`qlsc virtualize`'s model), `ui_router.py` (the evaluations' route results), `ui_memory.py` (the memory evaluations and the layer), `ui_security.py` (the entitlement evaluation) and `ui_accuracy.py` (the comparison's results) write the other sections' data the same way. The Cypher those generators run is one file each in `ui/src/examples/fennmoor/queries/` (read by `generate/ui_queries.py`).
 

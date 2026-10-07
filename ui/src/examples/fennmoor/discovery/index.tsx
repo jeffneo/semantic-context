@@ -1,4 +1,6 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
+import Part from "../../Part";
+import { LIVE } from "../live";
 import { WAREHOUSE } from "../data";
 import type { Discovery } from "./data";
 import Funnel from "./Funnel";
@@ -23,28 +25,20 @@ export default function DiscoveryBody() {
   if (!d) return <div className="mt-8 h-[40rem] text-sm text-fg-muted">Loading the semantic layer…</div>;
   return (
     <div>
-      <Part title="From a query log to a layer" lead="Nothing was written down. The build reads the log and the catalog, and each stage keeps only what the one before it supports.">
+      <Part title="From a query log to a layer" lead="Nothing was written down. The build reads the log and the catalog, and each stage keeps only what the one before it supports." live={LIVE.discovery.funnel}>
         <Funnel d={d} queries={WAREHOUSE.log.jobs} days={WAREHOUSE.log.days} />
       </Part>
       <Part
+        live={LIVE.discovery.regroup}
         title="The tables, regrouped by meaning"
         lead="Tables are filed by where they came from. The layer groups what the business reads together, whichever dataset it is in. Colours are the four broad areas: switch to By dataset to see them scattered."
       >
         <Regroup d={d} />
       </Part>
-      <Part title="What the joins revealed" lead="Columns the business joins are one real-world thing. Each variable is found from the joins queries actually made.">
+      <Part title="What the joins revealed" lead="Columns the business joins are one real-world thing. Each variable is found from the joins queries actually made." live={LIVE.discovery.joins}>
         <Joins d={d} />
       </Part>
     </div>
   );
 }
 
-function Part({ title, lead, children }: { title: string; lead: string; children: ReactNode }) {
-  return (
-    <div className="mt-14 first:mt-8">
-      <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
-      <p className="mt-1 max-w-3xl text-fg-muted">{lead}</p>
-      {children}
-    </div>
-  );
-}

@@ -1,4 +1,6 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
+import Part from "../../Part";
+import { LIVE } from "../live";
 import { TOTALS } from "../data";
 import Costs from "./Costs";
 import { n, type Accuracy } from "./data";
@@ -25,7 +27,7 @@ export default function AccuracyBody() {
   const schema = d.methods[0];
   return (
     <div>
-      <Part title="How often the answer is right" lead="Each question was written from a query the business really ran, so the right answer is known. Four methods answered them all, on the same model (Claude Sonnet 5.5): the only difference is what each is given.">
+      <Part live={LIVE.accuracy.scores} title="How often the answer is right" lead="Each question was written from a query the business really ran, so the right answer is known. Four methods answered them all, on the same model (Claude Sonnet 5.5): the only difference is what each is given.">
         <Scores d={d} />
       </Part>
       <Part title="Every question, every method" lead="Each square is one question and its four corners are the four methods. Click one to read the question, each answer and the query behind it.">
@@ -74,12 +76,3 @@ export default function AccuracyBody() {
   );
 }
 
-function Part({ title, lead, children }: { title: string; lead: string; children: ReactNode }) {
-  return (
-    <div className="mt-14 first:mt-8">
-      <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
-      <p className="mt-1 max-w-3xl text-fg-muted">{lead}</p>
-      {children}
-    </div>
-  );
-}

@@ -29,7 +29,7 @@ function walked(cypher: string, d: Virtual) {
 export default function Questions({ d }: { d: Virtual }) {
   const [id, setId] = useState(d.questions[1]?.id ?? d.questions[0].id);
   const q = d.questions.find((x) => x.id === id) as VQuestion;
-  const lit = useMemo(() => walked(q.cypher, d), [q, d]);
+  const lit = useMemo(() => walked(q.cypher ?? "", d), [q, d]);
   const count = (pick: (x: VQuestion) => string) => d.questions.filter((x) => pick(x) === "correct").length;
 
   return (
@@ -82,7 +82,7 @@ export default function Questions({ d }: { d: Virtual }) {
             <Verdict name="The router chose" v={q.routed_verdict} why={q.routed} />
           </dl>
           <p className="mt-5 text-xs font-medium uppercase tracking-wider text-fg-muted">The Cypher it wrote</p>
-          <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md border border-line bg-bg-subtle p-3 font-mono text-[11px] leading-relaxed">{q.cypher}</pre>
+          <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md border border-line bg-bg-subtle p-3 font-mono text-[11px] leading-relaxed">{q.cypher ?? "None was written: the model declined the question."}</pre>
         </section>
       </div>
     </div>

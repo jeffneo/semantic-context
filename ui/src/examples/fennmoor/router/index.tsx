@@ -1,4 +1,6 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
+import Part from "../../Part";
+import { LIVE } from "../live";
 import Ladder from "./Ladder";
 import Served from "./Served";
 import Trace from "./Trace";
@@ -22,12 +24,14 @@ export default function RouterBody() {
   return (
     <div>
       <Part
+        live={LIVE.router.ladder}
         title="A rule, not a model"
         lead="Five rungs, cheapest first. Each says for itself whether it can answer; the first whose answer stands serves, and the ones below it never run."
       >
         <Ladder r={r} />
       </Part>
       <Part
+        live={LIVE.router.trace(r)}
         title="A question, down the ladder"
         lead="Ten questions that are natural over a graph, as the router took them. When the request compiles, compiled SQL serves; when it does not, free Cypher over the generated schema is tried, and when that declines too, free SQL."
       >
@@ -48,12 +52,3 @@ export default function RouterBody() {
   );
 }
 
-function Part({ title, lead, children }: { title: string; lead: string; children: ReactNode }) {
-  return (
-    <div className="mt-14 first:mt-8">
-      <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
-      <p className="mt-1 max-w-3xl text-fg-muted">{lead}</p>
-      {children}
-    </div>
-  );
-}

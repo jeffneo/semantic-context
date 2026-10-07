@@ -97,26 +97,30 @@ idea for a request: the steps of a real `qlsc ask` streamed into a thought log a
 | **AskBar** | A question box with "Try ..." suggestions | router, accuracy |
 | **PrincipalPicker** | Who is asking; it feeds the others | security, memory |
 
-### What live needs
+### What live needs, as decided and built
 
-The app is static today: no server, no secrets. Live makes it a small server in front of Neo4j and BigQuery, and these shape it:
+The information views are the recorded evidence and are never re-run when a page loads. The live panels are complementary: they show that each part is
+connected to the real graph and warehouse, by running the query or command behind it (the queries of `demo-101.md` are the model).
 
-- **What a visitor may run.** The queries and commands the page shows (the files in `queries/`, with the parameters the page offers), or any text typed into the box.
-  Free text against a public database needs a read-only user, row and time limits, and for SQL a cap on bytes billed. Named ones need none of that. Open question.
-- **Credentials stay on the server**, and BigQuery is reached as the `qlsc` service account, never a personal one. A principal's run goes through the real signed
-  pass-through (`entitle.token`), so the security section runs for real, refusals included.
-- **Spend and abuse.** A rate limit, a bytes-billed cap on every BigQuery job, a timeout, and a ceiling on model spend per visitor for anything that calls one (`ask`).
-- **Where the databases run.** Neo4j and Virtual Graph are Docker containers on this machine. A public page needs them hosted (or tunnelled), with the layer
-  reviewed first: it holds no warehouse rows, but it does hold the log's principals and the literal values queries filtered on. Fennmoor's are synthetic.
-- **The measured results stay measured.** The accuracy figures come from an hour of runs and about $25; they are not re-run on page load, and the page says they
-  are recorded. What goes live there is one question through the methods, which is a call a visitor waits for and pays for.
-- **The router's thought log** needs each rung's outcome as it happens. To confirm: whether `navigate.answer_routed` (`src/qlsc/navigate.py:709`) exposes it. If it only
-  returns at the end, the change is an optional progress callback, a refactor that must not change results (CLAUDE.md: run `eval/fingerprint.py` around it).
-- **Comparison runs kept counts, not transcripts** (tokens, seconds, LLM calls, tool calls by kind: for Q01, 1 `list_tables`, 9 `describe_table`, 14 `run_sql`,
-  1 `submit`). Live runs would capture the steps as they go, so this stops being a limit.
-
-NVL is the visualization library (`@neo4j-nvl/react`); check its licence terms and its bundle size before committing to it, and keep the schema graphs as they are
-unless NVL reproduces their layered layout.
+- **Everything runs on this machine.** The databases are the example's Docker containers (semantic layer and memory on 7690; Virtual Graph and the composite on 7692);
+  only BigQuery is in the cloud. The page cannot hold credentials or speak Bolt, so a small server, `examples/fennmoor-bank/server.py`, stands between: Vite proxies
+  `/api` to it. It reads `estate.yaml` and `.env` as the rest of the example does, so there is nothing new to configure (only `QLSC_DEMO_PORT`, optionally).
+- **A default to change, and free queries, read only.** Each panel opens on a default and runs whatever the visitor types. Read access is the database's own: a
+  Cypher session is opened read-only, so a write is refused by Neo4j itself (checked: `CREATE` and `SET` against the layer are refused, nothing lands). The server also
+  refuses what reaches out of the database before sending it (`apoc.load`, `dbms.`, `gds.`, `LOAD CSV`, `USE system`), allows one SELECT in SQL, caps bytes billed,
+  and limits time and rows.
+- **The administrator by default; a principal on request.** `admin` is the data source's own identity. In SQL and on Virtual Graph a panel can run as marketing,
+  risk or contact-center: signed through the gateway, run by the pass-through as their service account, so the warehouse's own rules apply and its refusals show.
+  The layer and memory are the administrator's view, since they hold metadata and no rows.
+- **Commands** are a fixed list (`ask`, `recall`, the example's `demo.py composite` and `exchange`), run as argument lists with output streamed. `ask` prints each stage
+  when the stage finishes, so output arrives in bursts; a step-by-step thought log for the router needs the router to emit progress as it goes. To confirm:
+  whether `navigate.answer_routed` (`src/qlsc/navigate.py:709`) can; if not, an optional progress callback, a refactor that must not change results (CLAUDE.md:
+  `eval/fingerprint.py` around it).
+- **Spend** is bounded by the BigQuery byte cap and two commands at a time. A rate limit and a per-visitor model-spend ceiling are not built; they matter only if the
+  server is ever exposed beyond this machine, which it refuses to be (it binds to localhost and refuses a request carrying another site's Origin).
+- **What was found on the way.** The Virtual Graph section would have crashed on selecting question G07 (the model declined it, so it has no Cypher, and the page read
+  it as text): fixed. NVL (`@neo4j-nvl/react`, licensed for use with Neo4j's products) pulls in Segment analytics, which `npm audit` flags (js-cookie, high); NVL's own
+  usage telemetry is switched off, and the finding is in the dependency, not in what the page does with it.
 
 ### The Cypher and the calls each section would use
 
@@ -169,15 +173,21 @@ line, where the file has one definition, never goes stale.
 Decided (2026-10-07):
 
 1. **Four maps stay**, one per section.
-2. **Live, not mocked or replayed**: a left-edge expander per section and component that shows the query or command and runs it against the real Fennmoor graph
-   or BigQuery warehouse.
-3. **The router's thought log is live**, and is where the ThoughtLog component starts.
-4. **No "concept demo" mark** in the header.
-5. **Links name a commit**, tested.
-6. **The ten Cypher questions stay in every section they appear in** (Virtual Graph and router).
+2. **Live, not mocked or replayed**: a left-edge control per part that shows the query or command and runs it against the real Fennmoor graph or BigQuery warehouse.
+   The information views stay the recorded evidence and are not re-run on load.
+3. **Defaults to change, free read-only queries; the administrator by default, with principals supported** (the security section's picker).
+4. **Everything local**: Docker databases, BigQuery in the cloud; credentials from `estate.yaml` and `.env`, held by the server and never the page.
+5. **The router's thought log is live**, and is where the ThoughtLog component starts.
+6. **No "concept demo" mark** in the header.
+7. **Links name a commit**, tested.
+8. **The ten Cypher questions stay in every section they appear in.**
+9. **The layout is left alone** until the live panels are in; then the main-component-and-collapsed-items pass.
 
-Still to decide, before the Run expander is built:
+Built: the server, the panels (Cypher, SQL and command), 22 default queries and 17 panels across the sections, tests for the server's guards and the layer queries
+(`tests/test_demo_server.py`).
 
-- Named queries only, or free text too (see What live needs).
-- Where the databases are hosted for a public page, and who pays for the spend caps.
+Still to decide:
+
+- The thought log: the router's progress as it happens (the change above), and whether the memory and security sections get one too.
+- Section links to the code (the table above): add them with the layout pass.
 - Whether each section's main component and collapsed items are as proposed above (nothing said yet).

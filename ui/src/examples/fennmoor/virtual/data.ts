@@ -36,7 +36,8 @@ export interface LeftOut {
 export interface VQuestion {
   id: string;
   text: string;
-  cypher: string;
+  /** none when the model declined to write one */
+  cypher: string | null;
   cypher_verdict: string;
   cypher_why: string;
   sql_verdict: string;

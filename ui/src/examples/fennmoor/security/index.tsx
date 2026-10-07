@@ -1,4 +1,6 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
+import Part from "../../Part";
+import { LIVE } from "../live";
 import Checked from "./Checked";
 import Pipe from "./Pipe";
 import Principals from "./Principals";
@@ -23,15 +25,17 @@ export default function SecurityBody() {
   return (
     <div>
       <Part
+        live={LIVE.security.principals}
         title="The warehouse is the rulebook"
         lead="qlsc re-implements no rule. For each principal it asks the warehouse what they may read (tables, columns, rows) and works from the answer."
       >
         <Principals d={d} />
       </Part>
-      <Part title="The same question, three principals" lead="Nothing below was filtered by qlsc. The query ran as each principal, so BigQuery decided.">
+      <Part live={LIVE.security.same} title="The same question, three principals" lead="Nothing below was filtered by qlsc. The query ran as each principal, so BigQuery decided.">
         <Same d={d} />
       </Part>
       <Part
+        live={LIVE.security.pipe}
         title="How Cypher reaches the warehouse as the principal"
         lead="Virtual Graph reads rows through one identity of its own, which would show every principal everything. The pass-through driver stands in for it and runs each statement as the principal it was signed for."
       >
@@ -44,12 +48,3 @@ export default function SecurityBody() {
   );
 }
 
-function Part({ title, lead, children }: { title: string; lead: string; children: ReactNode }) {
-  return (
-    <div className="mt-14 first:mt-8">
-      <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
-      <p className="mt-1 max-w-3xl text-fg-muted">{lead}</p>
-      {children}
-    </div>
-  );
-}

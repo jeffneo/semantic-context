@@ -1,4 +1,6 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
+import Part from "../../Part";
+import { LIVE } from "../live";
 import type { Virtual } from "../virtual/data";
 import Fetch from "./Fetch";
 import Governed from "./Governed";
@@ -26,6 +28,7 @@ export default function MemoryBody() {
   return (
     <div>
       <Part
+        live={LIVE.memory.fetch}
         title="What is promoted"
         lead="The Virtual Graph reads the warehouse's rows on demand and keeps nothing. Memory keeps what a read fetched: the entity, the facts that point at it, and their dimensions, each fact still tied to the layer it came from."
       >
@@ -35,13 +38,14 @@ export default function MemoryBody() {
           the same rows on memory as on the virtual graph. A batch of {m.checks.batch.customers} was fetched in {m.checks.batch.seconds} s, against {m.checks.batch.oneAtATime} s one at a time.
         </p>
       </Part>
-      <Part title="What it buys" lead="The next question about the same customer is a local graph read, not a query to the warehouse: faster, and nothing billed.">
+      <Part live={LIVE.memory.payoff} title="What it buys" lead="The next question about the same customer is a local graph read, not a query to the warehouse: faster, and nothing billed.">
         <Payoff m={m} />
       </Part>
-      <Part title="How long it holds" lead="Nothing is promised fresh for ever. A fact holds for how often its table is written, as the log shows it, and a stale one is fetched again.">
+      <Part live={LIVE.memory.holds} title="How long it holds" lead="Nothing is promised fresh for ever. A fact holds for how often its table is written, as the log shows it, and a stale one is fetched again.">
         <Holds m={m} />
       </Part>
       <Part
+        live={LIVE.memory.governed}
         title="Governed once remembered"
         lead="A row that has left the warehouse has left its row policies behind, so memory carries them: each principal sees only what BigQuery would show them."
       >
@@ -51,12 +55,3 @@ export default function MemoryBody() {
   );
 }
 
-function Part({ title, lead, children }: { title: string; lead: string; children: ReactNode }) {
-  return (
-    <div className="mt-14 first:mt-8">
-      <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
-      <p className="mt-1 max-w-3xl text-fg-muted">{lead}</p>
-      {children}
-    </div>
-  );
-}

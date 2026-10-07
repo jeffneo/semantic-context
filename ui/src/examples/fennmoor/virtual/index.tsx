@@ -1,4 +1,6 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
+import Part from "../../Part";
+import { LIVE } from "../live";
 import Compare from "./Compare";
 import Explorer from "./Explorer";
 import Questions from "./Questions";
@@ -22,20 +24,21 @@ export default function VirtualBody() {
   if (!d) return <div className="mt-8 h-[40rem] text-sm text-fg-muted">Loading the generated schema…</div>;
   return (
     <div>
-      <Part title="From the semantic layer to a graph schema" lead="Warehouses rarely declare their keys, so the model is written from usage: where the business's trusted joins converge, and what points at what.">
+      <Part live={LIVE.virtual.steps} title="From the semantic layer to a graph schema" lead="Warehouses rarely declare their keys, so the model is written from usage: where the business's trusted joins converge, and what points at what.">
         <Steps d={d} />
       </Part>
       <Part
+        live={LIVE.virtual.compare}
         title="Two pictures of one model"
         lead="The semantic layer holds the paths; the Virtual Graph holds the schema made from them. Pick a table, a column, a variable, a box or an arrow, and what it makes or is made from lights in both."
       >
         <Compare d={d} />
       </Part>
-      <Part title="The generated schema" lead="Select a box or an arrow to see how it was made: what the layer said, the column, and the view that exposes the table.">
+      <Part live={LIVE.virtual.explorer} title="The generated schema" lead="Select a box or an arrow to see how it was made: what the layer said, the column, and the view that exposes the table.">
         <Explorer d={d} />
         <Left d={d} />
       </Part>
-      <Part title="What it is for" lead="Questions that are natural over a graph: who handled a customer's calls, which merchants two customers share. Pick one to see the part of the schema its Cypher walks.">
+      <Part live={LIVE.virtual.questions(d)} title="What it is for" lead="Questions that are natural over a graph: who handled a customer's calls, which merchants two customers share. Pick one to see the part of the schema its Cypher walks.">
         <Questions d={d} />
       </Part>
     </div>
@@ -59,12 +62,3 @@ function Left({ d }: { d: Virtual }) {
   );
 }
 
-function Part({ title, lead, children }: { title: string; lead: string; children: ReactNode }) {
-  return (
-    <div className="mt-14 first:mt-8">
-      <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
-      <p className="mt-1 max-w-3xl text-fg-muted">{lead}</p>
-      {children}
-    </div>
-  );
-}

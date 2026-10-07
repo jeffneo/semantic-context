@@ -93,6 +93,7 @@ src/
                                 what promotion buys, how long it holds, how it stays governed), security/ (what each principal may read, the same question
                                 asked as each, the pass-through's pipeline and its refusals, the checks), accuracy/ (scores, the question wall, costs, outcomes)
   repo.ts                       the repository the header links to
+  live/                         the live panels: the control at a part's left, its query or command, the result as a graph (NVL) or table; api.ts talks to the demo server
   theme/                        tokens, brand themes, the theme hook
 ```
 
@@ -101,6 +102,45 @@ src/
 `NEO4J_CONTACT_EMAIL` is the contact shown, as plain text, beside the light/dark button (nothing is shown when it is unset). Put it in `ui/.env.local`
 (ignored by git; [`.env.example`](.env.example) is the template) or in the host's environment, and it is compiled into the page when the app is built or
 served. Only `NEO4J_CONTACT_*` and `VITE_*` variables reach the browser (`envPrefix` in `vite.config.ts`): a bare `NEO4J_` would expose `NEO4J_PASSWORD`.
+
+## Running it live
+
+The information in every section is the recorded evidence, drawn from the generators' data; it is never re-run when a page loads. Beside it, each part has a
+control at its left (live/LiveRun.tsx) that opens to the right on the query or command behind that part, with **Run**. The query is a default: change it and run
+the change. It goes to the real graph or warehouse and shows the result in place, as a graph (NVL) or a table, or, for a command, as the output prints.
+
+The page cannot hold a database password or reach Bolt, so it talks to a small server on this machine, `examples/fennmoor-bank/server.py` (standard library only;
+Vite proxies `/api` to it). Start it from the repository root, beside `npm run dev`:
+
+```bash
+uv run examples/fennmoor-bank/server.py        # http://127.0.0.1:8787; QLSC_DEMO_PORT changes the port
+```
+
+It uses the example's own configuration: the database addresses are `estate.yaml`'s (`neo4j`, `virtualize.neo4j`), the passwords are `.env`'s (`NEO4J_PASSWORD`),
+BigQuery is the estate's connector as the `qlsc` service account. Nothing of it reaches the browser, and there is nothing new to set. The services it needs are
+the ones the example already runs: Neo4j, Virtual Graph (and its composite), and a BigQuery login for SQL and commands.
+
+| Where a query goes | What it is |
+|---|---|
+| `layer` | the semantic layer (`bigquery` database) |
+| `memory` | what Virtual Graph reads fetched |
+| `rows` | the warehouse's rows as a graph, through Virtual Graph (the gateway signs the query) |
+| `composite` | one query across all of them (`USE fennmoor.rows ...`) |
+| SQL | one SELECT in BigQuery, in the graph's table names |
+| commands | `qlsc ask`, `recall`, and the example's `demo.py` composite and exchange, with their arguments |
+
+**Only reads.** A Cypher session is opened with read access, so Neo4j itself refuses a write, whatever the text says; procedures that reach out of the database
+(files, URLs, administration) are refused before they are sent; SQL must be a single query statement, bills at most `navigate.maximum_bytes_billed`, and every query
+has a time limit and a row limit. Commands are a fixed list run as argument lists, never a shell. `recall` keeps what it fetched in memory: that is what it is for.
+The server answers only this machine, and only a page served from it.
+
+**Who is asking.** The default is `admin`, the data source's own identity: the administrator's view. On `rows` and in SQL a panel can run as another principal
+(marketing, risk, contact-center): the query is signed for them and Virtual Graph's pass-through runs it as their service account, so the warehouse's own row
+and column rules apply, and its refusals are shown as they are. The security section's panels offer the picker, and an "unsigned" option that shows the
+pass-through refusing a query with no principal. The layer and memory hold the estate's metadata, not its rows: they are the administrator's view.
+
+The queries each part opens with are the files in [`queries/`](src/examples/fennmoor/queries/README.md), registered in `src/examples/fennmoor/live.ts`. Without
+the server a panel says so and how to start it.
 
 ## Hosting
 
@@ -111,6 +151,6 @@ the 404 page to `index.html`).
 ## Rules
 
 - Every number on a page is either counted from the data it draws (the example's header and scenario) or measured by qlsc's own evaluations and cited
-  to its file with the caveat that travels with it. Nothing is mocked: the demos that follow replay real recorded runs.
+  to its file with the caveat that travels with it. Nothing is mocked: what a page shows is recorded evidence, and what its live panel runs is real.
 - The first screen is the name and the diagram, filling the viewport, and the landing page is only that.
 - Keep it static and light: no state library; the router is the only dependency beyond React.
