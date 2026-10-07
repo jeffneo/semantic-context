@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Part from "../../Part";
 import { LIVE } from "../live";
 import Checked from "./Checked";
+import Passthrough from "./Passthrough";
 import Pipe from "./Pipe";
 import Principals from "./Principals";
 import Same from "./Same";
@@ -32,6 +33,7 @@ export default function SecurityBody() {
         <Principals d={d} />
       </Part>
       <Part live={LIVE.security.same} title="The same question, three principals" lead="Nothing below was filtered by qlsc. The query ran as each principal, so BigQuery decided.">
+        <Passthrough />
         <Same d={d} />
       </Part>
       <Part
