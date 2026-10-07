@@ -17,6 +17,8 @@ import json
 from collections import Counter, defaultdict
 from pathlib import Path
 
+from ui_queries import query
+
 from qlsc import config
 from qlsc.graph import Graph
 
@@ -24,43 +26,13 @@ EXAMPLE = Path(__file__).resolve().parents[1]
 ROOT = EXAMPLE.parents[1]
 OUT = ROOT / "ui" / "src" / "examples" / "fennmoor" / "discovery" / "discovery.json"
 
-AREAS = """
-MATCH (s:Semantic)
-OPTIONAL MATCH (s)-[:IN_SEMANTIC]->(p:Semantic)
-RETURN s.id AS id, s.level AS level, s.name AS name, s.description AS description, s.tables AS tables, s.size AS size,
-       s.stability AS stability, p.id AS parent
-ORDER BY level DESC, tables DESC, id
-"""
-# every catalog column with the level-1 group that holds it: itself or, when it is joined, its variable
-MEMBERSHIP = """
-MATCH (t:Table)-[:HAS_COLUMN]->(c:Column) WHERE t.in_catalog
-OPTIONAL MATCH (c)-[:IS]->(v:Variable)
-WITH t, coalesce(v, c) AS u
-OPTIONAL MATCH (u)-[:IN_SEMANTIC]->(g:Semantic {level: 1})
-RETURN t.id AS table, g.id AS group, EXISTS { (:QueryShape)-[:REFERENCES]->(t) } AS read
-"""
-VARIABLES = """
-MATCH (v:Variable)<-[:IS]-(c:Column)<-[:HAS_COLUMN]-(t:Table)
-RETURN v.id AS id, v.name AS name, v.description AS description, t.id AS table, c.name AS column
-ORDER BY id, table, column
-"""
-# the joins whose two columns are one variable, with the queries that made them
-JOINS = """
-MATCH (v:Variable)<-[:IS]-(a:Column)<-[:ON]-(k:JoinKey)-[:ON]->(b:Column)-[:IS]->(v) WHERE a.id < b.id
-OPTIONAL MATCH (q:QueryShape)-[:USES_JOIN]->(k)
-RETURN v.id AS variable, a.id AS a, b.id AS b, k.confidence AS confidence, k.people AS people, count(DISTINCT q) AS shapes, coalesce(sum(q.jobs), 0) AS jobs
-ORDER BY variable, a, b
-"""
-KEPT_OUT = """
-MATCH (ta:Table)-[:HAS_COLUMN]->(a:Column)<-[:ON]-(k:JoinKey)-[:ON]->(b:Column)<-[:HAS_COLUMN]-(tb:Table)
-WHERE (k.confidence = 'suspect' OR NOT k.identity) AND a.id < b.id
-RETURN ta.id + '.' + a.name AS a, tb.id + '.' + b.name AS b, k.confidence AS confidence, k.identity AS identity, k.confidence_reason AS why
-ORDER BY confidence, a, b
-"""
-COUNTS = """
-RETURN count { (:QueryShape) } AS shapes, count { (:QueryShape {origin: 'log'}) } AS logShapes, count { (:JoinKey) } AS joinKeys, count { (:Variable) } AS variables,
-       count { (:Column)-[:IS]->(:Variable) } AS joined, count { (:Column) } AS columns
-"""
+AREAS = query("discovery", "areas")
+MEMBERSHIP = query("discovery", "membership")
+VARIABLES = query("discovery", "variables")
+JOINS = query("discovery", "joins")
+KEPT_OUT = query("discovery", "kept_out")
+COUNTS = query("discovery", "counts")
+QUERY_TEXTS = query("discovery", "query_texts")
 
 
 def main() -> None:
@@ -72,9 +44,7 @@ def main() -> None:
         joins = G.rows(JOINS)
         kept = G.rows(KEPT_OUT)
         counts = G.rows(COUNTS)[0]
-        texts = G.value(
-            "MATCH (q:QueryShape {origin: 'log'}) RETURN sum(q.texts)"
-        )  # distinct query texts the log held (a view's definition has none)
+        texts = G.value(QUERY_TEXTS)
 
     # The areas, broad first, each pointing at its parent by position.
     index = {a["id"]: i for i, a in enumerate(areas)}

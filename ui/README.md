@@ -74,6 +74,9 @@ uv run examples/fennmoor-bank/generate/ui_security.py
 uv run examples/fennmoor-bank/generate/ui_accuracy.py
 ```
 
+The Cypher those generators run is one file each in [`fennmoor/queries/`](src/examples/fennmoor/queries/README.md), so a query the page shows and the one that
+made its data are the same file.
+
 The discovery, Virtual Graph, router, memory, security and accuracy sections load their data when the section mounts (the accuracy file is the largest: every query the methods wrote),
 so the page opens before they arrive.
 
@@ -84,11 +87,12 @@ src/
   components/                   Nav, Hero, SectionNav (the contents sidebar), ArchitectureDiagram (the hero: agents; the composite as the box around the three
                                 shards; the warehouse across the bottom; arcs between the shards; tasks run one at a time, each flashing along the connections
                                 and layers it uses and fading slowly; SVG, no tooltip, nothing follows the pointer)
-  examples/                     the list and loaders; fennmoor/ holds its data, EstateTiles (the estate's squares, for a section to colour) and a folder or file per section: Scenario, Warehouse, discovery/
+  examples/                     the list and loaders; fennmoor/ holds its data, EstateTiles (the estate's squares, for a section to colour) and queries/ (the Cypher, a file each) and a folder or file per section: Scenario, Warehouse, discovery/
                                 (funnel, the tables regrouped by meaning, the join chords), virtual/ (the steps, the .semantic paths beside the .rows schema, the generated schema as a layered graph, the questions it
                                 answers), router/ (the ladder, ten questions followed down it, what each rung served), memory/ (the template drawn on the schema,
                                 what promotion buys, how long it holds, how it stays governed), security/ (what each principal may read, the same question
                                 asked as each, the pass-through's pipeline and its refusals, the checks), accuracy/ (scores, the question wall, costs, outcomes)
+  repo.ts                       the repository the header links to
   theme/                        tokens, brand themes, the theme hook
 ```
 

@@ -20,6 +20,8 @@ import json
 import re
 from pathlib import Path
 
+from ui_queries import query
+
 from qlsc import config
 from qlsc.graph import Graph
 from qlsc.virtualize import GROUPS
@@ -30,17 +32,8 @@ MODEL = EXAMPLE / "work" / "virtual"
 QUESTIONS = EXAMPLE / "results" / "graph_accuracy.json"
 OUT = ROOT / "ui" / "src" / "examples" / "fennmoor" / "virtual" / "virtual.json"
 
-NODES = """
-MATCH (t:Table) WHERE t.graph_label IS NOT NULL
-OPTIONAL MATCH (t)-[:HAS_COLUMN]->(k:Column {graph_key: true})
-OPTIONAL MATCH (k)-[:IS]->(v:Variable)
-RETURN t.id AS table, t.graph_label AS label, k.name AS key, v.name AS variable
-"""
-POINTERS = """
-MATCH (t:Table)-[:HAS_COLUMN]->(c:Column) WHERE c.graph_relationship IS NOT NULL
-OPTIONAL MATCH (c)-[:IS]->(v:Variable)
-RETURN c.graph_relationship AS type, t.id AS table, c.name AS column, v.name AS variable
-"""
+NODES = query("virtual", "nodes")
+POINTERS = query("virtual", "pointers")
 
 
 def rows(markdown: str, heading: str) -> list[str]:

@@ -21,6 +21,8 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+from ui_queries import query
+
 from qlsc import config, memory
 from qlsc.graph import Graph
 
@@ -33,16 +35,8 @@ OUT = ROOT / "ui" / "src" / "examples" / "fennmoor" / "memory" / "memory.json"
 MIB = 1024 * 1024
 ANCHOR = "8322097816940277129"  # the customer whose remembered node's provenance is shown: the largest context in the evaluation
 
-HOLDS = """
-MATCH (t:Table) WHERE t.in_catalog
-RETURN t.id AS id, t.write_days AS write_days, t.frozen AS frozen
-ORDER BY id
-"""
-# a remembered node's provenance; its name, email and every other column are left behind
-PROVENANCE = """
-MATCH (c:Customer {customer_key: toInteger($key)})
-RETURN c.fetched_at AS fetched_at, c.holds_until AS holds_until, c.fetched_by AS fetched_by, c.fetched_with AS fetched_with
-"""
+HOLDS = query("memory", "holds")
+PROVENANCE = query("memory", "provenance")
 
 
 def templates(s) -> tuple[dict, dict]:
