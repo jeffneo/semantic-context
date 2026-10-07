@@ -5,6 +5,7 @@ import { WAREHOUSE } from "../data";
 import type { Discovery } from "./data";
 import Funnel from "./Funnel";
 import Joins from "./Joins";
+import KeptOut from "./KeptOut";
 import Regroup from "./Regroup";
 
 /*
@@ -35,8 +36,16 @@ export default function DiscoveryBody() {
       >
         <Regroup d={d} />
       </Part>
-      <Part summary="Columns the business joins are one real-world thing: which variables join which tables, and the joins kept out." title="What the joins revealed" lead="Columns the business joins are one real-world thing. Each variable is found from the joins queries actually made." live={LIVE.discovery.joins}>
+      <Part summary="Columns the business joins are one real-world thing: which variables join which tables." title="What the joins revealed" lead="Columns the business joins are one real-world thing. Each variable is found from the joins queries actually made." live={LIVE.discovery.joins}>
         <Joins d={d} />
+      </Part>
+      <Part
+        live={LIVE.discovery.keptOut}
+        summary="Queries also join things that are not the same thing: the joins left out of the variables, and why."
+        title="Joins the layer would not merge on"
+        lead="Queries do join things that are not the same thing. Where production keeps two id spaces apart and translates between them, a join that equates them is left out of the variables, so one customer's account number never becomes another system's."
+      >
+        <KeptOut d={d} />
       </Part>
     </div>
   );

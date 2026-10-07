@@ -63,11 +63,11 @@ export const LIVE = {
         presets: [
           preset("The keys the whole warehouse joins on", keys),
           preset("The joins behind one variable", evidence),
-          preset("Joins kept out of the variables", keptOut),
           preset("What the business computes", computed),
         ],
       },
     ],
+    keptOut: [{ kind: "cypher", target: "layer", presets: [preset("Joins kept out of the variables", keptOut)] }],
   },
   virtual: {
     steps: [{ kind: "cypher", target: "layer", presets: [preset("The paths the model was derived from", modelPaths), preset("The same, as a table", modelTable)] }],
