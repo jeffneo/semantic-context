@@ -369,7 +369,7 @@ def stream(body: dict, send) -> None:
         timer.start()
         try:
             for line in proc.stdout:
-                send({"t": "out", "line": line.rstrip("\n"), "at": round(time.time() - t0, 2)})
+                send({"t": "out", "line": logical(line.rstrip("\n")), "at": round(time.time() - t0, 2)})
             code = proc.wait()
         finally:
             timer.cancel()
