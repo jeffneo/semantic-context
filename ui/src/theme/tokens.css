@@ -1,0 +1,76 @@
+/*
+  The palette, in one place. Every colour in the app is one of these variables, so a brand is a file of overrides.
+
+  Three groups, so a theme can inject selectively:
+    SURFACE   neutrals: page, text, borders        (leave alone for a clean look)
+    ACTION    the accent: buttons, links, focus    (where a brand colour usually goes)
+    SHARDS    the architecture diagram's colours   (one per Neo4j shard; the diagram and the deck use them everywhere)
+
+  Brand themes live in ./themes/*.css as [data-theme="name"] blocks, switched with ?theme=name (see useTheme.ts).
+  Light and dark are a separate axis: [data-mode="light" | "dark"], defaulting to the system setting.
+*/
+
+:root {
+  /* SURFACE */
+  --bg: #ffffff;
+  --bg-subtle: #fafafa;
+  --fg: #0a0a0a;
+  --fg-muted: #666666;
+  --line: #eaeaea;
+  --line-strong: #d4d4d4;
+
+  /* ACTION */
+  --accent: #0a0a0a;
+  --accent-fg: #ffffff;
+  --link: #0070f3;
+  --focus: #0070f3;
+
+  /* SHARDS: semantic layer, virtual graph (rows), agent memory; the composite database; the warehouse */
+  --shard-semantic: #0070f3;
+  --shard-rows: #f5820d;
+  --shard-memory: #12a150;
+  --composite: #7928ca;
+  --warehouse: #8f8f8f;
+
+  --font-sans-stack: "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono-stack: "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --radius: 12px;
+}
+
+/* Dark: follows the system unless the page sets data-mode. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-mode="light"]) {
+    --bg: #000000;
+    --bg-subtle: #0a0a0a;
+    --fg: #ededed;
+    --fg-muted: #a1a1a1;
+    --line: #1f1f1f;
+    --line-strong: #333333;
+    --accent: #ededed;
+    --accent-fg: #0a0a0a;
+    --link: #52a8ff;
+    --focus: #52a8ff;
+    --shard-semantic: #4da3ff;
+    --shard-rows: #ff9a3c;
+    --shard-memory: #3ecf8e;
+    --composite: #b57bee;
+    --warehouse: #a1a1a1;
+  }
+}
+:root[data-mode="dark"] {
+  --bg: #000000;
+  --bg-subtle: #0a0a0a;
+  --fg: #ededed;
+  --fg-muted: #a1a1a1;
+  --line: #1f1f1f;
+  --line-strong: #333333;
+  --accent: #ededed;
+  --accent-fg: #0a0a0a;
+  --link: #52a8ff;
+  --focus: #52a8ff;
+  --shard-semantic: #4da3ff;
+  --shard-rows: #ff9a3c;
+  --shard-memory: #3ecf8e;
+  --composite: #b57bee;
+  --warehouse: #a1a1a1;
+}

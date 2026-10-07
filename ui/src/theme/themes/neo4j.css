@@ -1,0 +1,36 @@
+/*
+  Neo4j brand injection: selective by design. Only ACTION tokens are overridden here; SURFACE stays neutral and the
+  SHARD colours stay as the architecture diagram's own (one colour per shard, used the same everywhere).
+
+  The values below are PLACEHOLDERS, not the official palette: replace them with Neo4j's brand tokens.
+  To brand the diagram too, uncomment the SHARDS block.
+
+  Use it: add ?theme=neo4j to the URL (remembered), or set data-theme="neo4j" on <html>.
+*/
+:root[data-theme="neo4j"] {
+  --accent: #0a6190;
+  --accent-fg: #ffffff;
+  --link: #0a6190;
+  --focus: #018bff;
+
+  /* SHARDS (uncomment to brand the diagram)
+  --shard-semantic: #018bff;
+  --shard-rows: #f5820d;
+  --shard-memory: #12a150;
+  --composite: #7928ca;
+  */
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="neo4j"]:not([data-mode="light"]) {
+    --accent: #5cb8ff;
+    --accent-fg: #00141f;
+    --link: #5cb8ff;
+    --focus: #5cb8ff;
+  }
+}
+:root[data-theme="neo4j"][data-mode="dark"] {
+  --accent: #5cb8ff;
+  --accent-fg: #00141f;
+  --link: #5cb8ff;
+  --focus: #5cb8ff;
+}

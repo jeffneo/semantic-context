@@ -79,6 +79,8 @@ uv run examples/fennmoor-bank/eval/process_scale.py [conversations ...]   # the 
 uv run examples/fennmoor-bank/generate/corpus.py --audit|--push|--pull   # the process corpus (plans/2026-10-05-process-corpus.md): check it, back it up to / restore it from gs://fennmoor-corpus
 ```
 
+The demo's front end: `cd ui && npm install && npm run dev` (Vite, React, Tailwind; see ui/README.md; a static app, no server).
+
 Services: `docker compose up -d neo4j` (bolt 7690 per the example config). The parser (`parser/`,
 `qlsc_parse`) runs in-process: `qlsc parse` pools it over `parse.workers` processes. Virtual Graph:
 `vg-passthrough/build.sh`, then `docker compose --profile vg up -d --force-recreate neo4j-vg` (bolt 7692);

@@ -1,0 +1,106 @@
+@import "tailwindcss";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+@import "./theme/tokens.css";
+@import "./theme/themes/neo4j.css";
+
+/* Tailwind utilities read the runtime tokens: bg-bg, text-fg-muted, border-line, text-shard-semantic ... */
+@theme inline {
+  --font-sans: var(--font-sans-stack);
+  --font-mono: var(--font-mono-stack);
+  --color-bg: var(--bg);
+  --color-bg-subtle: var(--bg-subtle);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-link: var(--link);
+  --color-shard-semantic: var(--shard-semantic);
+  --color-shard-rows: var(--shard-rows);
+  --color-shard-memory: var(--shard-memory);
+  --color-composite: var(--composite);
+  --color-warehouse: var(--warehouse);
+  --radius-card: var(--radius);
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+}
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans-stack);
+}
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
+/* ---- the architecture diagram ------------------------------------------------------------------------------------ */
+.dg text { font-family: var(--font-sans-stack); fill: var(--fg); }
+.dg .muted { fill: var(--fg-muted); }
+.dg .mono { font-family: var(--font-mono-stack); }
+
+.dg-node { --c: var(--warehouse); }
+.dg-node .card {
+  fill: color-mix(in oklab, var(--c) 5%, var(--bg));
+  stroke: var(--c);
+  stroke-width: 1.6;
+}
+.dg-node[data-dashed="true"] .card { stroke-dasharray: 9 7; }
+.dg-node .tag { fill: color-mix(in oklab, var(--c) 13%, var(--bg)); stroke: color-mix(in oklab, var(--c) 40%, var(--bg)); stroke-width: 1; }
+.dg-node .tagtext { fill: var(--c); }
+.dg-node .alias { fill: var(--bg); stroke: var(--c); stroke-width: 1.2; }
+.dg-node .aliastext { fill: var(--c); }
+.dg-node .item { fill: var(--bg); stroke: color-mix(in oklab, var(--c) 50%, var(--bg)); stroke-width: 1.2; }
+.dg-pill { fill: var(--bg); stroke: var(--line-strong); stroke-width: 1.2; }
+
+/* The standing connections: faint. Nothing moves until a task runs. */
+.dg-edge { pointer-events: none; }
+.dg-edge path { fill: none; stroke-linecap: round; }
+.dg-edge path.base { stroke-width: 2.8; opacity: 0.5; }
+.dg-edge .elabel { fill: var(--fg-muted); font-size: 15px; font-family: var(--font-mono-stack); }
+
+/* The running task. Every step is an element that is invisible until its delay, flashes at once, and fades slowly (the duration is set per
+   element). A connection is drawn along its path (pathLength 100: one pair of keyframes serves them all) so the flash travels with the step. */
+.running { pointer-events: none; }
+.running .lit, .running .lit-core, .running .halo { opacity: 0; animation-fill-mode: forwards; animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1); }
+.running .lit, .running .lit-core { fill: none; stroke-linecap: round; stroke-dasharray: 100 100; }
+.running .lit { animation-name: lit-trail; }
+.running .lit-core { stroke: #fff; animation-name: lit-core; }
+.running .halo { fill: color-mix(in oklab, var(--c) 20%, transparent); stroke: var(--c); stroke-width: 4; animation-name: lit-halo; }
+@keyframes lit-trail {
+  0%   { stroke-dashoffset: 100; opacity: 1; stroke-width: 11; }
+  22%  { stroke-dashoffset: 0;   opacity: 1; stroke-width: 9; }
+  100% { stroke-dashoffset: 0;   opacity: 0; stroke-width: 4; }
+}
+@keyframes lit-core {
+  0%   { stroke-dashoffset: 100; opacity: 0.95; stroke-width: 4; }
+  22%  { stroke-dashoffset: 0;   opacity: 0.9;  stroke-width: 3.5; }
+  60%  { stroke-dashoffset: 0;   opacity: 0;    stroke-width: 2; }
+  100% { stroke-dashoffset: 0;   opacity: 0;    stroke-width: 2; }
+}
+@keyframes lit-halo {
+  0%   { opacity: 0; }
+  8%   { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.task-label { animation: label-in 0.35s ease-out; }
+@keyframes label-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.task-label .dot { fill: var(--line-strong); }
+.task-label .dot.on { fill: var(--fg); }
+
+.lg-solid { fill: color-mix(in oklab, var(--fg-muted) 6%, var(--bg)); stroke: var(--fg-muted); stroke-width: 1.4; }
+.lg-dashed { fill: color-mix(in oklab, var(--fg-muted) 6%, var(--bg)); stroke: var(--fg-muted); stroke-width: 1.4; stroke-dasharray: 5 4; }
+
+@media (prefers-reduced-motion: reduce) {
+  .running, .task-label { display: none; }
+}
