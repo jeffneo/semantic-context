@@ -41,10 +41,10 @@ export default function AccuracyBody() {
           with thousands takes many times that.
         </p>
       </Part>
-      <Part summary="The agent's exchanges and the first answer each one got, and the caveats to read before quoting any figure on this page." title="Where the agent's gain comes from" lead="The agent's exchanges, and the first answer each one got.">
+      <Part summary="The agent's exchanges, and the first answer each one got." title="Where the agent's gain comes from" lead="The agent's exchanges, and the first answer each one got.">
         <Gain d={d} />
-        <h4 className="mt-10 text-base font-semibold tracking-tight">Before you quote these</h4>
-        <p className="mt-1 max-w-3xl text-fg-muted">Read the numbers on this page with these, which belong to them.</p>
+      </Part>
+      <Part summary="Five things that belong with the numbers on this page: the questions favour precedent, the agent's state is the best case, scoring is mechanical, one synthetic estate, and timings are measured under load." title="Before you quote these" lead="Read the numbers with these, which belong to them.">
         <ul className="mt-5 grid max-w-4xl list-disc gap-3 pl-5 text-sm leading-relaxed marker:text-fg-muted">
           <li>
             <strong className="font-medium">The questions favour precedent.</strong> They are written from the business's own queries, so about half are re-asks by

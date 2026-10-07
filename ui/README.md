@@ -74,6 +74,10 @@ uv run examples/fennmoor-bank/generate/ui_security.py
 uv run examples/fennmoor-bank/generate/ui_accuracy.py
 ```
 
+Each section lists the code that does its work, linked to a commit (`src/examples/fennmoor/code-links.json`; a branch's lines move). After code changes, push, then
+`uv run examples/fennmoor-bank/generate/ui_code_links.py` re-pins the links to `origin/main` and moves each to its symbol's new line (`--check` only reports);
+`tests/test_code_links.py` fails when a link is off its line.
+
 The Cypher those generators run is one file each in [`fennmoor/queries/`](src/examples/fennmoor/queries/README.md), so a query the page shows and the one that
 made its data are the same file.
 
