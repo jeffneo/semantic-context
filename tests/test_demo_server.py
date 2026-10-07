@@ -162,3 +162,12 @@ def test_a_trace_query_runs_read_only(server, path):
         pytest.skip(
             "memory holds no conversations: qlsc converse examples/fennmoor-bank/conversations/marketing-1.yaml records one"
         )
+
+
+def test_a_refusal_by_the_warehouse_confirms_nothing(server):
+    said = server.told(
+        "BigQueryException during runQuery: Access Denied: Table dw_core.dim_customer: User does not have permission to query table dw_core.dim_customer, or perhaps it does not exist."
+    )
+    assert "dim_customer" not in said and "dw_core" not in said and "contact-center" not in said
+    assert "does not exist or is not available" in said
+    assert "no such property" in server.told("no such property: x")

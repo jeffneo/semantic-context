@@ -110,6 +110,19 @@ def logical(message: str) -> str:
     return DEPLOYED.sub("", message).replace(s["warehouse"]["project"], "the project")
 
 
+DENIED = re.compile(
+    r"Access Denied|does not have (bigquery\.\w+ )?permission|not authorized|permission denied", re.I
+)
+
+
+def told(message: str) -> str:
+    """What a Cypher query's error says. A refusal by the warehouse names the SQL it ran, which the visitor never wrote and which says it may not exist (BigQuery
+    does not tell a principal which): so it is said without them, and without saying whether the data exists or whose it is (a denied principal is not told). Anything else, a typo in the query, is said as the database said it."""
+    if DENIED.search(message):
+        return "This query could not be completed: the data it needs either does not exist or is not available to you."
+    return logical(message)
+
+
 class Refused(Exception):
     """What the visitor asked is not allowed, or cannot be run: said to them as it is."""
 
@@ -269,7 +282,7 @@ def cypher(body: dict) -> dict:
                 rows.append([plain(v) for v in record.values()])
             result.consume()
     except Neo4jError as e:
-        raise Refused(logical((e.message or str(e)).strip())) from e
+        raise Refused(told((e.message or str(e)).strip())) from e
     return shaped(columns, rows, more, time.time() - t0, sent=sent if sent != query else None, principal=who)
 
 
