@@ -1,0 +1,283 @@
+{
+ "commit": "363c1d5d445205d0dd01db003b8635a8269267ab",
+ "sections": {
+  "scenario": [
+   {
+    "label": "estate.yaml",
+    "path": "examples/fennmoor-bank/estate.yaml"
+   },
+   {
+    "label": "make_catalog.py",
+    "path": "examples/fennmoor-bank/generate/make_catalog.py"
+   },
+   {
+    "label": "fill.py",
+    "path": "examples/fennmoor-bank/generate/fill.py"
+   }
+  ],
+  "warehouse": [
+   {
+    "label": "extract.extract_log",
+    "path": "src/qlsc/extract.py",
+    "line": 46,
+    "symbol": "def extract_log"
+   },
+   {
+    "label": "extract.extract_catalog",
+    "path": "src/qlsc/extract.py",
+    "line": 125,
+    "symbol": "def extract_catalog"
+   },
+   {
+    "label": "warehouse/bigquery.py",
+    "path": "src/qlsc/warehouse/bigquery.py"
+   }
+  ],
+  "discovery": [
+   {
+    "label": "cli.build",
+    "path": "src/qlsc/cli.py",
+    "line": 62,
+    "symbol": "def build"
+   },
+   {
+    "label": "fingerprint",
+    "path": "parser/qlsc_parse/fingerprint.py",
+    "line": 68,
+    "symbol": "def fingerprint"
+   },
+   {
+    "label": "resolve",
+    "path": "parser/qlsc_parse/resolve.py"
+   },
+   {
+    "label": "joins.judge_joins",
+    "path": "src/qlsc/joins.py",
+    "line": 161,
+    "symbol": "def judge_joins"
+   },
+   {
+    "label": "joins.IdSpaces",
+    "path": "src/qlsc/joins.py",
+    "line": 81,
+    "symbol": "class IdSpaces"
+   },
+   {
+    "label": "variables.components",
+    "path": "src/qlsc/variables.py",
+    "line": 55,
+    "symbol": "def components"
+   },
+   {
+    "label": "cluster.run",
+    "path": "src/qlsc/cluster.py",
+    "line": 201,
+    "symbol": "def run"
+   },
+   {
+    "label": "cluster.leiden",
+    "path": "src/qlsc/cluster.py",
+    "line": 108,
+    "symbol": "def leiden"
+   },
+   {
+    "label": "hierarchy.run",
+    "path": "src/qlsc/hierarchy.py",
+    "line": 150,
+    "symbol": "def run"
+   },
+   {
+    "label": "hierarchy.knn",
+    "path": "src/qlsc/hierarchy.py",
+    "line": 102,
+    "symbol": "def knn"
+   }
+  ],
+  "virtual-graph": [
+   {
+    "label": "virtualize.run",
+    "path": "src/qlsc/virtualize.py",
+    "line": 380,
+    "symbol": "def run"
+   },
+   {
+    "label": "nodes",
+    "path": "src/qlsc/virtualize.py",
+    "line": 137,
+    "symbol": "def nodes"
+   },
+   {
+    "label": "relationships",
+    "path": "src/qlsc/virtualize.py",
+    "line": 179,
+    "symbol": "def relationships"
+   },
+   {
+    "label": "names",
+    "path": "src/qlsc/virtualize.py",
+    "line": 213,
+    "symbol": "def names"
+   },
+   {
+    "label": "schema_json",
+    "path": "src/qlsc/virtualize.py",
+    "line": 287,
+    "symbol": "def schema_json"
+   },
+   {
+    "label": "render",
+    "path": "src/qlsc/virtualize.py",
+    "line": 338,
+    "symbol": "def render"
+   },
+   {
+    "label": "graph_questions.yaml",
+    "path": "examples/fennmoor-bank/eval/graph_questions.yaml"
+   }
+  ],
+  "router": [
+   {
+    "label": "navigate.ROUTES",
+    "path": "src/qlsc/navigate.py",
+    "line": 626,
+    "symbol": "ROUTES"
+   },
+   {
+    "label": "navigate.route",
+    "path": "src/qlsc/navigate.py",
+    "line": 644,
+    "symbol": "def route"
+   },
+   {
+    "label": "navigate.answer_routed",
+    "path": "src/qlsc/navigate.py",
+    "line": 709,
+    "symbol": "def answer_routed"
+   },
+   {
+    "label": "compile.compile_sql",
+    "path": "src/qlsc/compile.py",
+    "line": 830,
+    "symbol": "def compile_sql"
+   },
+   {
+    "label": "requests.run",
+    "path": "src/qlsc/requests.py",
+    "line": 112,
+    "symbol": "def run"
+   }
+  ],
+  "memory": [
+   {
+    "label": "memory.template",
+    "path": "src/qlsc/memory.py",
+    "line": 362,
+    "symbol": "def template"
+   },
+   {
+    "label": "memory.run_batch",
+    "path": "src/qlsc/memory.py",
+    "line": 479,
+    "symbol": "def run_batch"
+   },
+   {
+    "label": "memory.cadence_days",
+    "path": "src/qlsc/memory.py",
+    "line": 609,
+    "symbol": "def cadence_days"
+   },
+   {
+    "label": "memory.recall",
+    "path": "src/qlsc/memory.py",
+    "line": 761,
+    "symbol": "def recall"
+   },
+   {
+    "label": "memory.answerable",
+    "path": "src/qlsc/memory.py",
+    "line": 994,
+    "symbol": "def answerable"
+   }
+  ],
+  "accuracy": [
+   {
+    "label": "comparison/run.py",
+    "path": "examples/fennmoor-bank/eval/comparison/run.py",
+    "line": 188,
+    "symbol": "def run"
+   },
+   {
+    "label": "comparison/README.md",
+    "path": "examples/fennmoor-bank/eval/comparison/README.md"
+   },
+   {
+    "label": "match.judge",
+    "path": "examples/fennmoor-bank/eval/match.py",
+    "line": 237,
+    "symbol": "def judge"
+   }
+  ],
+  "security": [
+   {
+    "label": "entitle.allowlist",
+    "path": "src/qlsc/entitle.py",
+    "line": 103,
+    "symbol": "def allowlist"
+   },
+   {
+    "label": "entitle.token",
+    "path": "src/qlsc/entitle.py",
+    "line": 214,
+    "symbol": "def token"
+   },
+   {
+    "label": "entitle.signed",
+    "path": "src/qlsc/entitle.py",
+    "line": 226,
+    "symbol": "def signed"
+   },
+   {
+    "label": "entitle.signing",
+    "path": "src/qlsc/entitle.py",
+    "line": 268,
+    "symbol": "def signing"
+   },
+   {
+    "label": "Passthrough.materialize",
+    "path": "vg-passthrough/src/qlsc/passthrough/Passthrough.java",
+    "line": 174,
+    "symbol": "materialize"
+   },
+   {
+    "label": "Token.verify",
+    "path": "vg-passthrough/src/qlsc/passthrough/Token.java",
+    "line": 29,
+    "symbol": "verify"
+   },
+   {
+    "label": "Rewrite.of",
+    "path": "vg-passthrough/src/qlsc/passthrough/Rewrite.java",
+    "line": 20,
+    "symbol": "of("
+   },
+   {
+    "label": "setup.row_policies",
+    "path": "examples/fennmoor-bank/entitlements/setup.py",
+    "line": 271,
+    "symbol": "def row_policies"
+   },
+   {
+    "label": "entitlements.driver_probes",
+    "path": "examples/fennmoor-bank/eval/entitlements.py",
+    "line": 380,
+    "symbol": "def driver_probes"
+   },
+   {
+    "label": "entitlements.broken",
+    "path": "examples/fennmoor-bank/eval/entitlements.py",
+    "line": 409,
+    "symbol": "def broken"
+   }
+  ]
+ }
+}

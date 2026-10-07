@@ -25,7 +25,7 @@ export default function DiscoveryBody() {
   if (!d) return <div className="mt-8 h-[40rem] text-sm text-fg-muted">Loading the semantic layer…</div>;
   return (
     <div>
-      <Part title="From a query log to a layer" lead="Nothing was written down. The build reads the log and the catalog, and each stage keeps only what the one before it supports." live={LIVE.discovery.funnel}>
+      <Part summary={`${WAREHOUSE.log.jobs.toLocaleString("en-US")} queries in, ${d.funnel.groups["1"]} groups out: each stage keeps only what the one before it supports.`} title="From a query log to a layer" lead="Nothing was written down. The build reads the log and the catalog, and each stage keeps only what the one before it supports." live={LIVE.discovery.funnel}>
         <Funnel d={d} queries={WAREHOUSE.log.jobs} days={WAREHOUSE.log.days} />
       </Part>
       <Part
@@ -35,7 +35,7 @@ export default function DiscoveryBody() {
       >
         <Regroup d={d} />
       </Part>
-      <Part title="What the joins revealed" lead="Columns the business joins are one real-world thing. Each variable is found from the joins queries actually made." live={LIVE.discovery.joins}>
+      <Part summary="Columns the business joins are one real-world thing: which variables join which tables, and the joins kept out." title="What the joins revealed" lead="Columns the business joins are one real-world thing. Each variable is found from the joins queries actually made." live={LIVE.discovery.joins}>
         <Joins d={d} />
       </Part>
     </div>

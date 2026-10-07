@@ -30,10 +30,10 @@ export default function AccuracyBody() {
       <Part live={LIVE.accuracy.scores} title="How often the answer is right" lead="Each question was written from a query the business really ran, so the right answer is known. Four methods answered them all, on the same model (Claude Sonnet 5.5): the only difference is what each is given.">
         <Scores d={d} />
       </Part>
-      <Part title="Every question, every method" lead="Each square is one question and its four corners are the four methods. Click one to read the question, each answer and the query behind it.">
+      <Part summary="All 186 questions, four methods each: click one for the question, each answer and the query behind it." title="Every question, every method" lead="Each square is one question and its four corners are the four methods. Click one to read the question, each answer and the query behind it.">
         <Wall d={d} />
       </Part>
-      <Part title="What a request costs" lead="The schema in the prompt costs the same on every question, and an estate's schema grows with it. The layer's prompt is small.">
+      <Part summary="Tokens and time a request costs, by method." title="What a request costs" lead="The schema in the prompt costs the same on every question, and an estate's schema grows with it. The layer's prompt is small.">
         <Costs d={d} />
         <p className="mt-6 max-w-3xl text-sm text-fg-muted">
           With prompt caching, the schema in the prompt is the cheapest way to a right answer (see the table). What the layer buys is accuracy, and the tokens,
@@ -41,10 +41,10 @@ export default function AccuracyBody() {
           with thousands takes many times that.
         </p>
       </Part>
-      <Part title="Where the agent's gain comes from" lead="The agent's exchanges, and the first answer each one got.">
+      <Part summary="The agent's exchanges and the first answer each one got, and the caveats to read before quoting any figure on this page." title="Where the agent's gain comes from" lead="The agent's exchanges, and the first answer each one got.">
         <Gain d={d} />
-      </Part>
-      <Part title="Before you quote these" lead="Read the numbers with these, which belong to them.">
+        <h4 className="mt-10 text-base font-semibold tracking-tight">Before you quote these</h4>
+        <p className="mt-1 max-w-3xl text-fg-muted">Read the numbers on this page with these, which belong to them.</p>
         <ul className="mt-5 grid max-w-4xl list-disc gap-3 pl-5 text-sm leading-relaxed marker:text-fg-muted">
           <li>
             <strong className="font-medium">The questions favour precedent.</strong> They are written from the business's own queries, so about half are re-asks by

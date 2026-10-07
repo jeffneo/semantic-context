@@ -29,7 +29,7 @@ export default function MemoryBody() {
     <div>
       <Part
         live={LIVE.memory.fetch}
-        title="What is promoted"
+        summary="The entity, the facts that point at it and their dimensions, drawn on the schema, with what each read fetched." title="What is promoted"
         lead="The Virtual Graph reads the warehouse's rows on demand and keeps nothing. Memory keeps what a read fetched: the entity, the facts that point at it, and their dimensions, each fact still tied to the layer it came from."
       >
         <Fetch m={m} v={v} />
@@ -41,12 +41,12 @@ export default function MemoryBody() {
       <Part live={LIVE.memory.payoff} title="What it buys" lead="The next question about the same customer is a local graph read, not a query to the warehouse: faster, and nothing billed.">
         <Payoff m={m} />
       </Part>
-      <Part live={LIVE.memory.holds} title="How long it holds" lead="Nothing is promised fresh for ever. A fact holds for how often its table is written, as the log shows it, and a stale one is fetched again.">
+      <Part live={LIVE.memory.holds} summary="A fact holds for how often its table is written: move the age to see what goes stale." title="How long it holds" lead="Nothing is promised fresh for ever. A fact holds for how often its table is written, as the log shows it, and a stale one is fetched again.">
         <Holds m={m} />
       </Part>
       <Part
         live={LIVE.memory.governed}
-        title="Governed once remembered"
+        summary="Once remembered, each principal sees only what BigQuery would show them." title="Governed once remembered"
         lead="A row that has left the warehouse has left its row policies behind, so memory carries them: each principal sees only what BigQuery would show them."
       >
         <Governed m={m} />

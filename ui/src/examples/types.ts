@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import type { CodeLink } from "../repo";
 
 /** One part of an example page: a heading in the sidebar and a section down the page. */
 export interface Section {
@@ -8,6 +9,8 @@ export interface Section {
   summary: string;
   /** the section's content; a section without one is listed as coming */
   Body?: ComponentType;
+  /** the code that does the section's work, listed under its title */
+  code?: CodeLink[];
 }
 
 export interface SectionGroup {
@@ -23,4 +26,6 @@ export interface Example {
   /** the figures in the header band */
   stats: { label: string; value: string }[];
   groups: SectionGroup[];
+  /** the commit the sections' code links name */
+  commit?: string;
 }

@@ -1,6 +1,8 @@
 import { Suspense, use, useEffect } from "react";
 import { useLocation, useParams } from "react-router";
 import SectionNav from "../components/SectionNav";
+import { setLayout, useLayout } from "../layout";
+import { codeUrl } from "../repo";
 import { loadExample } from "../examples";
 import type { Example, Section } from "../examples/types";
 import NotFound from "./NotFound";
@@ -23,6 +25,7 @@ export default function ExamplePage() {
 function Loaded({ loading }: { loading: Promise<Example> }) {
   const ex = use(loading);
   const { hash } = useLocation();
+  const layout = useLayout();
 
   // Opening a link into a section (/examples/fennmoor#warehouse) cannot scroll until the example has loaded, so it is done here, once. Links within
   // the page are the browser's own, and scroll smoothly.
@@ -45,6 +48,16 @@ function Loaded({ loading }: { loading: Promise<Example> }) {
               </div>
             ))}
           </dl>
+          <div role="group" aria-label="Layout" className="mt-8 inline-flex items-center gap-3 text-sm text-fg-muted">
+            Layout
+            <span className="inline-flex rounded-md border border-line bg-bg p-0.5">
+              {(["compact", "full"] as const).map((l) => (
+                <button key={l} type="button" aria-pressed={layout === l} onClick={() => setLayout(l)} className={`rounded px-3 py-1 capitalize transition-colors ${layout === l ? "bg-fg text-bg" : "hover:text-fg"}`}>
+                  {l}
+                </button>
+              ))}
+            </span>
+          </div>
         </div>
       </header>
 
@@ -54,7 +67,7 @@ function Loaded({ loading }: { loading: Promise<Example> }) {
         </aside>
         <div>
           {ex.groups.flatMap((g) => g.sections).map((s) => (
-            <SectionView key={s.id} section={s} />
+            <SectionView key={s.id} section={s} commit={ex.commit} />
           ))}
         </div>
       </div>
@@ -62,12 +75,22 @@ function Loaded({ loading }: { loading: Promise<Example> }) {
   );
 }
 
-function SectionView({ section }: { section: Section }) {
+function SectionView({ section, commit }: { section: Section; commit?: string }) {
   const { Body } = section;
   return (
     <section id={section.id} className="scroll-mt-20 border-b border-line py-14 last:border-b-0">
       <h2 className="text-2xl font-semibold tracking-tight">{section.title}</h2>
       <p className="mt-2 max-w-2xl text-fg-muted">{section.summary}</p>
+      {commit && section.code && (
+        <p className="mt-3 flex max-w-4xl flex-wrap items-baseline gap-x-3 gap-y-1 text-xs text-fg-muted">
+          <span>Code</span>
+          {section.code.map((l) => (
+            <a key={l.label} href={codeUrl(commit, l)} target="_blank" rel="noopener noreferrer" className="font-mono text-fg underline decoration-line-strong underline-offset-2 hover:decoration-fg">
+              {l.label}
+            </a>
+          ))}
+        </p>
+      )}
       {Body ? (
         <Body />
       ) : (

@@ -24,7 +24,7 @@ export default function VirtualBody() {
   if (!d) return <div className="mt-8 h-[40rem] text-sm text-fg-muted">Loading the generated schema…</div>;
   return (
     <div>
-      <Part live={LIVE.virtual.steps} title="From the semantic layer to a graph schema" lead="Warehouses rarely declare their keys, so the model is written from usage: where the business's trusted joins converge, and what points at what.">
+      <Part live={LIVE.virtual.steps} summary="The model is written from usage: where the business's trusted joins converge, and what points at what." title="From the semantic layer to a graph schema" lead="Warehouses rarely declare their keys, so the model is written from usage: where the business's trusted joins converge, and what points at what.">
         <Steps d={d} />
       </Part>
       <Part
@@ -34,11 +34,11 @@ export default function VirtualBody() {
       >
         <Compare d={d} />
       </Part>
-      <Part live={LIVE.virtual.explorer} title="The generated schema" lead="Select a box or an arrow to see how it was made: what the layer said, the column, and the view that exposes the table.">
+      <Part live={LIVE.virtual.explorer} summary="Select a box or an arrow to see how it was made, the view that exposes the table, and what was left out." title="The generated schema" lead="Select a box or an arrow to see how it was made: what the layer said, the column, and the view that exposes the table.">
         <Explorer d={d} />
         <Left d={d} />
       </Part>
-      <Part live={LIVE.virtual.questions(d)} title="What it is for" lead="Questions that are natural over a graph: who handled a customer's calls, which merchants two customers share. Pick one to see the part of the schema its Cypher walks.">
+      <Part live={LIVE.virtual.questions(d)} summary={`Ten questions natural over a graph: Cypher on the generated schema was right on ${d.questions.filter((q) => q.cypher_verdict === "correct").length}.`} title="What it is for" lead="Questions that are natural over a graph: who handled a customer's calls, which merchants two customers share. Pick one to see the part of the schema its Cypher walks.">
         <Questions d={d} />
       </Part>
     </div>

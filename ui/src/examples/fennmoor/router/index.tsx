@@ -32,15 +32,15 @@ export default function RouterBody() {
       </Part>
       <Part
         live={LIVE.router.trace(r)}
-        title="A question, down the ladder"
+        summary="Ten questions followed down the rungs, with why each one served or declined." title="A question, down the ladder"
         lead="Ten questions that are natural over a graph, as the router took them. When the request compiles, compiled SQL serves; when it does not, free Cypher over the generated schema is tried, and when that declines too, free SQL."
       >
         <Trace r={r} />
       </Part>
-      <Part title="What each rung served" lead="The evaluations that ran the router, and what it chose on each. They are different questions with different rungs switched on.">
+      <Part summary="What the router chose in each evaluation, and how often it was right." title="What each rung served" lead="The evaluations that ran the router, and what it chose on each. They are different questions with different rungs switched on.">
         <Served r={r} />
       </Part>
-      <Part title="Where the Cypher rung does not reach" lead="Free Cypher reaches what a request cannot express, but only over the tables the Virtual Graph models.">
+      <Part summary="Free Cypher reaches what a request cannot express, but only over the tables the graph models." title="Where the Cypher rung does not reach" lead="Free Cypher reaches what a request cannot express, but only over the tables the Virtual Graph models.">
         <p className="mt-4 max-w-3xl text-[17px] leading-relaxed">
           On the {r.log.n} questions from the log, the Cypher route alone was right on {r.log.cypher.correct}, declined {r.log.cypher.declined}, and for{" "}
           {r.log.cypher["not covered"]} none of the tables was in the graph, which here models {r.graph.tables}. The router took it once, and it was wrong. On the questions

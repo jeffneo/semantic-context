@@ -26,7 +26,7 @@ export default function SecurityBody() {
     <div>
       <Part
         live={LIVE.security.principals}
-        title="The warehouse is the rulebook"
+        summary="What each principal may read, as the warehouse says: tables, columns and rows." title="The warehouse is the rulebook"
         lead="qlsc re-implements no rule. For each principal it asks the warehouse what they may read (tables, columns, rows) and works from the answer."
       >
         <Principals d={d} />
@@ -36,12 +36,12 @@ export default function SecurityBody() {
       </Part>
       <Part
         live={LIVE.security.pipe}
-        title="How Cypher reaches the warehouse as the principal"
+        summary="The signed request through the driver to BigQuery, and the three ways it is refused." title="How Cypher reaches the warehouse as the principal"
         lead="Virtual Graph reads rows through one identity of its own, which would show every principal everything. The pass-through driver stands in for it and runs each statement as the principal it was signed for."
       >
         <Pipe d={d} />
       </Part>
-      <Part title="Checked against the warehouse" lead="The warehouse is the oracle: what comes back is compared with what BigQuery shows that principal.">
+      <Part summary={`${d.evaluation.reduce((n, e) => n + e.schemaLeaks, 0)} schema leaks and ${d.evaluation.reduce((n, e) => n + e.rowIncidents, 0)} row incidents over ${d.evaluation.reduce((n, e) => n + e.questions, 0)} questions; ${d.controls.filter((c) => c.caught).length} of ${d.controls.length} broken gateways caught, ${d.driver.filter((x) => x.refused).length} of ${d.driver.length} bypasses refused.`} title="Checked against the warehouse" lead="The warehouse is the oracle: what comes back is compared with what BigQuery shows that principal.">
         <Checked d={d} />
       </Part>
     </div>
