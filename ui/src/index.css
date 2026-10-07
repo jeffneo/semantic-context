@@ -22,6 +22,12 @@
   --color-shard-memory: var(--shard-memory);
   --color-composite: var(--composite);
   --color-warehouse: var(--warehouse);
+  --color-ok: var(--ok);
+  --color-bad: var(--bad);
+  --color-area-1: var(--area-1);
+  --color-area-2: var(--area-2);
+  --color-area-3: var(--area-3);
+  --color-area-4: var(--area-4);
   --radius-card: var(--radius);
 }
 
@@ -60,6 +66,16 @@ body {
 .tile:not(.static):hover { transform: scale(1.3); }
 .tile.dim { opacity: 0.12; }
 .tile.sel { outline: 2px solid var(--link); outline-offset: 2px; }
+/* the regrouping map: every tile is placed with `translate` and glides to its next place; `transform` stays free for the hover */
+.tile.placed { position: absolute; left: 0; top: 0; transition: translate 0.85s cubic-bezier(0.2, 0.75, 0.2, 1), opacity 0.2s, transform 0.1s; }
+.tile.kin { outline: 2px solid color-mix(in oklab, var(--link) 50%, transparent); outline-offset: 1.5px; }
+.tile.nogroup { --ink: color-mix(in oklab, var(--fg) 24%, var(--bg)); }
+@keyframes label-in { from { opacity: 0; } to { opacity: 1; } }
+.block-label { position: absolute; left: 0; top: 0; animation: label-in 0.5s 0.55s both; }
+@media (prefers-reduced-motion: reduce) {
+  .tile.placed { transition: none; }
+  .block-label { animation: none; }
+}
 
 /* ---- the architecture diagram ------------------------------------------------------------------------------------ */
 .dg text { font-family: var(--font-sans-stack); fill: var(--fg); }

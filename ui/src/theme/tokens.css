@@ -1,10 +1,12 @@
 /*
   The palette, in one place. Every colour in the app is one of these variables, so a brand is a file of overrides.
 
-  Three groups, so a theme can inject selectively:
+  Four groups, so a theme can inject selectively:
     SURFACE   neutrals: page, text, borders        (leave alone for a clean look)
     ACTION    the accent: buttons, links, focus    (where a brand colour usually goes)
     SHARDS    the architecture diagram's colours   (one per Neo4j shard; the diagram and the deck use them everywhere)
+    STATUS    right and wrong                      (the accuracy charts)
+    AREAS     four categorical colours             (the broad areas of the semantic layer)
 
   Brand themes live in ./themes/*.css as [data-theme="name"] blocks, switched with ?theme=name (see useTheme.ts).
   Light and dark are a separate axis: [data-mode="light" | "dark"], defaulting to the system setting.
@@ -32,6 +34,16 @@
   --composite: #7928ca;
   --warehouse: #8f8f8f;
 
+  /* STATUS: an answer that is right, one that is wrong */
+  --ok: #1f9d55;
+  --bad: #e5484d;
+
+  /* AREAS: not the shards' blue, orange, green or purple, and not the status red and green */
+  --area-1: #0e9aa7;
+  --area-2: #c99a00;
+  --area-3: #d6409f;
+  --area-4: #6e6a86;
+
   --font-sans-stack: "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono-stack: "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
   --radius: 12px;
@@ -55,6 +67,12 @@
     --shard-memory: #3ecf8e;
     --composite: #b57bee;
     --warehouse: #a1a1a1;
+    --ok: #46c37b;
+    --bad: #ff6369;
+    --area-1: #33c3d0;
+    --area-2: #e8bd2c;
+    --area-3: #f06fbc;
+    --area-4: #a7a3c4;
   }
 }
 :root[data-mode="dark"] {
@@ -73,4 +91,10 @@
   --shard-memory: #3ecf8e;
   --composite: #b57bee;
   --warehouse: #a1a1a1;
+  --ok: #46c37b;
+  --bad: #ff6369;
+  --area-1: #33c3d0;
+  --area-2: #e8bd2c;
+  --area-3: #f06fbc;
+  --area-4: #a7a3c4;
 }

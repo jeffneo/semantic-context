@@ -29,6 +29,8 @@ Every colour is a CSS variable in [`src/theme/tokens.css`](src/theme/tokens.css)
 | SURFACE | `--bg`, `--fg`, `--fg-muted`, `--line`... | usually not (the clean, neutral look) |
 | ACTION | `--accent`, `--link`, `--focus` | yes: this is where a brand colour goes |
 | SHARDS | `--shard-semantic`, `--shard-rows`, `--shard-memory`, `--composite`, `--warehouse` | the diagram's colours, one per Neo4j shard, the deck's too |
+| STATUS | `--ok`, `--bad` | right and wrong answers (the accuracy charts) |
+| AREAS | `--area-1` to `--area-4` | four categorical colours for the semantic layer's broad areas; kept apart from the shards' and the status colours |
 
 A brand theme is a `[data-theme="name"]` block in `src/theme/themes/`, and `?theme=name` switches to it (remembered). `themes/neo4j.css` is a
 **placeholder**: only ACTION is overridden, and its values are not the official palette. Replace them with Neo4j's tokens. Light and dark are a separate axis
@@ -49,12 +51,23 @@ for its header, and sections in groups. The page and its contents sidebar are th
 [`examples/index.ts`](src/examples/index.ts)'s list and loaders. An example loads when its page opens, so its data stays out of the landing page's download.
 A section with no `Body` is listed as "soon"; give it a `Body` when its visualization is built.
 
-Fennmoor's warehouse (the squares, the schema panel) draws `src/examples/fennmoor/warehouse.json`: BigQuery's catalog as qlsc extracted it, with nothing of the
-spec's answer key and the logical Fennmoor project names. Regenerate it after `qlsc extract` and `generate/build.py`:
+Each Fennmoor section that draws real results has its data written by a generator in `examples/fennmoor-bank/generate/`, from what the example already
+measured or built. Nothing is mocked, and none of the spec's answer key or the physical GCP project name reaches the page. Run each after the stage it reads:
+
+| Section | Data | Generator | Reads |
+|---|---|---|---|
+| The warehouse | `fennmoor/warehouse.json` | `ui_warehouse.py` | the catalog extract (`qlsc extract`) |
+| Discovering the semantic layer | `fennmoor/discovery/discovery.json` | `ui_discovery.py` | the semantic layer's graph (`qlsc build`, Neo4j up) |
+| Accuracy | `fennmoor/accuracy/accuracy.json` | `ui_accuracy.py` | the comparison's results (`eval/comparison/run.py report`) |
 
 ```bash
 uv run examples/fennmoor-bank/generate/ui_warehouse.py
+uv run examples/fennmoor-bank/generate/ui_discovery.py
+uv run examples/fennmoor-bank/generate/ui_accuracy.py
 ```
+
+The discovery and accuracy sections load their data when the section mounts (the accuracy file is the largest: every query the methods wrote), so the page
+opens before they arrive.
 
 ```
 src/
@@ -63,7 +76,8 @@ src/
   components/                   Nav, Hero, SectionNav (the contents sidebar), ArchitectureDiagram (the hero: agents; the composite as the box around the three
                                 shards; the warehouse across the bottom; arcs between the shards; tasks run one at a time, each flashing along the connections
                                 and layers it uses and fading slowly; SVG, no tooltip, nothing follows the pointer)
-  examples/                     the list and loaders; fennmoor/ holds its data, Scenario, Warehouse, TableSchema and its sections
+  examples/                     the list and loaders; fennmoor/ holds its data and a folder or file per section: Scenario, Warehouse, discovery/
+                                (funnel, the tables regrouped by meaning, the join chords), accuracy/ (scores, the question wall, costs, outcomes)
   theme/                        tokens, brand themes, the theme hook
 ```
 

@@ -1,13 +1,15 @@
 import type { Example, Section } from "../types";
 import { TOTALS, WAREHOUSE } from "./data";
+import AccuracyBody from "./accuracy";
+import DiscoveryBody from "./discovery";
 import Scenario from "./Scenario";
 import Warehouse from "./Warehouse";
 
 const n = (x: number) => x.toLocaleString("en-US");
 
 /*
-  The first two sections are built. The rest are the aspects of the solution to be shown in depth, in the order a reader meets them; each is listed
-  and has its place on the page, and gets a Body when its visualization is built.
+  The scenario and the warehouse, then the aspects of the solution shown in depth, in the order a reader meets them. Each is listed and has its place
+  on the page; one without a Body is not built yet.
 */
 const scenario: Section = {
   id: "scenario",
@@ -25,6 +27,7 @@ const discovery: Section = {
   id: "discovery",
   title: "Discovering the semantic layer",
   summary: "What the tables mean and how they join, found automatically from the queries people ran.",
+  Body: DiscoveryBody,
 };
 const virtualGraph: Section = {
   id: "virtual-graph",
@@ -45,6 +48,7 @@ const accuracy: Section = {
   id: "accuracy",
   title: "Accuracy at full scale",
   summary: "How often the answers are right, measured on the full estate and the business's own questions.",
+  Body: AccuracyBody,
 };
 const security: Section = {
   id: "security",
