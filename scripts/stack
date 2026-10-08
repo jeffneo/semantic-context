@@ -1,0 +1,194 @@
+#!/usr/bin/env bash
+# One command up, one command down, for the whole demo stack.
+#
+#   scripts/stack up [--preview] [--nes]     Docker (the semantic layer and memory on neo4j, Virtual Graph and its composite on neo4j-vg; --nes adds Enterprise
+#                                            Studio), then the demo server (8787), then the page: the Vite dev server (5173), or with --preview the production
+#                                            build served on 4173 (what the recording uses)
+#                                            (Containers already running are left as they are, not recreated.)
+#   scripts/stack up --app                   only the demo server and the page (Docker already up)
+#   scripts/stack down [--remove]            the page, the demo server, then Docker stopped (kept: restarting is quick). --remove: containers removed too (the
+#                                            data volumes stay; the next `up` downloads the plugins again)
+#   scripts/stack down --app                 only the page and the demo server; the databases keep running
+#   scripts/stack status                     what is up, and where
+#
+# It is safe to run again: whatever is already up is left alone. It touches only this repository's compose project (qlsc-*) and the processes serving this
+# repository's page and demo server; nothing else on the machine. Data volumes are never deleted. Logs: .stack/.
+set -u
+cd "$(dirname "$0")/.." || exit 1
+ROOT=$PWD
+RUN=$ROOT/.stack
+mkdir -p "$RUN"
+
+# ---- what to do
+cmd=${1:-}
+shift || true
+APP_ONLY=0 PREVIEW=0 NES=0 REMOVE=0
+for a in "$@"; do
+  case $a in
+    --app) APP_ONLY=1 ;;
+    --preview) PREVIEW=1 ;;
+    --nes) NES=1 ;;
+    --remove) REMOVE=1 ;;
+    *) echo "unknown option $a"; exit 2 ;;
+  esac
+done
+
+say() { printf '%s\n' "$*"; }
+ok() { printf '  \033[32m✓\033[0m %s\n' "$*"; }
+warn() { printf '  \033[33m!\033[0m %s\n' "$*"; }
+bad() { printf '  \033[31m✗\033[0m %s\n' "$*"; }
+
+# a port from .env (ports only: nothing secret is read here), else its default
+envval() { local v; v=$(grep -E "^$1=" "$ROOT/.env" 2>/dev/null | head -1 | cut -d= -f2- | tr -d "\"'"); printf '%s' "${v:-$2}"; }
+BOLT=$(envval NEO4J_BOLT_PORT 7687)
+VG_BOLT=$(envval NEO4J_VG_BOLT_PORT 7692)
+SERVER_PORT=8787 DEV_PORT=5173 PREVIEW_PORT=4173
+# Virtual Graph's BigQuery credentials (docker/nvg/README.md): from the environment or .env if set there, else the file that README makes. Compose needs the variable for
+# every verb, stopping included.
+if [ -z "${VG_CREDENTIALS:-}" ] && ! grep -q '^VG_CREDENTIALS=' "$ROOT/.env" 2>/dev/null; then export VG_CREDENTIALS=$HOME/.config/qlsc-vg/application_default_credentials.json; fi
+
+listener() { lsof -iTCP:"$1" -sTCP:LISTEN -t 2>/dev/null | head -1; }
+command_of() { ps -o command= -p "$1" 2>/dev/null; }
+# the compose project: Virtual Graph's profile always, Enterprise Studio's when asked for, or whenever something is being stopped (so nothing is left behind)
+compose() {
+  local verb=$1
+  shift
+  if [ "$NES" = 1 ] || [ "$verb" != up ]; then docker compose --profile vg --profile nes "$verb" "$@"; else docker compose --profile vg "$verb" "$@"; fi
+}
+
+wait_for() { # label, timeout seconds, command...
+  local label=$1 limit=$2 t=0
+  shift 2
+  while ! "$@" >/dev/null 2>&1; do
+    t=$((t + 3)); [ $t -gt "$limit" ] && { bad "$label: not ready after ${limit}s"; return 1; }
+    sleep 3
+  done
+  ok "$label"
+}
+neo4j_ready() { docker exec "$1" sh -c 'cypher-shell -u neo4j -p "${NEO4J_AUTH#neo4j/}" "RETURN 1"'; }
+composite_ready() { docker exec qlsc-neo4j-vg sh -c 'cypher-shell -u neo4j -p "${NEO4J_AUTH#neo4j/}" -d fennmoor "USE fennmoor.semantic RETURN 1"'; }
+
+# ---- up
+up_docker() {
+  say "Docker"
+  docker info >/dev/null 2>&1 || { bad "Docker is not running: start Docker Desktop"; return 1; }
+  [ -f .env ] || { bad ".env is missing: cp .env.example .env, and set the passwords"; return 1; }
+  [ -n "${VG_CREDENTIALS:-}" ] && [ ! -f "$VG_CREDENTIALS" ] && ! grep -q '^VG_CREDENTIALS=' .env && { bad "Virtual Graph's credentials file is missing ($VG_CREDENTIALS): make it as docker/nvg/README.md says, or set VG_CREDENTIALS"; return 1; }
+  if [ ! -f vg-passthrough/target/qlsc-vg-passthrough.jar ]; then
+    warn "the JDBC pass-through is not built: building it (vg-passthrough/build.sh)"
+    vg-passthrough/build.sh >"$RUN/passthrough-build.log" 2>&1 || { bad "the pass-through did not build: see .stack/passthrough-build.log"; return 1; }
+  fi
+  compose up -d --no-recreate neo4j neo4j-vg >"$RUN/docker.log" 2>&1 || { bad "docker compose up failed: see .stack/docker.log"; return 1; }
+  wait_for "neo4j: the semantic layer, memory and process databases (bolt $BOLT)" 180 neo4j_ready qlsc-neo4j || return 1
+  wait_for "neo4j-vg: Virtual Graph (bolt $VG_BOLT)" 180 neo4j_ready qlsc-neo4j-vg || return 1
+  composite_ready >/dev/null 2>&1 && ok "the composite database (fennmoor: layer, rows and memory)" || warn "the composite database did not answer: see docker/nvg/README.md"
+  if [ $NES = 1 ]; then # Studio keeps nothing of its own (its assets are in neo4j), so it is refreshed to the compose file as it is now, which a stale container is not
+    compose up -d nes-init enterprise-studio >>"$RUN/docker.log" 2>&1 || { bad "Enterprise Studio did not start: see .stack/docker.log"; return 1; }
+    ok "Enterprise Studio: http://localhost:$(envval NES_PORT 8080) (sign in yourself)"
+  fi
+  return 0
+}
+
+bigquery_login() {
+  command -v gcloud >/dev/null || { warn "gcloud is not installed: BigQuery will not answer"; return; }
+  local cfg; cfg=$(grep -E "^\s*gcloud_config:" examples/fennmoor-bank/estate.yaml | head -1 | sed 's/.*gcloud_config:\s*//; s/[#].*//; s/["'"'"' ]//g')
+  if [ -n "$(CLOUDSDK_ACTIVE_CONFIG_NAME=${cfg:-qlsc} gcloud auth list --filter=status:ACTIVE --format='value(account)' 2>/dev/null)" ]; then
+    ok "BigQuery login (gcloud configuration '${cfg:-qlsc}' is signed in)"
+  else
+    warn "BigQuery: gcloud configuration '${cfg:-qlsc}' is not signed in: the live panels that read the warehouse will fail"
+  fi
+}
+
+up_app() {
+  say "Demo server and page"
+  command -v uv >/dev/null || { bad "uv is not installed"; return 1; }
+  command -v npm >/dev/null || { bad "node and npm are not installed"; return 1; }
+  if [ -n "$(listener $SERVER_PORT)" ]; then
+    ok "demo server already up (http://localhost:$SERVER_PORT)"
+  else
+    nohup uv run examples/fennmoor-bank/server.py >"$RUN/server.log" 2>&1 </dev/null &
+    wait_for "demo server (http://localhost:$SERVER_PORT/api/info)" 90 curl -sf -m 3 "http://localhost:$SERVER_PORT/api/info" || { say "    see .stack/server.log"; return 1; }
+  fi
+  [ -d ui/node_modules ] || { say "  installing the page's packages (npm install)"; (cd ui && npm install >"$RUN/npm.log" 2>&1) || { bad "npm install failed: see .stack/npm.log"; return 1; }; }
+  if [ $PREVIEW = 1 ]; then
+    if [ -n "$(listener $PREVIEW_PORT)" ]; then
+      ok "page already up (http://localhost:$PREVIEW_PORT)"
+    else
+      say "  building the page"
+      (cd ui && npm run build >"$RUN/ui-build.log" 2>&1) || { bad "the page did not build: see .stack/ui-build.log"; return 1; }
+      nohup bash -c "cd ui && exec npx vite preview --port $PREVIEW_PORT --strictPort" >"$RUN/ui.log" 2>&1 </dev/null &
+      wait_for "page, the production build (http://localhost:$PREVIEW_PORT)" 60 curl -sf -m 3 "http://localhost:$PREVIEW_PORT/" || return 1
+    fi
+  else
+    if [ -n "$(listener $DEV_PORT)" ]; then
+      ok "page already up (http://localhost:$DEV_PORT)"
+    else
+      nohup bash -c "cd ui && exec npm run dev -- --port $DEV_PORT --strictPort" >"$RUN/ui.log" 2>&1 </dev/null &
+      wait_for "page, the dev server (http://localhost:$DEV_PORT)" 60 curl -sf -m 3 "http://localhost:$DEV_PORT/" || return 1
+    fi
+  fi
+  return 0
+}
+
+# ---- down
+# Stop whatever listens on a port, if it is this repository's: the page's Vite or the demo server.
+stop_port() { # port, what
+  local pid cmd parent
+  pid=$(listener "$1")
+  [ -z "$pid" ] && { ok "$2: not running"; return; }
+  cmd=$(command_of "$pid")
+  case $cmd in
+    *examples/fennmoor-bank/server.py* | *"$ROOT"/ui/*) ;;
+    *) warn "$2: port $1 is held by something else ($(printf '%s' "$cmd" | cut -c1-60)): left alone"; return ;;
+  esac
+  parent=$(ps -o ppid= -p "$pid" | tr -d ' ')
+  case $(command_of "$parent") in *"uv run"* | *"npm run"* | *"npm exec"* | *"npx "*) kill "$parent" 2>/dev/null ;; esac
+  kill "$pid" 2>/dev/null
+  for _ in 1 2 3 4 5 6 7 8 9 10; do [ -z "$(listener "$1")" ] && break; sleep 0.5; done
+  [ -z "$(listener "$1")" ] && ok "$2: stopped" || bad "$2: still running on port $1"
+}
+
+down_app() {
+  say "Page and demo server"
+  stop_port $PREVIEW_PORT "page (production build)"
+  stop_port $DEV_PORT "page (dev server)"
+  stop_port $SERVER_PORT "demo server"
+}
+
+down_docker() {
+  say "Docker"
+  docker info >/dev/null 2>&1 || { ok "Docker is not running"; return; }
+  if [ $REMOVE = 1 ]; then
+    compose down >"$RUN/docker.log" 2>&1 && ok "containers stopped and removed (volumes kept)" || bad "docker compose down failed: see .stack/docker.log"
+  else
+    compose stop >"$RUN/docker.log" 2>&1 && ok "containers stopped (kept: \`scripts/stack up\` starts them again)" || bad "docker compose stop failed: see .stack/docker.log"
+  fi
+}
+
+status() {
+  say "Docker"
+  if docker info >/dev/null 2>&1; then
+    docker ps -a --filter "label=com.docker.compose.project=qlsc" --format '  {{.Names}}  {{.Status}}'
+    [ -z "$(docker ps -a --filter 'label=com.docker.compose.project=qlsc' -q)" ] && say "  no containers"
+  else
+    say "  Docker is not running"
+  fi
+  say "Demo server and page"
+  for e in "$SERVER_PORT:demo server" "$DEV_PORT:page (dev server)" "$PREVIEW_PORT:page (production build)"; do
+    p=${e%%:*}; n=${e#*:}
+    [ -n "$(listener "$p")" ] && ok "$n: http://localhost:$p" || say "  · $n: not running"
+  done
+}
+
+case $cmd in
+  up)
+    rc=0
+    if [ $APP_ONLY = 0 ]; then up_docker || rc=1; fi
+    if [ $rc = 0 ]; then bigquery_login; up_app || rc=1; fi
+    [ $rc = 0 ] && say "
+The stack is up. Page: http://localhost:$([ $PREVIEW = 1 ] && echo $PREVIEW_PORT || echo $DEV_PORT)    Stop it: scripts/stack down"
+    exit $rc ;;
+  down) down_app; [ $APP_ONLY = 1 ] || down_docker ;;
+  status) status ;;
+  *) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; [ -z "$cmd" ] || exit 2 ;;
+esac

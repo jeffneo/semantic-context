@@ -79,6 +79,8 @@ uv run examples/fennmoor-bank/eval/process_scale.py [conversations ...]   # the 
 uv run examples/fennmoor-bank/generate/corpus.py --audit|--push|--pull   # the process corpus (plans/2026-10-05-process-corpus.md): check it, back it up to / restore it from gs://fennmoor-corpus
 ```
 
+The whole stack, one command each way: `scripts/stack up` (Docker's neo4j and neo4j-vg, the demo server on 8787, the page on 5173; `--preview` the production build on 4173, `--nes` Enterprise Studio, `--app` skips Docker) and `scripts/stack down` (`--app` leaves Docker running, `--remove` removes the containers, never the data); `scripts/stack status`. It is safe to run again.
+
 The demo's front end: `cd ui && npm install && npm run dev` (Vite, React, Tailwind; see ui/README.md). Its live panels (a query or command beside each part, run for real,
 read only) go through `uv run examples/fennmoor-bank/server.py`, from the repository root; it uses estate.yaml and `.env` as everything else does.
 `NEO4J_CONTACT_EMAIL` (in `ui/.env.local`) is the contact shown in its header. The Example page's table map draws `ui/src/examples/fennmoor/warehouse.json`:

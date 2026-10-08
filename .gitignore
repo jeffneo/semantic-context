@@ -37,3 +37,5 @@ docker/tls/bolt/
 
 # Not for public consumption:
 internal/
+# scripts/stack's logs
+.stack/

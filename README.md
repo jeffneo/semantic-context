@@ -93,9 +93,13 @@ Every figure on the page is from the example's own evaluation results, and each 
 is mocked. Each section links to the code that does its work, pinned to a commit, and the layout can be switched between compact and full.
 
 ```bash
-cd ui && npm install && npm run dev      # the page: http://localhost:5173
-uv run examples/fennmoor-bank/server.py  # the live controls (from the repository root; needs the services below running)
+scripts/stack up        # the databases, Virtual Graph, the demo server and the page: http://localhost:5173
+scripts/stack down      # and all of it stopped again (the data stays)
 ```
+
+`scripts/stack up` starts what is not already running and leaves the rest alone; `--preview` serves the production build on 4173 instead, `--nes` adds Enterprise Studio,
+`--app` is only the demo server and the page, and `scripts/stack status` says what is up. By hand, it is `docker compose --profile vg up -d`, then
+`uv run examples/fennmoor-bank/server.py` from the repository root and `cd ui && npm install && npm run dev`.
 
 The page itself is static and needs no server; the live controls need the Neo4j databases, Virtual Graph and BigQuery access described under
 [Use it](#use-it), and `server.py` is the only thing between the page and them. See [ui/README.md](ui/README.md).
