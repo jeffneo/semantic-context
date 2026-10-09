@@ -1,5 +1,5 @@
 {
- "commit": "0a50275b2a1e36dbcd2ce37ad67288c67710c9e7",
+ "commit": "cbf2af0811d30cd9929cd4283536cb9addb0a244",
  "sections": {
   "scenario": [
    {
@@ -171,31 +171,31 @@
    {
     "label": "memory.template",
     "path": "src/qlsc/memory.py",
-    "line": 362,
+    "line": 367,
     "symbol": "def template"
    },
    {
     "label": "memory.run_batch",
     "path": "src/qlsc/memory.py",
-    "line": 479,
+    "line": 484,
     "symbol": "def run_batch"
    },
    {
     "label": "memory.cadence_days",
     "path": "src/qlsc/memory.py",
-    "line": 609,
+    "line": 614,
     "symbol": "def cadence_days"
    },
    {
     "label": "memory.recall",
     "path": "src/qlsc/memory.py",
-    "line": 761,
+    "line": 771,
     "symbol": "def recall"
    },
    {
     "label": "memory.answerable",
     "path": "src/qlsc/memory.py",
-    "line": 994,
+    "line": 1004,
     "symbol": "def answerable"
    },
    {
@@ -275,7 +275,7 @@
    {
     "label": "setup.row_policies",
     "path": "examples/fennmoor-bank/entitlements/setup.py",
-    "line": 271,
+    "line": 273,
     "symbol": "def row_policies"
    },
    {
