@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
-import { cypher, getInfo, method, pick, ServerError, sql, type Info, type MethodArgs, type QueryResult } from "./api";
+import { useCustomer } from "./customer";
+import { cypher, getInfo, method, ServerError, sql, type Info, type MethodArgs, type QueryResult } from "./api";
 import ResultTable from "./ResultTable";
 import type { CypherSpec, LiveSpec, MethodPreset, MethodSpec, SqlSpec, Target } from "./types";
 
@@ -209,24 +210,6 @@ function RunBar({ running, since, run, runLabel = "Run" }: { running: boolean; s
       <span className="ml-auto">{running && since ? <Elapsed since={since} /> : "Runs for real; only reads."}</span>
     </div>
   );
-}
-
-/** The customer a memory example runs on: chosen by the server (a customer with calls and card activity that memory does not hold yet), so each visitor's first recall is a real fetch. */
-function useCustomer(wanted: boolean) {
-  const [customer, setCustomer] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const choose = () => {
-    setCustomer(null);
-    setError(null);
-    pick().then(
-      (r) => setCustomer(r.customer),
-      (e: unknown) => setError(e instanceof ServerError ? e.message : String(e)),
-    );
-  };
-  useEffect(() => {
-    if (wanted) choose();
-  }, [wanted]);
-  return { customer, error, choose };
 }
 
 function CustomerChip({ c }: { c: ReturnType<typeof useCustomer> }) {

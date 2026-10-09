@@ -16,7 +16,7 @@ export default function ExamplePage() {
   const loading = loadExample(slug);
   if (!loading) return <NotFound />;
   return (
-    <Suspense fallback={<p className="mx-auto max-w-[1800px] px-5 py-24 text-fg-muted sm:px-8">Loading the example…</p>}>
+    <Suspense fallback={<div className="min-h-screen" aria-busy="true" />}>
       <Loaded loading={loading} />
     </Suspense>
   );
