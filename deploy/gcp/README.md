@@ -7,6 +7,7 @@ three-database Neo4j deployment with a composite database is put on infrastructu
 ```bash
 scripts/cloud up        # from nothing, or from stopped: about 30 minutes the first time; prints the address
 scripts/cloud status
+scripts/cloud tunnel    # a way in to the database machines, while it runs
 scripts/cloud down      # stops the database machines: about about $30 a month while stopped (the disks); running 24 hours a day, about $180
 scripts/cloud destroy   # removes the machines, the service and the rest of what runs; the network stays
 scripts/cloud destroy --everything   # and the network too (it waits, up to three hours, for Google to release Cloud Run's addresses in the subnet)
@@ -58,7 +59,10 @@ beyond it waits for a place and is told) and at most `demo_max_instances` copies
   it warns, it does not stop anything.
 - `demo_min_instances` (default 0): the service scales to zero when idle, so the first visitors after a quiet spell wait for a copy to start (a first recall can take about a minute, and a burst of
   visitors may see a connection reset while copies are added). Set it to 1 for an event: a copy stays warm, for about $25 a month while it is set.
-- `debug_bolt_over_iap` (default off) lets Google's tunnel proxy forward bolt to the database machines, to test one from a workstation; leave it off in a real deployment.
+- `scripts/cloud tunnel` is the way in to the database machines from your workstation (to query one, or open Browser on it): it opens a firewall rule for Google's tunnel proxy (IAP) on bolt
+  while it runs, starts a tunnel to each machine on a local port (7701 semantic, 7702 memory, 7703 Virtual Graph) and prints how to connect; Ctrl-C closes it and removes the rule
+  (`scripts/cloud tunnel --close` removes one a killed tunnel left; `status` says if one is open). The machines keep no public address, and who may use it is IAM's
+  (`roles/iap.tunnelResourceAccessor`), so the deployment is closed by default and an operator's access is deliberate.
 - To change what is deployed: `scripts/cloud image` builds and pushes a new image, then `terraform apply` in `terraform/` rolls it out; `scripts/cloud dump` and
   a `terraform apply -replace='google_compute_instance.db["memory"]'` put new data on a machine (a machine restores only into an empty disk).
 

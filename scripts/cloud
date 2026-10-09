@@ -10,6 +10,11 @@
 #                                        reserved in the subnet for a long while after its service is gone, so a subnet cannot be deleted at once. --everything removes the
 #                                        network too, and waits (up to three hours) for Google to release those addresses.
 #   scripts/cloud status                 what is running, and whether the demo answers.
+#   scripts/cloud tunnel [semantic|memory|vg ...] [--close]
+#                                        a way in to the database machines from this workstation, for as long as it runs (Ctrl-C closes it): opens a firewall rule for Google's
+#                                        IAP range on bolt, starts an IAP tunnel to each machine named (all three by default) on a local port (7701 semantic, 7702 memory,
+#                                        7703 vg), and says how to connect. Who may use it is IAM's (roles/iap.tunnelResourceAccessor), not the network's: the machines keep
+#                                        no public address. The rule is removed when it stops; --close removes one that a killed tunnel left behind.
 #
 # The steps `up` is made of, each also on its own:
 #   scripts/cloud secrets [--force]      the secrets' values in Secret Manager: the Virtual Graph's signing key (from this checkout's work/virtual), the Neo4j and keystore
@@ -258,6 +263,7 @@ destroy() {
   [ "$answer" = "$PROJECT" ] || die "not confirmed"
   bootstrap
   legacy_state && die "the state predates the runtime module: run scripts/cloud up once first (it moves the state, and rebuilds nothing)"
+  tunnel_rule_close  # not Terraform's, so not in its destroy: a rule left by a killed tunnel would hold the network
   rm -f "$TF/image.auto.tfvars"  # first, so that a destroy that stops half way does not leave a name for an image that is gone
   # The typed project id above is the confirmation. Only module.runtime: the network and the APIs are not in it.
   tf destroy -auto-approve -target=module.runtime
@@ -277,6 +283,59 @@ destroy() {
   fi
 }
 
+# The bolt rule `tunnel` opens: IAP's range to the machines tagged qlsc-db, on 7687 only, and only while a tunnel is up. Not Terraform's: a deployment is closed by default.
+TUNNEL_RULE="qlsc-demo-iap-bolt"
+tunnel_rule_open() { local n; n=$(gcloud compute firewall-rules list --project="$PROJECT" --filter="name=$TUNNEL_RULE" --format='value(name)' 2>/dev/null || true); [ -n "$n" ]; }
+tunnel_rule_close() {
+  if tunnel_rule_open; then
+    gcloud compute firewall-rules delete "$TUNNEL_RULE" --project="$PROJECT" --quiet >/dev/null 2>&1 && say "closed: the firewall rule $TUNNEL_RULE is removed"
+  fi
+  return 0
+}
+tunnel_port() { case "$1" in semantic) echo 7701 ;; memory) echo 7702 ;; vg) echo 7703 ;; esac; }
+
+tunnel() {
+  local roles=() arg role port network i
+  TUNNEL_PIDS=()
+  for arg in "$@"; do
+    case "$arg" in
+      --close) tunnel_rule_close; return 0 ;;
+      semantic | memory | vg) roles+=("$arg") ;;
+      *) die "tunnel: semantic, memory or vg (or --close), not $arg" ;;
+    esac
+  done
+  [ ${#roles[@]} -gt 0 ] || roles=(semantic memory vg)
+  network=$(gcloud compute instances describe db-vg --zone="$ZONE" --project="$PROJECT" --format='value(networkInterfaces[0].network.basename())' 2>/dev/null || true)
+  [ -n "$network" ] || die "db-vg is not there: scripts/cloud up first"
+  if ! tunnel_rule_open; then
+    say "opening bolt from IAP's range to the database machines (the rule $TUNNEL_RULE, removed when this stops)"
+    gcloud compute firewall-rules create "$TUNNEL_RULE" --project="$PROJECT" --network="$network" --direction=INGRESS --allow=tcp:7687 \
+      --source-ranges=35.235.240.0/20 --target-tags=qlsc-db --description="scripts/cloud tunnel: bolt through IAP while a tunnel is up" >/dev/null
+  fi
+  trap 'kill ${TUNNEL_PIDS[@]:-} 2>/dev/null || true; tunnel_rule_close' EXIT
+  trap 'exit 130' INT TERM HUP
+  for role in "${roles[@]}"; do
+    gcloud compute start-iap-tunnel "db-$role" 7687 --local-host-port="localhost:$(tunnel_port "$role")" --zone="$ZONE" --project="$PROJECT" >/dev/null 2>&1 &
+    TUNNEL_PIDS+=($!)
+  done
+  for role in "${roles[@]}"; do
+    port=$(tunnel_port "$role")
+    for i in $(seq 1 60); do
+      (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null && break
+      [ "$i" -lt 60 ] || die "tunnel: nothing answers on localhost:$port (is db-$role running? may your sign-in use IAP: roles/iap.tunnelResourceAccessor)"
+      sleep 1
+    done
+    echo "db-$role  bolt://localhost:$port"
+  done
+  cat <<TEXT
+user neo4j; the password is the secret qlsc-demo-neo4j-password:
+  gcloud secrets versions access latest --secret=qlsc-demo-neo4j-password --project=$PROJECT
+databases: 'bigquery' (semantic), 'memory' (memory), 'neo4j' and the composite 'fennmoor' (vg). The tunnel is encrypted by IAP: use bolt://, not neo4j+s://.
+Ctrl-C closes it and removes the firewall rule.
+TEXT
+  wait "${TUNNEL_PIDS[@]}" || true
+}
+
 status() {
   gcloud compute instances list --project="$PROJECT" --filter='labels.app=qlsc-demo' --format='table(name,status,networkInterfaces[0].networkIP)'
   local url; url=$(demo_url)
@@ -286,6 +345,7 @@ status() {
   else
     echo "no service"
   fi
+  tunnel_rule_open && echo "bolt tunnel rule: OPEN ($TUNNEL_RULE; scripts/cloud tunnel --close removes it)" || true
 }
 
 case "${1:-}" in
@@ -293,9 +353,10 @@ case "${1:-}" in
   down) down ;;
   destroy) shift; destroy "$@" ;;
   status) status ;;
+  tunnel) shift; tunnel "$@" ;;
   secrets) shift; secrets "$@" ;;
   publish) publish ;;
   dump) dump ;;
   image) image ;;
-  *) sed -n '2,28p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 2 ;;
+  *) sed -n '2,32p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

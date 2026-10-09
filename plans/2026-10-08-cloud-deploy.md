@@ -24,7 +24,7 @@ page should open and run. This section supersedes the access code wherever the r
    process, and it *refuses* a third. Replaced by: a limit set by memory (a variable, 8 on Cloud Run's 4 GiB), a visitor who waits for a free slot instead of being refused,
    Cloud Run's concurrency set to match, and `demo_max_instances` 4. What is a real limit is Virtual Graph's heap (one machine, 5G, a 2g cap per transaction: the earlier
    out-of-memory under three concurrent runs was on 2G). That is measured with a load test of many concurrent visitors, and the machine is sized from the result.
-5. **Housekeeping.** `debug_bolt_over_iap` off; the optional budget alert (`billing_account`); the README's cost line corrected (stopped machines still pay for their disks:
+5. **Housekeeping.** the debug bolt switch off, and replaced by `scripts/cloud tunnel` (an IAP tunnel and a firewall rule that exist only while it runs, 2026-10-09); the optional budget alert (`billing_account`); the README's cost line corrected (stopped machines still pay for their disks:
    about $30 a month, not a dollar; running, about $180).
 6. **Memory.** The retention policy ([plans/2026-10-08-memory-retention.md](2026-10-08-memory-retention.md)) and a test customer per visitor, so concurrent visitors do not share
    a customer and what they leave expires.

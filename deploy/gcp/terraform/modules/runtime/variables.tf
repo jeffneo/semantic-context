@@ -40,12 +40,6 @@ variable "neo4j_license_agreement" {
   default     = "eval"
 }
 
-variable "debug_bolt_over_iap" {
-  description = "Let an IAP tunnel reach the databases' bolt port, to test one from a workstation. Off for a real deployment."
-  type        = bool
-  default     = false
-}
-
 variable "demo_image" {
   description = "The demo image to run (scripts/cloud image builds it, pushes it and writes this to image.auto.tfvars). Empty: no service yet."
   type        = string

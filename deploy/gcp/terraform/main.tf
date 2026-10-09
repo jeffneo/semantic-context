@@ -10,7 +10,6 @@ module "runtime" {
   data_source_service_account = var.data_source_service_account
   databases                   = var.databases
   neo4j_license_agreement     = var.neo4j_license_agreement
-  debug_bolt_over_iap         = var.debug_bolt_over_iap
   demo_image                  = var.demo_image
   demo_max_instances          = var.demo_max_instances
   demo_min_instances          = var.demo_min_instances

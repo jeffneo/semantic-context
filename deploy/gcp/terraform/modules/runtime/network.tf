@@ -27,7 +27,8 @@ resource "google_compute_firewall" "bolt_internal" {
   }
 }
 
-# A shell on a machine, only through Identity-Aware Proxy (Google's range), and bolt through it when debugging.
+# A shell on a machine, only through Identity-Aware Proxy (Google's range). Bolt through it, to query a database from a workstation, is not here: `scripts/cloud tunnel`
+# opens a rule of its own (qlsc-demo-iap-bolt) while a tunnel is up and removes it after, so the deployment is closed by default.
 resource "google_compute_firewall" "iap" {
   name          = "qlsc-demo-iap"
   network       = var.network_name
@@ -35,6 +36,6 @@ resource "google_compute_firewall" "iap" {
   target_tags   = ["qlsc-db"]
   allow {
     protocol = "tcp"
-    ports    = var.debug_bolt_over_iap ? ["22", "7687"] : ["22"]
+    ports    = ["22"]
   }
 }
