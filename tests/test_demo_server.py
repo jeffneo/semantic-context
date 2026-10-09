@@ -16,12 +16,42 @@ from conftest import EXAMPLE, ROOT
 QUERIES = ROOT / "ui" / "src" / "examples" / "fennmoor" / "queries"
 
 
-@pytest.fixture(scope="module")
-def server():
-    spec = importlib.util.spec_from_file_location("demo_server", EXAMPLE / "server.py")
+PRESETS = {
+    "cypher": {
+        "layer": ["MATCH (n) RETURN count(n)"],
+        "memory": ["MATCH (c:Customer {cif_number: $customer}) RETURN count(c)"],
+    },
+    "sql": ["SELECT 1"],
+    "ask": [
+        {"question": "How many calls?", "route": "cypher"},
+        {"question": "How many calls? Later.", "route": "auto"},
+        {"question": "--help; rm -rf /", "route": "auto"},
+    ],
+    "recall": [{"entity": "Customer", "key": "cif_number=*"}],
+    "exchange": ["0"],
+}
+
+
+def load(name: str, env: dict, tmp_path):
+    """The server as a process with this environment would load it, and a presets file of its own."""
+    import json
+
+    presets = tmp_path / f"{name}-presets.json"
+    presets.write_text(json.dumps(PRESETS))
+    mp = pytest.MonkeyPatch()
+    mp.setenv("QLSC_DEMO_PRESETS", str(presets))
+    for k, v in env.items():
+        mp.setenv(k, v)
+    spec = importlib.util.spec_from_file_location(name, EXAMPLE / "server.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    mp.undo()
     return module
+
+
+@pytest.fixture(scope="module")
+def server(tmp_path_factory):
+    return load("demo_server", {}, tmp_path_factory.mktemp("local"))
 
 
 # ---- what is refused before it is sent
@@ -171,3 +201,169 @@ def test_a_refusal_by_the_warehouse_confirms_nothing(server):
     assert "dim_customer" not in said and "dw_core" not in said and "contact-center" not in said
     assert "does not exist or is not available" in said
     assert "no such property" in server.told("no such property: x")
+
+
+# ---- the page's own examples, and nothing else
+
+
+@pytest.fixture
+def pool(server, monkeypatch):
+    """The customers a memory example may use: a short pool, so no warehouse is asked."""
+    monkeypatch.setattr(server, "_customers", ["0001", "0002", "0003"])
+    return server._customers
+
+
+def test_only_the_presets_run(server, pool):
+    for body in (
+        {"target": "layer", "query": "MATCH (n) RETURN n LIMIT 5"},
+        {"target": "memory", "query": "MATCH (n) RETURN count(n)"},  # a preset, but of another target
+    ):
+        with pytest.raises(server.Refused, match="page's own examples"):
+            server.cypher(body)
+    with pytest.raises(server.Refused, match="page's own examples"):
+        server.sql({"query": "SELECT 2"})
+    server.argv({"command": "ask", "question": "How many calls?", "route": "cypher"})
+    server.argv(
+        {"command": "ask", "question": "How many calls? Later."}
+    )  # no route is auto, as the page sends it
+    server.argv({"command": "recall", "label": "Customer", "key": "cif_number=0001"})
+    server.argv({"command": "exchange", "n": "0"})
+    for body in (
+        {"command": "ask", "question": "How many calls? Or fewer?", "route": "auto"},
+        {"command": "ask", "question": "How many calls?", "route": "sql"},
+        {"command": "recall", "label": "Customer", "key": "cif_number=9999"},  # not a customer of the pool
+        {"command": "recall", "label": "Customer", "key": "segment=retail"},
+        {"command": "remember", "label": "Customer", "key": "cif_number=0001"},
+        {"command": "exchange", "n": "1"},
+        {"command": "composite"},
+    ):
+        with pytest.raises(server.Refused, match="page's own examples"):
+            server.argv(body)
+
+
+def test_a_customer_is_one_of_the_pool(server, pool):
+    assert server.customer_of({}) is None
+    assert server.customer_of({"customer": "0002"}) == "0002"
+    with pytest.raises(server.Refused):
+        server.customer_of({"customer": "0001 OR 1=1"})
+
+
+def test_a_customer_is_chosen_who_is_not_remembered(server, pool, monkeypatch):
+    class Fake:
+        def __init__(self, rows):
+            self.rows_ = rows
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def rows(self, query, **params):
+            return self.rows_
+
+    monkeypatch.setattr(server.memory, "memory_graph", lambda s: Fake([{"k": "0001"}, {"k": "0002"}]))
+    assert {server.pick()["customer"] for _ in range(20)} == {"0003"}  # the only one memory does not hold
+    monkeypatch.setattr(server.memory, "memory_graph", lambda s: Fake([{"k": c} for c in pool]))
+    assert server.pick()["customer"] in pool  # all are remembered: one of them again, not none
+
+
+def test_a_command_waits_for_a_free_place_and_then_is_refused(server, monkeypatch):
+    """Visitors beyond the limit wait, and are told; they are refused only if no place frees in time."""
+    import threading
+
+    slot = threading.BoundedSemaphore(1)
+    slot.acquire()
+    monkeypatch.setattr(server, "_busy", slot)
+    monkeypatch.setattr(server, "QUEUE_SECONDS", 0.2)
+    events = []
+    with pytest.raises(server.Refused, match="Too many"):
+        server.stream({"command": "ask", "question": "How many calls?", "route": "cypher"}, events.append)
+    assert events and "waiting" in events[0]["line"]
+
+
+def test_commands_at_once_is_a_setting_not_a_rule(tmp_path):
+    module = load("demo_server_slots", {"QLSC_DEMO_COMMANDS_AT_ONCE": "7"}, tmp_path)
+    assert module.METHODS_AT_ONCE == 7
+
+
+# ---- hosted: the page itself is served from here
+
+
+@pytest.fixture(scope="module")
+def hosted(tmp_path_factory):
+    import json
+    import threading
+    import urllib.request
+    from http.server import ThreadingHTTPServer
+
+    site = tmp_path_factory.mktemp("dist")
+    (site / "assets").mkdir()
+    (site / "index.html").write_text("<html>the page</html>")
+    (site / "assets" / "app-1.js").write_text("console.log(1)")
+    (site / "presets.json").write_text(json.dumps(PRESETS))
+    module = load(
+        "demo_server_hosted",
+        {
+            "QLSC_DEMO_HOSTED": "1",
+            "QLSC_DEMO_STATIC": str(site),
+            "QLSC_DEMO_PRESETS": str(site / "presets.json"),
+        },
+        site,
+    )
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), module.Handler)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    yield module, f"http://127.0.0.1:{httpd.server_port}", urllib.request
+    httpd.shutdown()
+
+
+def asked(hosted, path, body=None, origin=None):
+    import json
+    import urllib.error
+
+    _, base, request = hosted
+    headers = {"Content-Type": "application/json"} | ({"Origin": origin} if origin else {})
+    req = request.Request(
+        base + path, data=json.dumps(body).encode() if body is not None else None, headers=headers
+    )
+    try:
+        with request.urlopen(req) as r:
+            return r.status, r.headers, r.read()
+    except urllib.error.HTTPError as e:
+        return e.code, e.headers, e.read()
+
+
+def test_hosted_serves_the_page_and_its_routes(hosted):
+    status, headers, body = asked(hosted, "/")
+    assert status == 200 and b"the page" in body
+    assert b"the page" in asked(hosted, "/examples/fennmoor")[2]  # a route of the app is not a file
+    status, headers, body = asked(hosted, "/assets/app-1.js")
+    assert body == b"console.log(1)" and "immutable" in headers["Cache-Control"]
+    assert asked(hosted, "/healthz")[0] == 200
+
+
+def test_hosted_serves_nothing_outside_the_page(hosted):
+    assert b"the page" in asked(hosted, "/../../../../etc/passwd")[2]
+    assert b"the page" in asked(hosted, "/%2e%2e/%2e%2e/etc/passwd")[2]
+    assert (
+        b"cypher" not in asked(hosted, "/presets.json")[2]
+    )  # the list of what may run is the server's, not a page's file
+    assert asked(hosted, "/api/nothing")[0] == 404
+
+
+def test_hosted_answers_only_its_own_page(hosted):
+    _, base, _ = hosted
+    host = base.removeprefix("http://")
+    body = {"target": "layer", "query": "MATCH (n) RETURN n LIMIT 5"}
+    assert asked(hosted, "/api/cypher", body, origin="https://elsewhere.example")[0] == 403
+    status, _, text = asked(
+        hosted, "/api/cypher", body, origin=f"http://{host}"
+    )  # its own origin: past the door, refused as not a preset
+    assert status == 400 and b"page's own examples" in text
+
+
+def test_no_access_code_is_asked_for(hosted):
+    """The page opens and runs: nothing but its presets stands between a visitor and an example."""
+    body = {"target": "layer", "query": PRESETS["cypher"]["layer"][0] + "\n"}
+    status, _, _ = asked(hosted, "/api/cypher", body)
+    assert status != 401

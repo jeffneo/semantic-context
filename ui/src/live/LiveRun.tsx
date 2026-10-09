@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
-import { cypher, getInfo, method, ServerError, sql, type Info, type MethodArgs, type QueryResult } from "./api";
+import { cypher, getInfo, method, pick, ServerError, sql, type Info, type MethodArgs, type QueryResult } from "./api";
 import ResultTable from "./ResultTable";
 import type { CypherSpec, LiveSpec, MethodPreset, MethodSpec, SqlSpec, Target } from "./types";
 
@@ -18,8 +18,8 @@ const WHERE: Record<Where, { name: string; color: string }> = {
 const START = "uv run examples/fennmoor-bank/server.py";
 
 /*
-  A control at the left of a part: pressed, it opens to the right on the query or the command behind what is above it, with Run. The query is a default to change
-  and run as any other; it goes to the real database or warehouse, through the demo server (examples/fennmoor-bank/server.py), and only reads. Nothing is mocked.
+  A control at the left of a part: pressed, it opens to the right on the query or the command behind what is above it, with Run. The query is one of the page's
+  presets, shown and not edited; it goes to the real database or warehouse, through the demo server (examples/fennmoor-bank/server.py), and only reads. Nothing is mocked.
 */
 export default function LiveRun({ specs, hint = "Run it live" }: { specs: LiveSpec[]; hint?: string }) {
   const [open, setOpen] = useState(false);
@@ -179,11 +179,12 @@ function Failure({ message }: { message: string }) {
   );
 }
 
-function Editor({ value, onChange, onRun, rows = 6 }: { value: string; onChange: (v: string) => void; onRun: () => void; rows?: number }) {
+/** The query as it will be sent: a preset is shown, not edited. */
+function Editor({ value, onRun, rows = 6 }: { value: string; onRun: () => void; rows?: number }) {
   return (
     <textarea
       value={value}
-      onChange={(e) => onChange(e.target.value)}
+      readOnly
       onKeyDown={(e) => {
         if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
           e.preventDefault();
@@ -198,20 +199,45 @@ function Editor({ value, onChange, onRun, rows = 6 }: { value: string; onChange:
   );
 }
 
-function RunBar({ running, since, edited, reset, run, runLabel = "Run" }: { running: boolean; since?: number; edited: boolean; reset: () => void; run: () => void; runLabel?: string }) {
+function RunBar({ running, since, run, runLabel = "Run" }: { running: boolean; since?: number; run: () => void; runLabel?: string }) {
   return (
     <div className="flex items-center gap-3 border-t border-line bg-bg-subtle px-4 py-2 text-xs text-fg-muted">
       <button type="button" onClick={run} className="rounded-md bg-accent px-3.5 py-1.5 text-sm font-medium text-accent-fg">
         {running ? "Run again" : runLabel}
       </button>
       <span className="hidden sm:inline">⌘↵ or Ctrl+↵</span>
-      {edited && (
-        <button type="button" onClick={reset} className="underline-offset-2 hover:underline">
-          Reset to the default
-        </button>
-      )}
-      <span className="ml-auto">{running && since ? <Elapsed since={since} /> : "Only reads."}</span>
+      <span className="ml-auto">{running && since ? <Elapsed since={since} /> : "Runs for real; only reads."}</span>
     </div>
+  );
+}
+
+/** The customer a memory example runs on: chosen by the server (a customer with calls and card activity that memory does not hold yet), so each visitor's first recall is a real fetch. */
+function useCustomer(wanted: boolean) {
+  const [customer, setCustomer] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const choose = () => {
+    setCustomer(null);
+    setError(null);
+    pick().then(
+      (r) => setCustomer(r.customer),
+      (e: unknown) => setError(e instanceof ServerError ? e.message : String(e)),
+    );
+  };
+  useEffect(() => {
+    if (wanted) choose();
+  }, [wanted]);
+  return { customer, error, choose };
+}
+
+function CustomerChip({ c }: { c: ReturnType<typeof useCustomer> }) {
+  return (
+    <span className="flex items-center gap-1.5">
+      Customer
+      <code className="rounded border border-line px-1.5 py-0.5 text-fg">{c.error ? "unavailable" : (c.customer ?? "choosing…")}</code>
+      <button type="button" onClick={c.choose} className="underline-offset-2 hover:underline">
+        choose another
+      </button>
+    </span>
   );
 }
 
@@ -262,30 +288,22 @@ function Result({ r }: { r: QueryResult }) {
 
 // ---- Cypher and SQL
 
-type Runner = (query: string, who: string, signed: boolean, signal: AbortSignal) => Promise<QueryResult>;
+type Runner = (query: string, who: string, signed: boolean, customer: string | undefined, signal: AbortSignal) => Promise<QueryResult>;
 
 function QueryPanel({ spec, info, where, run }: { spec: CypherSpec | SqlSpec; info: Info; where: Where; run: Runner }) {
   const [preset, setPreset] = useState(0);
-  const [text, setText] = useState(spec.presets[0].query);
+  const text = spec.presets[preset].query;
   const [who, setWho] = useState("admin");
   const [signed, setSigned] = useState(true);
+  const chosen = useCustomer(spec.kind === "cypher" && !!spec.customer);
   const [state, start] = useRun<QueryResult>();
-  const go = () => start((signal) => run(text, who, signed, signal));
+  const go = () => chosen.customer !== null || !(spec.kind === "cypher" && spec.customer) ? start((signal) => run(text, who, signed, chosen.customer ?? undefined, signal)) : undefined;
   return (
     <div>
       <Head where={where}>
-        {spec.presets.length > 1 && (
-          <Select
-            label="Query"
-            value={String(preset)}
-            onChange={(v) => {
-              setPreset(Number(v));
-              setText(spec.presets[Number(v)].query);
-            }}
-            options={spec.presets.map((p, i) => ({ value: String(i), label: p.label }))}
-          />
-        )}
+        {spec.presets.length > 1 && <Select label="Query" value={String(preset)} onChange={(v) => setPreset(Number(v))} options={spec.presets.map((p, i) => ({ value: String(i), label: p.label }))} />}
         {spec.principals && <Principal info={info} value={who} onChange={setWho} />}
+        {spec.kind === "cypher" && spec.customer && <CustomerChip c={chosen} />}
         {spec.kind === "cypher" && spec.unsigned && (
           <label className="flex items-center gap-1.5">
             <input type="checkbox" checked={signed} onChange={(e) => setSigned(e.target.checked)} />
@@ -293,14 +311,8 @@ function QueryPanel({ spec, info, where, run }: { spec: CypherSpec | SqlSpec; in
           </label>
         )}
       </Head>
-      <Editor value={text} onChange={setText} onRun={go} />
-      <RunBar
-        running={state.s === "running"}
-        since={state.s === "running" ? state.since : undefined}
-        edited={text !== spec.presets[preset].query}
-        reset={() => setText(spec.presets[preset].query)}
-        run={go}
-      />
+      <Editor value={text} onRun={go} />
+      <RunBar running={state.s === "running"} since={state.s === "running" ? state.since : undefined} run={go} />
       {state.s === "error" && <Failure message={state.message} />}
       {state.s === "done" && <Result r={state.r} />}
     </div>
@@ -308,11 +320,11 @@ function QueryPanel({ spec, info, where, run }: { spec: CypherSpec | SqlSpec; in
 }
 
 function CypherPanel({ spec, info }: { spec: CypherSpec; info: Info }) {
-  return <QueryPanel spec={spec} info={info} where={spec.target} run={(query, principal, signed, signal) => cypher({ target: spec.target, query, principal, signed }, signal)} />;
+  return <QueryPanel spec={spec} info={info} where={spec.target} run={(query, principal, signed, customer, signal) => cypher({ target: spec.target, query, principal, signed, customer }, signal)} />;
 }
 
 function SqlPanel({ spec, info }: { spec: SqlSpec; info: Info }) {
-  return <QueryPanel spec={spec} info={info} where="sql" run={(query, principal, _signed, signal) => sql({ query, principal }, signal)} />;
+  return <QueryPanel spec={spec} info={info} where="sql" run={(query, principal, _signed, _customer, signal) => sql({ query, principal }, signal)} />;
 }
 
 // ---- commands
@@ -343,23 +355,27 @@ type Progress = { s: "idle" } | { s: "running"; since: number } | { s: "done"; c
 
 function MethodPanel({ spec, info }: { spec: MethodSpec; info: Info }) {
   const [preset, setPreset] = useState(0);
-  const [a, setA] = useState<MethodPreset>(spec.presets[0]);
+  const a: MethodPreset = spec.presets[preset];
   const [who, setWho] = useState("admin");
   const [lines, setLines] = useState<{ line: string; at: number }[]>([]);
   const [status, setStatus] = useState<Progress>({ s: "idle" });
   const abort = useRef<AbortController | null>(null);
   const log = useRef<HTMLPreElement>(null);
+  const chosen = useCustomer(spec.command === "recall");
   useEffect(() => () => abort.current?.abort(), []);
   useEffect(() => {
     log.current?.scrollTo({ top: log.current.scrollHeight });
   }, [lines]);
+  // a recall's key names the customer the server chose (`cif_number=*` in the preset)
+  const key = a.key?.replace("*", chosen.customer ?? "…");
 
   const go = () => {
+    if (spec.command === "recall" && chosen.customer === null) return;
     abort.current?.abort();
     const ac = (abort.current = new AbortController());
     setLines([]);
     setStatus({ s: "running", since: Date.now() });
-    const body: MethodArgs = { command: spec.command, principal: who, question: a.question, route: a.route, label: a.entity, key: a.key, n: a.n };
+    const body: MethodArgs = { command: spec.command, principal: who, question: a.question, route: a.route, label: a.entity, key, n: a.n };
     method(
       body,
       (e) => {
@@ -376,48 +392,20 @@ function MethodPanel({ spec, info }: { spec: MethodSpec; info: Info }) {
   return (
     <div>
       <Head where={spec.command === "composite" ? "composite" : spec.command === "recall" ? "memory" : "ask"}>
-        {spec.presets.length > 1 && (
-          <Select
-            label="Example"
-            value={String(preset)}
-            onChange={(v) => {
-              setPreset(Number(v));
-              setA(spec.presets[Number(v)]);
-            }}
-            options={spec.presets.map((p, i) => ({ value: String(i), label: p.label }))}
-          />
-        )}
+        {spec.presets.length > 1 && <Select label="Example" value={String(preset)} onChange={(v) => setPreset(Number(v))} options={spec.presets.map((p, i) => ({ value: String(i), label: p.label }))} />}
         {spec.principals && <Principal info={info} value={who} onChange={setWho} />}
+        {spec.command === "recall" && <CustomerChip c={chosen} />}
       </Head>
       <div className="grid gap-3 px-4 py-3">
         {spec.command === "ask" && (
           <>
-            <input aria-label="The question" value={a.question ?? ""} onChange={(e) => setA({ ...a, question: e.target.value })} onKeyDown={(e) => e.key === "Enter" && go()} className={field} />
-            <div className="text-xs text-fg-muted">
-              <Select label="Route" value={a.route ?? "auto"} onChange={(v) => setA({ ...a, route: v })} options={ROUTES} />
-            </div>
+            <input aria-label="The question" readOnly value={a.question ?? ""} className={field} />
+            <div className="text-xs text-fg-muted">Route: {ROUTES.find((r) => r.value === (a.route ?? "auto"))?.label ?? a.route}</div>
           </>
         )}
-        {spec.command === "recall" && (
-          <div className="grid grid-cols-[8rem_1fr] gap-2">
-            <input aria-label="The label" value={a.entity ?? ""} onChange={(e) => setA({ ...a, entity: e.target.value })} className={field} />
-            <input aria-label="Its key" value={a.key ?? ""} onChange={(e) => setA({ ...a, key: e.target.value })} onKeyDown={(e) => e.key === "Enter" && go()} className={field} />
-          </div>
-        )}
-        {spec.command === "exchange" && (
-          <div className="text-xs text-fg-muted">
-            <Select label="Question" value={a.n ?? "0"} onChange={(v) => setA({ ...a, n: v })} options={["0", "1", "2"].map((v) => ({ value: v, label: `number ${v}` }))} />
-          </div>
-        )}
-        <pre className="overflow-x-auto rounded-md bg-bg-subtle px-3 py-2 font-mono text-xs text-fg-muted">$ {commandLine(spec, a, who)}</pre>
+        <pre className="overflow-x-auto rounded-md bg-bg-subtle px-3 py-2 font-mono text-xs text-fg-muted">$ {commandLine(spec, { ...a, key }, who)}</pre>
       </div>
-      <RunBar
-        running={status.s === "running"}
-        since={status.s === "running" ? status.since : undefined}
-        edited={JSON.stringify(a) !== JSON.stringify(spec.presets[preset])}
-        reset={() => setA(spec.presets[preset])}
-        run={go}
-      />
+      <RunBar running={status.s === "running"} since={status.s === "running" ? status.since : undefined} run={go} />
       {status.s === "error" && <Failure message={status.message} />}
       {(lines.length > 0 || status.s === "running") && (
         <pre ref={log} className="max-h-96 overflow-auto border-t border-line bg-bg px-4 py-3 font-mono text-[12.5px] leading-relaxed">

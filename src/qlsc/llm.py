@@ -19,11 +19,12 @@ import urllib.error
 import urllib.request
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import urlparse
 
 import anthropic
 
 from qlsc import meter
-from qlsc.config import PROMPTS, Settings, secret
+from qlsc.config import PROMPTS, ConfigError, Settings, secret
 from qlsc.graph import Graph
 
 
@@ -53,12 +54,19 @@ class LLM:
         self.price = next(((p["in"], p["out"]) for p in llm["prices"] if p["model"] == self.model), None)
         self.cache_prices = llm["cache_prices"]
         self.system = system
-        self.client = anthropic.Anthropic(api_key=secret("ANTHROPIC_API_KEY"))
+        self._client = None
         self.cache = settings.work / "llm_cache"
         self.cache.mkdir(exist_ok=True)
         self.calls = self.cached = 0
         self.tokens = Counter()
         self.seconds = 0.0  # in the API, over the calls not cached
+
+    @property
+    def client(self) -> anthropic.Anthropic:
+        """Made when the first call that is not cached needs it: a process with no key (a hosted demo, whose questions are all cached) is never the one that spends."""
+        if self._client is None:
+            self._client = anthropic.Anthropic(api_key=secret("ANTHROPIC_API_KEY"))
+        return self._client
 
     def call(self, user: str, schema: dict, max_tokens: int = 8000) -> dict:
         key = hashlib.sha256(json.dumps([self.model, self.system, user, schema]).encode()).hexdigest()
@@ -228,16 +236,27 @@ def write_names(
 
 class Embedder:
     def __init__(self, settings: Settings):
-        endpoint, version = secret("AZURE_OPENAI_ENDPOINT").rstrip("/"), secret("AZURE_OPENAI_API_VERSION")
         e = settings["embeddings"]
-        self.url = f"{endpoint}/openai/deployments/{e['deployment']}/embeddings?api-version={version}"
-        self.key, self.dims = secret("AZURE_OPENAI_API_KEY"), e["dimensions"]
+        self.deployment, self.dims = e["deployment"], e["dimensions"]
         self.cache_path = settings.work / "emb_cache.json"
         self.cache = json.loads(self.cache_path.read_text()) if self.cache_path.exists() else {}
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         keys = [hashlib.sha256(f"{self.dims}|{t}".encode()).hexdigest() for t in texts]
         todo = [(k, t) for k, t in zip(keys, texts) if k not in self.cache]
+        if todo:  # the endpoint and key are read only when something is not cached
+            endpoint, version = (
+                secret("AZURE_OPENAI_ENDPOINT").rstrip("/"),
+                secret("AZURE_OPENAI_API_VERSION"),
+            )
+            if urlparse(
+                endpoint
+            ).path:  # the portal also shows a v1 base URL (.../openai/v1): this is built from the resource's address, below
+                raise ConfigError(
+                    f"AZURE_OPENAI_ENDPOINT is the resource's address (https://<name>.openai.azure.com), not a URL with a path: {urlparse(endpoint).path!r}"
+                )
+            self.url = f"{endpoint}/openai/deployments/{self.deployment}/embeddings?api-version={version}"
+            self.key = secret("AZURE_OPENAI_API_KEY")
         for i in range(0, len(todo), 64):
             chunk = todo[i : i + 64]
             body = json.dumps({"input": [t for _, t in chunk], "dimensions": self.dims}).encode()

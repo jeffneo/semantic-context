@@ -6,9 +6,10 @@
   "description": "The context engine demo: a landing page and, next, the arena.",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && npm run presets",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "presets": "vite build --ssr scripts/presets.ts --outDir .presets --logLevel warn && node .presets/presets.js dist/presets.json"
   },
   "engines": {
     "node": ">=22.12"

@@ -74,7 +74,7 @@ export function getInfo(): Promise<Info> {
   return info;
 }
 
-export const cypher = (body: { target: string; query: string; principal: string; signed: boolean }, signal?: AbortSignal) =>
+export const cypher = (body: { target: string; query: string; principal: string; signed: boolean; customer?: string }, signal?: AbortSignal) =>
   post("/api/cypher", body, signal).then((r) => json<QueryResult>(r));
 
 export const sql = (body: { query: string; principal: string }, signal?: AbortSignal) => post("/api/sql", body, signal).then((r) => json<QueryResult>(r));
@@ -105,3 +105,6 @@ export async function method(body: MethodArgs, onEvent: (e: MethodEvent) => void
     for (const line of lines) if (line) onEvent(JSON.parse(line) as MethodEvent);
   }
 }
+
+/** A customer to try memory on, chosen by the server: one with calls and card activity that memory does not hold yet. */
+export const pick = () => post("/api/pick", {}).then((r) => json<{ customer: string; of: number; remembered: number }>(r));

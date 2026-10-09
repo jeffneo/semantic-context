@@ -1,7 +1,7 @@
 """BigQuery: the log from INFORMATION_SCHEMA.JOBS (or a table with its schema), the catalog from
 INFORMATION_SCHEMA.COLUMNS / TABLES / VIEWS, and free dry runs.
 
-Settings (config `warehouse:`): project, gcloud_config, location, log_table, dataset_prefix,
+Settings (config `warehouse:`): project, gcloud_config, identity, location, log_table, dataset_prefix,
 exclude_datasets, timezone. Job rows never leave the warehouse: grouping happens in BigQuery.
 """
 
@@ -16,6 +16,7 @@ from collections import Counter, defaultdict
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 
+import google.auth
 import google.auth.credentials
 from google.api_core import exceptions as api_exceptions
 from google.auth import impersonated_credentials
@@ -44,8 +45,19 @@ class GcloudCredentials(google.auth.credentials.Credentials):
 SCOPE = "https://www.googleapis.com/auth/cloud-platform"
 
 
-def client(project: str, gcloud_config: str, location: str) -> bigquery.Client:
-    return bigquery.Client(project=project, credentials=GcloudCredentials(gcloud_config), location=location)
+def source_credentials(gcloud_config: str, identity: str = "gcloud") -> google.auth.credentials.Credentials:
+    """Who the connector is. `gcloud`: the named gcloud configuration's account, as on a workstation (never the default one). `ambient`: the service account the
+    machine runs as (a VM's, Cloud Run's), found by Google's own lookup: no key file, and no gcloud on the machine."""
+    if identity == "ambient":
+        credentials, _ = google.auth.default(scopes=[SCOPE])
+        return credentials
+    return GcloudCredentials(gcloud_config)
+
+
+def client(project: str, gcloud_config: str, location: str, identity: str = "gcloud") -> bigquery.Client:
+    return bigquery.Client(
+        project=project, credentials=source_credentials(gcloud_config, identity), location=location
+    )
 
 
 # One row per distinct (text, principal, week): everything later stages need about jobs, aggregated here.
@@ -149,7 +161,9 @@ class BigQuery(Warehouse):
     @property
     def client(self) -> bigquery.Client:
         if self._client is None:
-            self._client = client(self.cfg["project"], self.cfg["gcloud_config"], self.cfg["location"])
+            self._client = client(
+                self.cfg["project"], self.cfg["gcloud_config"], self.cfg["location"], self.cfg["identity"]
+            )
         return self._client
 
     def _query(self, sql: str, params=()) -> list:
@@ -247,7 +261,7 @@ class BigQuery(Warehouse):
         policy tags and row access policies on every query and check."""
         other = BigQuery(self.settings)
         creds = impersonated_credentials.Credentials(
-            source_credentials=GcloudCredentials(self.cfg["gcloud_config"]),
+            source_credentials=source_credentials(self.cfg["gcloud_config"], self.cfg["identity"]),
             target_principal=principal,
             target_scopes=[SCOPE],
             lifetime=3600,

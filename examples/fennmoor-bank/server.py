@@ -9,6 +9,7 @@ and the composite (`virtualize.neo4j`), and BigQuery through the estate's connec
   POST /api/cypher   {target, query, principal?, signed?}  one Cypher query -> columns, rows, and the nodes and relationships in them
   POST /api/sql      {query, principal?}                   one SELECT, in the graph's table names -> columns, rows
   POST /api/method   {command, ...}                        a qlsc command from a fixed list, its output streamed as it prints (one JSON line each)
+  POST /api/pick                                           a customer to try memory on: one the page may use, not yet remembered
   GET  /api/info                                           the principals and targets the page offers
 
 Read only, by layers: a Cypher session is opened with READ access, which the server enforces, so a write is refused whatever the query says; procedures that
@@ -19,13 +20,24 @@ shell. (`recall` keeps what it fetched in memory: that is what it is for.) The s
 Who is asking: `admin` is the data source's own identity, the administrator's view and the page's default. A named principal (entitlements.principals) is
 impersonated for real, on Virtual Graph through the JDBC pass-through (the query is signed for them) and on BigQuery as their service account, so the
 warehouse's own row and column rules apply. The semantic layer and memory hold the estate's metadata, not its rows, and are the administrator's view.
+
+Presets only, everywhere: the server runs what the page offers and nothing else. ui/dist/presets.json (`npm run presets`, part of `npm run build`; `scripts/stack up` runs it) is the
+whole list of Cypher, SQL, questions and recalls, written from the page's own presets, so there is no second list. A visitor's own query, question or customer is refused: a public
+page spends no model or warehouse call that the page did not choose, and the local page is the same page. The one thing a visitor does not pick from a list is a customer for
+memory: /api/pick chooses one (a customer with calls and card activity, from the warehouse's customer_360, not yet remembered), and a preset names it as `*`, or as the Cypher
+parameter $customer; any customer of that pool is allowed, so every instance of a deployment agrees without sharing anything.
+
+Hosted (QLSC_DEMO_HOSTED=1, plans/2026-10-08-cloud-deploy.md): the same process also serves the built page (QLSC_DEMO_STATIC, `ui/dist`) from the address it is on, and listens on
+QLSC_DEMO_HOST and $PORT. Commands run QLSC_DEMO_COMMANDS_AT_ONCE at a time (they are processes: it is a memory limit); a visitor beyond that waits for a free slot, and is told.
 """
 
 from __future__ import annotations
 
 import json
 import math
+import mimetypes
 import os
+import random
 import re
 import subprocess
 import sys
@@ -42,18 +54,26 @@ import neo4j
 import sqlglot
 from neo4j.exceptions import Neo4jError
 
-from qlsc import config, entitle
+from qlsc import config, entitle, memory
 from qlsc.graph import Graph
 from qlsc.warehouse import connect
 
 EXAMPLE = Path(__file__).resolve().parent
 ROOT = EXAMPLE.parents[1]
-PORT = int(os.environ.get("QLSC_DEMO_PORT", "8787"))
+HOST = os.environ.get("QLSC_DEMO_HOST", "127.0.0.1")
+PORT = int(
+    os.environ.get("PORT") or os.environ.get("QLSC_DEMO_PORT", "8787")
+)  # $PORT: where Cloud Run says to listen
+HOSTED = os.environ.get("QLSC_DEMO_HOSTED") == "1"
+STATIC = Path(os.environ.get("QLSC_DEMO_STATIC") or ROOT / "ui" / "dist").resolve()
 
 ROWS = 500  # rows sent back; the result says when there were more
 SECONDS = 30  # a query's time limit
 METHOD_SECONDS = 240  # a command's
-METHODS_AT_ONCE = 2  # the commands that call a model or the warehouse run two at a time
+METHODS_AT_ONCE = int(
+    os.environ.get("QLSC_DEMO_COMMANDS_AT_ONCE", "4")
+)  # commands are processes (about 300 MB each): this is a memory limit, not a rule about visitors
+QUEUE_SECONDS = 120  # a command waits this long for a free slot before it is refused
 BODY_BYTES = 20_000
 LONG_LIST = 64  # a list property longer than this (an embedding) is summarised: the page never needs its 3,072 numbers
 ADMIN = "admin"
@@ -72,7 +92,10 @@ s = config.load(EXAMPLE / "estate.yaml")
 VG = s["virtualize"]["neo4j"]
 TARGETS = {  # where a Cypher query goes
     "layer": {"instance": None, "database": s["neo4j"]["database"]},  # the semantic layer
-    "memory": {"instance": None, "database": s["memory"]["database"]},  # what Virtual Graph reads fetched
+    "memory": {
+        "instance": s["memory"]["neo4j"] or None,
+        "database": s["memory"]["database"],
+    },  # what Virtual Graph reads fetched (the layer's instance, or memory's own)
     "rows": {
         "instance": VG,
         "database": VG["database"],
@@ -84,6 +107,13 @@ TARGETS = {  # where a Cypher query goes
         "token": True,
     },  # all of them in one query (USE fennmoor.rows ...)
 }
+PRESETS_FILE = Path(os.environ.get("QLSC_DEMO_PRESETS") or STATIC / "presets.json")
+if not PRESETS_FILE.is_file():
+    raise SystemExit(
+        f"{PRESETS_FILE} is not there: the page's presets are written by `cd ui && npm run presets` (scripts/stack up does it)"
+    )
+PRESETS = json.loads(PRESETS_FILE.read_text())  # all that may run
+PRESETS_ONLY = "This demo runs the page's own examples: choose one from the list."
 PRINCIPALS = {ADMIN: ""} | {name: entitle.principal(s, name) for name in s["entitlements"]["principals"]}
 
 _graphs: dict[str, Graph] = {}
@@ -127,9 +157,60 @@ class Refused(Exception):
     """What the visitor asked is not allowed, or cannot be run: said to them as it is."""
 
 
+def only_presets(ok: bool) -> None:
+    """What was asked must be one of the page's presets (as the page sends it: the text unchanged, or the question and route)."""
+    if not ok:
+        raise Refused(PRESETS_ONLY)
+
+
+# ---- a customer for memory
+
+CUSTOMERS_SQL = (  # the graph's table names: customers with card and contact-centre activity in the last 90 days, in an order that spreads them
+    "SELECT cif_number FROM dw_customer.customer_360 WHERE card_txn_count_90d > 0 AND contacts_90d > 0 "
+    "ORDER BY FARM_FINGERPRINT(cif_number) LIMIT 500"
+)
+_customers: list[str] | None = None
+
+
+def customers() -> list[str]:
+    """The customers the page may use for memory, read once per process: the same on every instance, since it is a function of the warehouse."""
+    global _customers
+    with _lock:
+        if _customers is None:
+            out = warehouse(ADMIN).run(CUSTOMERS_SQL, s["navigate"]["maximum_bytes_billed"], 500)
+            if not out.get("ok"):
+                raise Refused(
+                    "the customers are not available: "
+                    + logical(out.get("error") or "the warehouse did not answer")
+                )
+            _customers = [str(r["cif_number"]) for r in out["rows"]]
+        return _customers
+
+
+def pick() -> dict:
+    """A customer not yet remembered, at random: so what one visitor's recall fetches is a first fetch, and what is left expires (memory.retain)."""
+    pool = customers()
+    with memory.memory_graph(s) as M:
+        remembered = {r["k"] for r in M.rows("MATCH (c:Customer) RETURN c.cif_number AS k")}
+    fresh = [c for c in pool if c not in remembered] or pool
+    return {"customer": random.choice(fresh), "of": len(pool), "remembered": len(remembered & set(pool))}
+
+
+def customer_of(body: dict) -> str | None:
+    """The customer a request names, if it is one of the pool: never one a visitor typed."""
+    c = body.get("customer")
+    if c is None:
+        return None
+    if str(c) not in customers():
+        raise Refused(PRESETS_ONLY)
+    return str(c)
+
+
 def graph(target: str) -> Graph:
     t = TARGETS[target]
-    key = "vg" if t["instance"] else "layer"
+    key = json.dumps(
+        t["instance"], sort_keys=True
+    )  # one connection per instance: the layer's (null), memory's own, Virtual Graph
     with _lock:
         if key not in _graphs:
             _graphs[key] = Graph(s, t["instance"])
@@ -254,17 +335,21 @@ def cypher(body: dict) -> dict:
         raise Refused(f"unknown target {target!r}")
     query = str(body.get("query") or "")
     check_cypher(query)
+    only_presets(query.rstrip() in PRESETS["cypher"].get(target, []))
     t = TARGETS[target]
     who = principal_of(body)
     G = graph(target)
     params: dict = {}
+    if (c := customer_of(body)) and "$customer" in query:
+        params["customer"] = c
     sent = query
     if t.get("sign") and body.get("signed", True):
         # the gateway's signature: for a named principal only where the pass-through runs, as `qlsc ask --cypher --as` does
         allow = None if who == ADMIN else entitle.allowlist(graph("layer"), s, who)
-        sent, params = entitle.signing(s, allow, query, G)
+        sent, signed = entitle.signing(s, allow, query, G)
+        params |= signed
     elif t.get("token"):
-        params = {"qlsc_principal": entitle.token(s, PRINCIPALS[who])}
+        params |= {"qlsc_principal": entitle.token(s, PRINCIPALS[who])}
     elif who != ADMIN and not t.get("sign"):
         raise Refused(
             f"the {target} holds the estate's metadata, not its rows: it is the administrator's view"
@@ -292,8 +377,22 @@ def cypher(body: dict) -> dict:
 _wh: dict[str, object] = {}
 
 
+def warehouse(who: str):
+    """The connector for a principal (the data source's own for admin), made once."""
+    with _lock:
+        if who not in _wh:
+            _wh[who] = (
+                connect(s)
+                if who == ADMIN
+                else entitle.warehouse(s, entitle.allowlist(graph("layer"), s, who))
+            )
+        return _wh[who]
+
+
 def sql(body: dict) -> dict:
-    query = str(body.get("query") or "").strip().rstrip(";")
+    asked = str(body.get("query") or "")
+    only_presets(asked.rstrip() in PRESETS["sql"])
+    query = asked.strip().rstrip(";")
     if not query:
         raise Refused("there is no query")
     who = principal_of(body)
@@ -303,14 +402,7 @@ def sql(body: dict) -> dict:
         raise Refused(str(e)[:300]) from e
     if len(statements) != 1 or not isinstance(statements[0], sqlglot.exp.Query):
         raise Refused("not run: this demo runs one SELECT, and only reads")
-    with _lock:
-        if who not in _wh:
-            _wh[who] = (
-                connect(s)
-                if who == ADMIN
-                else entitle.warehouse(s, entitle.allowlist(graph("layer"), s, who))
-            )
-        wh = _wh[who]
+    wh = warehouse(who)
     t0 = time.time()
     out = wh.run(query, s["navigate"]["maximum_bytes_billed"], ROWS)
     if not out.get("ok"):
@@ -348,27 +440,40 @@ def argv(body: dict) -> list[str]:
         )
         if route is None:
             raise Refused("unknown route")
+        only_presets({"question": text("question"), "route": text("route") or "auto"} in PRESETS["ask"])
         return [*qlsc, "ask", *route, "--run", *acting, text("question")]
     if command in ("recall", "remember"):
         label, key = text("label", 80), text("key", 200)
+        # a recall's key is a customer of the pool: the preset says `cif_number=*`, the page sends the one it was given
+        prop, _, value = key.partition("=")
+        only_presets(
+            command == "recall"
+            and prop == "cif_number"
+            and value in customers()
+            and {"entity": label, "key": f"{prop}=*"} in PRESETS["recall"]
+        )
         if not re.fullmatch(r"\w+", label) or not key or key.startswith("-"):
             raise Refused("a label, and a key or property=value")
         return [*qlsc, command, label, key, *acting]
     if command == "composite":
+        only_presets(False)  # no panel runs it: the page's own queries on the composite are Cypher
         return [sys.executable, str(EXAMPLE / "demo.py"), "composite"]
     if command == "exchange":
         n = text("n", 2) or "0"
         if n not in ("0", "1", "2"):
             raise Refused("an exchange is 0, 1 or 2")
+        only_presets(n in PRESETS["exchange"])
         return [sys.executable, str(EXAMPLE / "demo.py"), "exchange", n]
     raise Refused(f"unknown command {command!r}")
 
 
 def stream(body: dict, send) -> None:
     args = argv(body)
-    if not _busy.acquire(blocking=False):
-        raise Refused("two commands are already running: try again in a moment")
     t0 = time.time()
+    if not _busy.acquire(blocking=False):  # every slot is in use: wait for one, and say so
+        send({"t": "out", "line": "Others are running; waiting for a free place…", "at": 0})
+        if not _busy.acquire(timeout=QUEUE_SECONDS):
+            raise Refused("Too many are running at once: try again in a moment.")
     try:
         env = os.environ | {
             "QLSC_CONFIG": str(EXAMPLE / "estate.yaml"),
@@ -410,13 +515,43 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def allowed(self) -> bool:
-        """Only a page served from this machine: a request from another site open in the same browser carries its own Origin."""
+        """Only a page served from this machine: a request from another site open in the same browser carries its own Origin. Hosted, the page is
+        served from this process, wherever it is: its Origin is the address the request came to."""
         origin = self.headers.get("Origin")
-        return not origin or urlparse(origin).hostname in ("localhost", "127.0.0.1", "::1")
+        if not origin:
+            return True
+        o = urlparse(origin)
+        return o.hostname in ("localhost", "127.0.0.1", "::1") or (
+            HOSTED and o.netloc == self.headers.get("Host")
+        )
+
+    def page(self, path: str) -> None:
+        """Hosted: a file of the built page, or index.html for a route of the page's own (the app's paths are not files)."""
+        target = (STATIC / path.lstrip("/")).resolve()
+        if not (target.is_file() and STATIC in target.parents) or target.name == "presets.json":
+            target = STATIC / "index.html"
+        data = target.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", mimetypes.guess_type(target.name)[0] or "application/octet-stream")
+        self.send_header("Content-Length", str(len(data)))
+        # Vite names an asset by its content, so one never changes; the page itself must be fetched again
+        self.send_header(
+            "Cache-Control",
+            "public, max-age=31536000, immutable" if "/assets/" in f"/{path.lstrip('/')}" else "no-cache",
+        )
+        self.end_headers()
+        self.wfile.write(data)
 
     def do_GET(self):
-        if urlparse(self.path).path != "/api/info":
-            return self.reply(404, {"error": "not found"})
+        path = urlparse(self.path).path
+        if path == "/healthz":
+            return self.reply(200, {"ok": True})
+        if path != "/api/info":
+            return (
+                self.page(path)
+                if HOSTED and not path.startswith("/api/")
+                else self.reply(404, {"error": "not found"})
+            )
         self.reply(
             200,
             {
@@ -441,6 +576,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(200, cypher(body))
             if path == "/api/sql":
                 return self.reply(200, sql(body))
+            if path == "/api/pick":
+                return self.reply(200, pick())
             if path == "/api/method":
                 return self.method(body)
             return self.reply(404, {"error": "not found"})
@@ -472,9 +609,9 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
-    server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+    server = ThreadingHTTPServer((HOST, PORT), Handler)
     print(
-        f"qlsc demo server on http://127.0.0.1:{PORT} (targets: {', '.join(TARGETS)}; principals: {', '.join(PRINCIPALS)})",
+        f"qlsc demo server on http://{HOST}:{PORT}{' (hosted: it serves the page too)' if HOSTED else ''} (targets: {', '.join(TARGETS)}; principals: {', '.join(PRINCIPALS)})",
         flush=True,
     )
     try:

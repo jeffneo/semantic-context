@@ -59,6 +59,11 @@ semantic layer it came from.
                 as it is now: a table or column they lost changes it, and it is fetched again. Every read,
                 from memory too, leaves its step: who read what, and when.
 
+  retention   what memory keeps does not stay for ever (plans/2026-10-08-memory-retention.md; `qlsc memory sweep`). Fetched rows are copies that have left the warehouse's
+              policies: a node is deleted once it was fetched more than memory.retain.fetched_days ago (a fetch re-stamps every node it touches, so a row a live context still
+              uses is as young as that context). The audit record (conversations, steps, decisions, facts) is kept, unless memory.retain.audit_days says otherwise, and then
+              a conversation goes whole. Every sweep leaves a Step of its own: deletion is as auditable as reading.
+
 Each read's Cypher is one for either target: the virtual graph, or memory, where the same read adds `source`
 and freshness. So a context read back from memory can be compared with the virtual graph's, read for read.
 """
@@ -621,14 +626,19 @@ def holds_until(s: Settings, table: dict, at: dt.datetime) -> dt.datetime | None
     return at + dt.timedelta(days=days)
 
 
+def memory_instance(s: Settings, database: str | None = None) -> dict:
+    """Where memory is: the semantic layer's instance, or the one `memory.neo4j` names. `database`: another database there (`system`)."""
+    return {**s["memory"]["neo4j"], "database": database or s["memory"]["database"]}
+
+
 def memory_graph(s: Settings) -> Graph:
-    return Graph(s, {"database": s["memory"]["database"]})
+    return Graph(s, memory_instance(s))
 
 
 def ensure(s: Settings, m: Model) -> None:
-    """The memory database on the semantic layer's instance, and its keys: (source, key) per label, (source,
+    """The memory database on its instance (the semantic layer's unless `memory.neo4j` says otherwise), and its keys: (source, key) per label, (source,
     column) per relationship (to derive it from the end node), and the stubs' ids."""
-    with Graph(s, {"database": "system"}) as system:
+    with Graph(s, memory_instance(s, "system")) as system:
         system.run(CREATE_DATABASE, name=s["memory"]["database"])
     with memory_graph(s) as M:
         for label, n in sorted(m.nodes.items()):
@@ -1121,3 +1131,83 @@ def answer(s: Settings, m: Model, cypher: str, label: str, key, now: dt.datetime
               arguments=json.dumps({"cypher": cypher}), fingerprint="ask memory", source=m.source, key=key)  # fmt: skip
     return {"ok": True, "columns": columns, "rows": rows, "total": len(rows), "truncated": more,
             "seconds": time.time() - t0}  # fmt: skip
+
+
+# ---------------------------------------------------------------- retention
+
+# One match a class: counted (COUNT), then deleted in batches (DELETE: CALL ... IN TRANSACTIONS, which needs a session of its own, not a managed transaction).
+COUNT = "RETURN labels(n)[0] AS label, count(*) AS n ORDER BY n DESC"
+DELETE = "CALL (n) { DETACH DELETE n } IN TRANSACTIONS OF 5000 ROWS"
+# The conversation an audit cut-off reaches; what hangs from it is found from there.
+SWEEP = {
+    "fetched rows": "MATCH (n) WHERE n.fetched_at IS NOT NULL AND n.fetched_at < $cutoff",
+    "facts of expired conversations": """
+        MATCH (c:Conversation) WHERE c.recorded_at < $cutoff
+        MATCH (n:Fact)-[:FROM]->(:Message)-[:PART_OF]->(c)""",
+    "facts about their work": """
+        MATCH (c:Conversation) WHERE c.recorded_at < $cutoff
+        MATCH (n:Fact)-[:ABOUT]->(x)-[:PART_OF*1..2]->(c) WHERE x:Task OR x:Step OR x:Decision""",
+    "decisions": """
+        MATCH (c:Conversation) WHERE c.recorded_at < $cutoff
+        MATCH (n:Decision)-[:PART_OF]->(:Task)-[:PART_OF]->(c)""",
+    "steps of expired conversations": """
+        MATCH (c:Conversation) WHERE c.recorded_at < $cutoff
+        MATCH (n:Step)-[:PART_OF]->(:Task)-[:PART_OF]->(c)""",
+    "tasks": """
+        MATCH (c:Conversation) WHERE c.recorded_at < $cutoff
+        MATCH (n:Task)-[:PART_OF]->(c)""",
+    "messages": """
+        MATCH (c:Conversation) WHERE c.recorded_at < $cutoff
+        MATCH (n:Message)-[:PART_OF]->(c)""",
+    "conversations": "MATCH (n:Conversation) WHERE n.recorded_at < $cutoff",
+    "steps outside conversations": "MATCH (n:Step) WHERE NOT (n)-[:PART_OF]->(:Task) AND n.recorded_at < $cutoff",
+}
+AUDIT = tuple(k for k in SWEEP if k != "fetched rows")  # in the order that leaves nothing dangling
+SWEEP_STEP = """
+CREATE (s:Step {id: $id, tool: 'sweep', owner: 'qlsc', scope: 'private', at: $at, recorded_at: $at, status: 'ok',
+                arguments: $arguments, result: $result})
+"""
+
+
+def sweep(s: Settings, now: dt.datetime | None = None, dry_run: bool = False) -> dict[str, dict[str, int]]:
+    """What memory no longer keeps, deleted (or, dry_run, counted): {class: {label: nodes}}. Idempotent; safe beside a recall."""
+    now = now or dt.datetime.now(dt.UTC)
+    p = s["memory"]["retain"]
+    cutoffs = {"fetched rows": now - dt.timedelta(days=p["fetched_days"])}
+    if p["audit_days"] is not None:
+        cutoffs |= {k: now - dt.timedelta(days=p["audit_days"]) for k in AUDIT}
+    found: dict[str, dict[str, int]] = {}
+    with memory_graph(s) as M:
+        for name, match in SWEEP.items():
+            if name not in cutoffs:
+                continue
+            params = {"cutoff": cutoffs[name]}
+            found[name] = {r["label"]: r["n"] for r in M.rows(f"{match} {COUNT}", **params)}
+            if found[name] and not dry_run:
+                with M.driver.session(database=M.db) as session:
+                    session.run(f"{match} WITH DISTINCT n {DELETE}", params).consume()
+        if not dry_run:
+            M.run(
+                SWEEP_STEP,
+                id=str(uuid.uuid4()),
+                at=now,
+                arguments=json.dumps({"fetched_days": p["fetched_days"], "audit_days": p["audit_days"]}),
+                result=json.dumps({k: sum(v.values()) for k, v in found.items()}),
+            )
+    return found
+
+
+def sweep_report(s: Settings, dry_run: bool = False, as_of: str | None = None) -> None:
+    p = s["memory"]["retain"]
+    now = dt.datetime.fromisoformat(as_of).replace(tzinfo=dt.UTC) if as_of else None
+    found = sweep(s, now, dry_run)
+    kept = "kept" if p["audit_days"] is None else f"{p['audit_days']} days"
+    print(
+        f"memory sweep{' (dry run: nothing deleted)' if dry_run else ''}: fetched rows older than {p['fetched_days']} days; the audit record: {kept}"
+    )
+    total = 0
+    for name, labels in found.items():
+        n = sum(labels.values())
+        total += n
+        print(f"  {name}: {n:,}" + (f"  ({', '.join(f'{k} {v:,}' for k, v in labels.items())})" if n else ""))
+    print(f"  {'would delete' if dry_run else 'deleted'} {total:,} nodes")

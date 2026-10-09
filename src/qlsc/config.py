@@ -2,9 +2,12 @@
 
 The estate's file says where to read (the warehouse connector and its settings), how to name
 things, where the graph lives, and which designed models to align. Paths in it are relative to
-the file. Secrets never live in either YAML: they come from the environment or a .env file.
+the file. Secrets never live in either YAML: they come from the environment or a .env file. So does the one value that names a person's own infrastructure rather than an estate's: the GCP project
+(QLSC_GCP_PROJECT, which replaces `warehouse.project`), so that no committed file names it; and the estate's test principals are written `qlsc-risk@{project}.iam.gserviceaccount.com`.
 
-The config file is found from --config, else QLSC_CONFIG (environment or .env).
+The config file is found from --config, else QLSC_CONFIG (environment or .env). A deployment's own settings (where its databases are, how it signs in) go in
+a second file, QLSC_OVERRIDES (a path; or the settings themselves, as YAML or JSON in curly braces, where a file is awkward: a Cloud Run service's
+environment), merged over the estate's: the estate's file stays the one every deployment shares.
 """
 
 from __future__ import annotations
@@ -58,9 +61,17 @@ class Settings(dict):
     def __init__(self, path: Path):
         self.path = path.resolve()
         self.root = self.path.parent
-        super().__init__(
-            _merge(yaml.safe_load(DEFAULTS.read_text()), yaml.safe_load(self.path.read_text()) or {})
-        )
+        merged = _merge(yaml.safe_load(DEFAULTS.read_text()), yaml.safe_load(self.path.read_text()) or {})
+        if project := secret("QLSC_GCP_PROJECT", ""):
+            merged = _merge(merged, {"warehouse": {"project": project}})
+        if overrides := secret("QLSC_OVERRIDES", ""):
+            text = overrides if overrides.lstrip().startswith("{") else Path(overrides).read_text()
+            merged = _merge(merged, yaml.safe_load(text) or {})
+        # the principals' addresses carry the warehouse's project: the estate writes {project}
+        who = merged.get("entitlements", {}).get("principals") or {}
+        for name, email in who.items():
+            who[name] = str(email).replace("{project}", str(merged.get("warehouse", {}).get("project", "")))
+        super().__init__(merged)
 
     def resolve(self, relative: str) -> Path:
         return self.root / relative

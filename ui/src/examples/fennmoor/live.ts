@@ -33,7 +33,7 @@ import rowsSchema from "./queries/virtual/rows_schema.cypher?raw";
 
 /*
   What each part of the Fennmoor page can run, for real, from the control at its left (live/LiveRun.tsx). The queries are the files in queries/ (most from
-  demo-101.md and demo.cypher, the walk-through this example already has); the commands are qlsc's own. A visitor changes any of them and runs the change.
+  demo-101.md and demo.cypher, the walk-through this example already has); the commands are qlsc's own. A visitor picks one from the list and runs it: the page offers only these, and the demo server runs nothing else.
 */
 
 const CALLS = "How many calls did each contact center site handle since April 2026?";
@@ -92,15 +92,15 @@ export const LIVE = {
   },
   memory: {
     fetch: [
-      { kind: "cypher", target: "memory", presets: [preset("Is this customer remembered?", remembered), preset("Where it came from, and how long it holds", provenance), preset("Its neighbourhood, drawn", neighbourhood)] },
-      { kind: "method", command: "recall", principals: true, presets: [{ label: "Fetch a customer, or read them from memory", entity: "Customer", key: "cif_number=0001000033" }] },
+      { kind: "cypher", target: "memory", customer: true, presets: [preset("Is this customer remembered?", remembered), preset("Where it came from, and how long it holds", provenance), preset("Its neighbourhood, drawn", neighbourhood)] },
+      { kind: "method", command: "recall", principals: true, presets: [{ label: "Fetch a customer, or read them from memory", entity: "Customer", key: "cif_number=*" }] },
     ],
     payoff: [
-      { kind: "method", command: "recall", principals: true, presets: [{ label: "Ask twice: the first reads BigQuery, the second memory", entity: "Customer", key: "cif_number=0001000033" }] },
+      { kind: "method", command: "recall", principals: true, presets: [{ label: "Ask twice: the first reads BigQuery, the second memory", entity: "Customer", key: "cif_number=*" }] },
       { kind: "method", command: "exchange", presets: [{ label: "An agent asks, asks again, and corrects", n: "0" }, { label: "A second question", n: "1" }, { label: "A third question", n: "2" }] },
     ],
     holds: [{ kind: "cypher", target: "layer", presets: [preset("How often each table is written", holds)] }],
-    governed: [{ kind: "method", command: "recall", principals: true, presets: [{ label: "Recall a customer as a principal", entity: "Customer", key: "cif_number=0001000033" }] }],
+    governed: [{ kind: "method", command: "recall", principals: true, presets: [{ label: "Recall a customer as a principal", entity: "Customer", key: "cif_number=*" }] }],
     /** The file's query reads the first conversation by its title; each of the others is the same query with its own. Read here as the data source: memory's own methods return only a principal's. */
     trace: (d: Traces): LiveSpec[] => [
       {

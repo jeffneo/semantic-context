@@ -6,7 +6,7 @@ export interface Preset {
   query: string;
 }
 
-/** A Cypher panel: the query it opens with (a preset is chosen from the list, and the text is the visitor's to edit), and where it runs. */
+/** A Cypher panel: a query chosen from the presets (shown, not editable), and where it runs. */
 export interface CypherSpec {
   kind: "cypher";
   target: Target;
@@ -15,6 +15,8 @@ export interface CypherSpec {
   principals?: boolean;
   /** offers sending it unsigned, as any Neo4j user could: the pass-through refuses it */
   unsigned?: boolean;
+  /** the query takes $customer: one the server chooses (a customer with activity, not yet remembered), shown above it */
+  customer?: boolean;
 }
 
 /** A SQL panel: one SELECT, in the graph's table names, run in BigQuery. */
@@ -31,6 +33,7 @@ export interface MethodPreset {
   question?: string;
   route?: string;
   entity?: string;
+  /** a recall's key: `cif_number=*` is the customer the server chose */
   key?: string;
   n?: string;
 }

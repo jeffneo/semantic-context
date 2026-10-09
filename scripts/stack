@@ -82,6 +82,10 @@ up_docker() {
   wait_for "neo4j: the semantic layer, memory and process databases (bolt $BOLT)" 180 neo4j_ready qlsc-neo4j || return 1
   wait_for "neo4j-vg: Virtual Graph (bolt $VG_BOLT)" 180 neo4j_ready qlsc-neo4j-vg || return 1
   composite_ready >/dev/null 2>&1 && ok "the composite database (fennmoor: layer, rows and memory)" || warn "the composite database did not answer: see docker/nvg/README.md"
+  # memory keeps fetched rows for memory.retain.fetched_days (six hours), then they go: the sweep runs here, once, as it does hourly in a deployment
+  if command -v uv >/dev/null; then
+    QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc memory sweep >"$RUN/sweep.log" 2>&1 && ok "memory swept ($(tail -1 "$RUN/sweep.log" | sed 's/^ *//'))" || warn "the memory sweep did not run: see .stack/sweep.log"
+  fi
   if [ $NES = 1 ]; then # Studio keeps nothing of its own (its assets are in neo4j), so it is refreshed to the compose file as it is now, which a stale container is not
     compose up -d nes-init enterprise-studio >>"$RUN/docker.log" 2>&1 || { bad "Enterprise Studio did not start: see .stack/docker.log"; return 1; }
     ok "Enterprise Studio: http://localhost:$(envval NES_PORT 8080) (sign in yourself)"
@@ -103,13 +107,15 @@ up_app() {
   say "Demo server and page"
   command -v uv >/dev/null || { bad "uv is not installed"; return 1; }
   command -v npm >/dev/null || { bad "node and npm are not installed"; return 1; }
+  [ -d ui/node_modules ] || { say "  installing the page's packages (npm install)"; (cd ui && npm install >"$RUN/npm.log" 2>&1) || { bad "npm install failed: see .stack/npm.log"; return 1; }; }
+  # the demo server runs only what the page offers: the list of it is written from the page's own presets
+  (cd ui && npm run presets >"$RUN/presets.log" 2>&1) || { bad "the page's presets did not build: see .stack/presets.log"; return 1; }
   if [ -n "$(listener $SERVER_PORT)" ]; then
     ok "demo server already up (http://localhost:$SERVER_PORT)"
   else
     nohup uv run examples/fennmoor-bank/server.py >"$RUN/server.log" 2>&1 </dev/null &
     wait_for "demo server (http://localhost:$SERVER_PORT/api/info)" 90 curl -sf -m 3 "http://localhost:$SERVER_PORT/api/info" || { say "    see .stack/server.log"; return 1; }
   fi
-  [ -d ui/node_modules ] || { say "  installing the page's packages (npm install)"; (cd ui && npm install >"$RUN/npm.log" 2>&1) || { bad "npm install failed: see .stack/npm.log"; return 1; }; }
   if [ $PREVIEW = 1 ]; then
     if [ -n "$(listener $PREVIEW_PORT)" ]; then
       ok "page already up (http://localhost:$PREVIEW_PORT)"

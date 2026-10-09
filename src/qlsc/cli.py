@@ -188,6 +188,14 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--approve", metavar="ID", help="approve a proposed skill, by id or name")
     p.add_argument("--as", dest="as_", metavar="PRINCIPAL", help="as whom (the approver, or the reader)")
     p.set_defaults(func=lambda s, a: distill.run(s, approve_id=a.approve, as_=a.as_))
+    p = sub.add_parser("memory", help="what memory keeps")
+    mstages = p.add_subparsers(dest="stage", required=True)
+    p = mstages.add_parser(
+        "sweep", help="delete what memory no longer keeps: fetched rows past memory.retain.fetched_days"
+    )
+    p.add_argument("--dry-run", action="store_true", help="count, delete nothing")
+    p.add_argument("--as-of", metavar="DATE", help="as of this ISO date or time, not now (a rehearsal)")
+    p.set_defaults(func=lambda s, a: memory.sweep_report(s, a.dry_run, a.as_of))
     p = sub.add_parser(
         "process", help="the State-Action graph from text (stages are added as they are built)"
     )
