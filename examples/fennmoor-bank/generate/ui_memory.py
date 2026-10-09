@@ -27,6 +27,9 @@ from qlsc import config, memory
 from qlsc.graph import Graph
 
 EXAMPLE = Path(__file__).resolve().parents[1]
+PROJECT = config.load(EXAMPLE / "estate.yaml")["warehouse"][
+    "project"
+]  # the physical project: never in what is written
 ROOT = EXAMPLE.parents[1]
 RESULTS = EXAMPLE / "results"
 SCHEMA = EXAMPLE / "work" / "virtual" / "schema.json"
@@ -81,7 +84,7 @@ def principal_names(s) -> dict[str, str]:
 
 
 def provenance(s) -> dict:
-    with Graph(s, {"database": s["memory"]["database"]}) as M:
+    with memory.memory_graph(s) as M:
         r = M.rows(PROVENANCE, key=ANCHOR)[0]
     return {
         "fetchedAt": r["fetched_at"].isoformat(),
@@ -203,9 +206,7 @@ def main() -> None:
         "entitlements": entitlements(),
     }
     text = json.dumps(out, separators=(",", ":"), sort_keys=True)
-    assert "jeffdavis" not in text and "fnb_" not in text, (
-        "the physical project or its dataset prefix is named"
-    )
+    assert PROJECT not in text and "fnb_" not in text, "the physical project or its dataset prefix is named"
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(text + "\n")
     print(

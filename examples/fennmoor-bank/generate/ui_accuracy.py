@@ -16,7 +16,12 @@ from pathlib import Path
 
 import yaml
 
+from qlsc import config
+
 EXAMPLE = Path(__file__).resolve().parents[1]
+PROJECT = config.load(EXAMPLE / "estate.yaml")["warehouse"][
+    "project"
+]  # the physical project: never in what is written
 ROOT = EXAMPLE.parents[1]
 RESULT = EXAMPLE / "results" / "comparison.json"
 WORK = EXAMPLE / "work" / "comparison"
@@ -47,7 +52,7 @@ IDS = [m[0] for m in METHODS]
 
 def clean(text: str) -> str:
     """Nothing here may name the physical project the estate is deployed to."""
-    assert "jeffdavis" not in text and "fnb_" not in text, "a query names the physical project"
+    assert PROJECT not in text and "fnb_" not in text, "a query names the physical project"
     return text
 
 

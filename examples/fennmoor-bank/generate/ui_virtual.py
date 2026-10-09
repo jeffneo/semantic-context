@@ -27,6 +27,9 @@ from qlsc.graph import Graph
 from qlsc.virtualize import GROUPS
 
 EXAMPLE = Path(__file__).resolve().parents[1]
+PROJECT = config.load(EXAMPLE / "estate.yaml")["warehouse"][
+    "project"
+]  # the physical project: never in what is written
 ROOT = EXAMPLE.parents[1]
 MODEL = EXAMPLE / "work" / "virtual"
 QUESTIONS = EXAMPLE / "results" / "graph_accuracy.json"
@@ -150,9 +153,7 @@ def main() -> None:
         "questions": questions,
     }
     text = json.dumps(out, separators=(",", ":"), sort_keys=True)
-    assert "jeffdavis" not in text and "fnb_" not in text, (
-        "the physical project or its dataset prefix is named"
-    )
+    assert PROJECT not in text and "fnb_" not in text, "the physical project or its dataset prefix is named"
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(text + "\n")
     print(

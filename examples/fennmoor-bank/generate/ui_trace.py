@@ -18,10 +18,12 @@ from pathlib import Path
 
 from ui_queries import query
 
-from qlsc import config
-from qlsc.graph import Graph
+from qlsc import config, memory
 
 EXAMPLE = Path(__file__).resolve().parents[1]
+PROJECT = config.load(EXAMPLE / "estate.yaml")["warehouse"][
+    "project"
+]  # the physical project: never in what is written
 ROOT = EXAMPLE.parents[1]
 OUT = ROOT / "ui" / "src" / "examples" / "fennmoor" / "memory" / "traces.json"
 
@@ -120,13 +122,13 @@ def main() -> None:
     principals = {
         v: k for k, v in s["entitlements"]["principals"].items()
     }  # a service account's address -> the principal it stands for
-    with Graph(s, {"database": s["memory"]["database"]}) as M:
+    with memory.memory_graph(s) as M:
         found = {c["title"]: c for c in M.rows(CONVERSATIONS, titles=list(TITLES))}
         missing = [t for t in TITLES if t not in found]
         assert not missing, f"not in memory (qlsc converse conversations/<name>.yaml records one): {missing}"
         out = {"conversations": [conversation(M, found[t], principals) for t in TITLES]}
     text = json.dumps(out, separators=(",", ":"), sort_keys=True)
-    assert "jeffdavis" not in text and "fnb_" not in text and "iam.gserviceaccount" not in text, (
+    assert PROJECT not in text and "fnb_" not in text and "iam.gserviceaccount" not in text, (
         "the physical project or an address is named"
     )
     assert not re.search(r"@[a-z-]+\.", text), "an address is named"

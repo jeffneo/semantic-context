@@ -2,15 +2,15 @@
  "conversations": {
   "marketing-1": {
    "id": "05b706cd-a088-44de-a19a-79fe745ef8cf",
-   "as": "qlsc-marketing@jeffdavis-bq-testproj.iam.gserviceaccount.com"
+   "as": "qlsc-marketing@<project>.iam.gserviceaccount.com"
   },
   "marketing-2": {
    "id": "60a482f3-3c41-4d3f-b3f5-62b871d9ace3",
-   "as": "qlsc-marketing@jeffdavis-bq-testproj.iam.gserviceaccount.com"
+   "as": "qlsc-marketing@<project>.iam.gserviceaccount.com"
   },
   "risk-1": {
    "id": "b9be5f63-ab43-4ca9-97b1-3f28c0d37be9",
-   "as": "qlsc-risk@jeffdavis-bq-testproj.iam.gserviceaccount.com"
+   "as": "qlsc-risk@<project>.iam.gserviceaccount.com"
   }
  },
  "checks": {
@@ -165,7 +165,7 @@
   },
   "risk can't note a customer outside its rows": {
    "ok": true,
-   "why": "Customer 8322097816940277129 isn't in memory as qlsc-risk@jeffdavis-bq-testproj.iam.gserviceaccount.com may see it: recall it first"
+   "why": "Customer 8322097816940277129 isn't in memory as qlsc-risk@<project>.iam.gserviceaccount.com may see it: recall it first"
   },
   "a refetch leaves them attached": {
    "ok": true,

@@ -27,12 +27,16 @@ import os
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 import google.auth.credentials
 from google.auth.transport.requests import AuthorizedSession
 from google.cloud import bigquery
 
-PROJECT = "jeffdavis-bq-testproj"
+from qlsc import config
+
+# the project is the estate's (QLSC_GCP_PROJECT in .env replaces its placeholder): no committed file names it
+PROJECT = config.load(Path(__file__).resolve().parents[1] / "estate.yaml")["warehouse"]["project"]
 LOCATION = "us"
 ADMIN_CONFIG = os.environ.get("QLSC_ADMIN_GCLOUD_CONFIG")
 if not ADMIN_CONFIG:
@@ -55,9 +59,7 @@ def admin_account() -> str:
 
 
 OWNER = admin_account()
-ESTATE = (
-    "qlsc-bq@jeffdavis-bq-testproj.iam.gserviceaccount.com"  # the connector's and Virtual Graph's identity
-)
+ESTATE = f"qlsc-bq@{PROJECT}.iam.gserviceaccount.com"  # the connector's and Virtual Graph's identity
 APIS = ["iam.googleapis.com", "iamcredentials.googleapis.com", "datacatalog.googleapis.com"]
 GRAPH = "fnb_graph"  # the virtual graph's views
 PRINCIPALS = {

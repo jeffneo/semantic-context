@@ -9,7 +9,7 @@ business:                             # how the prompts refer to the organizatio
 
 warehouse:
   type: bigquery                      # the connector: src/qlsc/warehouse/bigquery.py
-  project: jeffdavis-bq-testproj      # hosts the log and the deployed estate
+  project: your-project-id            # hosts the log and the deployed estate: QLSC_GCP_PROJECT (in .env) names yours, so that no committed file does
   gcloud_config: qlsc                 # the gcloud configuration to authenticate with; never the default one
   location: US
   # Stands in for `region-us`.INFORMATION_SCHEMA.JOBS; same schema, so the extract SQL is identical.
@@ -59,9 +59,9 @@ work_dir: work
 
 entitlements:                         # qlsc ask --as <name>: the test principals (entitlements/setup.py grants them)
   principals:
-    marketing: qlsc-marketing@jeffdavis-bq-testproj.iam.gserviceaccount.com
-    risk: qlsc-risk@jeffdavis-bq-testproj.iam.gserviceaccount.com
-    contact-center: qlsc-contact-center@jeffdavis-bq-testproj.iam.gserviceaccount.com
+    marketing: qlsc-marketing@{project}.iam.gserviceaccount.com
+    risk: qlsc-risk@{project}.iam.gserviceaccount.com
+    contact-center: qlsc-contact-center@{project}.iam.gserviceaccount.com
 
 # The text source for the State-Action graph (plans/2026-10-05-text-graph-construction.md): the process corpus's events. The backup
 # is gs://fennmoor-corpus/full/events.ndjson.gz, read as warehouse.gcloud_config's identity; the local copy is the same file.

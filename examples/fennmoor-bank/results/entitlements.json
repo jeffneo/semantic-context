@@ -2247,7 +2247,7 @@
        "writer": "free",
        "query": "MATCH (c:Customer) WHERE c.segment = 'affluent' RETURN c.full_name AS name, c.primary_email AS email",
        "answered": false,
-       "why_not": "BigQueryException during runQuery\nAccess Denied: BigQuery BigQuery: User has neither fine-grained reader nor masked get permission to get data protected by policy tag \"qlsc-identifiers : identifier\" on columns jeffdavis-bq-testproj.fnb_dw_core.dim_customer.full_name, jeffdavis-bq-testproj.fnb_dw_core.dim_customer.primary_email."
+       "why_not": "BigQueryException during runQuery\nAccess Denied: BigQuery BigQuery: User has neither fine-grained reader nor masked get permission to get data protected by policy tag \"qlsc-identifiers : identifier\" on columns <project>.fnb_dw_core.dim_customer.full_name, <project>.fnb_dw_core.dim_customer.primary_email."
       }
      },
      "P5": {
@@ -2394,7 +2394,7 @@
        },
        "cypher": {
         "verdict": "INCIDENT",
-        "why": "the virtual graph read as qlsc-bq@jeffdavis-bq-testproj.iam.gserviceaccount.com"
+        "why": "the virtual graph read as qlsc-bq@<project>.iam.gserviceaccount.com"
        }
       },
       "route": "sql",
@@ -2424,7 +2424,7 @@
        },
        "cypher": {
         "verdict": "INCIDENT",
-        "why": "the virtual graph read as qlsc-bq@jeffdavis-bq-testproj.iam.gserviceaccount.com"
+        "why": "the virtual graph read as qlsc-bq@<project>.iam.gserviceaccount.com"
        }
       },
       "route": "sql",

@@ -23,7 +23,12 @@ import statistics
 from collections import Counter
 from pathlib import Path
 
+from qlsc import config
+
 EXAMPLE = Path(__file__).resolve().parents[1]
+PROJECT = config.load(EXAMPLE / "estate.yaml")["warehouse"][
+    "project"
+]  # the physical project: never in what is written
 ROOT = EXAMPLE.parents[1]
 RESULTS = EXAMPLE / "results"
 AGENT = EXAMPLE / "work" / "comparison" / "agent.json"
@@ -156,9 +161,7 @@ def main() -> None:
         "trace": trace,
     }
     text = json.dumps(out, separators=(",", ":"), sort_keys=True)
-    assert "jeffdavis" not in text and "fnb_" not in text, (
-        "the physical project or its dataset prefix is named"
-    )
+    assert PROJECT not in text and "fnb_" not in text, "the physical project or its dataset prefix is named"
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(text + "\n")
     print(f"{OUT.relative_to(ROOT)}: {len(trace)} traced questions, {OUT.stat().st_size / 1024:.0f} KB")

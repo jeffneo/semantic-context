@@ -25,7 +25,7 @@ import sys
 from collections import Counter
 
 import yaml
-from common import RESULTS, overrides, settings, write_result
+from common import RESULTS, overrides, scrub, settings, write_result
 from log_questions import QUESTIONS, answers_dir
 from match import LLMUsage, both_routes, cell, route_table
 
@@ -66,7 +66,7 @@ def main() -> int:
                 "sibling": any(set(e.get("tables", [])) == set(q["tables"]) for e in tr["examples"]),
             } | both_routes(G, s, tr, [ref], f"{i}/{len(wanted)} {qid}")
             if i % 10 == 0:  # partial results, so a stopped run still shows where it got to
-                (RESULTS / f"{name}.partial.json").write_text(json.dumps(res, indent=1, default=str))
+                (RESULTS / f"{name}.partial.json").write_text(scrub(json.dumps(res, indent=1, default=str)))
     tokens = Counter({"in": usage.spent()["tokens_in"], "out": usage.spent()["tokens_out"]})
     TOKENS(s).write_text(json.dumps(tokens))
     (RESULTS / f"{name}.partial.json").unlink(missing_ok=True)

@@ -33,7 +33,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import yaml
-from common import RESULTS, SPEC, settings, write_result
+from common import RESULTS, SPEC, settings, unscrub, write_result
 from google.auth import impersonated_credentials
 from google.cloud import bigquery
 from match import ROWS
@@ -440,7 +440,7 @@ def main() -> int:
     if only:  # rerun some asks (principal:Q,...) into the last run's results
         return rerun(s, [tuple(x.split(":")) for x in only.split(",")])
     if "--rescore" in sys.argv:  # the last run, its schema checks redone from the texts it saved
-        res = json.loads((RESULTS / "entitlements.json").read_text())
+        res = json.loads(unscrub((RESULTS / "entitlements.json").read_text()))
         gold = yaml.safe_load((SPEC / "questions.yaml").read_text())["questions"]
         with Graph(s) as G:
             rescore(G, s, res, {q: gold[q]["question"] for q in gold} | PROBES)
@@ -519,7 +519,7 @@ def main() -> int:
 
 
 def rerun(s, which: list[tuple[str, str]]) -> int:
-    res = json.loads((RESULTS / "entitlements.json").read_text())
+    res = json.loads(unscrub((RESULTS / "entitlements.json").read_text()))
     gold = yaml.safe_load((SPEC / "questions.yaml").read_text())["questions"]
     questions = {q: gold[q]["question"] for q in sorted(gold)} | PROBES
     with Graph(s) as G:

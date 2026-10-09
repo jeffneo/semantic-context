@@ -25,6 +25,9 @@ from pathlib import Path
 from qlsc import config
 
 EXAMPLE = Path(__file__).resolve().parents[1]
+PROJECT = config.load(EXAMPLE / "estate.yaml")["warehouse"][
+    "project"
+]  # the physical project: never in what is written
 ROOT = EXAMPLE.parents[1]
 RESULTS = EXAMPLE / "results" / "entitlements.json"
 WORK = EXAMPLE / "work"
@@ -62,7 +65,7 @@ def answer(raw: dict | str, keep_rows: bool) -> dict:
 
 
 def principals(s) -> list[dict]:
-    res = json.loads(RESULTS.read_text())["runs"]
+    res = json.loads(RESULTS.read_text().replace("<project>", PROJECT))["runs"]
     out = []
     for name, who in s["entitlements"]["principals"].items():
         allow = json.loads(
@@ -94,7 +97,7 @@ def cases(s) -> list[dict]:
 
 
 def evaluation() -> list[dict]:
-    runs = json.loads(RESULTS.read_text())["runs"]
+    runs = json.loads(RESULTS.read_text().replace("<project>", PROJECT))["runs"]
     out = []
     for name, r in runs.items():
         qs = {k: v for k, v in r.items() if k != "oracle"}
@@ -121,7 +124,7 @@ def evaluation() -> list[dict]:
 
 def main() -> None:
     s = config.load(EXAMPLE / "estate.yaml")
-    res = json.loads(RESULTS.read_text())
+    res = json.loads(RESULTS.read_text().replace("<project>", PROJECT))
     out = {
         "principals": principals(s),
         "cases": cases(s),
@@ -140,7 +143,7 @@ def main() -> None:
         ],
     }
     text = json.dumps(out, separators=(",", ":"), sort_keys=True)
-    assert "jeffdavis" not in text and "fnb_" not in text and "iam.gserviceaccount" not in text, (
+    assert PROJECT not in text and "fnb_" not in text and "iam.gserviceaccount" not in text, (
         "the physical project or an address is named"
     )
     OUT.parent.mkdir(parents=True, exist_ok=True)

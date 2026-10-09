@@ -23,6 +23,9 @@ from qlsc import config
 from qlsc.graph import Graph
 
 EXAMPLE = Path(__file__).resolve().parents[1]
+PROJECT = config.load(EXAMPLE / "estate.yaml")["warehouse"][
+    "project"
+]  # the physical project: never in what is written
 ROOT = EXAMPLE.parents[1]
 OUT = ROOT / "ui" / "src" / "examples" / "fennmoor" / "discovery" / "discovery.json"
 
@@ -136,7 +139,7 @@ def main() -> None:
             for r in kept
         ],
     }
-    assert "jeffdavis" not in json.dumps(out), "the physical project is named"
+    assert PROJECT not in json.dumps(out), "the physical project is named"
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(out, separators=(",", ":"), sort_keys=True) + "\n")
     grouped = sum(1 for t in tables if "groups" in t)

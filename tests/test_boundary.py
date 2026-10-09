@@ -5,9 +5,16 @@ from __future__ import annotations
 
 import re
 
-from conftest import PROMPTS, SRC
+from conftest import EXAMPLE, PROMPTS, SRC
 
-ESTATE_WORDS = re.compile(r"(?i)fennmoor|examples/|\bspec/|answer_key|jobs_truth|\bretail bank\b|jeffdavis")
+from qlsc import config
+
+PROJECT = config.load(EXAMPLE / "estate.yaml")["warehouse"][
+    "project"
+]  # the estate's own project: the tool never names it
+ESTATE_WORDS = re.compile(
+    r"(?i)fennmoor|examples/|\bspec/|answer_key|jobs_truth|\bretail bank\b|" + re.escape(PROJECT)
+)
 
 
 def test_pipeline_never_names_the_example():

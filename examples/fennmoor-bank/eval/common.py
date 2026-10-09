@@ -39,13 +39,27 @@ def build(name: str):
     return json.loads((BUILD / name).read_text())
 
 
+def project() -> str:
+    return settings()["warehouse"]["project"]
+
+
+def scrub(text: str) -> str:
+    """The estate's GCP project is never written into a committed result: a service account's address, an error from the warehouse, would carry it."""
+    return text.replace(project(), "<project>")
+
+
+def unscrub(text: str) -> str:
+    """A result read back, with its project in it again (what the code that reads it compares with)."""
+    return text.replace("<project>", project())
+
+
 def write_result(name: str, markdown: list[str], data: dict, where: Path = RESULTS) -> Path:
     """An evaluation's report (.md) and its data (.json): in results/, which the docs quote, unless
-    `where` says otherwise (an experiment's, in work/)."""
+    `where` says otherwise (an experiment's, in work/). The project is scrubbed from both."""
     where.mkdir(parents=True, exist_ok=True)
     as_list = lambda x: sorted(x, key=str) if isinstance(x, set | frozenset) else list(x)  # a set, in order
-    (where / f"{name}.json").write_text(json.dumps(data, indent=1, default=as_list))
-    (where / f"{name}.md").write_text("\n".join(markdown) + "\n")
+    (where / f"{name}.json").write_text(scrub(json.dumps(data, indent=1, default=as_list)))
+    (where / f"{name}.md").write_text(scrub("\n".join(markdown) + "\n"))
     return where / f"{name}.md"
 
 

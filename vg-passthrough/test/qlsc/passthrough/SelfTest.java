@@ -41,7 +41,7 @@ public final class SelfTest {
         Rewrite.Result q = Rewrite.of("SELECT '?' AS a, `x?` FROM t WHERE (? /*qlsc_principal*/ IS NOT NULL)");
         check(q.parameter() == 1, "a question mark in a literal or a name is not a parameter");
         check(!Rewrite.signed("SELECT 1"), "an unsigned statement is seen as unsigned");
-        String keyCheck = "SELECT 1 FROM `jeffdavis-bq-testproj`.`fnb_graph`.`dim_customer` GROUP BY `customer_key` HAVING COUNT(*) > 1 LIMIT 1";
+        String keyCheck = "SELECT 1 FROM `example-project`.`example_graph`.`dim_customer` GROUP BY `customer_key` HAVING COUNT(*) > 1 LIMIT 1";
         check(Passthrough.keyCheck(keyCheck), "Virtual Graph's key check is allowed unsigned");
         check(Passthrough.keyCheck(keyCheck.replace(" GROUP", "\n  GROUP")), "however its lines are broken");
         check(!Passthrough.KEY_CHECK.matcher(keyCheck.replace("SELECT 1", "SELECT cif_number")).matches(), "a query reading a column in its shape is not");
