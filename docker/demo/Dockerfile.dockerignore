@@ -1,0 +1,21 @@
+# What the demo image's build may see: a list of what it needs, so the 800 MB work/ and the example's other thousands of files never leave the machine.
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!parser
+!src
+!prompts
+!ui
+!examples/fennmoor-bank/estate.yaml
+!examples/fennmoor-bank/server.py
+!examples/fennmoor-bank/demo.py
+!examples/fennmoor-bank/conversations
+!examples/fennmoor-bank/designed
+!examples/fennmoor-bank/build/hosted-work
+ui/node_modules
+ui/dist
+ui/.presets
+ui/.env*
+**/__pycache__
+**/.venv

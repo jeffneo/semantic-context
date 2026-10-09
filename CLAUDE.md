@@ -81,6 +81,10 @@ uv run examples/fennmoor-bank/generate/corpus.py --audit|--push|--pull   # the p
 
 The whole stack, one command each way: `scripts/stack up` (Docker's neo4j and neo4j-vg, the demo server on 8787, the page on 5173; `--preview` the production build on 4173, `--nes` Enterprise Studio, `--app` skips Docker) and `scripts/stack down` (`--app` leaves Docker running, `--remove` removes the containers, never the data); `scripts/stack status`. It is safe to run again.
 
+The demo hosted on GCP (deploy/gcp/README.md, plans/2026-10-08-cloud-deploy.md): `scripts/cloud up` (from nothing or from stopped; idempotent), `down` (stops the database machines), `destroy` (what runs: `module.runtime`; the network stays, because Cloud Run keeps address blocks reserved in its subnet for hours after its service goes) and `destroy --everything`, `status`; the steps it is made of (`secrets`, `publish`, `dump`, `image`) are commands too. Cloud Run serves the page and `server.py` (`QLSC_DEMO_HOSTED=1` makes it serve the page's files too) over three Neo4j machines (semantic layer, memory, Virtual Graph with the composite). It uses your default gcloud sign-in with the project from `deploy/gcp/terraform/terraform.tfvars` (not committed), and the data-source service account as the machines' and the service's own identity: no key file. `memory.neo4j`, `warehouse.identity: ambient` and `QLSC_OVERRIDES` (a second settings file or inline YAML, merged over the estate's) are how a deployment says where its databases are and how it signs in. Do not edit `deploy/gcp/vm/boot.sh` while a `terraform apply` runs. The model keys of a deployment are its own, with limits at the provider, in `deploy/gcp/.env` (untracked): never put the checkout's `.env` keys in the cloud.
+
+The demo server runs **only what the page offers**, locally and hosted alike: `ui/dist/presets.json` (`cd ui && npm run presets`, which `scripts/stack up` and `npm run build` run) is the whole list of Cypher, SQL, questions and recalls, so a visitor edits nothing; memory's examples take `$customer`, chosen by `/api/pick` (a customer with calls and card activity, not yet remembered). Memory has a retention policy (`memory.retain`, `qlsc memory sweep [--dry-run]`; plans/2026-10-08-memory-retention.md): fetched rows go six hours after they were fetched, the audit record is kept. `scripts/stack up` sweeps once; a deployment sweeps hourly.
+
 The demo's front end: `cd ui && npm install && npm run dev` (Vite, React, Tailwind; see ui/README.md). Its live panels (a query or command beside each part, run for real,
 read only) go through `uv run examples/fennmoor-bank/server.py`, from the repository root; it uses estate.yaml and `.env` as everything else does.
 `NEO4J_CONTACT_EMAIL` (in `ui/.env.local`) is the contact shown in its header. The Example page's table map draws `ui/src/examples/fennmoor/warehouse.json`:
@@ -104,6 +108,8 @@ every Cypher query it runs must be signed (`entitle.signing`), or the pass-throu
   reproduce `build/` byte for byte.
 
 ## Safety
+
+- The GCP project is never written in a committed file: `examples/fennmoor-bank/estate.yaml` holds a placeholder, `QLSC_GCP_PROJECT` (in `.env`, or the service's environment) is the real one, and the test principals are `qlsc-<name>@{project}.iam.gserviceaccount.com`. Committed results are scrubbed to `<project>` by `eval/common.py`'s `write_result`.
 
 - Secrets are in `.env` (NEO4J_PASSWORD, NES_TOOLS_PASSWORD, ANTHROPIC_API_KEY, AZURE_OPENAI_*). Never print
   or commit them.

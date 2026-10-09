@@ -88,9 +88,9 @@ product. The landing page animates how the pieces fit. The example page then wal
 the scenario and warehouse; discovering the semantic layer; generating the Virtual Graph schema; routing a request; promoting results to memory
 (including what the agent did, kept as an auditable graph); accuracy at full scale; and row-level security passed through to the warehouse.
 
-Every figure on the page is from the example's own evaluation results, and each part has a **Run this live** control: a default Cypher query, SQL query or
-`qlsc` command that you can edit and run for real against the example's graph and BigQuery, read-only, as admin or as a less privileged principal. Nothing
-is mocked. Each section links to the code that does its work, pinned to a commit, and the layout can be switched between compact and full.
+Every figure on the page is from the example's own evaluation results, and each part has a **Run this live** control: a Cypher query, SQL query or
+`qlsc` command, chosen from the page's own examples, that you run for real against the example's graph and BigQuery, read-only, as admin or as a less privileged principal (the
+server runs nothing the page does not offer). Nothing is mocked. Each section links to the code that does its work, pinned to a commit, and the layout can be switched between compact and full.
 
 ```bash
 scripts/stack up        # the databases, Virtual Graph, the demo server and the page: http://localhost:5173
@@ -100,6 +100,10 @@ scripts/stack down      # and all of it stopped again (the data stays)
 `scripts/stack up` starts what is not already running and leaves the rest alone; `--preview` serves the production build on 4173 instead, `--nes` adds Enterprise Studio,
 `--app` is only the demo server and the page, and `scripts/stack status` says what is up. By hand, it is `docker compose --profile vg up -d`, then
 `uv run examples/fennmoor-bank/server.py` from the repository root and `cd ui && npm install && npm run dev`.
+
+To show it to someone who should not have to install it, the whole thing can be hosted on Google Cloud (Cloud Run for the page and its live panels, three small Neo4j
+machines, the composite between them), with one command each way: `scripts/cloud up` and `scripts/cloud down`. It is the same page and the same rules as the local one: nothing to sign in to, the
+examples only, and the model keys it holds are its own, with limits set at the provider. See [deploy/gcp](deploy/gcp/README.md).
 
 The page itself is static and needs no server; the live controls need the Neo4j databases, Virtual Graph and BigQuery access described under
 [Use it](#use-it), and `server.py` is the only thing between the page and them. See [ui/README.md](ui/README.md).

@@ -39,3 +39,11 @@ docker/tls/bolt/
 internal/
 # scripts/stack's logs
 .stack/
+
+# The cloud deployment (deploy/gcp): its settings name a project and accounts, its state is the deployment's
+deploy/gcp/terraform/terraform.tfvars
+deploy/gcp/terraform/.terraform/
+deploy/gcp/terraform/*.tfstate*
+deploy/gcp/.env
+
+deploy/gcp/terraform/*.auto.tfvars

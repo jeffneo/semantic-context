@@ -30,7 +30,10 @@ CREATE ALIAS fennmoor.memory FOR DATABASE memory AT 'neo4j+ssc://neo4j:7687' USE
 ```
 
 `fennmoor.memory` is the `memory` database `qlsc remember` makes on the semantic layer's instance
-(plans/2026-09-27-agentic-memory.md); make the alias after the first `qlsc remember`.
+(plans/2026-09-27-agentic-memory.md); make the alias after the first `qlsc remember`. Memory can have an instance
+of its own (`memory.neo4j` in the estate's file, or in a deployment's QLSC_OVERRIDES, as `neo4j` is for the layer);
+then `fennmoor.memory` is `AT` that instance's address, and `fennmoor.semantic` stays on the layer's
+(plans/2026-10-08-cloud-deploy.md: three instances, the composite where they meet).
 
 A subquery into `fennmoor.rows` can't import variables yet (`CALL (x) { USE fennmoor.rows ... }` is
 rejected); pass values as parameters on a second query instead.

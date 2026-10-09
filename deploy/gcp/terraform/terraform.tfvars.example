@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars (gitignored) and fill in. Nothing here is a secret, but it names your project and accounts, so it is not committed.
+project                     = "your-project-id"
+data_source_service_account = "the-data-source@your-project-id.iam.gserviceaccount.com"
+# region = "us-central1"
+# zone   = "us-central1-a"
+# neo4j_license_agreement = "eval"   # the default; another value only if you hold another license for the image

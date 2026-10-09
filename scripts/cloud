@@ -1,0 +1,301 @@
+#!/usr/bin/env bash
+# The hosted demo on GCP (deploy/gcp/, plans/2026-10-08-cloud-deploy.md). Run from anywhere; it works from the repository root.
+#
+#   scripts/cloud up [--yes] [--image]   bring it all up, from nothing or from stopped, and say where it is. Safe to run again: every step does only what is not done.
+#                                        Needs deploy/gcp/terraform/terraform.tfvars, your gcloud sign-in, Docker, and the checkout's local stack up (scripts/stack up) for
+#                                        the data to put in the cloud. --yes: no confirmation before changes. --image: build and push the image even if one is set.
+#   scripts/cloud down                   stop the three database machines (their disks stay; the service scales to zero by itself): about $30 a month (the disks). `up` starts them.
+#   scripts/cloud destroy [--everything] remove the machines, the service and the rest of what runs (module.runtime), the data included (the checkout is the source of the
+#                                        data: `up` puts it back). The network, its subnet and the project's APIs stay: they cost nothing, and Cloud Run keeps address blocks
+#                                        reserved in the subnet for a long while after its service is gone, so a subnet cannot be deleted at once. --everything removes the
+#                                        network too, and waits (up to three hours) for Google to release those addresses.
+#   scripts/cloud status                 what is running, and whether the demo answers.
+#
+# The steps `up` is made of, each also on its own:
+#   scripts/cloud secrets [--force]      the secrets' values in Secret Manager: the Virtual Graph's signing key (from this checkout's work/virtual), the Neo4j and keystore
+#                                        passwords (made here), and the deployment's own model keys (read from deploy/gcp/.env: ANTHROPIC_API_KEY, AZURE_OPENAI_API_KEY,
+#                                        AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_VERSION; made for this deployment, with limits set at the provider). Only what has no
+#                                        value yet, unless --force. Nothing is printed; Terraform never sees them. --keys: only the model keys, again from
+#                                        the file (a rotated key; --force would also change the databases' password, which they only take at first start).
+#   scripts/cloud publish                the Virtual Graph's model and jars into the bucket (what db-vg fetches at boot).
+#   scripts/cloud dump                   sweep memory (qlsc memory sweep: what the retention policy no longer keeps), then back up the semantic layer's and memory's
+#                                        databases from the local `qlsc-neo4j` (online: nothing stops) into the bucket, under a timestamp with `dump/LATEST` naming
+#                                        it: what the database machines restore at first boot.
+#   scripts/cloud image                  build the demo image for linux/amd64, push it to the project's Artifact Registry and write deploy/gcp/terraform/image.auto.tfvars.
+#                                        Needs examples/fennmoor-bank/build/hosted-work (generate/hosted_work.py). Registry sign-in uses a temporary Docker config.
+#
+# It uses your default gcloud credentials with the project named in terraform.tfvars passed explicitly; it never changes a gcloud configuration.
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TF="$ROOT/deploy/gcp/terraform"
+TFVARS="$TF/terraform.tfvars"
+die() { echo "cloud: $*" >&2; exit 1; }
+say() { echo "cloud: $*"; }
+
+tfvar() { sed -n "s/^$1[[:space:]]*=[[:space:]]*\"\(.*\)\".*/\1/p" "$TFVARS" 2>/dev/null | head -1; }
+PROJECT=$(tfvar project)
+[ -n "$PROJECT" ] || die "no project: copy deploy/gcp/terraform/terraform.tfvars.example to terraform.tfvars and fill it in"
+REGION=$(tfvar region); REGION=${REGION:-us-central1}
+ZONE=$(tfvar zone); ZONE=${ZONE:-us-central1-a}
+BUCKET="$PROJECT-qlsc-demo"
+STATE_BUCKET="$PROJECT-qlsc-tfstate"
+MACHINES="db-semantic db-memory db-vg"
+DATABASES="bigquery memory"   # the semantic layer's database and memory's (estate.yaml: neo4j.database, memory.database)
+WORK="${QLSC_WORK:-$ROOT/examples/fennmoor-bank/work}"
+
+# Not `... | grep -q`: under pipefail, grep exiting at its first match can kill the writer upstream (SIGPIPE) and the pipeline then reports failure for a match.
+has_value() { local v; v=$(gcloud secrets versions list "$1" --project="$PROJECT" --limit=1 --format='value(name)' 2>/dev/null || true); [ -n "$v" ]; }
+tf() { terraform -chdir="$TF" "$@"; }
+
+# ---------------------------------------------------------------- the steps
+
+# What Terraform itself needs before it can run: a bucket for its state, and the one API it asks the project about.
+bootstrap() {
+  gcloud storage buckets describe "gs://$STATE_BUCKET" --project="$PROJECT" >/dev/null 2>&1 || {
+    say "making the Terraform state bucket gs://$STATE_BUCKET"
+    gcloud storage buckets create "gs://$STATE_BUCKET" --project="$PROJECT" --location="$REGION" --uniform-bucket-level-access --public-access-prevention >/dev/null
+    gcloud storage buckets update "gs://$STATE_BUCKET" --project="$PROJECT" --versioning >/dev/null
+  }
+  gcloud services enable cloudresourcemanager.googleapis.com --project="$PROJECT"
+  tf init -input=false -backend-config="bucket=$STATE_BUCKET" >/dev/null
+}
+
+secrets() {
+  local force=${1:-} keyfile="$WORK/virtual/passthrough.key" name only_keys=""
+  [ "$force" = "--keys" ] && { only_keys=1; force=--force; }
+  if [ -z "$only_keys" ] && { [ "$force" = "--force" ] || ! has_value qlsc-demo-passthrough-key; }; then
+    [ -f "$keyfile" ] || die "no signing key at $keyfile (qlsc makes it: see docker/nvg/README.md)"
+    gcloud secrets versions add qlsc-demo-passthrough-key --data-file="$keyfile" --project="$PROJECT" >/dev/null
+    echo "qlsc-demo-passthrough-key: set"
+  else
+    echo "qlsc-demo-passthrough-key: already has a value"
+  fi
+  for name in qlsc-demo-neo4j-password qlsc-demo-keystore-password; do
+    [ -n "$only_keys" ] && break
+    if [ "$force" = "--force" ] || ! has_value "$name"; then
+      openssl rand -base64 24 | tr -d '/+=\n' | gcloud secrets versions add "$name" --data-file=- --project="$PROJECT" >/dev/null
+      echo "$name: set (made here; read it from Secret Manager when you need it)"
+    else
+      echo "$name: already has a value"
+    fi
+  done
+  # the deployment's own model keys: made for it, with limits at the provider, kept in an untracked file of its own (never the checkout's root .env)
+  local envfile="$ROOT/deploy/gcp/.env" pair var secret value
+  for pair in ANTHROPIC_API_KEY:qlsc-demo-anthropic-api-key AZURE_OPENAI_API_KEY:qlsc-demo-azure-openai-api-key \
+              AZURE_OPENAI_ENDPOINT:qlsc-demo-azure-openai-endpoint AZURE_OPENAI_API_VERSION:qlsc-demo-azure-openai-api-version; do
+    var=${pair%%:*}; secret=${pair##*:}
+    if [ "$force" = "--force" ] || ! has_value "$secret"; then
+      [ -f "$envfile" ] || die "no $envfile: it holds this deployment's own $var (and the other model keys), with limits set at the provider"
+      value=$(sed -n "s/^$var=//p" "$envfile" | head -1 | sed 's/^["'"'"']//; s/["'"'"']$//')
+      [ -n "$value" ] || die "$var is not in $envfile"
+      if [ "$var" = AZURE_OPENAI_ENDPOINT ] && ! [[ "$value" =~ ^https?://[^/]+/?$ ]]; then
+        die "AZURE_OPENAI_ENDPOINT in $envfile is the resource's address (https://<name>.openai.azure.com/), as in .env.example: not the portal's v1 URL"
+      fi
+      printf '%s' "$value" | gcloud secrets versions add "$secret" --data-file=- --project="$PROJECT" >/dev/null
+      echo "$secret: set (from deploy/gcp/.env)"
+    else
+      echo "$secret: already has a value"
+    fi
+  done
+}
+
+publish() {
+  local v="$WORK/virtual"
+  [ -f "$v/schema.json" ] || die "no virtual graph model in $v (qlsc virtualize)"
+  # the model, not its secrets: no credentials, keystore or signing key
+  gcloud storage cp "$v/MODEL.md" "$v/datasource.json" "$v/row_policies.json" "$v/schema.json" "$v/secret.json" "$v/views.sql" \
+    "gs://$BUCKET/vg/virtual/" --project="$PROJECT" >/dev/null
+  [ -f "$ROOT/vg-passthrough/target/qlsc-vg-passthrough.jar" ] || die "no pass-through jar (vg-passthrough/build.sh)"
+  gcloud storage cp "$ROOT/vg-passthrough/target/qlsc-vg-passthrough.jar" "$ROOT/docker/nvg/google-cloud-bigquery-jdbc-1.0.0-all.jar" \
+    "gs://$BUCKET/vg/lib/" --project="$PROJECT" >/dev/null
+  echo "published: the Virtual Graph's model and jars -> gs://$BUCKET/vg/"
+}
+
+dump() {
+  local stamp work db
+  stamp=$(date -u +%Y%m%dT%H%M%SZ)
+  work=$(mktemp -d)
+  docker exec qlsc-neo4j sh -c 'rm -rf /tmp/qlsc-dump && mkdir /tmp/qlsc-dump' || die "qlsc-neo4j is not running (scripts/stack up)"
+  # what the retention policy no longer keeps is not worth shipping (and a deployment sweeps it on arrival anyway)
+  (cd "$ROOT" && QLSC_CONFIG=examples/fennmoor-bank/estate.yaml uv run qlsc memory sweep | tail -1) || say "the sweep did not run: the dump is of memory as it is"
+  # an online backup: Enterprise's backup port, inside the container; the databases stay up
+  # shellcheck disable=SC2086
+  docker exec qlsc-neo4j neo4j-admin database backup --from=localhost:6362 --to-path=/tmp/qlsc-dump $DATABASES >/dev/null || die "the backup failed"
+  docker cp qlsc-neo4j:/tmp/qlsc-dump/. "$work"
+  docker exec qlsc-neo4j rm -rf /tmp/qlsc-dump
+  for db in $DATABASES; do
+    mkdir -p "$work/$db" && mv "$work/$db"-*.backup "$work/$db/"
+    gcloud storage cp "$work/$db"/*.backup "gs://$BUCKET/dump/$stamp/$db/" --project="$PROJECT" >/dev/null
+    echo "$db: $(du -h "$work/$db"/*.backup | cut -f1) -> gs://$BUCKET/dump/$stamp/$db/"
+  done
+  echo -n "$stamp" | gcloud storage cp - "gs://$BUCKET/dump/LATEST" --project="$PROJECT" >/dev/null
+  echo "dump/LATEST: $stamp"
+  rm -rf "$work"
+}
+
+image() {
+  local repo tag docker_config contact
+  repo="$REGION-docker.pkg.dev/$PROJECT/qlsc-demo/demo"
+  tag=$(date -u +%Y%m%d-%H%M%S)
+  [ -d "$ROOT/examples/fennmoor-bank/build/hosted-work" ] || die "no examples/fennmoor-bank/build/hosted-work: run examples/fennmoor-bank/generate/hosted_work.py"
+  contact=$(sed -n 's/^NEO4J_CONTACT_EMAIL=//p' "$ROOT/ui/.env.local" 2>/dev/null | head -1)
+  docker_config=$(mktemp -d)
+  printf '{"credHelpers": {"%s-docker.pkg.dev": "gcloud"}}\n' "$REGION" > "$docker_config/config.json"
+  docker build --platform linux/amd64 --build-arg NEO4J_CONTACT_EMAIL="$contact" -f "$ROOT/docker/demo/Dockerfile" -t "$repo:$tag" "$ROOT"
+  DOCKER_CONFIG="$docker_config" docker push "$repo:$tag"  # only the push signs in to the registry, with the temporary config
+  printf 'demo_image = "%s:%s"\n' "$repo" "$tag" > "$TF/image.auto.tfvars"
+  rm -rf "$docker_config"
+  echo "image: $repo:$tag  (deploy/gcp/terraform/image.auto.tfvars written)"
+}
+
+# ---------------------------------------------------------------- the commands
+
+# Resources made before the runtime was a module are at their old addresses until one full apply has moved them (a targeted operation refuses to run until then).
+legacy_state() { local l; l=$(tf state list 2>/dev/null || true); grep -q -E '^google_(compute_instance\.db|storage_bucket\.demo)' <<<"$l"; }
+
+# Is the image that image.auto.tfvars names in the registry? The file is only a note of what was pushed; after a destroy, or a registry made again, it can name nothing.
+image_present() {
+  local ref
+  ref=$(sed -n 's/^demo_image[[:space:]]*=[[:space:]]*"\(.*\)".*/\1/p' "$TF/image.auto.tfvars" 2>/dev/null | head -1)
+  [ -n "$ref" ] && gcloud artifacts docker images describe "$ref" --project="$PROJECT" >/dev/null 2>&1
+}
+
+demo_url() { tf output -raw url 2>/dev/null || true; }
+
+# Does the demo answer, end to end? The page's first query on each database it reads: the layer, memory, and the composite that reaches the machine with the warehouse.
+answers() {
+  local url
+  url=$(demo_url); [ -n "$url" ] || return 1
+  [ -f "$ROOT/ui/dist/presets.json" ] || (cd "$ROOT/ui" && npm run build >/dev/null) || return 1
+  python3 - "$url" "$ROOT/ui/dist/presets.json" <<'PY'
+import json, sys, urllib.request
+url, presets = sys.argv[1], json.load(open(sys.argv[2]))
+# the page's own first query on each: a server runs nothing else. Memory's takes a customer, which the page is given by the server.
+def post(path, body):
+    r = urllib.request.Request(url + path, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
+    return json.load(urllib.request.urlopen(r, timeout=90))
+try:
+    customer = post("/api/pick", {})["customer"]
+except Exception:
+    sys.exit(1)
+for target in ("layer", "memory", "composite"):
+    body = {"target": target, "query": presets["cypher"][target][0] + "\n", "customer": customer}
+    try:
+        post("/api/cypher", body)
+    except Exception:
+        sys.exit(1)
+PY
+}
+
+up() {
+  local yes="" force_image="" arg
+  for arg in "$@"; do
+    case "$arg" in --yes) yes="-auto-approve" ;; --image) force_image=1 ;; *) die "up: unknown option $arg" ;; esac
+  done
+  command -v terraform >/dev/null || die "terraform is not installed"
+  command -v docker >/dev/null || die "docker is not installed"
+  bootstrap
+
+  # 1. What the machines and the service need to be there first: the APIs, the bucket, the secrets' places, the registry.
+  if legacy_state; then
+    say "the state predates the runtime module: one full apply moves it (nothing is rebuilt)"
+    # shellcheck disable=SC2086
+    tf apply $yes
+  fi
+  say "the project's foundations (APIs, bucket, secrets, registry)"
+  # shellcheck disable=SC2086
+  tf apply $yes -target=google_project_service.apis -target=module.runtime.google_storage_bucket.demo \
+    -target=module.runtime.google_secret_manager_secret.demo -target=module.runtime.google_artifact_registry_repository.demo
+  secrets
+  publish
+  if ! gcloud storage ls "gs://$BUCKET/dump/LATEST" --project="$PROJECT" >/dev/null 2>&1; then
+    say "no dump in the bucket: taking one from the local databases"
+    dump
+  fi
+  if [ -n "$force_image" ] || ! image_present; then
+    say "building and pushing the demo image"
+    image
+  fi
+
+  # 2. Everything.
+  say "the machines and the service"
+  # shellcheck disable=SC2086
+  tf apply $yes
+  local m
+  for m in $MACHINES; do
+    [ "$(gcloud compute instances describe "$m" --zone="$ZONE" --project="$PROJECT" --format='value(status)' 2>/dev/null)" = "TERMINATED" ] && {
+      say "starting $m"
+      gcloud compute instances start "$m" --zone="$ZONE" --project="$PROJECT" >/dev/null
+    }
+  done
+
+  say "waiting for the demo to answer (a first boot takes about ten minutes: the machines install Docker and restore the data)"
+  local i
+  for i in $(seq 1 90); do
+    answers && { say "up: $(demo_url)"; return 0; }
+    sleep 20
+  done
+  die "the demo did not answer in 30 minutes: scripts/cloud status, and the machines' serial output (gcloud compute instances get-serial-port-output db-vg --zone $ZONE)"
+}
+
+down() {
+  local m
+  for m in $MACHINES; do
+    gcloud compute instances stop "$m" --zone="$ZONE" --project="$PROJECT" >/dev/null 2>&1 && say "stopped $m" || say "$m: not running"
+  done
+  say "down. The service scales to zero by itself; the disks stay. scripts/cloud up starts it again."
+}
+
+destroy() {
+  local everything=""
+  [ "${1:-}" = "--everything" ] && everything=1
+  if [ -n "$everything" ]; then
+    say "this removes EVERYTHING the demo made in $PROJECT, the network included, and then waits for Google to release Cloud Run's addresses in the subnet (up to three hours)"
+  else
+    say "this removes the machines, the service and the rest of what runs in $PROJECT, the databases on its disks included (up puts them back from this checkout). The network stays."
+  fi
+  read -r -p "type the project id to go on: " answer
+  [ "$answer" = "$PROJECT" ] || die "not confirmed"
+  bootstrap
+  legacy_state && die "the state predates the runtime module: run scripts/cloud up once first (it moves the state, and rebuilds nothing)"
+  rm -f "$TF/image.auto.tfvars"  # first, so that a destroy that stops half way does not leave a name for an image that is gone
+  # The typed project id above is the confirmation. Only module.runtime: the network and the APIs are not in it.
+  tf destroy -auto-approve -target=module.runtime
+  if [ -n "$everything" ]; then
+    # Cloud Run's network egress reserves address blocks in the subnet, which Google releases a long while after the service is gone: until then the subnet cannot be
+    # deleted. That is waited out, not failed.
+    local i
+    for i in $(seq 1 36); do
+      tf destroy -auto-approve && break
+      [ -n "$(gcloud compute addresses list --project="$PROJECT" --filter='purpose=SERVERLESS' --format='value(name)' 2>/dev/null)" ] || die "destroy failed"
+      say "Cloud Run's addresses are still reserved in the subnet: trying again in 5 minutes ($i of 36)"
+      sleep 300
+    done
+    say "everything is destroyed. The Terraform state bucket gs://$STATE_BUCKET is kept (it is how a next up knows what exists)."
+  else
+    say "destroyed what runs. The network stays (scripts/cloud destroy --everything removes it too). The Terraform state bucket gs://$STATE_BUCKET is kept."
+  fi
+}
+
+status() {
+  gcloud compute instances list --project="$PROJECT" --filter='labels.app=qlsc-demo' --format='table(name,status,networkInterfaces[0].networkIP)'
+  local url; url=$(demo_url)
+  if [ -n "$url" ]; then
+    echo "url: $url"
+    answers && echo "answers: yes (the layer, memory and the composite)" || echo "answers: no"
+  else
+    echo "no service"
+  fi
+}
+
+case "${1:-}" in
+  up) shift; up "$@" ;;
+  down) down ;;
+  destroy) shift; destroy "$@" ;;
+  status) status ;;
+  secrets) shift; secrets "$@" ;;
+  publish) publish ;;
+  dump) dump ;;
+  image) image ;;
+  *) sed -n '2,28p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 2 ;;
+esac

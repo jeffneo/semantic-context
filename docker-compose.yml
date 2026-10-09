@@ -11,7 +11,7 @@ services:
     container_name: qlsc-neo4j
     environment:
       NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?set NEO4J_PASSWORD in .env}
-      NEO4J_ACCEPT_LICENSE_AGREEMENT: "eval"
+      NEO4J_ACCEPT_LICENSE_AGREEMENT: ${NEO4J_ACCEPT_LICENSE_AGREEMENT:-eval}
       NEO4J_PLUGINS: '["apoc","graph-data-science"]'
       NEO4J_dbms_security_procedures_unrestricted: "apoc.*,gds.*"
       NEO4J_server_memory_heap_max__size: ${NEO4J_HEAP:-4G}
@@ -112,7 +112,7 @@ services:
     profiles: ["vg"]
     environment:
       NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?set NEO4J_PASSWORD in .env}
-      NEO4J_ACCEPT_LICENSE_AGREEMENT: "eval"
+      NEO4J_ACCEPT_LICENSE_AGREEMENT: ${NEO4J_ACCEPT_LICENSE_AGREEMENT:-eval}
       NEO4J_internal_virtual__graph_enabled: "true"
       NEO4J_internal_virtual__graph_home: /nvg_home
       # Virtual Graph builds each answer in the heap: 2G ran out on 2026-09-27 under three concurrent runs.
@@ -150,6 +150,35 @@ services:
       - ./docker/nvg/google-cloud-bigquery-jdbc-1.0.0-all.jar:/var/lib/neo4j/qlsc/google-cloud-bigquery-jdbc-1.0.0-all.jar
       - ./docker/tls/bolt:/ssl/bolt:ro
       - neo4j-vg-data:/data
+
+  # ---------------------------------------------------------------------------
+  # The hosted demo's image (docker/demo/Dockerfile) run beside the others, to try it before it is deployed (plans/2026-10-08-cloud-deploy.md): the page and its
+  # live panels on DEMO_PORT, answering only the page's own examples. Build the slice of work/ it carries first (examples/fennmoor-bank/generate/hosted_work.py),
+  # start the others (scripts/stack up), then: docker compose --profile demo up --build -d demo. It signs in to BigQuery as the service account VG_CREDENTIALS names.
+  # ---------------------------------------------------------------------------
+  demo:
+    build:
+      context: .
+      dockerfile: docker/demo/Dockerfile
+    image: qlsc-demo
+    container_name: qlsc-demo
+    profiles: ["demo"]
+    environment:
+      PORT: "8080"
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:?set NEO4J_PASSWORD in .env}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY:-}
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-}
+      AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION:-}
+      QLSC_OVERRIDES: /app/overrides.yaml
+      QLSC_GCP_PROJECT: ${QLSC_GCP_PROJECT:?set QLSC_GCP_PROJECT in .env}
+      GOOGLE_APPLICATION_CREDENTIALS: /credentials.json
+    ports:
+      - "${DEMO_PORT:-8081}:8080"
+    volumes:
+      - ./docker/demo/overrides.compose.yaml:/app/overrides.yaml:ro
+      - ${VG_CREDENTIALS:?set VG_CREDENTIALS in .env}:/credentials.json:ro
+      - ${QLSC_WORK:-./examples/fennmoor-bank/work}/virtual/passthrough.key:/secrets/passthrough/passthrough.key:ro
 
 volumes:
   neo4j-data:

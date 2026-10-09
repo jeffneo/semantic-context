@@ -1,0 +1,4 @@
+# Where this repository's compose services are, for the demo container to reach them (docker compose --profile demo up): QLSC_OVERRIDES, merged over the estate's file.
+neo4j: {uri: "bolt://neo4j:7687"}                               # the semantic layer, and memory beside it
+virtualize: {neo4j: {uri: "bolt://neo4j-vg:7687"}}              # Virtual Graph, and the composite
+warehouse: {identity: ambient}                                   # the service account the container's credentials file names
